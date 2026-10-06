@@ -95,15 +95,14 @@ function authPage(ctx, mode) {
   const google = (x, y, w, h, fs, d) => `<button type="button" id="google" class="at dz-btn rise" ${P(x, y, w, h, `${FS(fs)}font-weight:500;border:1px solid #cfd8d3;border-radius:calc(8 * var(--u));${D(d)}`)}>${GOOGLE.replace('class="gicon"', `style="width:calc(${fs + 6} * var(--u));height:calc(${fs + 6} * var(--u))"`)} Continue with Google</button>`;
   let html;
   if (!login) html = `<div class="dz-page"><div class="frame">
-    ${dzLogo(141, 18, 42, 27.5)}
-    <a class="at dz-navbtn edge-tr fade" href="#/login" ${P(1433, 18, 100, 42, D(.3))}>Sign in</a>
-    <div class="at dz-bgimg edge-l reveal" ${P(0, 76, 936, 865, `background-image:url(img/signup-hero.webp);--W:936;`)}></div>
-    <div class="at dz-overlay-title rise" ${P(70, 743, 560, null, `${FS(52, 52)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
-    <div class="at fade m-hide" ${P(73, 877, 60, 2, `background:#fff;${D(.9)}`)}></div>
-    <div class="at dz-card fade" ${P(943, 77, 694, 852, D(.1))}></div>
-    <form id="f" novalidate>
-    <h1 class="at rise" ${P(943, 134, 694, null, `text-align:center;${FS(41, 56)}letter-spacing:-.036em;${D(.25)}`)}>Find your place with Faxton</h1>
-    <p class="at rise" ${P(943, 193, 694, null, `text-align:center;${FS(22)}color:#68746f;${D(.3)}`)}>Create an account to get started.</p>
+    ${dzLogo(108, 31, 45, 29.5)}
+    <div class="at dz-bgimg edge-l reveal" ${P(0, 0, 916, 941, `background-image:url(img/signup-hero.webp);--W:916;`)}></div>
+    <div class="at dz-overlay-title rise" ${P(87, 765, 600, null, `${FS(52, 52)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
+    <div class="at fade m-hide" ${P(88, 888, 57, 3, `background:#34d399;${D(.9)}`)}></div>
+    <div class="at dz-card edge-r fade" ${P(916, 0, 756, 941, `border-radius:0;--W:756;${D(.1)}`)}></div>
+    <form id="f" class="at" novalidate ${P(0, -38, 1672, 941)}>
+    <h1 class="at rise" ${P(916, 134, 756, null, `text-align:center;${FS(41, 56)}letter-spacing:-.036em;${D(.25)}`)}>Find your place with Faxton</h1>
+    <p class="at rise" ${P(916, 193, 756, null, `text-align:center;${FS(22)}color:#68746f;${D(.3)}`)}>Create an account to get started.</p>
     <div class="at dz-role rise" role="tablist" ${P(1021, 257, 546, 49, D(.35))}><button type="button" class="on" data-role="renter">I’m renting</button><button type="button" data-role="agent">I’m listing a home</button></div>
     <div class="at dz-label rise" ${P(1021, 328, null, null, `${FS(16)}${D(.4)}`)}>Full name</div>${field("name", 1021, 358, 546, 49, 17, "user", "Your full name", "text", 'autocomplete="name"', .4)}
     <div class="at dz-label rise" ${P(1021, 426, null, null, `${FS(16)}${D(.45)}`)}>Email address</div>${field("email", 1021, 456, 546, 49, 17, "mail", "you@example.com", "email", 'autocomplete="email"', .45)}
@@ -113,8 +112,8 @@ function authPage(ctx, mode) {
     <button class="at dz-btn primary rise" type="submit" ${P(1021, 698, 546, 50, `${FS(19)}--rad:8;${D(.6)}`)}>Create account ${icon("arrow", 22)}</button>
     <div class="at dz-sep fade" ${P(1021, 760, 546, 24, `${FS(17)}${D(.65)}`)}>or</div>
     ${google(1021, 796, 546, 50, 19, .65)}
-    </form>
     <p class="at fade" ${P(1021, 871, 546, null, `text-align:center;${FS(16)}color:#5f6b66;${D(.7)}`)}>Already have an account? <a class="dz-link" href="#/login">Sign in</a></p>
+    </form>
   </div></div>`;
   else html = `<div class="dz-page"><div class="frame">
     <div class="at dz-bgimg edge-l reveal" ${P(0, 0, 883, 941, `background-image:url(img/login-hero.webp);--W:883;`)}></div>
