@@ -3,7 +3,9 @@
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
-      { "source": "**/*.@(js|css|webp|svg)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }] }
+      { "source": "**/*.@(webp|svg)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }] },
+      { "source": "**/*.@(js|css)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
     ]
-  }
+  },
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" }
 }

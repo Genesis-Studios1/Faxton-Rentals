@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
+    function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role in ['renter', 'agent'];
+      allow update: if signedIn() && request.auth.uid == uid && request.resource.data.role == resource.data.role;
+    }
+    match /listings/{id} {
+      allow read: if resource.data.status == 'active' || isAdmin();
+      allow write: if isAdmin();
+    }
+    match /viewings/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if owns() || isAdmin();
+      allow update: if isAdmin();
+    }
+    match /applications/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if owns() || isAdmin();
+      allow update: if isAdmin();
+    }
+    match /conversations/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update: if owns() || isAdmin();
+      match /messages/{mid} {
+        allow read: if signedIn() && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin());
+        allow create: if signedIn() && request.resource.data.from == request.auth.uid
+          && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin());
+      }
+    }
+  }
+}
