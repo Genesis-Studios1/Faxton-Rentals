@@ -32,7 +32,7 @@ export const go = (h) => { if (location.hash === h) render(); else location.hash
 const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?"); return { path: p.replace(/\/+$/, "") || "/", q: Object.fromEntries(new URLSearchParams(q || "")) }; };
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
-const TOPNAV = [["/", "Discover"], ["/saved", "Saved homes"], ["/bookings", "My rentals"], ["/messages", "Messages"]];
+const TOPNAV = [["/", "Home"], ["/search", "Find a home"], ["/saved", "Saved homes"], ["/messages", "Messages"], ["/bookings", "My rentals"]];
 const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Rental applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/reports", "chart", "Reports"], ["/admin/support", "headset", "Support"], ["/settings", "gear", "Settings"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
@@ -52,20 +52,19 @@ function adminShell(path, inner, pending) {
       <nav>${items}</nav><div class="rail-bottom"><a class="rail-user" href="#/settings"><span class="avatar">${esc(initials(userName()))}</span><span>${esc(userName())}</span></a></div></aside>
     <main class="main page" id="main">${topbar(true)}${verifyBanner()}${inner}</main></div>`;
 }
-// The site's menu: a slim sidebar that is always minimised (logo + icons) and grows when the pointer is over it.
+// The site's navigation: a top bar with the logo at the left, the page tabs, the bell and the account menu.
 function appShell(path, inner) {
-  const on = (h) => (h === "/" ? path === "/" : path === h || path.startsWith(h + "/") || (h === "/search" && path.startsWith("/home/")));
-  const items = NAV.map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""} aria-label="${l}">${icon(ic, 24)}<span>${l}</span>${l === "Messages" ? `<b class="badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
-  const first = userName().replace(/(\S+)\s+(\S).*/, "$1 $2.");
+  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/bookings" ? path === "/bookings" || path === "/payments" : path === h || path.startsWith(h + "/"));
+  const links = TOPNAV.map(([h, l]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${l}${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
+  const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
+      <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
+      <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/bookings">${icon("cal", 18)} Bookings</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a>
+      ${S.isAdmin ? `<a role="menuitem" href="#/admin">${icon("building", 18)} Admin console</a>` : ""}<button role="menuitem" id="logoutBtn">${icon("logout", 18)} Sign out</button></div></div>`;
   const body = WRAPPED.includes(path) || isSettings(path) ? `<div class="wrap">${inner}</div>` : inner;
-  return `<div class="app-shell">
-    <aside class="rail app-rail" aria-label="Main navigation">
-      <div class="rail-top"><a class="logo" href="#/" aria-label="Faxton Rentals home">${logo().match(/<svg.*<\/svg>/s)[0]}</a><span class="rail-chev" aria-hidden="true">${icon("dchev", 22)}</span></div>
-      <nav>${items}</nav>
-      <div class="rail-bottom"><a class="item ${on("/settings") ? "on" : ""}" href="#/settings" aria-label="Settings">${icon("gear", 24)}<span>Settings</span></a>
-        <a class="rail-user" href="#/settings" aria-label="Account: ${esc(userName())}">${avatarHtml()}<span>${esc(first)}</span></a></div>
-    </aside>
-    <main class="main-app page" id="main">${verifyBanner()}${path === "/" || path === "/messages" || path.startsWith("/messages/") ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`}${body}</main></div>`;
+  const back = path === "/" || path === "/messages" || path.startsWith("/messages/") ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
+  return `<header class="topnav"><div class="tn-in">${logo()}<nav class="tn-links" aria-label="Main">${links}</nav>
+    <div class="tn-right"><a class="icon-btn bell ${S.unread ? "dot" : ""}" id="bell" href="#/messages" aria-label="Messages and notifications">${icon("bell", 22)}</a>${menu}</div></div></header>
+    <main class="main-top page" id="main">${verifyBanner()}${back}${body}</main>`;
 }
 function topbar() {
   return `<div class="admin-top"><label class="input">${icon("search", 20)}<input type="search" placeholder="Search properties, users, applications…" aria-label="Search"></label><span style="flex:1"></span>${themeBtn()}<a class="icon-btn ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 20)}</a><span class="me"><span class="avatar">${esc(initials(userName()))}</span><span style="line-height:1.2"><b style="color:var(--head)">${esc(userName().split(" ")[0])}</b><br><small class="muted">${S.isOwner ? "Owner" : "Admin"}</small></span></span></div>`;
@@ -164,6 +163,7 @@ async function refreshAuthState(u) {
   if (u) S.unsubConvs = watchConversations(u, (c) => {
     const n = c.filter((x) => x.unread).length; if (n === S.unread) return; S.unread = n;
     $$("[data-unread]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
+    $$("#bell").forEach((b) => b.classList.toggle("dot", n > 0));
   });
 }
 onAuthStateChanged(auth, async (u) => { await refreshAuthState(u); S.ready = true; render(); });
