@@ -171,7 +171,7 @@ html:not(.ready) .rise,html:not(.ready) .reveal,html:not(.ready) .fade{animation
 /* ============ top navigation (Discover / Search / Home detail) ============ */
 .wrap{width:min(1496px,100% - 2 * clamp(16px,5.2vw,88px));margin-inline:auto}
 .topnav{position:sticky;top:0;z-index:40;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:saturate(1.4) blur(12px);border-bottom:1px solid var(--border)}
-.tn-in{width:min(1496px,100% - 2 * clamp(16px,5.2vw,88px));margin-inline:auto;height:66px;display:flex;align-items:center;gap:clamp(20px,4vw,64px)}
+.tn-in{width:100%;padding-inline:clamp(16px,2vw,32px);height:66px;display:flex;align-items:center;gap:clamp(20px,4vw,64px)}
 .tn-in .logo{font-size:1.45rem}.tn-in .logo-svg{height:36px}
 .tn-links{display:flex;gap:clamp(18px,3vw,48px);align-self:stretch;margin-left:clamp(0px,6vw,110px)}
 .tn-links a{position:relative;display:flex;align-items:center;font-weight:500;color:var(--text);padding:0 2px;transition:color .2s}
@@ -274,3 +274,25 @@ dialog.modal[open]{animation:modalIn .4s cubic-bezier(.2,.8,.2,1)}dialog.modal[o
 
 html,body{overflow-x:clip}
 html:not(.ready){overflow:hidden}
+
+/* ============ constant header + home-only sidebar ============ */
+.home-grid{display:grid;grid-template-columns:var(--rail) minmax(0,1fr);align-items:start}.home-grid.collapsed{--rail:72px}
+.home-rail{position:sticky;top:66px;height:calc(100vh - 66px);padding-top:14px}
+.home-rail .rail-top{padding:0 8px 14px;justify-content:flex-end}.home-grid.collapsed .rail-top{justify-content:center}
+.home-grid.collapsed .item span,.home-grid.collapsed .rail-user span{display:none}.home-grid.collapsed .rail a.item{justify-items:center;padding-inline:0}.home-grid.collapsed .rail-collapse svg{transform:rotate(180deg)}
+.home-grid>.main-top{min-width:0}
+.tn-in .logo{flex:none}
+.main-top .msg-shell{margin:0;height:calc(100vh - 66px)}.main-top .chat{height:calc(100vh - 66px)}.main-top:has(.msg-shell){padding-bottom:0}
+.main-top>.wrap{padding-top:26px}
+
+/* ============ product tour ============ */
+.tour{position:fixed;inset:0;z-index:1500;opacity:0;transition:opacity .35s}.tour.on{opacity:1}.tour.out{opacity:0}
+.tour-spot{position:fixed;box-shadow:0 0 0 100vmax rgba(5,28,21,.62),0 0 0 3px rgba(52,211,153,.9),0 0 32px 4px rgba(52,211,153,.45);transition:top .5s cubic-bezier(.2,.8,.2,1),left .5s cubic-bezier(.2,.8,.2,1),width .5s cubic-bezier(.2,.8,.2,1),height .5s cubic-bezier(.2,.8,.2,1);pointer-events:none;animation:tourPulse 2.2s ease-in-out infinite}
+.tour-card{position:fixed;background:var(--card);color:var(--text);border-radius:18px;padding:20px 22px;box-shadow:0 24px 60px -12px rgba(0,0,0,.5);transition:top .5s cubic-bezier(.2,.8,.2,1),left .5s cubic-bezier(.2,.8,.2,1)}
+.tour-card.in .tour-t,.tour-card.in .tour-b{animation:pageIn .45s both}.tour-card.in .tour-b{animation-delay:.07s}
+.tour-step{font-size:.78rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--brand)}.tour-t{font-size:1.35rem;margin:6px 0}.tour-b{color:var(--muted);line-height:1.5}
+.tour-dots{display:flex;gap:6px;margin:14px 0}.tour-dots i{width:8px;height:8px;border-radius:99px;background:var(--border);transition:width .3s,background .3s}.tour-dots i.on{width:24px;background:var(--brand)}
+.tour-actions{display:flex;gap:8px;align-items:center}.btn.ghost{border-color:transparent;background:none;color:var(--muted)}.btn.ghost:hover{background:var(--soft);box-shadow:none}
+@keyframes tourPulse{0%,100%{box-shadow:0 0 0 100vmax rgba(5,28,21,.62),0 0 0 3px rgba(52,211,153,.9),0 0 22px 2px rgba(52,211,153,.35)}50%{box-shadow:0 0 0 100vmax rgba(5,28,21,.62),0 0 0 3px rgba(52,211,153,1),0 0 40px 8px rgba(52,211,153,.55)}}
+@media (max-width:860px){.home-grid{grid-template-columns:1fr}.home-rail{position:fixed;top:auto;bottom:0;height:auto}.tn-links{display:flex}}
+@media (prefers-reduced-motion:reduce){.tour-spot{animation:none}.tour,.tour-spot,.tour-card{transition:none}}
