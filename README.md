@@ -14,10 +14,21 @@ message agents, and an admin console. Light and dark mode. Plain HTML/CSS/JS (ES
 | **admin** | Approve listings, manage applications and viewings |
 | **agent / renter** | Normal use |
 
-The owner is **isaacij6yes@gmail.com**. The first *verified* sign-in with that email claims ownership
-(email + password users must click the verification link first; Google sign-in is already verified).
-This is enforced in `firestore.rules`, not just in the browser. The owner can later transfer ownership from
+The owner's email is **not stored in this repository**. It lives in a private Firestore document (`config/bootstrap`,
+unreadable from the app) that you create once in the Firebase console (see *Set the owner* below). The first *verified*
+sign-in with that email claims ownership (email + password users must click the verification link first; Google sign-in is
+already verified). This is enforced in `firestore.rules`, not just in the browser. The owner can later transfer ownership from
 **Admin → Users → Make owner** (the previous owner becomes an admin).
+
+## Set the owner (once, in the Firebase console)
+Firestore Database → Start collection → ID `config` → Document ID `bootstrap` → field `ownerEmail` (string) = the owner's email.
+Then sign in with that email (verified) and the app makes that account the owner.
+
+## Security
+- Strict security headers and a Content-Security-Policy are set in `firebase.json`.
+- Firestore rules are deny-by-default; users only read their own data; roles can only be changed by the owner.
+- The Firebase *web config* in `public/js/firebase.js` is public by design (every web app ships it). It is not a secret —
+  access is controlled by the rules above, not by hiding it. Never commit service-account keys or `.env` files.
 
 ## Run locally
 Windows: double-click **run-locally.bat**. Mac/Linux: `./run-locally.sh`. Or: `npx serve public` and open http://localhost:3000
@@ -40,12 +51,11 @@ In the Firebase console (project **faxton-rentals**):
 2. Authentication → Settings → Authorized domains → make sure `faxton-rentals.web.app` and `faxton-rentals.firebaseapp.com` are listed (add your custom domain later).
 3. Build → Firestore Database → Create database (production mode).
 
-## Deploy
+## Deploy (Windows cmd or PowerShell)
 ```bash
-firebase deploy                                   # hosting + firestore rules
-# or individually
-firebase deploy --only firestore:rules
-firebase deploy --only hosting
+npm install -g firebase-tools
+firebase login
+firebase use faxton-rentals
+firebase deploy
 ```
-Live at https://faxton-rentals.web.app. Pushes to `main` also deploy automatically if the GitHub repo has a
-`FIREBASE_SERVICE_ACCOUNT` secret (generate it with `firebase init hosting:github`).
+Run `firebase deploy` again every time you change the app. Live at https://faxton-rentals.web.app.
