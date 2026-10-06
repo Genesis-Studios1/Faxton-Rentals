@@ -13,9 +13,9 @@ export function startTour(user, firstName = "") {
     { t: `Welcome${firstName ? ", " + esc(firstName) : ""}!`, b: "Take a 30-second tour of Faxton Rentals. You can skip it any time." },
     { sel: "#sb", t: "Search for homes", b: "Choose a location, property type and budget, then tap <b>Search homes</b>." },
     { sel: ".cards .card", t: "Browse and save", b: "Hover a home for a quick preview. Tap the heart to save it, or open it for photos, prices and to book a viewing." },
-    { sel: ".home-rail nav", t: "Your shortcuts", b: "Jump to Search, Saved homes, Messages, Bookings and Payments from here." },
-    { sel: "#bell", t: "Messages and updates", b: "A dot shows when an agent replies. Chat with agents before you visit." },
-    { sel: "#meBtn", t: "Your account", b: "Settings, bookings, payments, dark mode and sign out live in this menu." },
+    { sel: ".app-rail nav", rail: 1, t: "Your menu", b: "This slim menu is on every page. <b>Hover over it</b> to open it, then jump to Search, Saved, Messages, Bookings or Payments." },
+    { sel: ".app-rail a[href='#/messages']", rail: 1, t: "Messages", b: "A badge appears when an agent replies. Chat with agents before you visit." },
+    { sel: ".app-rail .rail-user", rail: 1, t: "Your account", b: "Open Settings for your profile, dark mode, the tour and sign out." },
     { t: "You’re all set", b: "Find a home you love, book a viewing and apply to rent — all in one place." },
   ];
   const steps = all.filter((s) => !s.sel || $(s.sel)?.offsetParent);
@@ -49,9 +49,10 @@ export function startTour(user, firstName = "") {
     $("[data-next]", root).textContent = i === steps.length - 1 ? "Get started" : "Next";
     card.classList.remove("in"); void card.offsetWidth; card.classList.add("in");
     if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    document.body.classList.toggle("tour-rail", !!s.rail);
     place(); setTimeout(place, 350); setTimeout(place, 700);
   };
-  const close = () => { done(user); running = false; root.classList.add("out"); removeEventListener("resize", place); removeEventListener("keydown", key2); setTimeout(() => root.remove(), 350); };
+  const close = () => { done(user); running = false; document.body.classList.remove("tour-rail"); root.classList.add("out"); removeEventListener("resize", place); removeEventListener("keydown", key2); setTimeout(() => root.remove(), 350); };
   const key2 = (e) => { if (e.key === "Escape") close(); if (e.key === "ArrowRight") next(); if (e.key === "ArrowLeft") back(); };
   const next = () => (i < steps.length - 1 ? (i++, show()) : close()), back = () => { if (i) { i--; show(); } };
   $("[data-next]", root).onclick = next; $("[data-back]", root).onclick = back; $("[data-skip]", root).onclick = close;

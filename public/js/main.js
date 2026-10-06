@@ -31,7 +31,7 @@ const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; }
 const WRAPPED = ["/saved", "/bookings", "/payments", "/settings"];
 
 function shell(path, inner, { admin = false, pending = 0 } = {}) {
-  return admin ? adminShell(path, inner, pending) : topShell(path, inner);
+  return admin ? adminShell(path, inner, pending) : appShell(path, inner);
 }
 // Admin console keeps its own labelled sidebar (logo top-left).
 function adminShell(path, inner, pending) {
@@ -42,24 +42,20 @@ function adminShell(path, inner, pending) {
       <nav>${items}</nav><div class="rail-bottom"><a class="rail-user" href="#/settings"><span class="avatar">${esc(initials(userName()))}</span><span>${esc(userName())}</span></a></div></aside>
     <main class="main page" id="main">${topbar(true)}${verifyBanner()}${inner}</main></div>`;
 }
-// Every other page: a constant top header with the logo at the top left. The icon sidebar appears on the home page only.
-function topShell(path, inner) {
-  const home = path === "/";
-  const on = (h) => (h === "/" ? path === "/" || path === "/search" || path.startsWith("/home/") : path === h);
-  const links = home ? "" : `<nav class="tn-links" aria-label="Main">${TOPNAV.map(([h, l]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
-  const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu"><span class="avatar">${esc(initials(userName()))}</span>${icon("chev", 18)}</button>
-      <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
-      <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/bookings">${icon("cal", 18)} Bookings</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a>
-      ${S.isAdmin ? `<a role="menuitem" href="#/admin">${icon("building", 18)} Admin console</a>` : ""}<button role="menuitem" id="logoutBtn">${icon("logout", 18)} Sign out</button></div></div>`;
-  const header = `<header class="topnav"><div class="tn-in">${logo()}${links}
-    <div class="tn-right">${themeBtn()}<a class="icon-btn ${S.unread ? "dot" : ""}" id="bell" href="#/messages" aria-label="Messages and notifications">${icon("bell", 20)}</a>${menu}</div></div></header>`;
+// The site's menu: a slim sidebar that is always minimised (logo + icons) and grows when the pointer is over it.
+function appShell(path, inner) {
+  const on = (h) => (h === "/" ? path === "/" : path === h || path.startsWith(h + "/") || (h === "/search" && path.startsWith("/home/")));
+  const items = NAV.map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""} aria-label="${l}">${icon(ic, 24)}<span>${l}</span>${l === "Messages" ? `<b class="badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
+  const first = userName().replace(/(\S+)\s+(\S).*/, "$1 $2.");
   const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
-  if (!home) return `${header}<main class="main-top page" id="main">${verifyBanner()}${body}</main>`;
-  const items = NAV.map(([h, ic, l]) => `<a class="item ${h === "/" ? "on" : ""}" href="#${h}" ${h === "/" ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Messages" && S.unread ? `<b class="badge" data-unread>${S.unread}</b>` : ""}</a>`).join("");
-  return `${header}<div class="home-grid shell-grid ${isCollapsed() ? "collapsed" : ""}">
-    <aside class="rail home-rail" aria-label="Main navigation"><div class="rail-top"><button class="rail-collapse" id="collapse" aria-label="Collapse sidebar">${icon("dchev", 22)}</button></div><nav>${items}</nav>
-      <div class="rail-bottom"><a class="item" href="#/settings">${icon("gear", 24)}<span>Settings</span></a><a class="rail-user" href="#/settings"><span class="avatar">${esc(initials(userName()))}</span><span>${esc(userName().replace(/(\S+)\s+(\S).*/, "$1 $2."))}</span></a></div></aside>
-    <main class="main-top page" id="main">${verifyBanner()}${inner}</main></div>`;
+  return `<div class="app-shell">
+    <aside class="rail app-rail" aria-label="Main navigation">
+      <div class="rail-top"><a class="logo" href="#/" aria-label="Faxton Rentals home">${logo().match(/<svg.*<\/svg>/s)[0]}</a><span class="rail-chev" aria-hidden="true">${icon("dchev", 22)}</span></div>
+      <nav>${items}</nav>
+      <div class="rail-bottom"><a class="item ${on("/settings") ? "on" : ""}" href="#/settings" aria-label="Settings">${icon("gear", 24)}<span>Settings</span></a>
+        <a class="rail-user" href="#/settings" aria-label="Account: ${esc(userName())}"><span class="avatar">${esc(initials(userName()))}</span><span>${esc(first)}</span></a></div>
+    </aside>
+    <main class="main-app page" id="main">${verifyBanner()}${body}</main></div>`;
 }
 function topbar() {
   return `<div class="admin-top"><label class="input">${icon("search", 20)}<input type="search" placeholder="Search properties, users, applications…" aria-label="Search"></label><span style="flex:1"></span>${themeBtn()}<a class="icon-btn ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 20)}</a><span class="me"><span class="avatar">${esc(initials(userName()))}</span><span style="line-height:1.2"><b style="color:var(--head)">${esc(userName().split(" ")[0])}</b><br><small class="muted">${S.isOwner ? "Owner" : "Admin"}</small></span></span></div>`;
@@ -155,8 +151,7 @@ async function refreshAuthState(u) {
   S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0;
   if (u) S.unsubConvs = watchConversations(u, (c) => {
     const n = c.filter((x) => x.unread).length; if (n === S.unread) return; S.unread = n;
-    $$("#bell,.topbar .icon-btn[href='#/messages']").forEach((b) => b.classList.toggle("dot", n > 0));
-    $$("[data-unread]").forEach((b) => (b.textContent = n));
+    $$("[data-unread]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
   });
 }
 onAuthStateChanged(auth, async (u) => { await refreshAuthState(u); S.ready = true; render(); });
