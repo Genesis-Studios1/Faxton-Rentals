@@ -76,6 +76,8 @@ export async function transferOwnership(fromUid, toUid) {
 
 // ---- admin ----
 export async function adminAll(col) { try { return (await getDocs(collection(db, col))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; } }
+export const patch = (col, id, data) => { cache = null; return updateDoc(doc(db, col, id), data); };
+export const createListing = (l) => { cache = null; return setDoc(doc(db, "listings", l.id), { ...l, createdAt: serverTimestamp() }); };
 export const setStatus = (col, id, status) => updateDoc(doc(db, col, id), { status });
 export async function seedListings() {
   const b = writeBatch(db);

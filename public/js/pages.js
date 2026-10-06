@@ -358,3 +358,18 @@ export async function helpPage(ctx) {
       draw();
     } };
 }
+
+// ---------- Forgot password / check your email ----------
+export function forgotPage(ctx) {
+  const pre = ctx.q.email || "", sent = ctx.q.sent === "1";
+  const left = sent
+    ? `<span class="fg-ic">${icon("mail", 30)}</span><h1>Check your email</h1><p class="fg-sub">We’ve sent a password reset link to</p><p class="fg-em">${esc(pre)}</p><p class="fg-sub">Open the email and tap the link to choose a new password. It can take a minute to arrive, so check your spam folder too.</p><div class="fg-actions"><button class="btn" id="fg-resend" type="button">Resend email</button><a class="btn primary" href="#/login">Back to sign in</a></div><p class="fg-err" id="fg-err" role="alert"></p>`
+    : `<span class="fg-ic">${icon("lock", 30)}</span><h1>Forgot your password?</h1><p class="fg-sub">No worries. Enter the email linked to your account and we’ll send you a link to reset it.</p><form id="fg" novalidate><div class="field"><label for="fge">Email address</label><input id="fge" name="email" type="email" autocomplete="email" inputmode="email" placeholder="Enter your email address" value="${esc(pre)}" required></div><p class="fg-err" id="fg-err" role="alert"></p><button class="btn primary wide" type="submit">Send reset link</button></form><a class="fg-back" href="#/login">${icon("left", 18)} Back to sign in</a>`;
+  const html = `<main class="fg-page"><a class="fg-logo" href="#/" aria-label="Faxton Rentals"><span class="logo-word"><b>Faxton</b> Rentals</span></a><div class="fg-card"><section class="fg-form">${left}</section><div class="fg-photo" role="img" aria-label="A welcoming front door"></div></div></main>`;
+  return { title: "Reset password", full: true, html, mount(root) {
+    const err = $("#fg-err", root), send = async (em, btn) => { err.textContent = ""; btn.disabled = true; try { await ctx.resetPassword(em); return true; } catch (e) { err.textContent = friendlyErr(e); return false; } finally { btn.disabled = false; } };
+    const f = $("#fg", root);
+    if (f) f.onsubmit = async (e) => { e.preventDefault(); const em = $("#fge", root).value.trim(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return (err.textContent = "Enter a valid email address."); if (await send(em, f.querySelector("button"))) ctx.go("#/forgot?sent=1&email=" + encodeURIComponent(em)); };
+    const r = $("#fg-resend", root); if (r) r.onclick = async () => { if (await send(pre, r)) toast("Reset email sent again."); };
+  } };
+}
