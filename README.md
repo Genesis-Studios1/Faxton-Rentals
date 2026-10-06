@@ -60,3 +60,9 @@ npm run update
 ```
 That pulls the latest code from GitHub and deploys it. To deploy without pulling: `npm run deploy`.
 Then open https://faxton-rentals.web.app and press **Ctrl + Shift + R** (hard refresh).
+
+## Troubleshooting deploys
+- **"resolving hosting target of a site with no site name"**: the project has no Hosting site yet. Run `npm run setup:site`
+  (or Firebase console → Build → Hosting → Get started). If the name `faxton-rentals` is taken, pick another and put it in
+  `firebase.json` as `"site": "<name>"`. `npm run sites` lists your sites.
+- **Firestore error on deploy**: create the database first (console → Firestore Database), or run `npm run deploy:hosting`.

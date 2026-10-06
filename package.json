@@ -6,6 +6,10 @@
   "scripts": {
     "start": "npx --yes serve public -l 3000",
     "deploy": "npx --yes firebase-tools deploy --project faxton-rentals",
-    "update": "git pull origin main && npm run deploy"
+    "update": "git pull origin main && npm run deploy",
+    "setup:site": "npx --yes firebase-tools hosting:sites:create faxton-rentals --project faxton-rentals",
+    "sites": "npx --yes firebase-tools hosting:sites:list --project faxton-rentals",
+    "deploy:hosting": "npx --yes firebase-tools deploy --only hosting --project faxton-rentals",
+    "deploy:rules": "npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals"
   }
 }
