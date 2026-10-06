@@ -3,6 +3,7 @@ import { updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal, friendlyErr, BUILD } from "./ui.js";
 import * as st from "./store.js";
 import * as PG from "./pages.js";
+import * as A2 from "./admin2.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
@@ -48,6 +49,7 @@ export async function route(ctx) {
   if ((m = path.match(/^\/onboarding\/([123])$/))) return onboarding(ctx, +m[1]);
   if (path === "/login") return authPage(ctx, "login");
   if (path === "/signup") return authPage(ctx, "signup");
+  if (path === "/forgot") return PG.forgotPage(ctx);
   if (path === "/") return discover(ctx);
   if (path === "/search") return search(ctx);
   if ((m = path.match(/^\/home\/([^/]+)$/))) return detail(ctx, decodeURIComponent(m[1]));
@@ -180,7 +182,7 @@ function authPage(ctx, mode) {
         run(() => ctx.signUp(v.name.trim(), v.email, v.password, role), btn);
       };
       $("#google").onclick = (e) => run(ctx.signInGoogle, e.currentTarget);
-      const f = $("#forgot"); if (f) f.onclick = async (e) => { e.preventDefault(); const em = $("#email").value; if (!em) return say("Enter your email above first."); try { await ctx.resetPassword(em); toast("Password reset email sent."); } catch (x) { say(friendlyErr(x)); } };
+      const f = $("#forgot"); if (f) f.onclick = (e) => { e.preventDefault(); const em = ($("#email")?.value || "").trim(); ctx.go("#/forgot" + (em ? "?email=" + encodeURIComponent(em) : "")); };
     } };
 }
 
@@ -430,6 +432,7 @@ async function admin(ctx, sub) {
   const th = (x) => `<img class="th" src="${esc(x.images?.[0] || x.image || "img/palm-court.webp")}" alt="">`;
   const table = (head, rows) => `<div class="tbl-wrap"><table><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">Nothing here yet.</td></tr>`}</tbody></table></div>`;
   const lrow = (l) => `<tr><td><div class="cell">${th(l)}<div><b>${esc(l.title)}</b><small>${esc(l.area)}, ${esc(l.city)}</small></div></div></td><td><div class="cell"><img class="avatar" src="${esc(l.agent?.avatar || "")}" alt="">${esc(l.agent?.name || "")}</div></td><td>${statusPill(l.status === "pending" ? "Pending Review" : l.status === "flagged" ? "Flagged Review" : l.status)}</td><td><button class="btn primary sm" data-review="${esc(l.id)}">Review</button></td></tr>`;
+  if (sub === "listings" || sub === "users" || sub === "support") { const v = sub === "listings" ? A2.listings(ctx, ls) : sub === "users" ? A2.users(ctx, users) : A2.support(ctx, tks); return { title: "Admin", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   let body;
   if (sub === "") body = `<div class="adm-welcome"><div><h1>Welcome back, ${esc((ctx.S.user.displayName || "").split(" ")[0] || "there")}</h1><p>Here’s what’s happening on Faxton Rentals today.</p></div><span class="muted">${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>${!ls.length ? `<button class="btn primary" id="seed">Add sample listings</button>` : ""}</div>
     <div class="stats4">${[["/admin/listings", "home", "Active listings", ls.filter((l) => l.status === "active").length], ["/admin/listings", "doc", "Pending reviews", pending.length], ["/admin/applications", "users", "Active tenancies", apps.filter((a) => /approved|active/i.test(a.status)).length], ["/admin/support", "msg", "Open tickets", tks.filter((t) => t.status !== "Resolved").length]].map(([h, ic, t, n]) => `<a class="stat4" href="#${h}"><span class="si">${icon(ic, 30)}</span><div><small>${t}</small><b>${n}</b></div>${icon("chev", 22).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</a>`).join("")}</div>

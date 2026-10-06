@@ -83,7 +83,7 @@ export async function render() {
   const { path, q } = parse();
   if (!S.ready) return;
   // Everything except onboarding, login and sign-up needs an account. Signed-out visitors start at the onboarding.
-  const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup";
+  const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup" || path === "/forgot";
   if (!S.user && !open) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (S.user && open) return go("#" + (q.next || "/"));
 

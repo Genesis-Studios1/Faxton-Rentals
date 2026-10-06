@@ -8,6 +8,7 @@ export const initials = (n) => (n || "?").split(/\s+/).map((w) => w[0]).slice(0,
 const P = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   heart: '<path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/>',
   msg: '<path d="M4 5h16v11H9l-5 4z"/>',
   cal: '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/>',
@@ -101,4 +102,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || "Something went wrong. Please try again.");
 
-export const BUILD = "2026-10-06.23";
+export const BUILD = "2026-10-06.25";
