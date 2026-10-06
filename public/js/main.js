@@ -32,7 +32,7 @@ export const go = (h) => { if (location.hash === h) render(); else location.hash
 const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?"); return { path: p.replace(/\/+$/, "") || "/", q: Object.fromEntries(new URLSearchParams(q || "")) }; };
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
-const TOPNAV = [["/", "Home"], ["/search", "Find a home"], ["/saved", "Saved homes"], ["/messages", "Messages"], ["/bookings", "My rentals"]];
+const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/bookings", "My rentals", "cal"]];
 const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Rental applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/reports", "chart", "Reports"], ["/admin/support", "headset", "Support"], ["/settings", "gear", "Settings"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
@@ -55,7 +55,7 @@ function adminShell(path, inner, pending) {
 // The site's navigation: a top bar with the logo at the left, the page tabs, the bell and the account menu.
 function appShell(path, inner) {
   const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/bookings" ? path === "/bookings" || path === "/payments" : path === h || path.startsWith(h + "/"));
-  const links = TOPNAV.map(([h, l]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${l}${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
+  const links = TOPNAV.map(([h, l, ic]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}><span class="tn-ic">${icon(ic, 24)}</span><span class="tn-lb">${l}</span>${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
   const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
       <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
       <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/bookings">${icon("cal", 18)} Bookings</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a>
@@ -168,6 +168,7 @@ async function refreshAuthState(u) {
 }
 onAuthStateChanged(auth, async (u) => { await refreshAuthState(u); S.ready = true; render(); });
 addEventListener("hashchange", () => { S.nav++; render(); });
+matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
 render();
 
 // ---------- splash: plays once per session, dismisses when the app is ready ----------
