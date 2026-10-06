@@ -1,6 +1,6 @@
 import { auth } from "./firebase.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal, friendlyErr } from "./ui.js";
+import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal, friendlyErr, BUILD } from "./ui.js";
 import * as st from "./store.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
@@ -318,6 +318,7 @@ function settings(ctx) {
     <div class="panel"><div class="row-between"><div><h3>Product tour</h3><p class="muted">Replay the quick tour of Faxton Rentals</p></div><button class="btn" id="tour">Replay tour</button></div></div>
     <div class="panel"><div class="row-between"><div><h3>Install the app</h3><p class="muted">Add Faxton Rentals to your home screen or desktop</p></div><button class="btn" id="install">Install</button></div></div>
     ${ctx.S.isAdmin ? `<div class="panel"><div class="row-between"><div><h3>Admin console</h3><p class="muted">Manage listings, users and applications</p></div><a class="btn" href="#/admin">Open</a></div></div>` : ""}
+    <p class="muted" style="font-size:.85rem">App version ${BUILD}</p>
     <button class="btn" id="out" style="justify-self:start">${icon("logout", 18)} Sign out</button></div>`,
     mount() {
       $("#pf").onsubmit = async (e) => { e.preventDefault(); const name = $("#nm").value.trim(); try { await updateProfile(auth.currentUser, { displayName: name }); await st.saveProfile(u.uid, { name }); toast("Profile updated."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } };
