@@ -41,19 +41,19 @@ export async function ensureConversation(user, l) {
 export const watchConversations = (user, cb) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
   (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
 export const watchMessages = (cid, cb) => onSnapshot(query(collection(db, "conversations", cid, "messages"), orderBy("at")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => cb([]));
-export async function sendMessage(user, cid, text, extra = {}) {
+export async function sendMessage(user, cid, text, extra = {}, unread = false) {
   const b = writeBatch(db);
   b.set(doc(collection(db, "conversations", cid, "messages")), { from: user.uid, text, at: serverTimestamp(), ...extra });
-  b.update(doc(db, "conversations", cid), { last: text, lastAt: serverTimestamp() });
+  b.update(doc(db, "conversations", cid), { last: text, lastAt: serverTimestamp(), unread });
   await b.commit();
 }
+export const markRead = (cid) => updateDoc(doc(db, "conversations", cid), { unread: false });
 
 // ---- ownership & roles ----
-export const OWNER_EMAIL = "isaacij6yes@gmail.com";
 export async function getOwnerUid() { try { const s = await getDoc(doc(db, "config", "owner")); return s.exists() ? s.data().uid : null; } catch { return null; } }
-// First verified sign-in by the owner email claims ownership. Firestore rules enforce this; the client only attempts it.
+// While no owner exists, a verified sign-in may try to claim ownership. Firestore rules decide who is allowed.
 export async function claimOwnership(user) {
-  await setDoc(doc(db, "config", "owner"), { uid: user.uid, email: user.email, since: serverTimestamp() });
+  await setDoc(doc(db, "config", "owner"), { uid: user.uid, since: serverTimestamp() });
   await setDoc(doc(db, "users", user.uid), { role: "owner" }, { merge: true });
 }
 export const setRole = (uid, role) => updateDoc(doc(db, "users", uid), { role });

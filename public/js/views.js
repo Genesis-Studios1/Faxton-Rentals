@@ -15,17 +15,18 @@ const rel = (t) => { const s = t?.seconds; if (!s) return "Just now"; const h = 
 const statusPill = (s) => `<span class="pill ${/pending|review|requested|awaiting/i.test(s) ? "warn" : /flag|reject|cancel/i.test(s) ? "bad" : ""}">${esc(s)}</span>`;
 
 // ---------- cards ----------
-const card = (l, saved, rc) => `<article class="card ${rc ? "rcard" : ""}" data-open="${esc(l.id)}" tabindex="0" aria-label="${esc(l.title)}">
-  <div class="card-img"><img src="${esc(l.thumb || l.images[0])}" alt="${esc(l.title)}" loading="lazy"><span class="tag">Available</span>
+const card = (l, saved, rc, i = 0) => `<article class="card ${rc ? "rcard" : ""}" style="--i:${Math.min(i, 9)}" data-open="${esc(l.id)}" tabindex="0" aria-label="${esc(l.title)}">
+  <div class="card-img"><img src="${esc(l.thumb || l.images[0])}" alt="${esc(l.title)}" loading="lazy"><span class="tag ${l.available === false ? "off" : ""}">${l.available === false ? "Rented" : "Available"}</span><span class="peek">View home ${icon("arrow", 16)}</span>
     <button class="heart ${saved.has(l.id) ? "on" : ""}" data-fav="${esc(l.id)}" aria-label="Save ${esc(l.title)}" aria-pressed="${saved.has(l.id)}">${icon("heart", 20)}</button></div>
-  <div class="card-body"><h3>${esc(l.title)}</h3><div class="loc">${icon("pin", 16)}${esc(l.area)}${rc ? "" : ", " + esc(l.city)}</div>
-    ${rc ? `<div class="card-foot"><div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div><div class="price">${naira(l.price)}<br><small>per year</small></div></div>`
-    : `<div class="card-foot"><div class="price">${naira(l.price)} <small>/ year</small></div><div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div></div>`}</div></article>`;
+  <div class="card-body">${rc ? `<div class="rc-top"><h3>${esc(l.title)}</h3><div class="price">${naira(l.price)}<small>per year</small></div></div><div class="loc">${icon("pin", 16)}${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</div>
+      <div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div>`
+    : `<h3>${esc(l.title)}</h3><div class="loc">${icon("pin", 16)}${esc(l.area)}, ${esc(l.city)}</div>
+      <div class="card-foot"><div class="price">${naira(l.price)} <small>/ year</small></div><div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><i>·</i><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div></div>`}</div></article>`;
 
 function bindCards(root, ctx) {
   $$("[data-fav]", root).forEach((b) => (b.onclick = async (e) => {
     e.stopPropagation(); const id = b.dataset.fav, on = !ctx.S.saved.has(id);
-    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); await ctx.setSaved(id, on);
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); if (on) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); } await ctx.setSaved(id, on);
     if (ctx.path === "/saved" && !on) ctx.render();
   }));
   $$("[data-open]", root).forEach((c) => {
@@ -182,14 +183,14 @@ function authPage(ctx, mode) {
 // ---------- discover ----------
 async function discover(ctx) {
   const list = await st.getListings(); const first = (ctx.S.user?.displayName || "").split(" ")[0];
-  return { title: "Discover", html: `<section class="hero"><div><h1>Your next chapter<br>starts at home.</h1><p>${first ? `Welcome back, ${esc(first)}. ` : ""}Find a rental that feels right, in a neighbourhood you love.</p></div><img class="hero-img" src="img/hero.webp" alt="Modern home in Lagos"></section>
-    <form class="searchbar" id="sb" role="search">
+  return { title: "Discover", html: `<section class="d-hero"><div class="wrap"><div class="d-hero-text"><h1 class="rise">Your next chapter<br>starts at home.</h1><p class="rise" style="--d:.15s">${first ? `Welcome back, ${esc(first)}. ` : ""}Find a rental that feels right, in a neighbourhood you love.</p></div></div><img class="d-hero-img reveal" src="img/hero.webp" alt="Modern home in Lagos"></section>
+    <div class="wrap"><form class="searchbar rise" style="--d:.3s" id="sb" role="search">
       <div class="sb-cell">${icon("pin", 28)}<label>Location<select name="area">${opts(AREAS, "lekki")}</select></label></div>
       <div class="sb-cell">${icon("home", 28)}<label>Property type<select name="type"><option value="">Any type</option>${TYPES.map((t) => `<option>${t}</option>`).join("")}</select></label></div>
       <div class="sb-cell">${icon("wallet", 28)}<label>Budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
-      <button class="btn primary" style="padding:16px 34px">${icon("search", 20)} Search homes</button></form>
-    <div class="sec-head"><h2>Recommended for you</h2><a class="link" href="#/search">View all →</a></div>
-    <div class="cards">${list.slice(0, 3).map((l) => card(l, ctx.S.saved)).join("")}</div>`,
+      <button class="btn primary">${icon("search", 22)} Search homes</button></form>
+    <div class="sec-head rise" style="--d:.4s"><h2>Recommended for you</h2><a class="link" href="#/search">View all ${icon("arrow", 18)}</a></div>
+    <div class="cards">${list.slice(0, 3).map((l, i) => card(l, ctx.S.saved, false, i)).join("")}</div></div>`,
     mount(root) { bindCards(root, ctx); $("#sb").onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); ctx.go("#/search?" + p); }; } };
 }
 
@@ -200,30 +201,38 @@ function loadLeaflet() {
 async function search(ctx) {
   const q = ctx.q, all = await st.getListings(), view = q.view === "grid" ? "grid" : "map";
   const area = q.area || "", max = +q.max || 0, beds = +q.beds || 0, type = q.type || "", sort = q.sort || "recommended";
-  let list = all.filter((l) => (!area || (l.area + " " + l.city).toLowerCase().includes(area)) && (!max || l.price <= max) && l.beds >= beds && (!type || l.type === type));
+  const am = (q.am || "").split(",").filter(Boolean), avail = q.avail !== "0";
+  let list = all.filter((l) => (!area || (l.area + " " + l.city).toLowerCase().includes(area)) && (!max || l.price <= max) && l.beds >= beds && (!type || l.type === type) && (!avail || l.available !== false) && am.every((x) => l.amenities.includes(x)));
   if (sort === "low") list = [...list].sort((a, b) => a.price - b.price); if (sort === "high") list = [...list].sort((a, b) => b.price - a.price);
   const areaName = area ? AREAS.find((a) => a[0] === area)?.[1].replace(/, Lagos/, "") || "Lagos" : "Lagos";
   const chip = (k, label) => `<button class="chip" data-clear="${k}">${esc(label)} ${icon("x", 14)}</button>`;
-  const chips = [area && chip("area", areaName), max && chip("max", BUDGETS.find((b) => b[0] === max)?.[1] || naira(max)), beds && chip("beds", beds + "+ beds"), type && chip("type", type)].filter(Boolean).join("") || chip("none", "Available now");
-  return { title: "Search", html: `<div class="page-head"><div><h1 style="font-size:clamp(1.9rem,3.4vw,2.8rem)">Homes for rent in ${esc(areaName === "Lagos" ? "Lagos" : areaName)}</h1><p>${list.length} home${list.length === 1 ? "" : "s"} match your search</p></div>
+  const chips = [chip("area", area ? areaName : "Lagos"), avail && chip("avail", "Available now"), max && chip("max", BUDGETS.find((b) => b[0] === max)?.[1] || naira(max)), beds && chip("beds", beds + "+ beds"), type && chip("type", type), ...am.map((x) => chip("am:" + x, x))].filter(Boolean).join("");
+  const AMEN = ["Parking", "Water supply", "Security", "Generator", "Balcony", "Garden", "Pool", "Gym", "Wi-Fi"];
+  return { title: "Search", html: `<div class="wrap"><div class="page-head rise"><div><h1 style="font-size:clamp(1.9rem,3.4vw,2.9rem)">Homes for rent in ${esc(areaName === "Lagos" ? "Lagos" : areaName)}</h1><p>${list.length} home${list.length === 1 ? "" : "s"} match your search</p></div>
       <div class="seg" role="group" aria-label="View"><button data-view="map" class="${view === "map" ? "on" : ""}">${icon("map", 18)} Map</button><button data-view="grid" class="${view === "grid" ? "on" : ""}">${icon("grid", 18)} Grid</button></div></div>
     <form class="filters" id="ff"><label class="fsel">${icon("pin", 18)}<select name="area" aria-label="Location">${opts(AREAS, area)}</select></label>
       <label class="fsel">${icon("wallet", 18)}<select name="max" aria-label="Budget">${opts(BUDGETS, max)}</select></label>
       <label class="fsel">${icon("bed", 18)}<select name="beds" aria-label="Bedrooms">${opts([[0, "Bedrooms"], [1, "1+"], [2, "2+"], [3, "3+"], [4, "4+"], [5, "5+"]], beds)}</select></label>
       <label class="fsel">${icon("home", 18)}<select name="type" aria-label="Property type"><option value="">Property type</option>${TYPES.map((t) => `<option ${t === type ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <div class="fsel more" style="padding:0;position:relative"><button type="button" id="moreBtn" aria-haspopup="true" aria-expanded="false" style="display:flex;align-items:center;gap:8px;border:0;background:none;padding:12px;font-weight:500">${icon("sliders", 18)} More filters${am.length ? ` (${am.length})` : ""} ${icon("chev", 16)}</button>
+        <div class="pop-menu" id="morePanel" hidden><b>Amenities</b>${AMEN.map((x) => `<label class="chk"><input type="checkbox" value="${esc(x)}" ${am.includes(x) ? "checked" : ""}> ${esc(x)}</label>`).join("")}<button type="button" class="btn primary sm" id="applyMore">Apply</button></div></div>
       <label class="fsel sort"><span class="muted">Sort by</span><select name="sort" aria-label="Sort">${opts([["recommended", "Recommended"], ["low", "Price: low to high"], ["high", "Price: high to low"]], sort)}</select></label></form>
     <div class="chips">${chips}</div>
-    ${list.length ? `<div class="results ${view === "grid" ? "grid-only" : ""}"><div class="cards">${list.map((l) => card(l, ctx.S.saved, true)).join("")}</div>${view === "map" ? '<div id="map" role="region" aria-label="Map of results"></div>' : ""}</div>` : `<div class="empty"><h3>No homes match your search</h3><p>Try widening your filters.</p><p style="margin-top:14px"><a class="btn" href="#/search">Reset filters</a></p></div>`}`,
+    ${list.length ? `<div class="results ${view === "grid" ? "grid-only" : ""}"><div class="cards">${list.map((l, i) => card(l, ctx.S.saved, true, i)).join("")}</div>${view === "map" ? '<div id="map" role="region" aria-label="Map of results"></div>' : ""}</div>` : `<div class="empty"><h3>No homes match your search</h3><p>Try widening your filters.</p><p style="margin-top:14px"><a class="btn" href="#/search">Reset filters</a></p></div>`}</div>`,
     async mount(root) {
       bindCards(root, ctx);
       const nav = (patch) => { const p = new URLSearchParams(q); Object.entries(patch).forEach(([k, v]) => (v && v !== "0" ? p.set(k, v) : p.delete(k))); ctx.go("#/search?" + p); };
       $$("select", $("#ff")).forEach((s) => (s.onchange = () => nav({ [s.name]: s.value })));
       $$("[data-view]").forEach((b) => (b.onclick = () => nav({ view: b.dataset.view })));
-      $$("[data-clear]").forEach((b) => (b.onclick = () => (b.dataset.clear === "none" ? 0 : nav({ [b.dataset.clear]: "" }))));
+      $$("[data-clear]").forEach((b) => (b.onclick = () => { const k = b.dataset.clear; if (k === "avail") return nav({ avail: "0" }); if (k.startsWith("am:")) return nav({ am: am.filter((x) => x !== k.slice(3)).join(",") }); nav({ [k]: "" }); }));
+      const mb = $("#moreBtn"), mp = $("#morePanel");
+      mb.onclick = (e) => { e.stopPropagation(); mp.hidden = !mp.hidden; mb.setAttribute("aria-expanded", String(!mp.hidden)); };
+      mp.onclick = (e) => e.stopPropagation(); document.addEventListener("click", () => { mp.hidden = true; }, { once: true });
+      $("#applyMore").onclick = () => nav({ am: $$("input:checked", mp).map((i) => i.value).join(",") });
       if (view === "map" && list.length) try {
         await loadLeaflet(); if (!$("#map")) return; const map = L.map("map", { scrollWheelZoom: false }).setView([list[0].lat, list[0].lng], 12);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors", maxZoom: 18 }).addTo(map);
-        const pts = list.map((l) => { const m = L.marker([l.lat, l.lng], { icon: L.divIcon({ className: "", html: `<div class="pin">${short(l.price)}</div>`, iconSize: [0, 0] }), title: l.title }).addTo(map); m.on("click", () => ctx.go("#/home/" + l.id)); return [l.lat, l.lng]; });
+        const pts = list.map((l) => { const m = L.marker([l.lat, l.lng], { icon: L.divIcon({ className: "", html: `<div class="pin"><b>${short(l.price)}</b><i></i></div>`, iconSize: [0, 0] }), title: l.title }).addTo(map); m.on("click", () => ctx.go("#/home/" + l.id)); return [l.lat, l.lng]; });
         if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40] }); ctx.S.cleanups.push(() => map.remove());
       } catch { const m = $("#map"); if (m) m.innerHTML = '<div class="empty">Map unavailable right now.</div>'; }
     } };
@@ -235,7 +244,7 @@ async function detail(ctx, id) {
   if (!l) return { title: "Not found", html: `<div class="empty"><h2>This home isn’t available</h2><p><a class="link" href="#/search">Browse homes</a></p></div>` };
   const total = l.price + l.service + l.deposit, on = ctx.S.saved.has(l.id), A = { Parking: "car", "Water supply": "drop", Security: "shield", Balcony: "building" };
   const im = l.images, gal = im.length > 1 ? `<div class="gallery"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div><div><img src="${esc(im[1])}" alt=""></div><div>${im[2] ? `<img src="${esc(im[2])}" alt="">` : ""}<button class="show-all" id="all">${icon("img", 18)} Show all photos</button></div></div>` : `<div class="gallery one"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div></div>`;
-  return { title: l.title, html: `<nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Discover</a>${icon("chev", 14)}<a href="#/search">${esc(l.city)}</a>${icon("chev", 14)}<a href="#/search?area=${esc(l.area.split(/[ ,]/)[0].toLowerCase())}">${esc(l.area.split(",")[0].replace(" Phase 1", ""))}</a></nav>
+  return { title: l.title, html: `<div class="wrap"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Discover</a>${icon("chev", 14)}<a href="#/search">${esc(l.city)}</a>${icon("chev", 14)}<a href="#/search?area=${esc(l.area.split(/[ ,]/)[0].toLowerCase())}">${esc(l.area.split(",")[0].replace(" Phase 1", ""))}</a></nav>
     <div class="detail"><div><div class="d-head"><div><h1>${esc(l.title)}</h1><div class="loc" style="color:var(--text);margin-top:8px;font-size:1.05rem"><span style="color:var(--brand)">${icon("pin", 20)}</span>${esc(l.area)}, ${esc(l.city)}</div></div>
       <div style="display:flex;gap:10px"><button class="btn sm" id="save" style="border-color:var(--border);color:var(--text)">${icon("heart", 18)} <span>${on ? "Saved" : "Save"}</span></button><button class="btn sm" id="share" style="border-color:var(--border);color:var(--text)">${icon("share", 18)} Share</button></div></div>
       ${gal}<div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div><div class="fact">${icon("area", 22)}${l.sqm} m²</div></div>
@@ -245,7 +254,7 @@ async function detail(ctx, id) {
       <div class="rows"><div><span>Rent</span><span>${naira(l.price)}</span></div><div><span>Service charge</span><span>${naira(l.service)}</span></div><div><span>Refundable deposit</span><span>${naira(l.deposit)}</span></div><div class="total"><span>Move-in total</span><span>${naira(total)}</span></div></div>
       <button class="btn primary block" id="apply" style="padding:15px">Apply to rent ${icon("arrow", 20)}</button><button class="btn block" id="view" style="padding:15px">${icon("cal", 20)} Book a viewing</button>
       <p class="muted" style="font-size:.9rem;display:flex;gap:8px">${icon("info", 18)}<span>Review the <a class="link" href="#/search" style="text-decoration:underline">terms</a> before making a payment.</span></p>
-      <div class="agent"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><div><b style="color:var(--head);font-size:1.1rem">${esc(l.agent.name)}</b><p class="muted" style="margin-bottom:10px">Listing agent</p><button class="btn sm" id="msg">${icon("msg", 18)} Message agent</button></div></div></aside></div>`,
+      <div class="agent"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><div><b style="color:var(--head);font-size:1.1rem">${esc(l.agent.name)}</b><p class="muted" style="margin-bottom:10px">Listing agent</p><button class="btn sm" id="msg">${icon("msg", 18)} Message agent</button></div></div></aside></div></div>`,
     mount() {
       const authed = (fn) => () => (ctx.S.user ? fn() : (toast("Please sign in first."), ctx.go("#/login?next=" + encodeURIComponent("/home/" + l.id))));
       $("#save").onclick = async () => { const n = !ctx.S.saved.has(l.id); await ctx.setSaved(l.id, n); $("#save span").textContent = n ? "Saved" : "Save"; };
@@ -255,7 +264,9 @@ async function detail(ctx, id) {
       const tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
       $("#view").onclick = authed(() => { const m = modal(`<h2>Book a viewing</h2><p class="muted" style="margin-bottom:16px">${esc(l.title)} · ${esc(l.area)}</p><form id="vf"><div class="field"><label for="vd">Date</label><input id="vd" type="date" min="${tomorrow}" value="${tomorrow}" required></div><div class="field">Time</div>
         <div class="slots">${["09:00 AM", "10:00 AM", "11:30 AM", "01:00 PM", "03:00 PM", "04:30 PM"].map((t, i) => `<label><input type="radio" name="slot" value="${t}" ${i === 1 ? "checked" : ""}><span>${t}</span></label>`).join("")}</div><div class="err" id="ve"></div><button class="btn primary block">Request viewing</button></form>`);
-        $("#vf", m.el).onsubmit = async (e) => { e.preventDefault(); const b = e.target.querySelector("button"); b.disabled = true; try { await st.addViewing(ctx.S.user, l, $("#vd", m.el).value, new FormData(e.target).get("slot")); m.close(); toast("Viewing requested. We’ll confirm shortly."); ctx.go("#/bookings"); } catch (x) { $("#ve", m.el).textContent = friendlyErr(x); b.disabled = false; } }; });
+        $("#vf", m.el).onsubmit = async (e) => { e.preventDefault(); const b = e.target.querySelector("button"); b.disabled = true; try { const when = $("#vd", m.el).value, slot = new FormData(e.target).get("slot"); await st.addViewing(ctx.S.user, l, when, slot);
+          try { const cid = await st.ensureConversation(ctx.S.user, l); await st.sendMessage(ctx.S.user, cid, `Viewing requested: ${fmtDate(when)}, ${slot}`, { type: "booking", when, slot, title: l.title, area: l.area, image: l.thumb || l.images[0] }); } catch {}
+          m.close(); toast("Viewing requested. We’ll confirm shortly."); ctx.go("#/bookings"); } catch (x) { $("#ve", m.el).textContent = friendlyErr(x); b.disabled = false; } }; });
       $("#apply").onclick = authed(() => { const m = modal(`<h2>Apply to rent</h2><p class="muted" style="margin-bottom:16px">${esc(l.title)} · Move-in total ${naira(total)}</p><form id="af"><div class="field"><label for="ad">Preferred move-in date</label><input id="ad" type="date" min="${tomorrow}" required></div><div class="err" id="ae"></div><button class="btn primary block">Submit application</button></form>`);
         $("#af", m.el).onsubmit = async (e) => { e.preventDefault(); const d = $("#ad", m.el).value; if (!d) return ($("#ae", m.el).textContent = "Choose a move-in date."); const b = e.target.querySelector("button"); b.disabled = true; try { await st.addApplication(ctx.S.user, l, d); m.close(); toast("Application submitted."); ctx.go("#/payments"); } catch (x) { $("#ae", m.el).textContent = friendlyErr(x); b.disabled = false; } }; });
     } };
@@ -276,30 +287,47 @@ async function payments(ctx) {
 }
 
 // ---------- messages ----------
+const EMOJI = ["😀", "😊", "😍", "👍", "🙏", "🎉", "🏠", "🔑", "📅", "📍", "💬", "✅", "❤️", "😅", "🤝", "👋"];
 async function messages(ctx, cid) {
   const html = `<div class="msg-shell ${cid ? "has-chat" : ""}"><section class="msg-list"><div class="msg-list-head"><h1>Messages</h1><a class="btn primary" href="#/search" aria-label="New conversation" style="width:48px;height:48px;padding:0">${icon("edit", 22)}</a></div>
-    <div class="tabs"><button class="on">All (<span id="cnt">0</span>)</button></div><div id="convs"></div></section><section class="chat" id="chat"></section></div>`;
+    <label class="input msg-search">${icon("search", 20)}<input id="cs" type="search" placeholder="Search conversations…" aria-label="Search conversations"></label>
+    <div class="tabs" role="tablist"><button class="on" data-tab="all" role="tab">All (<span id="cnt">0</span>)</button><button data-tab="unread" role="tab">Unread (<span id="ucnt">0</span>)</button></div><div id="convs"></div></section><section class="chat" id="chat"></section></div>`;
   return { title: "Messages", bare: true, html,
     mount() {
-      let convs = [], unsubM = null;
-      const drawList = () => { $("#cnt").textContent = convs.length; $("#convs").innerHTML = convs.length ? convs.map((c) => `<a class="conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}"><img class="avatar" src="${esc(c.agent.avatar)}" alt=""><div class="conv-main"><div class="conv-top"><b>${esc(c.agent.name)}</b><span>${c.lastAt ? fmtTime(c.lastAt) : ""}</span></div><p>${esc(c.last || c.listingTitle)}</p></div></a>`).join("") : `<p class="muted" style="padding:14px">No conversations yet. Open a home and tap “Message agent”.</p>`; };
+      let convs = [], unsubM = null, tab = "all", term = "";
+      const vis = () => convs.filter((c) => (tab === "all" || c.unread) && (!term || (c.agent.name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
+      const drawList = () => {
+        $("#cnt").textContent = convs.length; $("#ucnt").textContent = convs.filter((c) => c.unread).length;
+        const list = vis();
+        $("#convs").innerHTML = list.length ? list.map((c) => `<a class="conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}" style="--i:${0}"><img class="avatar" src="${esc(c.agent.avatar)}" alt=""><div class="conv-main"><div class="conv-top"><b>${esc(c.agent.name)}</b><span>${c.lastAt ? fmtTime(c.lastAt) : ""}</span></div><p>${esc(c.last || c.listingTitle)}</p></div>${c.unread ? '<i class="udot" aria-label="Unread"></i>' : ""}</a>`).join("")
+          : `<p class="muted" style="padding:14px">${convs.length ? "No conversations match." : "No conversations yet. Open a home and tap “Message agent”."}</p>`;
+      };
+      const bubble = (m, me) => m.type === "booking"
+        ? `<div class="bubble card-b"><img src="${esc(m.image || "")}" alt=""><div><b class="bk-when">${icon("cal", 20)} ${esc(fmtDate(m.when))}, ${esc(m.slot)}</b><b>${esc(m.title)}</b><span class="muted">${esc(m.area)}</span><a class="btn sm block" href="#/bookings">View booking ${icon("chev", 14)}</a></div><time>${m.at ? fmtTime(m.at) : ""}</time></div>`
+        : `<div class="bubble ${me ? "me" : ""}">${esc(m.text)}<time>${m.at ? fmtTime(m.at) : ""}${me ? ` ${icon("check", 14)}` : ""}</time></div>`;
       const drawChat = () => {
         const c = convs.find((x) => x.id === cid); const chat = $("#chat");
-        if (!c) { chat.innerHTML = `<div class="chat-empty"><h2>${convs.length ? "Select a conversation" : "No messages yet"}</h2><p style="margin-top:8px">Message a listing agent to start chatting.</p></div>`; return; }
-        chat.innerHTML = `<div class="chat-head"><a class="icon-btn back" href="#/messages" aria-label="Back" style="display:none">${icon("left", 20)}</a><img class="avatar" src="${esc(c.agent.avatar)}" alt=""><div class="grow"><b style="font-size:1.3rem;color:var(--head)">${esc(c.agent.name)}</b><br><span class="muted">Listing agent</span></div><div class="acts">${["phone", "video", "search"].map((i) => `<button class="icon-btn" data-soon aria-label="${i}">${icon(i, 20)}</button>`).join("")}</div></div>
+        if (!c) { unsubM?.(); chat.innerHTML = `<div class="chat-empty"><h2>${convs.length ? "Select a conversation" : "No messages yet"}</h2><p style="margin-top:8px">Message a listing agent to start chatting.</p></div>`; return; }
+        if (chat.dataset.cid === cid) return; chat.dataset.cid = cid;
+        if (c.unread && c.uid === ctx.S.user.uid) st.markRead(cid).catch(() => {});
+        chat.innerHTML = `<div class="chat-head"><a class="icon-btn back" href="#/messages" aria-label="Back" style="display:none">${icon("left", 20)}</a><img class="avatar" src="${esc(c.agent.avatar)}" alt=""><div class="grow"><b style="font-size:1.3rem;color:var(--head)">${esc(c.agent.name)}</b><br><span class="muted">Listing agent</span></div><div class="acts">${["phone", "video", "search"].map((i) => `<button class="icon-btn" data-soon aria-label="${i}">${icon(i, 20)}</button>`).join("")}<a class="icon-btn" href="#/home/${esc(c.listingId)}" aria-label="View home">${icon("home", 20)}</a></div></div>
           <div class="listing-strip"><img src="${esc(c.image)}" alt=""><div><b style="color:var(--head);font-size:1.1rem">${esc(c.listingTitle)} · ${esc(c.area.split(" ")[0])}</b><br><span class="muted">${c.beds === 0 ? "Studio" : c.beds + " bed"} · ${c.baths} bath · ${naira(c.price)} / year</span></div><a class="btn sm" href="#/home/${esc(c.listingId)}">View home</a></div>
-          <div class="thread" id="thread"></div><form class="composer" id="cf"><button type="button" class="icon-btn" data-soon aria-label="Attach" style="border:0;background:none">${icon("clip", 22)}</button><input id="ci" placeholder="Type a message…" autocomplete="off" aria-label="Message"><button class="send" aria-label="Send">${icon("send", 22)}</button></form>`;
+          <div class="thread" id="thread"></div><div class="emoji" id="emoji" hidden>${EMOJI.map((e) => `<button type="button">${e}</button>`).join("")}</div>
+          <form class="composer" id="cf"><button type="button" class="icon-btn flat" data-soon aria-label="Attach">${icon("clip", 22)}</button><button type="button" class="icon-btn flat" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><input id="ci" placeholder="Type a message…" autocomplete="off" maxlength="2000" aria-label="Message"><button type="button" class="icon-btn flat" data-soon aria-label="Voice message">${icon("mic", 22)}</button><button class="send" aria-label="Send">${icon("send", 22)}</button></form>`;
         $$("[data-soon]", chat).forEach((b) => (b.onclick = () => toast("Coming soon.")));
-        $("#cf").onsubmit = async (e) => { e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return; i.value = ""; try { await st.sendMessage(ctx.S.user, cid, t); } catch (x) { toast(friendlyErr(x)); i.value = t; } };
+        const em = $("#emoji"); $("#emojiBtn").onclick = () => (em.hidden = !em.hidden); em.onclick = (e) => { const b = e.target.closest("button"); if (b) { $("#ci").value += b.textContent; $("#ci").focus(); } };
+        $("#cf").onsubmit = async (e) => { e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return; i.value = ""; em.hidden = true; try { await st.sendMessage(ctx.S.user, cid, t, {}, c.uid !== ctx.S.user.uid); } catch (x) { toast(friendlyErr(x)); i.value = t; } };
         unsubM?.(); unsubM = st.watchMessages(cid, (ms) => {
           const th = $("#thread"); if (!th) return; const near = th.scrollHeight - th.scrollTop - th.clientHeight < 80;
-          th.innerHTML = ms.length ? `<span class="day">Today</span>` + ms.map((m) => `<div class="bubble ${m.from === ctx.S.user.uid ? "me" : ""}">${esc(m.text)}<time>${m.at ? fmtTime(m.at) : ""}</time></div>`).join("") : `<div class="chat-empty">Say hello to ${esc(c.agent.name.split(" ")[0])} 👋</div>`;
+          th.innerHTML = ms.length ? `<span class="day">Today</span>` + ms.map((m) => bubble(m, m.from === ctx.S.user.uid)).join("") : `<div class="chat-empty">Say hello to ${esc(c.agent.name.split(" ")[0])} 👋</div>`;
           if (near || ms.length < 2) th.scrollTop = th.scrollHeight;
         });
       };
-      const unsubC = st.watchConversations(ctx.S.user, (c) => { convs = c; drawList(); if (!$("#chat").dataset.drawn || cid) { drawChat(); $("#chat").dataset.drawn = 1; } });
+      $$("[data-tab]").forEach((b) => (b.onclick = () => { tab = b.dataset.tab; $$("[data-tab]").forEach((x) => x.classList.toggle("on", x === b)); drawList(); }));
+      $("#cs").oninput = (e) => { term = e.target.value.trim().toLowerCase(); drawList(); };
+      const unsubC = st.watchConversations(ctx.S.user, (c) => { convs = c; drawList(); drawChat(); });
       ctx.S.cleanups.push(() => { unsubC(); unsubM?.(); });
-      if (matchMedia("(max-width:860px)").matches) { const b = () => $(".back"); setTimeout(() => b() && (b().style.display = "grid")); }
+      if (matchMedia("(max-width:860px)").matches) setTimeout(() => { const b = $(".back"); if (b) b.style.display = "grid"; });
     } };
 }
 

@@ -2,6 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    function db() { return /databases/$(database)/documents; }
     function ownerDoc() { return /databases/$(database)/documents/config/owner; }
     // The single owner is whoever config/owner points at. Only the owner can transfer it.
     function isOwner() { return signedIn() && exists(ownerDoc()) && get(ownerDoc()).data.uid == request.auth.uid; }
@@ -11,48 +12,79 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
+    function short(v, n) { return v is string && v.size() <= n; }
 
-    // Ownership: claimed once by the owner email (verified), then transferable only by the current owner.
+    // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
+    match /config/bootstrap { allow read, write: if false; }
+
+    // Ownership is claimed once, by the verified email stored in config/bootstrap, then transferable only by the owner.
     match /config/owner {
       allow read: if signedIn();
       allow create: if signedIn()
         && !exists(ownerDoc())
+        && exists(/databases/$(database)/documents/config/bootstrap)
         && request.auth.token.email_verified == true
-        && request.auth.token.email.lower() == 'isaacij6yes@gmail.com'
+        && request.auth.token.email.lower() == get(/databases/$(database)/documents/config/bootstrap).data.ownerEmail.lower()
+        && request.resource.data.keys().hasOnly(['uid', 'since'])
         && request.resource.data.uid == request.auth.uid;
       allow update: if isOwner()
+        && request.resource.data.keys().hasOnly(['uid', 'since'])
         && request.resource.data.uid != resource.data.uid
         && exists(/databases/$(database)/documents/users/$(request.resource.data.uid));
       allow delete: if false;
     }
+
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role in ['renter', 'agent'];
-      // Users can edit their own profile but never their role. Only the owner can change roles.
-      allow update: if signedIn() && ((request.auth.uid == uid && request.resource.data.role == resource.data.role) || isOwner());
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role in ['renter', 'agent']
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt'])
+        && short(request.resource.data.name, 120)
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.saved.size() <= 500;
+      // Users edit their own profile but never role or email; only the owner changes roles.
+      allow update: if signedIn() && (
+        (request.auth.uid == uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt'])
+          && short(request.resource.data.name, 120)
+          && request.resource.data.saved.size() <= 500)
+        || isOwner());
+      allow delete: if false;
     }
+
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin();
       allow write: if isAdmin();
     }
+
     match /viewings/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'Requested';
       allow read: if owns() || isAdmin();
       allow update: if isAdmin();
     }
     match /applications/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'Under review';
       allow read: if owns() || isAdmin();
       allow update: if isAdmin();
     }
+
     match /conversations/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
-      allow read, update: if owns() || isAdmin();
+      allow read: if owns() || isAdmin();
+      allow update: if (owns() && request.resource.data.uid == resource.data.uid) || isAdmin();
       match /messages/{mid} {
         allow read: if signedIn() && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin());
         allow create: if signedIn() && request.resource.data.from == request.auth.uid
+          && short(request.resource.data.text, 2000)
           && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin());
       }
     }
+
+    // Everything else is closed.
+    match /{document=**} { allow read, write: if false; }
   }
 }
