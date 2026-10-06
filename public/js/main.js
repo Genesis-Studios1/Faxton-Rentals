@@ -57,13 +57,13 @@ export async function render() {
   const id = ++renderId;
   S.cleanups.splice(0).forEach((f) => f());
   const { path, q } = parse();
-  if (!S.ready) { app.innerHTML = `<div class="splash"><div>${V.splashMark()}</div></div>`; return; }
+  if (!S.ready) return;
   const seen = (() => { try { return localStorage.getItem("seen") === "1"; } catch { return true; } })();
-  if (path === "/" && !S.user && !seen && !q.skip) return go("#/splash");
+  if (path === "/" && !S.user && !seen && !q.skip) return go("#/onboarding/1");
   if (needsAuth.some((p) => path === p || path.startsWith(p + "/")) && !S.user) return go("#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (["/login", "/signup"].includes(path) && S.user) return go("#" + (q.next || "/"));
 
-  const ctx = { path, q, S, go, refreshUser, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
+  const ctx = { path, q, S, go, refreshUser, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   const view = await V.route(ctx);
   if (id !== renderId) return;
   if (!view) { app.innerHTML = shell(path, `<div class="empty"><h2>Page not found</h2><p><a class="link" href="#/">Go home</a></p></div>`); return wire(); }
@@ -125,3 +125,22 @@ async function refreshAuthState(u) {
 onAuthStateChanged(auth, async (u) => { await refreshAuthState(u); S.ready = true; render(); });
 addEventListener("hashchange", render);
 render();
+
+// ---------- splash: plays once per session, dismisses when the app is ready ----------
+(function splash() {
+  const el = $("#splash"), root = document.documentElement;
+  if (!el || root.classList.contains("no-splash")) return;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 3500;
+  let done = false;
+  const finish = () => { if (done) return; done = true; try { sessionStorage.setItem("splashed", "1"); } catch {} el.classList.add("leave"); root.classList.add("ready"); setTimeout(() => el.remove(), 800); };
+  const poll = setInterval(() => { if (S.ready && performance.now() - started >= MIN) { clearInterval(poll); finish(); } }, 100);
+  el.addEventListener("click", () => { if (S.ready) { clearInterval(poll); finish(); } });
+  setTimeout(() => { clearInterval(poll); finish(); }, 9000); // never get stuck, even offline
+})();
+
+// ---------- installable app (PWA) ----------
+export let installPrompt = null;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; document.dispatchEvent(new Event("installable")); });
+addEventListener("appinstalled", () => { installPrompt = null; toast("Faxton Rentals installed."); });
+export async function installApp() { if (!installPrompt) return false; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; return true; }
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));

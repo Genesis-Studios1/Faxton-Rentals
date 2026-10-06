@@ -3,7 +3,6 @@ import { updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal, friendlyErr } from "./ui.js";
 import * as st from "./store.js";
 
-export const splashMark = () => logoMark();
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
 const BUDGETS = [[0, "Any price"], [1500000, "Up to ₦1.5m"], [2500000, "Up to ₦2.5m"], [3600000, "Up to ₦3.6m"], [5000000, "Up to ₦5m"]];
@@ -38,7 +37,6 @@ function bindCards(root, ctx) {
 // ---------- router ----------
 export async function route(ctx) {
   const { path } = ctx; let m;
-  if (path === "/splash") return splash(ctx);
   if ((m = path.match(/^\/onboarding\/([123])$/))) return onboarding(ctx, +m[1]);
   if (path === "/login") return authPage(ctx, "login");
   if (path === "/signup") return authPage(ctx, "signup");
@@ -54,72 +52,130 @@ export async function route(ctx) {
   return null;
 }
 
-// ---------- splash + onboarding ----------
-function splash(ctx) {
-  return { full: true, title: "Welcome", html: `<div class="splash"><img class="bg" src="img/splash-bld.webp" alt=""><div><div>${logoMark()}</div>
-    <h1><b>Faxton</b> <span>Rentals</span></h1><p>Your next home starts here.</p></div><div class="dots"><i></i><i></i><i></i></div></div>`,
-    mount() { const t = setTimeout(() => ctx.go("#/onboarding/1"), 2200); ctx.S.cleanups.push(() => clearTimeout(t)); $(".splash").onclick = () => ctx.go("#/onboarding/1"); } };
-}
+// ---------- onboarding + sign up + log in (placed at the design's exact coordinates) ----------
+const P = (x, y, w, h, extra = "") => `style="left:calc(${x} * var(--u));top:calc(${y} * var(--u));${w != null ? `width:calc(${w} * var(--u));` : ""}${h != null ? `height:calc(${h} * var(--u));` : ""}${extra}"`;
+const FS = (n, lh) => `font-size:calc(${n} * var(--u));${lh ? `line-height:calc(${lh} * var(--u));` : ""}`;
+const D = (d) => `--d:${d}s;`;
+const dzLogo = (x, y, mh, fs, extra = "") => `<a class="at dz-logo rise" href="#/" aria-label="Faxton Rentals" ${P(x, y, null, null, `--mh:${mh};${FS(fs)}${extra}`)}>${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
 const markSeen = () => { try { localStorage.setItem("seen", "1"); } catch {} };
+const feat = (x, top, box, ic, tx, tw, fs, text, desc, fsd, lhd, d) => `<div class="at dz-feat rise" ${P(x, top, null, null, `--box:${box};--gap:${tx - x - box};${D(d)}`)}><span class="dz-fi">${icon(ic, 30)}</span><div class="dz-ft" style="width:calc(${tw} * var(--u))"><b class="${desc ? "" : "plain"}" style="${FS(fs, desc ? fs * 1.15 : fs * 1.3)}">${text}</b>${desc ? `<span style="${FS(fsd, lhd)}">${desc}</span>` : ""}</div></div>`;
+const bars = (x, y, n, bw, gap, bh) => `<div class="at dz-bars fade" ${P(x, y, null, null, `--bw:${bw};--bg:${gap};--bh:${bh};${D(.5)}`)}>${[1, 2, 3].map((i) => `<i class="${i === n ? "on" : ""}"></i>`).join("")}</div>`;
+const arrowBtn = (cls, href, x, y, w, h, fs, inner, d = 0.6, extra = "") => `<a class="at dz-btn ${cls} rise" href="${href}" ${P(x, y, w, h, `${FS(fs)}${D(d)}${extra}`)}>${inner}</a>`;
+
 function onboarding(ctx, n) {
-  const feat = (ic, t, d) => `<div class="feat"><div class="fi">${icon(ic, 28)}</div><div><b>${t}</b>${d ? `<span>${d}</span>` : ""}</div></div>`;
-  const S = [
-    { eye: "Find your space", h: "A home that<br>fits your life.", lead: "Explore rental homes across Nigeria, from your first apartment to your next family home.", img: "onb-house", alt: "Modern house in Lekki",
-      f: [["search", "Search your favourite neighbourhoods"], ["sliders", "Filter by budget and bedrooms"], ["heart", "Save homes you love"]], float: "" },
-    { eye: "See it for yourself", h: "Find a time.<br>Take a tour.", lead: "Speak with a realtor and book a viewing from their available times.", img: "onb-living", alt: "Bright living room",
-      f: [["cal", "Choose an available slot", "See a realtor’s real-time availability and pick a time that works for you."], ["msg", "Chat before your visit", "Ask questions, get more details and confirm everything in chat."], ["list", "Keep track of your viewings", "All your scheduled and past viewings in one place."]],
-      float: "" },
-    { eye: "Settle in simply", h: "Your rental life,<br>organised.", lead: "Keep your applications, tenancy documents and conversations together in one place.", img: "onb-room", alt: "Furnished apartment",
-      f: [["list", "Track rental applications", "See the status of all your applications in real time."], ["doc", "Access tenancy documents", "Store and view your agreements, receipts and important files."], ["msg", "Message your agent", "Chat with your agent easily, all in one place."]],
-      float: "" },
-  ][n - 1];
-  const prog = `<div class="prog">${n === 1 ? `<b>01</b><span>/ 03</span>` : ""}${[1, 2, 3].map((i) => `<i class="${i <= n && (n === 1 ? i === 1 : n === 2 ? i === 2 : i === 3) ? "on" : ""}"></i>`).join("")}${n > 1 ? `<span>0${n} / 03</span>` : ""}</div>`;
-  const next = n < 3 ? `<a class="btn primary" href="#/onboarding/${n + 1}">Continue ${icon("arrow", 20)}</a>` : `<a class="btn primary" href="#/signup">Create account</a>`;
-  return { full: true, title: "Welcome", html: `<div class="onb"><header class="onb-top">${logo()}<a href="#/" data-skip class="skip" style="display:flex;gap:8px;align-items:center">Skip ${icon("arrow", 18)}</a></header>
-    <div class="onb-body"><div><div class="eyebrow">${S.eye}</div><h1>${S.h}</h1><p class="lead">${S.lead}</p>${S.f.map((f) => feat(...f)).join("")}
-      <div class="onb-foot" style="margin-top:26px">${prog}</div>
-      <div class="onb-foot" style="margin-top:22px">${n > 1 ? `<a class="btn" href="#/onboarding/${n - 1}">${icon("left", 20)} Back</a>` : ""}${next}${n === 1 ? `<a href="#/login" style="border-bottom:2px solid var(--brand);font-weight:500">Sign in</a>` : ""}</div>
-      ${n === 3 ? `<p class="muted" style="margin-top:12px">Already a member? <a class="link" href="#/login">Sign in</a></p>` : ""}</div>
-    <div class="onb-img"><img src="img/${S.img}.webp" alt="${S.alt}">${S.float}</div></div></div>`,
-    mount() { $$("[data-skip],a[href='#/signup'],a[href='#/login']").forEach((a) => a.addEventListener("click", markSeen)); } };
+  const skip = (x, y, dim) => `<a class="at dz-skip ${dim ? "dim" : ""} fade" href="#/" data-skip ${P(x, y, null, null, D(.3))}>Skip ${icon("arrow", 24)}</a>`;
+  const hdr = (h) => `<div class="hline" style="top:calc(${h} * var(--u))"></div>`;
+  const wrap = (inner) => `<div class="dz-page"><div class="frame">${inner}</div></div>`;
+  let html;
+  if (n === 1) html = wrap(`${hdr(95)}${dzLogo(95, 28, 44, 36)}${skip(1518, 38)}
+    <div class="at dz-eyebrow rise" ${P(90, 162, null, null, D(.1))}>Find your space</div>
+    <h1 class="at rise" ${P(88, 207, 620, null, `${FS(82, 78)}${D(.2)}`)}>A home that<br>fits your life.</h1>
+    <p class="at dz-lead rise" ${P(90, 384, 600, null, `${FS(25, 33)}${D(.35)}`)}>Explore rental homes across Nigeria, from your<br>first apartment to your next family home.</p>
+    ${feat(91, 485, 66, "search", 185, 240, 22, "Search your favourite<br>neighbourhoods", "", 0, 0, .45)}
+    ${feat(91, 575, 66, "sliders", 185, 240, 22, "Filter by budget and<br>bedrooms", "", 0, 0, .55)}
+    ${feat(91, 662, 66, "heart", 185, 240, 22, "Save homes you love", "", 0, 0, .65)}
+    <div class="at fade" ${P(91, 762, null, null, `display:flex;align-items:center;gap:calc(12 * var(--u));${FS(22)}${D(.7)}`)}><b style="color:var(--brand);font-weight:700">01</b><span style="color:#8a9690;margin-right:calc(8 * var(--u))">/ 03</span></div>
+    ${bars(186, 771, 1, 95, 12, 8)}
+    ${arrowBtn("primary", "#/onboarding/2", 91, 816, 322, 65, 26, `Continue ${icon("arrow", 26)}`, .8, `justify-content:space-between;padding:0 calc(36 * var(--u)) 0 calc(96 * var(--u));`)}
+    <a class="at fade" href="#/login" data-skip ${P(460, 826, null, null, `${FS(24)}border-bottom:calc(3 * var(--u)) solid var(--brand);padding-bottom:calc(4 * var(--u));color:var(--head);${D(.9)}`)}>Sign in</a>
+    <div class="at dz-img reveal" ${P(752, 134, 884, 768)}><img src="img/onb-house.webp" alt="Modern home in Lekki, Lagos"></div>`);
+  if (n === 2) html = wrap(`${hdr(82)}${dzLogo(86, 17, 50, 36)}${skip(1512, 31)}${hdr(849)}
+    <div class="at dz-eyebrow rise" ${P(86, 137, null, null, D(.1))}>See it for yourself</div>
+    <h1 class="at rise" ${P(84, 176, 640, null, `${FS(100, 93)}${D(.2)}`)}>Find a time.<br>Take a tour.</h1>
+    <p class="at dz-lead rise" ${P(86, 380, 600, null, `${FS(30, 38)}color:#4f5a55;${D(.35)}`)}>Speak with a realtor and book a viewing<br>from their available times.</p>
+    ${feat(86, 494, 78, "cal", 199, 420, 23, "Choose an available slot", "See a realtor’s real-time availability<br>and pick a time that works for you.", 20, 25, .45)}
+    ${feat(86, 614, 78, "msg", 199, 420, 23, "Chat before your visit", "Ask questions, get more details<br>and confirm everything in chat.", 20, 25, .55)}
+    ${feat(86, 734, 78, "list", 199, 420, 23, "Keep track of your viewings", "All your scheduled and past viewings<br>in one place.", 20, 25, .65)}
+    <div class="at dz-img reveal" ${P(703, 109, 930, 713)}><img src="img/onb-living.webp" alt="Bright living room with a city view"></div>
+    ${arrowBtn("", "#/onboarding/1", 86, 864, 250, 56, 22, `${icon("left", 24)} Back`, .6)}
+    ${bars(633, 879, 2, 128, 11, 7)}
+    <div class="at fade" ${P(633, 898, 407, null, `text-align:center;${FS(18)}font-weight:600;color:var(--head);letter-spacing:.03em;${D(.7)}`)}>02 <span style="font-weight:400;color:#8a9690">/ 03</span></div>
+    ${arrowBtn("primary", "#/onboarding/3", 1337, 864, 250, 56, 22, `Continue ${icon("arrow", 24)}`, .8)}`);
+  if (n === 3) html = wrap(`${hdr(80)}${dzLogo(78, 18, 42, 36)}${skip(1531, 30, true)}
+    <div class="at dz-eyebrow rise" ${P(78, 149, null, null, D(.1))}>Settle in simply</div>
+    <h1 class="at rise" ${P(78, 190, 640, null, `${FS(80, 76)}${D(.2)}`)}>Your rental life,<br>organised.</h1>
+    <p class="at dz-lead rise" ${P(78, 352, 560, null, `${FS(26, 35)}${D(.35)}`)}>Keep your applications, tenancy documents<br>and conversations together in one place.</p>
+    ${feat(78, 458, 85, "list", 195, 420, 24, "Track rental applications", "See the status of all your applications<br>in real time.", 19.5, 26, .45)}
+    ${feat(78, 586, 85, "doc", 195, 420, 24, "Access tenancy documents", "Store and view your agreements,<br>receipts and important files.", 19.5, 26, .55)}
+    ${feat(78, 720, 85, "msg", 195, 420, 24, "Message your agent", "Chat with your agent easily, all in<br>one place.", 19.5, 26, .65)}
+    ${bars(78, 872, 3, 131, 7, 8)}
+    <div class="at fade" ${P(511, 865, null, null, `${FS(19)}color:#6c7873;${D(.7)}`)}>03 / 03</div>
+    <div class="at dz-img reveal" ${P(668, 110, 975, 682)}><img src="img/onb-room.webp" alt="Furnished apartment with a rental summary card"></div>
+    ${arrowBtn("", "#/onboarding/2", 1185, 819, 198, 57, 22, "Back", .6)}
+    ${arrowBtn("primary", "#/signup", 1401, 819, 242, 57, 22, "Create account", .8)}
+    <p class="at fade" ${P(1185, 888, 458, null, `text-align:center;${FS(17)}color:#5f6b66;${D(1)}`)}>Already a member? <a class="dz-link" href="#/login" data-skip>Sign in</a></p>`);
+  return { full: true, title: "Welcome", html, mount() { $$("[data-skip],a[href='#/signup'],a[href='#/login']").forEach((a) => a.addEventListener("click", markSeen)); } };
 }
 
-// ---------- login / signup ----------
+// ---------- sign up / log in ----------
 function authPage(ctx, mode) {
   const login = mode === "login", next = ctx.q.next || "/";
-  const field = (id, label, ic, ph, type = "text", extra = "") => `<div class="field"><label for="${id}">${label}</label><div class="input">${icon(ic, 20)}<input id="${id}" name="${id}" type="${type}" placeholder="${ph}" ${extra}>${type === "password" ? `<button type="button" class="eye" aria-label="Show password" style="border:0;background:none;color:var(--muted)">${icon("eye", 20)}</button>` : ""}</div></div>`;
-  const html = login ? `<h1>Welcome back</h1><p class="sub">Sign in to find your next home.</p><form id="f" novalidate>
-      ${field("email", "Email address", "mail", "Enter your email address", "email", 'autocomplete="email"')}${field("password", "Password", "lock", "Enter your password", "password", 'autocomplete="current-password"')}
-      <div class="row-between check"><label><input type="checkbox" id="remember"> Remember me</label><a href="#" id="forgot" class="link" style="text-decoration:underline">Forgot password?</a></div>
-      <div class="err" id="err" role="alert"></div><button class="btn primary block" type="submit">Sign in ${icon("arrow", 20)}</button></form>
-      <div class="sep">or</div><button class="btn block" id="google">${GOOGLE} Continue with Google</button>
-      <p style="text-align:center;margin-top:26px;color:var(--muted)">New to Faxton Rentals? <a class="link" href="#/signup">Create an account →</a></p>`
-    : `<h1>Find your place with Faxton</h1><p class="sub">Create an account to get started.</p><div class="role" role="tablist"><button type="button" class="on" data-role="renter">I’m renting</button><button type="button" data-role="agent">I’m listing a home</button></div><form id="f" novalidate>
-      ${field("name", "Full name", "user", "Your full name", "text", 'autocomplete="name"')}${field("email", "Email address", "mail", "you@example.com", "email", 'autocomplete="email"')}${field("password", "Password", "lock", "Create a password", "password", 'autocomplete="new-password"')}
-      <p class="muted" style="margin:-8px 0 14px;font-size:.9rem">At least 8 characters</p>
-      <div class="check" style="margin-bottom:16px"><label><input type="checkbox" id="terms"> I agree to the <a class="link" href="#/signup">Terms</a> and <a class="link" href="#/signup">Privacy Policy</a></label></div>
-      <div class="err" id="err" role="alert"></div><button class="btn primary block" type="submit">Create account ${icon("arrow", 20)}</button></form>
-      <div class="sep">or</div><button class="btn block" id="google">${GOOGLE} Continue with Google</button>
-      <p style="text-align:center;margin-top:22px;color:var(--muted)">Already have an account? <a class="link" href="#/login">Sign in</a></p>`;
-  return { full: true, title: login ? "Sign in" : "Create account", html: `<div class="auth ${login ? "" : "signup"}" style="${login ? "" : "grid-template-columns:1.05fr 1fr"}">
-    <div class="auth-img" style="background-image:url(img/${login ? "login-hero" : "signup-hero"}.webp)">${logo()}<h2>${login ? "A fresh start begins here." : "Make room for what comes next."}</h2></div>
-    <div class="auth-form"><div class="corner">${ctx.themeBtn()}</div>${html}</div></div>`,
-    mount(root) {
-      const err = $("#err"), form = $("#f"); let role = "renter";
-      $$(".eye").forEach((b) => (b.onclick = () => { const i = b.previousElementSibling; i.type = i.type === "password" ? "text" : "password"; }));
-      $$("[data-role]").forEach((b) => (b.onclick = () => { role = b.dataset.role; $$("[data-role]").forEach((x) => x.classList.toggle("on", x === b)); }));
-      const run = async (fn, btn) => { err.textContent = ""; if (btn) btn.disabled = true; try { await fn(); ctx.go("#" + next); } catch (e) { err.textContent = friendlyErr(e); } finally { if (btn) btn.disabled = false; } };
+  const field = (id, x, y, w, h, fs, ic, ph, type = "text", extra = "", d = 0.3) => `<label class="at dz-input rise" for="${id}" ${P(x, y, w, h, `${FS(fs)}--ic:${fs + 3};${D(d)}`)}>${icon(ic, 22)}<input id="${id}" name="${id}" type="${type}" placeholder="${ph}" ${extra}>${type === "password" ? `<button type="button" class="eye" aria-label="Show password">${icon("eye", 22)}</button>` : ""}</label>`;
+  const google = (x, y, w, h, fs, d) => `<button type="button" id="google" class="at dz-btn rise" ${P(x, y, w, h, `${FS(fs)}font-weight:500;border:1px solid #cfd8d3;border-radius:calc(8 * var(--u));${D(d)}`)}>${GOOGLE.replace('class="gicon"', `style="width:calc(${fs + 6} * var(--u));height:calc(${fs + 6} * var(--u))"`)} Continue with Google</button>`;
+  let html;
+  if (!login) html = `<div class="dz-page"><div class="frame">
+    ${dzLogo(141, 18, 42, 31)}
+    <nav class="at dz-nav fade" aria-label="Site" ${P(1037, 28, null, null, `display:flex;gap:calc(34 * var(--u));align-items:center;${D(.2)}`)}><a href="#/">Home</a><a href="#/search" style="margin-left:calc(-8 * var(--u))">Rent ${icon("chev", 16)}</a><a href="#/signup?role=agent">List a Home</a><button type="button" id="about">About</button></nav>
+    <a class="at dz-navbtn fade" href="#/login" ${P(1433, 18, 100, 42, D(.3))}>Sign in</a>
+    <div class="at dz-bgimg reveal" ${P(0, 76, 936, 865, `background-image:url(img/signup-hero.webp);border-radius:0;clip-path:none`)}></div>
+    <div class="at dz-overlay-title rise" ${P(70, 743, 560, null, `${FS(56, 55)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
+    <div class="at fade m-hide" ${P(73, 877, 60, 2, `background:#fff;${D(.9)}`)}></div>
+    <div class="at dz-card fade" ${P(943, 77, 694, 852, D(.1))}></div>
+    <form id="f" novalidate>
+    <h1 class="at rise" ${P(943, 134, 694, null, `text-align:center;${FS(42, 56)}${D(.25)}`)}>Find your place with Faxton</h1>
+    <p class="at rise" ${P(943, 193, 694, null, `text-align:center;${FS(22)}color:#68746f;${D(.3)}`)}>Create an account to get started.</p>
+    <div class="at dz-role rise" role="tablist" ${P(1021, 257, 546, 49, D(.35))}><button type="button" class="on" data-role="renter">I’m renting</button><button type="button" data-role="agent">I’m listing a home</button></div>
+    <div class="at dz-label rise" ${P(1021, 328, null, null, `${FS(16)}${D(.4)}`)}>Full name</div>${field("name", 1021, 358, 546, 49, 17, "user", "Your full name", "text", 'autocomplete="name"', .4)}
+    <div class="at dz-label rise" ${P(1021, 426, null, null, `${FS(16)}${D(.45)}`)}>Email address</div>${field("email", 1021, 456, 546, 49, 17, "mail", "you@example.com", "email", 'autocomplete="email"', .45)}
+    <div class="at dz-label rise" ${P(1021, 524, null, null, `${FS(16)}${D(.5)}`)}>Password</div>${field("password", 1021, 554, 546, 49, 17, "lock", "Create a password", "password", 'autocomplete="new-password"', .5)}
+    <div class="at dz-hint" id="err" role="alert" data-default="At least 8 characters" ${P(1021, 608, 546, null, FS(15))}>At least 8 characters</div>
+    <div class="at dz-check rise" ${P(1021, 650, null, null, `${FS(16)}${D(.55)}`)}><input type="checkbox" id="terms" aria-label="I agree to the Terms and Privacy Policy"><label for="terms">I agree to the <a class="dz-link" style="font-weight:400" href="#/signup">Terms</a> and <a class="dz-link" style="font-weight:400" href="#/signup">Privacy Policy</a></label></div>
+    <button class="at dz-btn primary rise" type="submit" ${P(1021, 698, 546, 50, `${FS(19)}--rad:8;${D(.6)}`)}>Create account ${icon("arrow", 22)}</button>
+    <div class="at dz-sep fade" ${P(1021, 760, 546, 24, `${FS(17)}${D(.65)}`)}>or</div>
+    ${google(1021, 796, 546, 50, 19, .65)}
+    </form>
+    <p class="at fade" ${P(1021, 871, 546, null, `text-align:center;${FS(16)}color:#5f6b66;${D(.7)}`)}>Already have an account? <a class="dz-link" href="#/login">Sign in</a></p>
+  </div></div>`;
+  else html = `<div class="dz-page"><div class="frame">
+    <div class="at dz-bgimg reveal" ${P(0, 0, 883, 941, `background-image:url(img/login-hero.webp);border-radius:0;clip-path:none`)}></div>
+    ${dzLogo(108, 31, 45, 31)}
+    <div class="at dz-overlay-title rise" ${P(87, 815, 700, null, `${FS(42, 50)}font-weight:600;letter-spacing:-.02em;${D(.6)}`)}>A fresh start begins here.</div>
+    <div class="at fade m-hide" ${P(87, 884, 57, 3, `background:#34d399;${D(.9)}`)}></div>
+    <div class="at dz-card fade" ${P(883, 0, 789, 941, `border-radius:0;${D(.1)}`)}></div>
+    <form id="f" novalidate>
+    <h1 class="at rise" ${P(960, 134, 700, null, `${FS(60, 76)}${D(.25)}`)}>Welcome back</h1>
+    <p class="at rise" ${P(962, 207, 700, null, `${FS(34, 44)}color:#68746f;letter-spacing:-.005em;${D(.3)}`)}>Sign in to find your next home.</p>
+    <div class="at dz-label rise" ${P(963, 297, null, null, `${FS(20)}${D(.4)}`)}>Email address</div>${field("email", 963, 335, 637, 66, 20, "mail", "Enter your email address", "email", 'autocomplete="email"', .4)}
+    <div class="at dz-label rise" ${P(963, 428, null, null, `${FS(20)}${D(.45)}`)}>Password</div>${field("password", 963, 466, 637, 66, 20, "lock", "Enter your password", "password", 'autocomplete="current-password"', .45)}
+    <div class="at dz-check rise" ${P(963, 561, null, null, `${FS(19)}--cb:27;${D(.5)}`)}><input type="checkbox" id="remember" aria-label="Remember me"><label for="remember">Remember me</label></div>
+    <a class="at dz-link rise" id="forgot" href="#" ${P(1443, 561, null, null, `${FS(19)}text-decoration:underline;text-underline-offset:calc(4 * var(--u));${D(.5)}`)}>Forgot password?</a>
+    <div class="at dz-hint" id="err" role="alert" data-default="" ${P(963, 592, 637, null, FS(16))}></div>
+    <button class="at dz-btn primary rise" type="submit" ${P(963, 617, 637, 68, `${FS(24)}--rad:8;${D(.55)}`)}>Sign in ${icon("arrow", 26)}</button>
+    <div class="at dz-sep fade" ${P(963, 705, 637, 26, `${FS(18)}${D(.6)}`)}>or</div>
+    ${google(963, 749, 637, 69, 21, .6)}
+    </form>
+    <p class="at fade" ${P(963, 860, 637, null, `text-align:center;${FS(19)}color:#5f6b66;${D(.7)}`)}>New to Faxton Rentals? <a class="dz-link" href="#/signup">Create an account <span aria-hidden="true">→</span></a></p>
+  </div></div>`;
+  return { full: true, title: login ? "Sign in" : "Create account", html,
+    mount() {
+      const err = $("#err"), form = $("#f"); let role = ctx.q.role === "agent" ? "agent" : "renter";
+      const say = (m) => { err.textContent = m || err.dataset.default; err.classList.toggle("bad", !!m); };
+      $$("[data-role]").forEach((b) => { b.classList.toggle("on", b.dataset.role === role); b.onclick = () => { role = b.dataset.role; $$("[data-role]").forEach((x) => x.classList.toggle("on", x === b)); }; });
+      $$(".eye").forEach((b) => (b.onclick = () => { const i = b.parentElement.querySelector("input"); i.type = i.type === "password" ? "text" : "password"; }));
+      $$("input", form).forEach((i) => i.addEventListener("input", () => say("")));
+      const about = $("#about"); if (about) about.onclick = () => modal(`<h2>About Faxton Rentals</h2><p class="muted" style="margin-top:8px">Faxton Rentals helps you find, view and rent homes across Nigeria — chat with agents, book viewings and track your applications in one place.</p>`);
+      const run = async (fn, btn) => { say(""); if (btn) btn.disabled = true; try { await fn(); ctx.go("#" + next); } catch (e) { say(friendlyErr(e)); } finally { if (btn) btn.disabled = false; } };
       form.onsubmit = (e) => {
         e.preventDefault(); const v = Object.fromEntries(new FormData(form)); const btn = form.querySelector("button[type=submit]");
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email || "")) return (err.textContent = "Enter a valid email address.");
-        if (login) { if (!v.password) return (err.textContent = "Enter your password."); return run(() => ctx.signIn(v.email, v.password, $("#remember").checked), btn); }
-        if (!v.name?.trim()) return (err.textContent = "Enter your full name.");
-        if ((v.password || "").length < 8) return (err.textContent = "Password must be at least 8 characters.");
-        if (!$("#terms").checked) return (err.textContent = "Please accept the Terms and Privacy Policy.");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email || "")) return say("Enter a valid email address.");
+        if (login) { if (!v.password) return say("Enter your password."); return run(() => ctx.signIn(v.email, v.password, $("#remember").checked), btn); }
+        if (!v.name?.trim()) return say("Enter your full name.");
+        if ((v.password || "").length < 8) return say("Password must be at least 8 characters.");
+        if (!$("#terms").checked) return say("Please accept the Terms and Privacy Policy.");
         run(() => ctx.signUp(v.name.trim(), v.email, v.password, role), btn);
       };
       $("#google").onclick = (e) => run(ctx.signInGoogle, e.currentTarget);
-      const f = $("#forgot"); if (f) f.onclick = async (e) => { e.preventDefault(); const em = $("#email").value; if (!em) return (err.textContent = "Enter your email above first."); try { await ctx.resetPassword(em); toast("Password reset email sent."); } catch (x) { err.textContent = friendlyErr(x); } };
+      const f = $("#forgot"); if (f) f.onclick = async (e) => { e.preventDefault(); const em = $("#email").value; if (!em) return say("Enter your email above first."); try { await ctx.resetPassword(em); toast("Password reset email sent."); } catch (x) { say(friendlyErr(x)); } };
     } };
 }
 
@@ -254,10 +310,12 @@ function settings(ctx) {
     <div class="panel"><h3 style="margin-bottom:14px">Profile</h3><form id="pf"><div class="field"><label for="nm">Full name</label><input id="nm" value="${esc(u.displayName || "")}"></div><div class="field"><label>Email</label><input value="${esc(u.email)}" disabled></div>
       <div class="row-between"><span>Account type</span><span class="pill">${esc(role)}</span></div><button class="btn primary">Save changes</button></form></div>
     <div class="panel"><div class="row-between"><div><h3>Appearance</h3><p class="muted">Switch between light and dark mode</p></div>${ctx.themeBtn()}</div></div>
+    <div class="panel"><div class="row-between"><div><h3>Install the app</h3><p class="muted">Add Faxton Rentals to your home screen or desktop</p></div><button class="btn" id="install">Install</button></div></div>
     ${ctx.S.isAdmin ? `<div class="panel"><div class="row-between"><div><h3>Admin console</h3><p class="muted">Manage listings, users and applications</p></div><a class="btn" href="#/admin">Open</a></div></div>` : ""}
     <button class="btn" id="out" style="justify-self:start">${icon("logout", 18)} Sign out</button></div>`,
     mount() {
       $("#pf").onsubmit = async (e) => { e.preventDefault(); const name = $("#nm").value.trim(); try { await updateProfile(auth.currentUser, { displayName: name }); await st.saveProfile(u.uid, { name }); toast("Profile updated."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } };
+      $("#install").onclick = async () => { if (ctx.canInstall()) return void (await ctx.installApp()); modal(`<h2>Install Faxton Rentals</h2><p class="muted" style="margin:8px 0 14px">Open this site in your browser, then:</p><p><b>Chrome / Edge (computer or Android):</b> click the install icon in the address bar, or menu → “Install Faxton Rentals”.</p><p style="margin-top:10px"><b>iPhone / iPad (Safari):</b> tap Share → “Add to Home Screen”.</p>`); };
       $("#out").onclick = async () => { await ctx.logout(); ctx.go("#/login"); };
     } };
 }
