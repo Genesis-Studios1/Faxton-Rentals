@@ -118,7 +118,7 @@ function authPage(ctx, mode) {
     ${dzLogo(141, 18, 42, 31)}
     <nav class="at dz-nav fade" aria-label="Site" ${P(1037, 28, null, null, `display:flex;gap:calc(34 * var(--u));align-items:center;${D(.2)}`)}><a href="#/">Home</a><a href="#/search" style="margin-left:calc(-8 * var(--u))">Rent ${icon("chev", 16)}</a><a href="#/signup?role=agent">List a Home</a><button type="button" id="about">About</button></nav>
     <a class="at dz-navbtn fade" href="#/login" ${P(1433, 18, 100, 42, D(.3))}>Sign in</a>
-    <div class="at dz-bgimg reveal" ${P(0, 76, 936, 865, `background-image:url(img/signup-hero.webp);border-radius:0;clip-path:none`)}></div>
+    <div class="at dz-bgimg edge-l reveal" ${P(0, 76, 936, 865, `background-image:url(img/signup-hero.webp);--W:936;`)}></div>
     <div class="at dz-overlay-title rise" ${P(70, 743, 560, null, `${FS(56, 55)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
     <div class="at fade m-hide" ${P(73, 877, 60, 2, `background:#fff;${D(.9)}`)}></div>
     <div class="at dz-card fade" ${P(943, 77, 694, 852, D(.1))}></div>
@@ -138,11 +138,11 @@ function authPage(ctx, mode) {
     <p class="at fade" ${P(1021, 871, 546, null, `text-align:center;${FS(16)}color:#5f6b66;${D(.7)}`)}>Already have an account? <a class="dz-link" href="#/login">Sign in</a></p>
   </div></div>`;
   else html = `<div class="dz-page"><div class="frame">
-    <div class="at dz-bgimg reveal" ${P(0, 0, 883, 941, `background-image:url(img/login-hero.webp);border-radius:0;clip-path:none`)}></div>
+    <div class="at dz-bgimg edge-l reveal" ${P(0, 0, 883, 941, `background-image:url(img/login-hero.webp);--W:883;`)}></div>
     ${dzLogo(108, 31, 45, 31)}
     <div class="at dz-overlay-title rise" ${P(87, 815, 700, null, `${FS(42, 50)}font-weight:600;letter-spacing:-.02em;${D(.6)}`)}>A fresh start begins here.</div>
     <div class="at fade m-hide" ${P(87, 884, 57, 3, `background:#34d399;${D(.9)}`)}></div>
-    <div class="at dz-card fade" ${P(883, 0, 789, 941, `border-radius:0;${D(.1)}`)}></div>
+    <div class="at dz-card edge-r fade" ${P(883, 0, 789, 941, `border-radius:0;--W:789;${D(.1)}`)}></div>
     <form id="f" novalidate>
     <h1 class="at rise" ${P(960, 134, 700, null, `${FS(60, 76)}${D(.25)}`)}>Welcome back</h1>
     <p class="at rise" ${P(962, 207, 700, null, `${FS(34, 44)}color:#68746f;letter-spacing:-.005em;${D(.3)}`)}>Sign in to find your next home.</p>

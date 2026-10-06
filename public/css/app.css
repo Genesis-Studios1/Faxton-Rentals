@@ -104,7 +104,9 @@ table{width:100%;border-collapse:collapse}th{text-align:left;font-weight:600;col
 
 /* ===== design-exact screens (onboarding, sign up, log in) =====
    Every element is placed at the coordinates of the 1672x941 design, scaled by --u. */
-.dz-page{--u:min(calc(100vw / 1672),1.15px);background:var(--bg);overflow-x:hidden;position:relative;min-height:100vh}
+.dz-page{--u:min(calc(100vw / 1672),calc(100vh / 941),1.15px);background:var(--bg);position:relative;height:100vh;overflow:hidden;display:grid;place-items:center}
+.dz-page .edge-l{left:calc((100vw - 1672 * var(--u)) / -2)!important;width:calc(var(--W) * var(--u) + (100vw - 1672 * var(--u)) / 2)!important}
+.dz-page .edge-r{width:calc(var(--W) * var(--u) + (100vw - 1672 * var(--u)) / 2)!important}
 .dz-page .frame{position:relative;width:calc(1672 * var(--u));height:calc(941 * var(--u));margin:0 auto}
 .dz-page .at{position:absolute}
 .dz-page .hline{position:absolute;left:-100vw;width:300vw;height:1px;background:var(--border)}
@@ -154,7 +156,7 @@ html:not(.ready) .rise,html:not(.ready) .reveal,html:not(.ready) .fade{animation
 
 /* phones / narrow windows: same screens, stacked */
 @media (max-width:860px){
-  .dz-page{--u:calc(100vw / 640)}
+  .dz-page{--u:calc(100vw / 640);height:auto;min-height:100vh;overflow-x:hidden;overflow-y:visible;display:block}
   .dz-page .frame{width:100%;height:auto;display:flex;flex-direction:column;gap:calc(22 * var(--u));padding:calc(22 * var(--u)) calc(34 * var(--u)) calc(40 * var(--u))}
   .dz-page .at{position:static!important;width:auto!important;height:auto!important}
   .dz-page .hline{display:none}.dz-img,.dz-bgimg{aspect-ratio:1.2}.dz-img{order:-1}.dz-page .m-first{order:-2}
@@ -269,3 +271,6 @@ dialog.modal[open]{animation:modalIn .4s cubic-bezier(.2,.8,.2,1)}dialog.modal[o
 @media (max-width:1100px){.d-hero-text{max-width:100%}.d-hero-img{position:relative;width:100%;height:240px;clip-path:none;margin-top:18px}.d-hero{padding-bottom:0}.results .cards{grid-template-columns:repeat(2,minmax(0,1fr))}.tn-links{display:none}}
 @media (max-width:860px){.tn-links{display:flex;position:fixed;left:0;right:0;bottom:0;margin:0;background:var(--card);border-top:1px solid var(--border);height:58px;justify-content:space-around;z-index:40;gap:0}.tn-links a{font-size:.8rem;padding:0 6px}.tn-links a::after{bottom:auto;top:-1px;border-radius:0 0 3px 3px}.main-top{padding-bottom:110px}.bubble.card-b{grid-template-columns:1fr}.card-b img{width:100%}.searchbar{margin-top:16px}.results .cards{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){.card,.card *,.page,.cards .card,.gallery>div,.panel,.stat,.bubble,.menu,dialog.modal{animation:none!important;transition:none!important}.card:hover{transform:none}}
+
+html,body{overflow-x:clip}
+html:not(.ready){overflow:hidden}
