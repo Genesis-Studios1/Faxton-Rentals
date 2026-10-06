@@ -106,6 +106,8 @@ table{width:100%;border-collapse:collapse}th{text-align:left;font-weight:600;col
    Every element is placed at the coordinates of the 1672x941 design, scaled by --u. */
 .dz-page{--u:min(calc(100vw / 1672),calc(100vh / 941),1.15px);background:var(--bg);position:relative;height:100vh;overflow:hidden;display:grid;place-items:center}
 .dz-page .edge-l{left:calc((100vw - 1672 * var(--u)) / -2)!important;width:calc(var(--W) * var(--u) + (100vw - 1672 * var(--u)) / 2)!important}
+.dz-page .edge-tl{left:calc((100vw - 1672 * var(--u)) / -2 + clamp(16px, 2vw, 32px))!important}
+.dz-page .edge-tr{left:auto!important;right:calc((100vw - 1672 * var(--u)) / -2 + clamp(16px, 2vw, 32px))}
 .dz-page .edge-r{width:calc(var(--W) * var(--u) + (100vw - 1672 * var(--u)) / 2)!important}
 .dz-page .frame{position:relative;width:calc(1672 * var(--u));height:calc(941 * var(--u));margin:0 auto}
 .dz-page .at{position:absolute}
