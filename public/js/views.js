@@ -57,14 +57,14 @@ export async function route(ctx) {
 const P = (x, y, w, h, extra = "") => `style="left:calc(${x} * var(--u));top:calc(${y} * var(--u));${w != null ? `width:calc(${w} * var(--u));` : ""}${h != null ? `height:calc(${h} * var(--u));` : ""}${extra}"`;
 const FS = (n, lh) => `font-size:calc(${n} * var(--u));${lh ? `line-height:calc(${lh} * var(--u));` : ""}`;
 const D = (d) => `--d:${d}s;`;
-const dzLogo = (x, y, mh, fs, extra = "") => `<a class="at dz-logo rise" href="#/" aria-label="Faxton Rentals" ${P(x, y, null, null, `--mh:${mh};${FS(fs)}${extra}`)}>${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
+const dzLogo = (x, y, mh, fs, extra = "") => `<a class="at dz-logo edge-tl rise" href="#/" aria-label="Faxton Rentals" ${P(x, y, null, null, `--mh:${mh};${FS(fs)}${extra}`)}>${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
 const markSeen = () => { try { localStorage.setItem("seen", "1"); } catch {} };
 const feat = (x, top, box, ic, tx, tw, fs, text, desc, fsd, lhd, d) => `<div class="at dz-feat rise" ${P(x, top, null, null, `--box:${box};--gap:${tx - x - box};${D(d)}`)}><span class="dz-fi">${icon(ic, 30)}</span><div class="dz-ft" style="width:calc(${tw} * var(--u))"><b class="${desc ? "" : "plain"}" style="${FS(fs, desc ? fs * 1.15 : fs * 1.3)}">${text}</b>${desc ? `<span style="${FS(fsd, lhd)}">${desc}</span>` : ""}</div></div>`;
 const bars = (x, y, n, bw, gap, bh) => `<div class="at dz-bars fade" ${P(x, y, null, null, `--bw:${bw};--bg:${gap};--bh:${bh};${D(.5)}`)}>${[1, 2, 3].map((i) => `<i class="${i === n ? "on" : ""}"></i>`).join("")}</div>`;
 const arrowBtn = (cls, href, x, y, w, h, fs, inner, d = 0.6, extra = "") => `<a class="at dz-btn ${cls} rise" href="${href}" ${P(x, y, w, h, `${FS(fs)}${D(d)}${extra}`)}>${inner}</a>`;
 
 function onboarding(ctx, n) {
-  const skip = (x, y, dim) => `<a class="at dz-skip ${dim ? "dim" : ""} fade" href="#/login" data-skip ${P(x, y, null, null, D(.3))}>Skip ${icon("arrow", 24)}</a>`;
+  const skip = (x, y, dim) => `<a class="at dz-skip edge-tr ${dim ? "dim" : ""} fade" href="#/login" data-skip ${P(x, y, null, null, D(.3))}>Skip ${icon("arrow", 24)}</a>`;
   const hdr = (h) => `<div class="hline" style="top:calc(${h} * var(--u))"></div>`;
   const wrap = (inner) => `<div class="dz-page"><div class="frame">${inner}</div></div>`;
   let html;
@@ -116,8 +116,7 @@ function authPage(ctx, mode) {
   let html;
   if (!login) html = `<div class="dz-page"><div class="frame">
     ${dzLogo(141, 18, 42, 31)}
-    <nav class="at dz-nav fade" aria-label="Site" ${P(1037, 28, null, null, `display:flex;gap:calc(34 * var(--u));align-items:center;${D(.2)}`)}><a href="#/">Home</a><a href="#/search" style="margin-left:calc(-8 * var(--u))">Rent ${icon("chev", 16)}</a><a href="#/signup?role=agent">List a Home</a><button type="button" id="about">About</button></nav>
-    <a class="at dz-navbtn fade" href="#/login" ${P(1433, 18, 100, 42, D(.3))}>Sign in</a>
+    <a class="at dz-navbtn edge-tr fade" href="#/login" ${P(1433, 18, 100, 42, D(.3))}>Sign in</a>
     <div class="at dz-bgimg edge-l reveal" ${P(0, 76, 936, 865, `background-image:url(img/signup-hero.webp);--W:936;`)}></div>
     <div class="at dz-overlay-title rise" ${P(70, 743, 560, null, `${FS(56, 55)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
     <div class="at fade m-hide" ${P(73, 877, 60, 2, `background:#fff;${D(.9)}`)}></div>
@@ -164,7 +163,6 @@ function authPage(ctx, mode) {
       $$("[data-role]").forEach((b) => { b.classList.toggle("on", b.dataset.role === role); b.onclick = () => { role = b.dataset.role; $$("[data-role]").forEach((x) => x.classList.toggle("on", x === b)); }; });
       $$(".eye").forEach((b) => (b.onclick = () => { const i = b.parentElement.querySelector("input"); i.type = i.type === "password" ? "text" : "password"; }));
       $$("input", form).forEach((i) => i.addEventListener("input", () => say("")));
-      const about = $("#about"); if (about) about.onclick = () => modal(`<h2>About Faxton Rentals</h2><p class="muted" style="margin-top:8px">Faxton Rentals helps you find, view and rent homes across Nigeria — chat with agents, book viewings and track your applications in one place.</p>`);
       const run = async (fn, btn) => { say(""); if (btn) btn.disabled = true; try { await fn(); ctx.go("#" + next); } catch (e) { say(friendlyErr(e)); } finally { if (btn) btn.disabled = false; } };
       form.onsubmit = (e) => {
         e.preventDefault(); const v = Object.fromEntries(new FormData(form)); const btn = form.querySelector("button[type=submit]");
