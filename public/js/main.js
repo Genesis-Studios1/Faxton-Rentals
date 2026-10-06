@@ -162,7 +162,7 @@ render();
 (function splash() {
   const el = $("#splash"), root = document.documentElement;
   if (!el || root.classList.contains("no-splash")) return;
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 3600;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 3300;
   let done = false;
   const finish = () => { if (done) return; done = true; try { sessionStorage.setItem("splashed", "1"); } catch {} el.classList.add("leave"); root.classList.add("ready"); document.dispatchEvent(new Event("splash-done")); setTimeout(() => el.remove(), 1000); };
   const poll = setInterval(() => { if (S.ready && performance.now() - started >= MIN) { clearInterval(poll); finish(); } }, 100);
