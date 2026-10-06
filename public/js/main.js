@@ -7,11 +7,19 @@ import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchCo
 import * as V from "./views.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
 
-export const S = { unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
+export const S = { nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
 
 // ---------- theme ----------
 export const theme = () => document.documentElement.dataset.theme;
+export const themePref = () => { try { return localStorage.getItem("theme") || "light"; } catch { return "light"; } };
+const resolveTheme = (p) => (p === "dark" || (p === "system" && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light");
+export function setThemePref(p) {
+  try { localStorage.setItem("theme", p); } catch {}
+  document.documentElement.dataset.theme = resolveTheme(p);
+  $$("[data-theme-btn]").forEach((b) => (b.innerHTML = icon(theme() === "dark" ? "sun" : "moon", 20)));
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { if (themePref() === "system") document.documentElement.dataset.theme = resolveTheme("system"); });
 export function toggleTheme() {
   const n = theme() === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = n;
   try { localStorage.setItem("theme", n); } catch {}
@@ -26,9 +34,11 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Discover"], ["/saved", "Saved homes"], ["/bookings", "My rentals"], ["/messages", "Messages"]];
 const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Rental applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/reports", "chart", "Reports"], ["/admin/support", "headset", "Support"], ["/settings", "gear", "Settings"]];
+export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
-const WRAPPED = ["/saved", "/bookings", "/payments", "/settings"];
+const WRAPPED = ["/saved", "/bookings", "/payments"];
+const isSettings = (p) => p === "/settings" || p.startsWith("/settings/");
 
 function shell(path, inner, { admin = false, pending = 0 } = {}) {
   return admin ? adminShell(path, inner, pending) : appShell(path, inner);
@@ -47,15 +57,15 @@ function appShell(path, inner) {
   const on = (h) => (h === "/" ? path === "/" : path === h || path.startsWith(h + "/") || (h === "/search" && path.startsWith("/home/")));
   const items = NAV.map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""} aria-label="${l}">${icon(ic, 24)}<span>${l}</span>${l === "Messages" ? `<b class="badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
   const first = userName().replace(/(\S+)\s+(\S).*/, "$1 $2.");
-  const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
+  const body = WRAPPED.includes(path) || isSettings(path) ? `<div class="wrap">${inner}</div>` : inner;
   return `<div class="app-shell">
     <aside class="rail app-rail" aria-label="Main navigation">
       <div class="rail-top"><a class="logo" href="#/" aria-label="Faxton Rentals home">${logo().match(/<svg.*<\/svg>/s)[0]}</a><span class="rail-chev" aria-hidden="true">${icon("dchev", 22)}</span></div>
       <nav>${items}</nav>
       <div class="rail-bottom"><a class="item ${on("/settings") ? "on" : ""}" href="#/settings" aria-label="Settings">${icon("gear", 24)}<span>Settings</span></a>
-        <a class="rail-user" href="#/settings" aria-label="Account: ${esc(userName())}"><span class="avatar">${esc(initials(userName()))}</span><span>${esc(first)}</span></a></div>
+        <a class="rail-user" href="#/settings" aria-label="Account: ${esc(userName())}">${avatarHtml()}<span>${esc(first)}</span></a></div>
     </aside>
-    <main class="main-app page" id="main">${verifyBanner()}${body}</main></div>`;
+    <main class="main-app page" id="main">${verifyBanner()}${path === "/" || path === "/messages" || path.startsWith("/messages/") ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`}${body}</main></div>`;
 }
 function topbar() {
   return `<div class="admin-top"><label class="input">${icon("search", 20)}<input type="search" placeholder="Search properties, users, applications…" aria-label="Search"></label><span style="flex:1"></span>${themeBtn()}<a class="icon-btn ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 20)}</a><span class="me"><span class="avatar">${esc(initials(userName()))}</span><span style="line-height:1.2"><b style="color:var(--head)">${esc(userName().split(" ")[0])}</b><br><small class="muted">${S.isOwner ? "Owner" : "Admin"}</small></span></span></div>`;
@@ -77,7 +87,7 @@ export async function render() {
   if (!S.user && !open) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (S.user && open) return go("#" + (q.next || "/"));
 
-  const ctx = { path, q, S, go, refreshUser, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
+  const ctx = { path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   bar(true);
   const view = await V.route(ctx);
   if (id !== renderId) return;
@@ -96,6 +106,7 @@ function wire() {
   if (rs) rs.onclick = async () => { try { await resendVerification(); toast("Verification email sent."); } catch (e) { toast(friendlyErr(e)); } };
   if (rf) rf.onclick = async () => { try { await refreshUser(); } catch (e) { toast(friendlyErr(e)); } };
   $$("[data-theme-btn]").forEach((b) => (b.onclick = toggleTheme));
+  $$("[data-back]").forEach((b) => (b.onclick = () => (S.nav > 0 ? history.back() : go("#/"))));
   const mb = $("#meBtn"), mm = $("#meMenu");
   if (mb && mm) {
     const close = () => { mm.hidden = true; mb.setAttribute("aria-expanded", "false"); };
@@ -124,6 +135,7 @@ async function signUp(name, email, pw, role) {
   await ensureProfile(c.user, { name, role: role === "agent" ? "agent" : "renter" });
   try { await sendEmailVerification(c.user); } catch {}
 }
+export async function refreshProfile() { if (S.user) S.profile = await getProfile(S.user.uid); }
 export async function resendVerification() { await sendEmailVerification(auth.currentUser); }
 export async function refreshUser() { await auth.currentUser.reload(); await refreshAuthState(auth.currentUser); render(); }
 async function signInGoogle() { const c = await signInWithPopup(auth, google); await ensureProfile(c.user); }
@@ -155,7 +167,7 @@ async function refreshAuthState(u) {
   });
 }
 onAuthStateChanged(auth, async (u) => { await refreshAuthState(u); S.ready = true; render(); });
-addEventListener("hashchange", render);
+addEventListener("hashchange", () => { S.nav++; render(); });
 render();
 
 // ---------- splash: plays once per session, dismisses when the app is ready ----------

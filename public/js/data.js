@@ -6,13 +6,13 @@ const base = { city: "Lagos", status: "active", service: 300000, deposit: 300000
 
 export const SEED = [
   { ...base, id: "palm-court", title: "Palm Court Apartment", area: "Lekki Phase 1", type: "Apartment", price: 3600000, beds: 2, baths: 2, sqm: 120, lat: 6.4474, lng: 3.4723, agent: daniel,
-    thumb: "img/palm-court.webp", images: ["img/palm-living.webp", "img/palm-kitchen.webp", "img/palm-bedroom.webp", "img/palm-court.webp"],
+    thumb: "img/home-palm.webp", images: ["img/palm-living.webp", "img/palm-kitchen.webp", "img/palm-bedroom.webp", "img/palm-court.webp"],
     amenities: ["Parking", "Water supply", "Security", "Balcony"],
     desc: "A stylish 2-bedroom apartment in the heart of Lekki Phase 1, offering modern finishes, spacious living areas and excellent natural light. Located in a secure, well-maintained development with easy access to top schools, restaurants and retail hubs." },
-  { ...base, id: "maple-terrace", title: "Maple Terrace", area: "Ajah", type: "House", price: 2400000, beds: 3, baths: 3, sqm: 165, lat: 6.4698, lng: 3.5852, agent: ngozi,
+  { ...base, id: "maple-terrace", thumb: "img/home-maple.webp", title: "Maple Terrace", area: "Ajah", type: "House", price: 2400000, beds: 3, baths: 3, sqm: 165, lat: 6.4698, lng: 3.5852, agent: ngozi,
     images: ["img/maple-terrace.webp", "img/apartment-3bed.webp"], amenities: ["Parking", "Security", "Generator", "Water supply"],
     desc: "A contemporary 3-bedroom terrace in a gated estate in Ajah, with a private driveway, spacious reception and a quiet, family-friendly neighbourhood." },
-  { ...base, id: "oakview-studio", title: "Oakview Studio", area: "Yaba", type: "Studio", price: 1200000, beds: 0, baths: 1, sqm: 45, lat: 6.5095, lng: 3.3711, agent: tunde, service: 150000, deposit: 150000,
+  { ...base, id: "oakview-studio", thumb: "img/home-oak.webp", title: "Oakview Studio", area: "Yaba", type: "Studio", price: 1200000, beds: 0, baths: 1, sqm: 45, lat: 6.5095, lng: 3.3711, agent: tunde, service: 150000, deposit: 150000,
     images: ["img/oakview-studio.webp"], amenities: ["Water supply", "Security", "Wi-Fi"],
     desc: "A bright, well-finished studio close to the Yaba tech cluster, with floor-to-ceiling windows and a city view. Ideal for a young professional." },
   { ...base, id: "duplex-4bed", title: "4 Bedroom Duplex", area: "Lekki Phase 1", type: "House", price: 3600000, beds: 4, baths: 4, sqm: 280, lat: 6.4531, lng: 3.4741, agent: amara,
