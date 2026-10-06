@@ -112,21 +112,22 @@ table{width:100%;border-collapse:collapse}th{text-align:left;font-weight:600;col
 .dz-page .frame{position:relative;width:calc(1672 * var(--u));height:calc(941 * var(--u));margin:0 auto}
 .dz-page .at{position:absolute}
 .dz-page .hline{position:absolute;left:-100vw;width:300vw;height:1px;background:var(--border)}
-.dz-page h1,.dz-page .h{font-family:'Inter Tight',Inter,system-ui,sans-serif;font-weight:800;letter-spacing:-.035em;word-spacing:.12em;color:var(--head);margin:0}
+.dz-page h1,.dz-page .h{font-family:Inter,system-ui,sans-serif;font-weight:800;letter-spacing:-.06em;word-spacing:0;color:var(--head);margin:0}
 .dz-logo{display:flex;align-items:center;gap:calc(14 * var(--u));color:var(--head);white-space:nowrap}
-.dz-logo .logo-svg{height:calc(var(--mh) * var(--u))}.dz-logo .logo-word{font-family:'Inter Tight',Inter,sans-serif;letter-spacing:-.02em}.dz-logo .logo-word b{font-weight:700}
+.dz-logo .logo-svg{height:calc(var(--mh) * var(--u))}.dz-logo .logo-word{font-family:Inter,system-ui,sans-serif;letter-spacing:-.015em}.dz-logo .logo-word b{font-weight:700}.dz-logo .logo-word{letter-spacing:-.02em}
 .dz-eyebrow{font-size:calc(17 * var(--u));letter-spacing:.3em;text-transform:uppercase;color:#5f7d70;font-weight:500;white-space:nowrap}
 .dz-lead{color:#6c7873;line-height:1.32}
 .dz-skip{display:flex;align-items:center;gap:calc(10 * var(--u));font-size:calc(22 * var(--u));color:var(--text);white-space:nowrap}.dz-skip.dim{color:#7d8985}
 .dz-feat{display:flex;gap:calc(var(--gap,26) * var(--u));align-items:center}
-.dz-fi{flex:none;display:grid;place-items:center;width:calc(var(--box) * var(--u));height:calc(var(--box) * var(--u));border-radius:calc(var(--box) * .24 * var(--u));background:var(--soft);color:var(--head)}
-.dz-fi .ic{width:calc(var(--box) * .52 * var(--u));height:calc(var(--box) * .52 * var(--u))}
-.dz-ft b{display:block;font-weight:600;color:var(--head);font-family:Inter,system-ui,sans-serif;letter-spacing:-.015em}.dz-ft b.plain{font-weight:400;color:var(--text);letter-spacing:0}.dz-ft span{display:block;color:#7b8581}
+.dz-fi{flex:none;display:grid;place-items:center;width:calc(var(--box) * var(--u));height:calc(var(--box) * var(--u));border-radius:calc(var(--box) * .22 * var(--u));background:#e8f4ee;color:var(--head)}
+.dz-fi.k{color:#0b3d2e}.dz-fi.g{color:#12896a;background:linear-gradient(145deg,#eef8f3,#e2f1ea);box-shadow:0 8px 16px -8px rgba(15,110,80,.38),0 1px 0 rgba(255,255,255,.8) inset}
+.dz-fi .ic{width:calc(var(--box) * .52 * var(--u));height:calc(var(--box) * .52 * var(--u))}.dz-fi.k .ic{width:calc(var(--box) * .58 * var(--u));height:calc(var(--box) * .58 * var(--u))}
+.dz-ft b{display:block;font-weight:600;color:var(--head);font-family:Inter,system-ui,sans-serif;letter-spacing:-.02em}.dz-ft b.plain{font-weight:400;color:var(--text);letter-spacing:0}.dz-ft span{display:block;color:#7b8581}
 .dz-img{border-radius:calc(24 * var(--u));overflow:hidden;background:var(--soft)}.dz-img img{display:block;width:100%;height:100%;object-fit:cover}
 .dz-bars{display:flex;gap:calc(var(--bg,12) * var(--u));align-items:center}.dz-bars i{display:block;height:calc(var(--bh,8) * var(--u));width:calc(var(--bw) * var(--u));border-radius:9px;background:#cfe0d8}.dz-bars i.on{background:var(--brand)}
-.dz-btn{display:flex;align-items:center;justify-content:center;gap:calc(14 * var(--u));border-radius:calc(var(--rad,12) * var(--u));font-weight:600;border:1.5px solid var(--brand);background:#fff;color:var(--head);font-family:'Inter Tight',Inter,sans-serif;cursor:pointer;white-space:nowrap}
+.dz-btn{display:flex;align-items:center;justify-content:center;gap:calc(14 * var(--u));border-radius:calc(var(--rad,12) * var(--u));font-weight:500;border:1.5px solid var(--brand);background:#fff;color:var(--head);font-family:Inter,system-ui,sans-serif;cursor:pointer;white-space:nowrap}
 :root[data-theme=dark] .dz-btn{background:var(--card)}.dz-btn:hover{background:var(--soft)}
-.dz-btn.primary{background:linear-gradient(180deg,#17a07b,#0f8c6a);color:#fff;border-color:transparent}.dz-btn.primary:hover{filter:brightness(1.06)}.dz-btn .ic{width:calc(28 * var(--u));height:calc(28 * var(--u))}
+.dz-btn.primary{background:linear-gradient(180deg,#1aa981,#139a76);color:#fff;border-color:transparent}.dz-btn.primary:hover{filter:brightness(1.06)}.dz-btn .ic{width:calc(28 * var(--u));height:calc(28 * var(--u))}
 .dz-link{color:var(--brand);font-weight:600}
 .dz-tag{display:inline-block}
 /* forms */

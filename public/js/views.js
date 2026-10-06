@@ -59,48 +59,48 @@ const FS = (n, lh) => `font-size:calc(${n} * var(--u));${lh ? `line-height:calc(
 const D = (d) => `--d:${d}s;`;
 const dzLogo = (x, y, mh, fs, extra = "") => `<a class="at dz-logo edge-tl rise" href="#/" aria-label="Faxton Rentals" ${P(x, y, null, null, `--mh:${mh};${FS(fs)}${extra}`)}>${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
 const markSeen = () => { try { localStorage.setItem("seen", "1"); } catch {} };
-const feat = (x, top, box, ic, tx, tw, fs, text, desc, fsd, lhd, d) => `<div class="at dz-feat rise" ${P(x, top, null, null, `--box:${box};--gap:${tx - x - box};${D(d)}`)}><span class="dz-fi">${icon(ic, 30)}</span><div class="dz-ft" style="width:calc(${tw} * var(--u))"><b class="${desc ? "" : "plain"}" style="${FS(fs, desc ? fs * 1.15 : fs * 1.3)}">${text}</b>${desc ? `<span style="${FS(fsd, lhd)}">${desc}</span>` : ""}</div></div>`;
+const feat = (x, top, box, ic, tx, tw, fs, text, desc, fsd, lhd, d) => `<div class="at dz-feat rise" ${P(x, top, null, null, `--box:${box};--gap:${tx - x - box};${D(d)}`)}><span class="dz-fi ${box === 78 ? "g" : "k"}">${icon(ic, 30, box === 78 ? 1.9 : 1.9)}</span><div class="dz-ft" style="width:calc(${tw} * var(--u))"><b class="${desc ? "" : "plain"}" style="${FS(fs, desc ? fs * 1.15 : fs * 1.3)}">${text}</b>${desc ? `<span style="${FS(fsd, lhd)}">${desc}</span>` : ""}</div></div>`;
 const bars = (x, y, n, bw, gap, bh) => `<div class="at dz-bars fade" ${P(x, y, null, null, `--bw:${bw};--bg:${gap};--bh:${bh};${D(.5)}`)}>${[1, 2, 3].map((i) => `<i class="${i === n ? "on" : ""}"></i>`).join("")}</div>`;
-const arrowBtn = (cls, href, x, y, w, h, fs, inner, d = 0.6, extra = "") => `<a class="at dz-btn ${cls} rise" href="${href}" ${P(x, y, w, h, `${FS(fs)}${D(d)}${extra}`)}>${inner}</a>`;
+const arrowBtn = (cls, href, x, y, w, h, fs, inner, d = 0.6, extra = "") => `<a class="at dz-btn ${cls} rise" href="${href}" ${P(x, y, w, h, `${FS(fs)}--rad:14;${D(d)}${extra}`)}>${inner}</a>`;
 
 function onboarding(ctx, n) {
   const skip = (x, y, dim) => `<a class="at dz-skip edge-tr ${dim ? "dim" : ""} fade" href="#/login" data-skip ${P(x, y, null, null, D(.3))}>Skip ${icon("arrow", 24)}</a>`;
   const hdr = (h) => `<div class="hline" style="top:calc(${h} * var(--u))"></div>`;
   const wrap = (inner) => `<div class="dz-page"><div class="frame">${inner}</div></div>`;
   let html;
-  if (n === 1) html = wrap(`${hdr(95)}${dzLogo(95, 28, 44, 36)}${skip(1518, 38)}
+  if (n === 1) html = wrap(`${hdr(95)}${dzLogo(95, 28, 44, 34)}${skip(1518, 38)}
     <div class="at dz-eyebrow rise" ${P(90, 162, null, null, D(.1))}>Find your space</div>
-    <h1 class="at rise" ${P(88, 207, 620, null, `${FS(82, 78)}${D(.2)}`)}>A home that<br>fits your life.</h1>
-    <p class="at dz-lead rise" ${P(90, 384, 600, null, `${FS(25, 33)}${D(.35)}`)}>Explore rental homes across Nigeria, from your<br>first apartment to your next family home.</p>
+    <h1 class="at rise" ${P(88, 207, 620, null, `${FS(82, 78)}letter-spacing:-.048em;${D(.2)}`)}>A home that<br>fits your life.</h1>
+    <p class="at dz-lead rise" ${P(90, 384, 600, null, `${FS(24.7, 33)}color:#7b8682;${D(.35)}`)}>Explore rental homes across Nigeria, from your<br>first apartment to your next family home.</p>
     ${feat(91, 485, 66, "search", 185, 240, 22, "Search your favourite<br>neighbourhoods", "", 0, 0, .45)}
-    ${feat(91, 575, 66, "sliders", 185, 240, 22, "Filter by budget and<br>bedrooms", "", 0, 0, .55)}
+    ${feat(91, 575, 66, "sliders3", 185, 240, 22, "Filter by budget and<br>bedrooms", "", 0, 0, .55)}
     ${feat(91, 662, 66, "heart", 185, 240, 22, "Save homes you love", "", 0, 0, .65)}
-    <div class="at fade" ${P(91, 762, null, null, `display:flex;align-items:center;gap:calc(12 * var(--u));${FS(22)}${D(.7)}`)}><b style="color:var(--brand);font-weight:700">01</b><span style="color:#8a9690;margin-right:calc(8 * var(--u))">/ 03</span></div>
+    <div class="at fade" ${P(91, 762, null, null, `display:flex;align-items:center;gap:calc(6 * var(--u));${FS(21)}${D(.7)}`)}><b style="color:var(--brand);font-weight:700">01</b><span style="color:#9aa5a0">/ 03</span></div>
     ${bars(186, 771, 1, 95, 12, 8)}
-    ${arrowBtn("primary", "#/onboarding/2", 91, 816, 322, 65, 26, `Continue ${icon("arrow", 26)}`, .8, `justify-content:space-between;padding:0 calc(36 * var(--u)) 0 calc(96 * var(--u));`)}
-    <a class="at fade" href="#/login" data-skip ${P(460, 826, null, null, `${FS(24)}border-bottom:calc(3 * var(--u)) solid var(--brand);padding-bottom:calc(4 * var(--u));color:var(--head);${D(.9)}`)}>Sign in</a>
+    ${arrowBtn("primary", "#/onboarding/2", 91, 816, 322, 65, 24.5, `Continue ${icon("arrow", 26)}`, .8, `justify-content:space-between;padding:0 calc(36 * var(--u)) 0 calc(96 * var(--u));`)}
+    <a class="at fade" href="#/login" data-skip ${P(460, 834, null, null, `${FS(22.5)}font-weight:500;border-bottom:calc(3 * var(--u)) solid var(--brand);padding-bottom:calc(4 * var(--u));color:var(--head);${D(.9)}`)}>Sign in</a>
     <div class="at dz-img reveal" ${P(752, 134, 884, 768)}><img src="img/onb-house.webp" alt="Modern home in Lekki, Lagos"></div>`);
-  if (n === 2) html = wrap(`${hdr(82)}${dzLogo(86, 17, 50, 36)}${skip(1512, 31)}${hdr(849)}
+  if (n === 2) html = wrap(`${hdr(82)}${dzLogo(86, 17, 50, 31)}${skip(1512, 31)}${hdr(849)}
     <div class="at dz-eyebrow rise" ${P(86, 137, null, null, D(.1))}>See it for yourself</div>
-    <h1 class="at rise" ${P(84, 176, 640, null, `${FS(100, 93)}${D(.2)}`)}>Find a time.<br>Take a tour.</h1>
-    <p class="at dz-lead rise" ${P(86, 380, 600, null, `${FS(30, 38)}color:#4f5a55;${D(.35)}`)}>Speak with a realtor and book a viewing<br>from their available times.</p>
-    ${feat(86, 494, 78, "cal", 199, 420, 23, "Choose an available slot", "See a realtor’s real-time availability<br>and pick a time that works for you.", 20, 25, .45)}
-    ${feat(86, 614, 78, "msg", 199, 420, 23, "Chat before your visit", "Ask questions, get more details<br>and confirm everything in chat.", 20, 25, .55)}
-    ${feat(86, 734, 78, "list", 199, 420, 23, "Keep track of your viewings", "All your scheduled and past viewings<br>in one place.", 20, 25, .65)}
+    <h1 class="at rise" ${P(84, 176, 640, null, `${FS(106, 93)}letter-spacing:-.07em;${D(.2)}`)}>Find a time.<br>Take a tour.</h1>
+    <p class="at dz-lead rise" ${P(86, 380, 600, null, `${FS(28.4, 38)}color:#4f5a55;${D(.35)}`)}>Speak with a realtor and book a viewing<br>from their available times.</p>
+    ${feat(86, 494, 78, "cal", 199, 420, 22.5, "Choose an available slot", "See a realtor’s real-time availability<br>and pick a time that works for you.", 19.3, 25, .45)}
+    ${feat(86, 614, 78, "chatdots", 199, 420, 22.5, "Chat before your visit", "Ask questions, get more details<br>and confirm everything in chat.", 19.3, 25, .55)}
+    ${feat(86, 734, 78, "list", 199, 420, 22.5, "Keep track of your viewings", "All your scheduled and past viewings<br>in one place.", 19.3, 25, .65)}
     <div class="at dz-img reveal" ${P(703, 109, 930, 713)}><img src="img/onb-living.webp" alt="Bright living room with a city view"></div>
     ${arrowBtn("", "#/onboarding/1", 86, 864, 250, 56, 22, `${icon("left", 24)} Back`, .6)}
     ${bars(633, 879, 2, 128, 11, 7)}
     <div class="at fade" ${P(633, 898, 407, null, `text-align:center;${FS(18)}font-weight:600;color:var(--head);letter-spacing:.03em;${D(.7)}`)}>02 <span style="font-weight:400;color:#8a9690">/ 03</span></div>
     ${arrowBtn("primary", "#/onboarding/3", 1337, 864, 250, 56, 22, `Continue ${icon("arrow", 24)}`, .8)}`);
-  if (n === 3) html = wrap(`${hdr(80)}${dzLogo(78, 18, 42, 36)}${skip(1531, 30, true)}
+  if (n === 3) html = wrap(`${hdr(80)}${dzLogo(78, 18, 42, 30)}${skip(1531, 30, true)}
     <div class="at dz-eyebrow rise" ${P(78, 149, null, null, D(.1))}>Settle in simply</div>
-    <h1 class="at rise" ${P(78, 190, 640, null, `${FS(80, 76)}${D(.2)}`)}>Your rental life,<br>organised.</h1>
-    <p class="at dz-lead rise" ${P(78, 352, 560, null, `${FS(26, 35)}${D(.35)}`)}>Keep your applications, tenancy documents<br>and conversations together in one place.</p>
-    ${feat(78, 458, 85, "list", 195, 420, 24, "Track rental applications", "See the status of all your applications<br>in real time.", 19.5, 26, .45)}
-    ${feat(78, 586, 85, "doc", 195, 420, 24, "Access tenancy documents", "Store and view your agreements,<br>receipts and important files.", 19.5, 26, .55)}
-    ${feat(78, 720, 85, "msg", 195, 420, 24, "Message your agent", "Chat with your agent easily, all in<br>one place.", 19.5, 26, .65)}
+    <h1 class="at rise" ${P(78, 190, 640, null, `${FS(72, 76)}letter-spacing:-.044em;${D(.2)}`)}>Your rental life,<br>organised.</h1>
+    <p class="at dz-lead rise" ${P(78, 352, 560, null, `${FS(23.8, 35)}color:#7b8682;${D(.35)}`)}>Keep your applications, tenancy documents<br>and conversations together in one place.</p>
+    ${feat(78, 458, 85, "doccheck", 195, 420, 23.4, "Track rental applications", "See the status of all your applications<br>in real time.", 18.2, 26, .45)}
+    ${feat(78, 586, 85, "doc", 195, 420, 23.4, "Access tenancy documents", "Store and view your agreements,<br>receipts and important files.", 18.2, 26, .55)}
+    ${feat(78, 720, 85, "chatlines", 195, 420, 23.4, "Message your agent", "Chat with your agent easily, all in<br>one place.", 18.2, 26, .65)}
     ${bars(78, 872, 3, 131, 7, 8)}
-    <div class="at fade" ${P(511, 865, null, null, `${FS(19)}color:#6c7873;${D(.7)}`)}>03 / 03</div>
+    <div class="at fade" ${P(512, 867, null, null, `${FS(16.5)}color:#6c7873;${D(.7)}`)}>03 / 03</div>
     <div class="at dz-img reveal" ${P(668, 110, 975, 682)}><img src="img/onb-room.webp" alt="Furnished apartment with a rental summary card"></div>
     ${arrowBtn("", "#/onboarding/2", 1185, 819, 198, 57, 22, "Back", .6)}
     ${arrowBtn("primary", "#/signup", 1401, 819, 242, 57, 22, "Create account", .8)}
@@ -115,14 +115,14 @@ function authPage(ctx, mode) {
   const google = (x, y, w, h, fs, d) => `<button type="button" id="google" class="at dz-btn rise" ${P(x, y, w, h, `${FS(fs)}font-weight:500;border:1px solid #cfd8d3;border-radius:calc(8 * var(--u));${D(d)}`)}>${GOOGLE.replace('class="gicon"', `style="width:calc(${fs + 6} * var(--u));height:calc(${fs + 6} * var(--u))"`)} Continue with Google</button>`;
   let html;
   if (!login) html = `<div class="dz-page"><div class="frame">
-    ${dzLogo(141, 18, 42, 31)}
+    ${dzLogo(141, 18, 42, 27.5)}
     <a class="at dz-navbtn edge-tr fade" href="#/login" ${P(1433, 18, 100, 42, D(.3))}>Sign in</a>
     <div class="at dz-bgimg edge-l reveal" ${P(0, 76, 936, 865, `background-image:url(img/signup-hero.webp);--W:936;`)}></div>
-    <div class="at dz-overlay-title rise" ${P(70, 743, 560, null, `${FS(56, 55)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
+    <div class="at dz-overlay-title rise" ${P(70, 743, 560, null, `${FS(52, 52)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
     <div class="at fade m-hide" ${P(73, 877, 60, 2, `background:#fff;${D(.9)}`)}></div>
     <div class="at dz-card fade" ${P(943, 77, 694, 852, D(.1))}></div>
     <form id="f" novalidate>
-    <h1 class="at rise" ${P(943, 134, 694, null, `text-align:center;${FS(42, 56)}${D(.25)}`)}>Find your place with Faxton</h1>
+    <h1 class="at rise" ${P(943, 134, 694, null, `text-align:center;${FS(41, 56)}letter-spacing:-.036em;${D(.25)}`)}>Find your place with Faxton</h1>
     <p class="at rise" ${P(943, 193, 694, null, `text-align:center;${FS(22)}color:#68746f;${D(.3)}`)}>Create an account to get started.</p>
     <div class="at dz-role rise" role="tablist" ${P(1021, 257, 546, 49, D(.35))}><button type="button" class="on" data-role="renter">I’m renting</button><button type="button" data-role="agent">I’m listing a home</button></div>
     <div class="at dz-label rise" ${P(1021, 328, null, null, `${FS(16)}${D(.4)}`)}>Full name</div>${field("name", 1021, 358, 546, 49, 17, "user", "Your full name", "text", 'autocomplete="name"', .4)}
@@ -138,13 +138,13 @@ function authPage(ctx, mode) {
   </div></div>`;
   else html = `<div class="dz-page"><div class="frame">
     <div class="at dz-bgimg edge-l reveal" ${P(0, 0, 883, 941, `background-image:url(img/login-hero.webp);--W:883;`)}></div>
-    ${dzLogo(108, 31, 45, 31)}
+    ${dzLogo(108, 31, 45, 29.5)}
     <div class="at dz-overlay-title rise" ${P(87, 815, 700, null, `${FS(42, 50)}font-weight:600;letter-spacing:-.02em;${D(.6)}`)}>A fresh start begins here.</div>
     <div class="at fade m-hide" ${P(87, 884, 57, 3, `background:#34d399;${D(.9)}`)}></div>
     <div class="at dz-card edge-r fade" ${P(883, 0, 789, 941, `border-radius:0;--W:789;${D(.1)}`)}></div>
     <form id="f" novalidate>
-    <h1 class="at rise" ${P(960, 134, 700, null, `${FS(60, 76)}${D(.25)}`)}>Welcome back</h1>
-    <p class="at rise" ${P(962, 207, 700, null, `${FS(34, 44)}color:#68746f;letter-spacing:-.005em;${D(.3)}`)}>Sign in to find your next home.</p>
+    <h1 class="at rise" ${P(960, 134, 700, null, `${FS(60.5, 76)}letter-spacing:-.058em;${D(.25)}`)}>Welcome back</h1>
+    <p class="at rise" ${P(962, 207, 700, null, `${FS(34.4, 44)}color:#68746f;letter-spacing:-.02em;${D(.3)}`)}>Sign in to find your next home.</p>
     <div class="at dz-label rise" ${P(963, 297, null, null, `${FS(20)}${D(.4)}`)}>Email address</div>${field("email", 963, 335, 637, 66, 20, "mail", "Enter your email address", "email", 'autocomplete="email"', .4)}
     <div class="at dz-label rise" ${P(963, 428, null, null, `${FS(20)}${D(.45)}`)}>Password</div>${field("password", 963, 466, 637, 66, 20, "lock", "Enter your password", "password", 'autocomplete="current-password"', .45)}
     <div class="at dz-check rise" ${P(963, 561, null, null, `${FS(19)}--cb:27;${D(.5)}`)}><input type="checkbox" id="remember" aria-label="Remember me"><label for="remember">Remember me</label></div>

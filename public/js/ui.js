@@ -54,9 +54,13 @@ const P = {
   img: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.500"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
   area: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  sliders3: '<path d="M3 6h8M17 6h4M3 12h3M12 12h9M3 18h9M18 18h3"/><circle cx="14" cy="6" r="2.600"/><circle cx="9" cy="12" r="2.600"/><circle cx="15" cy="18" r="2.600"/>',
+  chatdots: '<path d="M21 11.500a8.500 8.500 0 01-12.300 7.600L3.500 20.500l1.400-4.800A8.500 8.500 0 1121 11.500z"/><path d="M8.500 11.500h.01M12.500 11.500h.01M16.500 11.500h.01" stroke-width="2.800"/>',
+  doccheck: '<path d="M13 21H6V3h8l4 4v5"/><path d="M14 3v4h4M9 11h6M9 15h3"/><circle cx="17.500" cy="17.500" r="4.200" fill="currentColor" stroke="none"/><path d="M15.600 17.600l1.400 1.400 2.400-2.600" stroke="#fff" stroke-width="1.800"/>',
+  chatlines: '<path d="M4 4.500h16v12H11.500L7 20.500v-4H4z"/><path d="M8 9h8M8 12.500h5"/>',
   logout: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
 };
-export const icon = (n, s = 22) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
+export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
 
 export const logoMark = (cls = "") => `<svg class="logo-svg ${cls}" viewBox="570 235 415 355" aria-hidden="true"><path class="lg-a" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/><path class="lg-b" d="M702 455L775 429V581H702Z"/><path class="lg-b" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/></svg>`;
 export const logo = (sub = "") => `<a class="logo" href="#/">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals${sub ? `<small>${sub}</small>` : ""}</span></a>`;
