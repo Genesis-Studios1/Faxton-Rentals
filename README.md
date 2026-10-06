@@ -6,10 +6,6 @@ A static rental-home browsing site with light and dark mode. No build step: open
 - Sample listings live in `public/data.js`; favorites, theme and viewing requests are stored in the browser (`localStorage`).
 - Logo files are in `public/assets/`.
 
-## Deploying (Firebase Hosting)
+## Deploying (Vercel)
 
-The site is served from `public/` on Firebase project `faxton-ai`. Pushes to `main` deploy automatically via
-`.github/workflows/deploy.yml`, which needs a `FIREBASE_SERVICE_ACCOUNT` repository secret
-(Firebase console → Project settings → Service accounts → Generate new private key; paste the JSON as the secret).
-
-Manual deploy: `npx firebase-tools login && npx firebase-tools deploy --only hosting`.
+Import the repo in Vercel with the **Other** framework preset. `vercel.json` sets the output directory to `public` and skips the build step, so no further settings are needed. Every push to `main` redeploys.
