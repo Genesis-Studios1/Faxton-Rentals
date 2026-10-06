@@ -333,3 +333,4 @@ html:not(.ready){overflow:hidden}
   .main-app{margin-left:0;padding-bottom:90px}.main-app .msg-shell,.main-app .chat{height:calc(100vh - 60px)}
 }
 @media (prefers-reduced-motion:reduce){.app-rail,.app-rail *{transition:none!important}}
+.rail.app-rail a.item .badge{right:auto;left:38px;top:6px;width:auto;height:18px;min-width:18px}
