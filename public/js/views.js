@@ -23,6 +23,12 @@ const card = (l, saved, rc, i = 0) => `<article class="card ${rc ? "rcard" : ""}
     : `<h3>${esc(l.title)}</h3><div class="loc">${icon("pin", 16)}${esc(l.area)}, ${esc(l.city)}</div>
       <div class="card-foot"><div class="price">${naira(l.price)} <small>/ year</small></div><div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><i>·</i><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div></div>`}</div></article>`;
 
+const homeCard = (l, saved, i = 0) => `<article class="card hcard" style="--i:${Math.min(i, 9)}" data-open="${esc(l.id)}" tabindex="0" aria-label="${esc(l.title)}">
+  <div class="card-img wide"><img src="${esc(l.thumb || l.images[0])}" alt="${esc(l.title)}" loading="lazy"><span class="peek">View home ${icon("arrow", 16)}</span>
+    <button class="heart ${saved.has(l.id) ? "on" : ""}" data-fav="${esc(l.id)}" aria-label="Save ${esc(l.title)}" aria-pressed="${saved.has(l.id)}">${icon("heart", 20)}</button></div>
+  <div class="card-body"><div class="hc-top"><div><h3>${esc(l.title)}</h3><div class="loc">${icon("pin", 16)}${esc(l.area)}, ${esc(l.city)}</div></div><span class="avail ${l.available === false ? "off" : ""}">${l.available === false ? "Rented" : "Available"}</span></div>
+    <div class="hc-price">${naira(l.price)} / year</div><div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><i>·</i><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div></div></article>`;
+
 function bindCards(root, ctx) {
   $$("[data-fav]", root).forEach((b) => (b.onclick = async (e) => {
     e.stopPropagation(); const id = b.dataset.fav, on = !ctx.S.saved.has(id);
@@ -48,7 +54,7 @@ export async function route(ctx) {
   if (path === "/messages" || path.startsWith("/messages/")) return messages(ctx, decodeURIComponent(path.split("/")[2] || ""));
   if (path === "/bookings") return bookings(ctx);
   if (path === "/payments") return payments(ctx);
-  if (path === "/settings") return settings(ctx);
+  if (path === "/settings" || path.startsWith("/settings/")) return settings(ctx, path.split("/")[2] || "profile");
   if (path === "/admin" || path.startsWith("/admin/")) return admin(ctx, path.split("/")[2] || "");
   return null;
 }
@@ -158,16 +164,20 @@ function authPage(ctx, mode) {
 }
 
 // ---------- discover ----------
+const inRange = (price, r) => { if (!r) return true; const [lo, hi] = r.split("-").map(Number); return price >= lo && (!hi || price <= hi); };
 async function discover(ctx) {
-  const list = await st.getListings(); const first = (ctx.S.user?.displayName || "").split(" ")[0];
-  return { title: "Discover", html: `<section class="d-hero"><div class="wrap"><div class="d-hero-text"><h1 class="rise">Your next chapter<br>starts at home.</h1><p class="rise" style="--d:.15s">${first ? `Welcome back, ${esc(first)}. ` : ""}Find a rental that feels right, in a neighbourhood you love.</p></div></div><img class="d-hero-img reveal" src="img/hero.webp" alt="Modern home in Lagos"></section>
+  const all = await st.getListings(), pr = ctx.S.profile?.prefs || {};
+  // "Homes you might love": listings that match the saved rental preferences come first
+  const score = (l) => (pr.area && (l.area + " " + l.city).toLowerCase().includes(pr.area) ? 2 : 0) + (pr.type && l.type === pr.type ? 1 : 0) + (pr.budget && inRange(l.price, pr.budget) ? 1 : 0);
+  const list = [...all].map((l, i) => [l, i]).sort((x, y) => score(y[0]) - score(x[0]) || x[1] - y[1]).map((x) => x[0]);
+  return { title: "Home", html: `<section class="d-hero"><div class="wrap d-wrap"><div class="d-hero-text"><div class="eyebrow-s rise">Your next chapter</div><h1 class="rise" style="--d:.08s">Find a place to call home.</h1><p class="rise" style="--d:.18s">Discover rentals that fit your budget and your lifestyle.</p></div><img class="d-hero-img reveal" src="img/hero.webp" alt="Modern home in Lagos"></div></section>
     <div class="wrap"><form class="searchbar rise" style="--d:.3s" id="sb" role="search">
-      <div class="sb-cell">${icon("pin", 28)}<label>Location<select name="area">${opts(AREAS, "lekki")}</select></label></div>
-      <div class="sb-cell">${icon("home", 28)}<label>Property type<select name="type"><option value="">Any type</option>${TYPES.map((t) => `<option>${t}</option>`).join("")}</select></label></div>
-      <div class="sb-cell">${icon("wallet", 28)}<label>Budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
+      <div class="sb-cell">${icon("pin", 26)}<label>Location<select name="area">${opts(AREAS, pr.area || "lekki")}</select></label></div>
+      <div class="sb-cell">${icon("home", 26)}<label>Property type<select name="type"><option value="">Any type</option>${TYPES.map((t) => `<option ${t === pr.type ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+      <div class="sb-cell">${icon("coins", 26)}<label>Budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
       <button class="btn primary">${icon("search", 22)} Search homes</button></form>
-    <div class="sec-head rise" style="--d:.4s"><h2>Recommended for you</h2><a class="link" href="#/search">View all ${icon("arrow", 18)}</a></div>
-    <div class="cards">${list.slice(0, 3).map((l, i) => card(l, ctx.S.saved, false, i)).join("")}</div></div>`,
+    <div class="sec-head rise" style="--d:.4s"><h2>Homes you might love</h2><a class="link" href="#/search">View all homes ${icon("arrow", 18)}</a></div>
+    <div class="cards">${list.slice(0, 3).map((l, i) => homeCard(l, ctx.S.saved, i)).join("")}</div></div>`,
     mount(root) { bindCards(root, ctx); $("#sb").onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); ctx.go("#/search?" + p); }; } };
 }
 
@@ -309,22 +319,89 @@ async function messages(ctx, cid) {
 }
 
 // ---------- settings ----------
-function settings(ctx) {
-  const u = ctx.S.user, role = ctx.S.role;
-  return { title: "Settings", html: `<div class="page-head"><div><h1>Settings</h1><p>Manage your account</p></div></div><div class="settings-grid">
-    <div class="panel"><h3 style="margin-bottom:14px">Profile</h3><form id="pf"><div class="field"><label for="nm">Full name</label><input id="nm" value="${esc(u.displayName || "")}"></div><div class="field"><label>Email</label><input value="${esc(u.email)}" disabled></div>
-      <div class="row-between"><span>Account type</span><span class="pill">${esc(role)}</span></div><button class="btn primary">Save changes</button></form></div>
-    <div class="panel"><div class="row-between"><div><h3>Appearance</h3><p class="muted">Switch between light and dark mode</p></div>${ctx.themeBtn()}</div></div>
-    <div class="panel"><div class="row-between"><div><h3>Product tour</h3><p class="muted">Replay the quick tour of Faxton Rentals</p></div><button class="btn" id="tour">Replay tour</button></div></div>
-    <div class="panel"><div class="row-between"><div><h3>Install the app</h3><p class="muted">Add Faxton Rentals to your home screen or desktop</p></div><button class="btn" id="install">Install</button></div></div>
-    ${ctx.S.isAdmin ? `<div class="panel"><div class="row-between"><div><h3>Admin console</h3><p class="muted">Manage listings, users and applications</p></div><a class="btn" href="#/admin">Open</a></div></div>` : ""}
-    <p class="muted" style="font-size:.85rem">App version ${BUILD}</p>
-    <button class="btn" id="out" style="justify-self:start">${icon("logout", 18)} Sign out</button></div>`,
+const SET_NAV = [["profile", "user", "Profile"], ["account", "shield", "Account & security"], ["notifications", "bell", "Notifications"], ["appearance", "monitor", "Appearance"], ["privacy", "lock", "Privacy"], ["help", "help", "Help & support"]];
+const SET_TITLE = { profile: ["Profile settings", "Manage your personal details and preferences."], account: ["Account & security", "Your sign-in details and account access."], notifications: ["Notifications", "Control the notifications you receive."], appearance: ["Appearance", "Choose how Faxton Rentals looks on your device."], privacy: ["Privacy", "Decide what agents can see about you."], help: ["Help & support", "Answers, the product tour and app details."] };
+const LOCS = ["Lagos, Nigeria", "Abuja, Nigeria", "Port Harcourt, Nigeria", "Ibadan, Nigeria", "Other"];
+const BUD = [["", "No preference"], ["0-2000000", "Up to ₦2,000,000"], ["2000000-4000000", "₦2,000,000 – ₦4,000,000"], ["4000000-6000000", "₦4,000,000 – ₦6,000,000"], ["6000000-0", "₦6,000,000+"]];
+const NOTIFY = [["messages", "mail", "Message notifications", "Get notified when you receive new messages from landlords."], ["viewings", "cal", "Viewing reminders", "Get reminders about your scheduled property viewings."], ["applications", "doc", "Application updates", "Know when the status of a rental application changes."]];
+const PRIVACY = [["sharePhone", "phone", "Share my phone number", "Let agents I message see my phone number."], ["sharePrefs", "sliders3", "Share my rental preferences", "Help agents suggest homes that suit you."]];
+const sw = (g, k, on) => `<button type="button" class="switch ${on ? "on" : ""}" role="switch" aria-checked="${!!on}" data-sw="${g}.${k}" aria-label="${k}"><i></i></button>`;
+const swRow = (g, k, ic, t, d, on) => `<div class="sw-row"><span class="sw-ic">${icon(ic, 26, 1.7)}</span><div><b>${t}</b><p>${d}</p></div>${sw(g, k, on)}</div>`;
+const themeCards = (pref) => `<div class="theme-cards" role="radiogroup" aria-label="Theme">${[["light", "sun", "Light"], ["dark", "moon", "Dark"], ["system", "monitor", "System"]].map(([k, i, l]) => `<button type="button" class="theme-card ${pref === k ? "on" : ""}" role="radio" aria-checked="${pref === k}" data-theme-pref="${k}">${icon(i, 30, 1.6)}<span>${l}</span><i class="radio"></i></button>`).join("")}</div>`;
+
+function settings(ctx, section) {
+  const u = ctx.S.user, p = ctx.S.profile || {}, role = ctx.S.isOwner ? "owner" : ctx.S.role;
+  if (!SET_TITLE[section]) section = "profile";
+  const notify = { messages: true, viewings: true, applications: true, ...(p.notify || {}) }, privacy = { sharePhone: false, sharePrefs: true, ...(p.privacy || {}) };
+  const pr = p.prefs || {}, name = u.displayName || p.name || "", pwd = u.providerData.some((x) => x.providerId === "password");
+  const nav = `<aside class="set-nav" aria-label="Settings sections"><h2>Settings</h2>${SET_NAV.map(([k, ic, l]) => `<a class="${k === section ? "on" : ""}" href="#/settings/${k}" ${k === section ? 'aria-current="page"' : ""}>${icon(ic, 22)}<span>${l}</span></a>`).join("")}<hr><button type="button" id="out" class="set-out">${icon("logout", 22)}<span>Sign out</span></button></aside>`;
+  const card = (t, sub, inner, cls = "") => `<section class="set-card ${cls}"><h3>${t}</h3>${sub ? `<p class="sub">${sub}</p>` : ""}${inner}</section>`;
+  const apCard = card("Appearance", "Choose how Faxton Rentals looks on your device.", themeCards(ctx.themePref()));
+  const ntCard = (all) => card("Notifications", "Control the notifications you receive.", NOTIFY.slice(0, all ? 3 : 2).map(([k, ic, t, d]) => swRow("notify", k, ic, t, d, notify[k])).join("") + (all ? "" : `<a class="link manage" href="#/settings/notifications">Manage notifications ${icon("arrow", 18)}</a>`));
+  const initialsHtml = p.photo ? `<img class="big-av" src="${esc(p.photo)}" alt="">` : `<span class="big-av">${esc(initials(name || u.email))}</span>`;
+  let body;
+  if (section === "profile") body = `<div class="set-cols"><form id="pf" class="set-left" novalidate>
+      ${card("Personal details", "", `<div class="pd-top">${initialsHtml}<div><b class="pd-name">${esc(name || "Your name")}</b><br><button type="button" class="btn sm" id="photoBtn">${icon("camera", 18)} Change photo</button><input type="file" id="photo" accept="image/*" hidden></div></div>
+        <div class="f2"><label class="fl">Full name<input id="nm" value="${esc(name)}" autocomplete="name" maxlength="120"></label>
+          <label class="fl">Email address<span class="in-wrap"><input value="${esc(u.email)}" disabled><span class="vbadge ${u.emailVerified ? "" : "no"}">${u.emailVerified ? `${icon("check", 14, 2.4)} Verified` : "Not verified"}</span></span></label>
+          <label class="fl">Phone number<input id="ph" type="tel" placeholder="Add phone number" value="${esc(p.phone || "")}" autocomplete="tel" maxlength="30"></label>
+          <label class="fl">Location<select id="lc">${LOCS.map((x) => `<option ${x === (p.location || "Lagos, Nigeria") ? "selected" : ""}>${x}</option>`).join("")}</select></label></div>
+        <p class="note">Your contact details are only shared when you choose.</p>`)}
+      ${card("Rental preferences", "Help us show you more relevant homes.", `<div class="f3"><label class="fl">Preferred location<select id="pl">${AREAS.filter((a) => a[0]).map(([c, l]) => `<option value="${c}" ${c === (pr.area || "lekki") ? "selected" : ""}>${l.replace(", Lagos", ", Lagos")}</option>`).join("")}</select></label>
+        <label class="fl">Property type<select id="pt"><option value="">Any type</option>${TYPES.map((t) => `<option ${t === pr.type ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label class="fl">Yearly budget<select id="pb">${BUD.map(([v, l]) => `<option value="${v}" ${v === (pr.budget || "") ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>`)}
+      <div class="err" id="perr" role="alert"></div>
+      <div class="set-actions"><button class="btn primary" type="submit">Save changes</button><button class="btn plain" type="button" id="cancel">Cancel</button></div></form>
+      <div class="set-right">${apCard}${ntCard(false)}</div></div>`;
+  else if (section === "account") body = `<div class="set-one">${card("Sign-in", "", `<div class="kv"><span>Email</span><b>${esc(u.email)} <span class="vbadge ${u.emailVerified ? "" : "no"}">${u.emailVerified ? `${icon("check", 14, 2.4)} Verified` : "Not verified"}</span></b></div>
+      <div class="kv"><span>Account type</span><b style="text-transform:capitalize">${esc(role)}</b></div><div class="kv"><span>Sign-in method</span><b>${u.providerData.map((x) => (x.providerId === "google.com" ? "Google" : "Email & password")).join(", ")}</b></div>
+      ${!u.emailVerified && pwd ? `<div class="set-actions"><button class="btn" id="resendV">Resend verification email</button></div>` : ""}`)}
+      ${pwd ? card("Password", "We'll email you a secure link to choose a new password.", `<div class="set-actions"><button class="btn" id="resetPw">Send password reset email</button></div>`) : ""}
+      ${ctx.S.isAdmin ? card("Admin console", "Manage listings, users, applications and viewings.", `<div class="set-actions"><a class="btn" href="#/admin">Open admin console</a></div>`) : ""}</div>`;
+  else if (section === "notifications") body = `<div class="set-one">${ntCard(true)}<p class="note">These are your preferences. They are saved to your account and used as notifications roll out.</p></div>`;
+  else if (section === "appearance") body = `<div class="set-one">${apCard}</div>`;
+  else if (section === "privacy") body = `<div class="set-one">${card("Privacy", "Your contact details are only shared when you choose.", PRIVACY.map(([k, ic, t, d]) => swRow("privacy", k, ic, t, d, privacy[k])).join(""))}</div>`;
+  else body = `<div class="set-one">${card("Frequently asked", "", `<details><summary>How do I book a viewing?</summary><p>Open any home and choose <b>Book a viewing</b>. Pick a date and time, and the agent will confirm it in Messages.</p></details>
+      <details><summary>How do I apply to rent?</summary><p>On a home page choose <b>Apply to rent</b> and pick your move-in date. Track the status in <b>Payments</b>.</p></details>
+      <details><summary>Where do I message an agent?</summary><p>Tap <b>Message agent</b> on a home, or open <b>Messages</b> in the side menu.</p></details>`)}
+      ${card("Product tour", "Replay the quick tour of Faxton Rentals.", `<div class="set-actions"><button class="btn" id="tour">Replay tour</button></div>`)}
+      ${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="set-actions"><button class="btn" id="install">Install</button></div><p class="note">App version ${BUILD}</p>`)}</div>`;
+  const [h1, sub] = SET_TITLE[section];
+  return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><h1>${h1}</h1><p class="lead-s">${sub}</p>${body}</div></div>`,
     mount() {
-      $("#pf").onsubmit = async (e) => { e.preventDefault(); const name = $("#nm").value.trim(); try { await updateProfile(auth.currentUser, { displayName: name }); await st.saveProfile(u.uid, { name }); toast("Profile updated."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } };
-      $("#tour").onclick = () => { ctx.resetTour(u); ctx.go("#/"); if (location.hash === "#/" || location.hash === "") ctx.render(); };
-      $("#install").onclick = async () => { if (ctx.canInstall()) return void (await ctx.installApp()); modal(`<h2>Install Faxton Rentals</h2><p class="muted" style="margin:8px 0 14px">Open this site in your browser, then:</p><p><b>Chrome / Edge (computer or Android):</b> click the install icon in the address bar, or menu → “Install Faxton Rentals”.</p><p style="margin-top:10px"><b>iPhone / iPad (Safari):</b> tap Share → “Add to Home Screen”.</p>`); };
+      const save = async (patch, msg = "Saved.") => { try { await st.saveProfile(u.uid, patch); ctx.S.profile = { ...(ctx.S.profile || {}), ...patch }; toast(msg); } catch (x) { toast(friendlyErr(x)); throw x; } };
       $("#out").onclick = async () => { await ctx.logout(); ctx.go("#/login"); };
+      $$("[data-theme-pref]").forEach((b) => (b.onclick = () => { ctx.setThemePref(b.dataset.themePref); $$("[data-theme-pref]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on); }); }));
+      $$("[data-sw]").forEach((b) => (b.onclick = async () => {
+        const [g, k] = b.dataset.sw.split("."), cur = ctx.S.profile?.[g] || {}, base = g === "notify" ? notify : privacy, next = !(cur[k] ?? base[k]);
+        b.classList.toggle("on", next); b.setAttribute("aria-checked", next);
+        try { await save({ [g]: { ...base, ...cur, [k]: next } }); } catch { b.classList.toggle("on", !next); b.setAttribute("aria-checked", !next); }
+      }));
+      const pf = $("#pf");
+      if (pf) {
+        $("#cancel").onclick = () => ctx.render();
+        pf.onsubmit = async (e) => {
+          e.preventDefault(); const err = $("#perr"), nm = $("#nm").value.trim(); err.textContent = "";
+          if (!nm) return (err.textContent = "Enter your full name.");
+          const btn = pf.querySelector("button[type=submit]"); btn.disabled = true;
+          try { await updateProfile(auth.currentUser, { displayName: nm }); await save({ name: nm, phone: $("#ph").value.trim(), location: $("#lc").value, prefs: { area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile updated."); ctx.render(); } catch {} finally { btn.disabled = false; }
+        };
+        $("#photoBtn").onclick = () => $("#photo").click();
+        $("#photo").onchange = (e) => {
+          const f = e.target.files[0]; if (!f) return; if (!f.type.startsWith("image/")) return toast("Please choose an image.");
+          const img = new Image(), url = URL.createObjectURL(f);
+          img.onload = async () => {
+            const c = document.createElement("canvas"); c.width = c.height = 192; const s = Math.min(img.width, img.height), x = c.getContext("2d");
+            x.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 192, 192); URL.revokeObjectURL(url);
+            try { await save({ photo: c.toDataURL("image/jpeg", 0.82) }, "Photo updated."); ctx.render(); } catch {}
+          };
+          img.onerror = () => toast("Couldn't read that image."); img.src = url;
+        };
+      }
+      const rs = $("#resendV"); if (rs) rs.onclick = async () => { try { await ctx.resendVerification(); toast("Verification email sent."); } catch (x) { toast(friendlyErr(x)); } };
+      const rp = $("#resetPw"); if (rp) rp.onclick = async () => { try { await ctx.resetPassword(u.email); toast("Password reset email sent."); } catch (x) { toast(friendlyErr(x)); } };
+      const tr = $("#tour"); if (tr) tr.onclick = () => { ctx.resetTour(u); ctx.go("#/"); if (location.hash === "#/" || location.hash === "") ctx.render(); };
+      const ins = $("#install"); if (ins) ins.onclick = async () => { if (ctx.canInstall()) return void (await ctx.installApp()); modal(`<h2>Install Faxton Rentals</h2><p class="muted" style="margin:8px 0 14px">Open this site in your browser, then:</p><p><b>Chrome / Edge (computer or Android):</b> click the install icon in the address bar, or menu → “Install Faxton Rentals”.</p><p style="margin-top:10px"><b>iPhone / iPad (Safari):</b> tap Share → “Add to Home Screen”.</p>`); };
     } };
 }
 

@@ -59,6 +59,10 @@ const P = {
   doccheck: '<path d="M13 21H6V3h8l4 4v5"/><path d="M14 3v4h4M9 11h6M9 15h3"/><circle cx="17.500" cy="17.500" r="4.200" fill="currentColor" stroke="none"/><path d="M15.600 17.600l1.400 1.400 2.400-2.600" stroke="#fff" stroke-width="1.800"/>',
   chatlines: '<path d="M4 4.500h16v12H11.500L7 20.500v-4H4z"/><path d="M8 9h8M8 12.500h5"/>',
   folder: '<path d="M3 7a2 2 0 012-2h4l2 2.500h8a2 2 0 012 2V18a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.500 9.500a2.500 2.500 0 015 .5c0 1.500-2.500 2-2.500 3.500M12 17h.01"/>',
+  camera: '<path d="M4 8h3l2-2.500h6L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.500"/>',
+  coins: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.700 3.100 3 7 3s7-1.300 7-3V6M5 12v6c0 1.700 3.100 3 7 3s7-1.300 7-3v-6"/>',
   logout: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
 };
 export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
@@ -88,4 +92,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || "Something went wrong. Please try again.");
 
-export const BUILD = "2026-10-06.16";
+export const BUILD = "2026-10-06.17";

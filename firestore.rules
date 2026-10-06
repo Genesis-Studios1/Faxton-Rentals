@@ -13,6 +13,15 @@ service cloud.firestore {
     }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
     function short(v, n) { return v is string && v.size() <= n; }
+    // Optional profile fields must have the right type and size.
+    function profileOk(d) {
+      return (!('phone' in d) || short(d.phone, 30))
+        && (!('location' in d) || short(d.location, 80))
+        && (!('photo' in d) || short(d.photo, 70000))
+        && (!('prefs' in d) || d.prefs is map)
+        && (!('notify' in d) || d.notify is map)
+        && (!('privacy' in d) || d.privacy is map);
+    }
 
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
     match /config/bootstrap { allow read, write: if false; }
@@ -38,7 +47,7 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.role in ['renter', 'agent']
-        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo'])
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500;
@@ -47,9 +56,10 @@ service cloud.firestore {
         (request.auth.uid == uid
           && request.resource.data.role == resource.data.role
           && request.resource.data.email == resource.data.email
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo'])
           && short(request.resource.data.name, 120)
-          && request.resource.data.saved.size() <= 500)
+          && request.resource.data.saved.size() <= 500
+          && profileOk(request.resource.data))
         || isOwner());
       allow delete: if false;
     }
