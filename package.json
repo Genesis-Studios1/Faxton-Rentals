@@ -1,0 +1,11 @@
+{
+  "name": "faxton-rentals",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Faxton Rentals web app",
+  "scripts": {
+    "start": "npx --yes serve public -l 3000",
+    "deploy": "npx --yes firebase-tools deploy --project faxton-rentals",
+    "update": "git pull origin main && npm run deploy"
+  }
+}
