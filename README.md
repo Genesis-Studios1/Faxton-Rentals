@@ -66,3 +66,10 @@ Then open https://faxton-rentals.web.app and press **Ctrl + Shift + R** (hard re
   (or Firebase console → Build → Hosting → Get started). If the name `faxton-rentals` is taken, pick another and put it in
   `firebase.json` as `"site": "<name>"`. `npm run sites` lists your sites.
 - **Firestore error on deploy**: create the database first (console → Firestore Database), or run `npm run deploy:hosting`.
+
+## Deploy from GitHub (no local CLI needed)
+1. Firebase console -> Build -> Hosting -> Get started (once). Create the Firestore database too.
+2. Console -> Project settings -> Service accounts -> **Generate new private key** (a .json file; treat it like a password).
+3. GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret: name `FIREBASE_SERVICE_ACCOUNT`,
+   value = the entire contents of the .json file. Then delete the downloaded file.
+4. Actions tab -> **Deploy to Firebase** -> Run workflow. After that every push to `main` deploys automatically.
