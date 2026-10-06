@@ -100,7 +100,19 @@ function authPage(ctx, mode) {
   const field = (id, x, y, w, h, fs, ic, ph, type = "text", extra = "", d = 0.3) => `<label class="at dz-input rise" for="${id}" ${P(x, y, w, h, `${FS(fs)}--ic:${fs + 3};${D(d)}`)}>${icon(ic, 22)}<input id="${id}" name="${id}" type="${type}" placeholder="${ph}" ${extra}>${type === "password" ? `<button type="button" class="eye" aria-label="Show password">${icon("eye", 22)}</button>` : ""}</label>`;
   const google = (x, y, w, h, fs, d) => `<button type="button" id="google" class="at dz-btn rise" ${P(x, y, w, h, `${FS(fs)}font-weight:500;border:1px solid #cfd8d3;border-radius:calc(8 * var(--u));${D(d)}`)}>${GOOGLE.replace('class="gicon"', `style="width:calc(${fs + 6} * var(--u));height:calc(${fs + 6} * var(--u))"`)} Continue with Google</button>`;
   let html;
-  if (!login) html = `<div class="dz-page"><div class="frame">
+  const mobile = matchMedia("(max-width: 860px)").matches;
+  const mf = (id, label, ic, ph, type = "text", extra = "") => `<div class="mf"><label for="${id}">${label}</label><div class="mi">${icon(ic, 22)}<input id="${id}" name="${id}" type="${type}" placeholder="${ph}" ${extra}>${type === "password" ? `<button type="button" class="eye" aria-label="Show password">${icon("eye", 22)}</button>` : ""}</div></div>`;
+  const mGoogle = `<button type="button" id="google" class="m-btn ghost">${GOOGLE.replace('class="gicon"', 'class="gicon" style="width:22px;height:22px"')} Continue with Google</button>`;
+  if (mobile) html = `<div class="m-auth"><header class="m-hero" style="background-image:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,0) 45%,rgba(0,0,0,.55)),url(img/${login ? "login-hero" : "signup-hero"}.webp)"><a class="m-logo" href="#/" aria-label="Faxton Rentals">${logoMark()}<span><b>Faxton</b> Rentals</span></a><p>${login ? "A fresh start begins here." : "Make room for what comes next."}</p></header>
+    <main class="m-card"><h1>${login ? "Welcome back" : "Create your account"}</h1><p class="m-sub">${login ? "Sign in to find your next home." : "Find your place with Faxton."}</p>
+    ${login ? "" : `<div class="dz-role m-role" role="tablist"><button type="button" class="on" data-role="renter">I’m renting</button><button type="button" data-role="agent">I’m listing a home</button></div>`}
+    <form id="f" novalidate>${login ? mf("email", "Email address", "mail", "Enter your email address", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Enter your password", "password", 'autocomplete="current-password"') + `<div class="m-row"><label class="m-chk"><input type="checkbox" id="remember"> Remember me</label><a href="#" id="forgot" class="dz-link">Forgot password?</a></div>`
+      : mf("name", "Full name", "user", "Your full name", "text", 'autocomplete="name"') + mf("email", "Email address", "mail", "you@example.com", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Create a password", "password", 'autocomplete="new-password"') + `<label class="m-chk terms"><input type="checkbox" id="terms"> <span>I agree to the <a class="dz-link" href="#/signup">Terms</a> and <a class="dz-link" href="#/signup">Privacy Policy</a></span></label>`}
+      <div class="m-hint dz-hint" id="err" role="alert" data-default="${login ? "" : "At least 8 characters"}">${login ? "" : "At least 8 characters"}</div>
+      <button class="m-btn primary" type="submit">${login ? "Sign in" : "Create account"} ${icon("arrow", 22)}</button>
+      <div class="m-or"><span>or</span></div>${mGoogle}</form>
+    <p class="m-foot">${login ? `New to Faxton Rentals? <a class="dz-link" href="#/signup">Create an account →</a>` : `Already have an account? <a class="dz-link" href="#/login">Sign in</a>`}</p></main></div>`;
+  else if (!login) html = `<div class="dz-page"><div class="frame">
     ${dzLogo(108, 31, 45, 29.5)}
     <div class="at dz-bgimg edge-l reveal" ${P(0, 0, 916, 941, `background-image:url(img/signup-hero.webp);--W:916;`)}></div>
     <div class="at dz-overlay-title rise" ${P(87, 765, 600, null, `${FS(52, 52)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
@@ -121,7 +133,7 @@ function authPage(ctx, mode) {
     <p class="at fade" ${P(1021, 871, 546, null, `text-align:center;${FS(16)}color:#5f6b66;${D(.7)}`)}>Already have an account? <a class="dz-link" href="#/login">Sign in</a></p>
     </form>
   </div></div>`;
-  else html = `<div class="dz-page"><div class="frame">
+  else if (login) html = `<div class="dz-page"><div class="frame">
     <div class="at dz-bgimg edge-l reveal" ${P(0, 0, 883, 941, `background-image:url(img/login-hero.webp);--W:883;`)}></div>
     ${dzLogo(108, 31, 45, 29.5)}
     <div class="at dz-overlay-title rise" ${P(87, 815, 700, null, `${FS(42, 50)}font-weight:600;letter-spacing:-.02em;${D(.6)}`)}>A fresh start begins here.</div>
