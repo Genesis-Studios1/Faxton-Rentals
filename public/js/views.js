@@ -64,7 +64,7 @@ const bars = (x, y, n, bw, gap, bh) => `<div class="at dz-bars fade" ${P(x, y, n
 const arrowBtn = (cls, href, x, y, w, h, fs, inner, d = 0.6, extra = "") => `<a class="at dz-btn ${cls} rise" href="${href}" ${P(x, y, w, h, `${FS(fs)}${D(d)}${extra}`)}>${inner}</a>`;
 
 function onboarding(ctx, n) {
-  const skip = (x, y, dim) => `<a class="at dz-skip ${dim ? "dim" : ""} fade" href="#/" data-skip ${P(x, y, null, null, D(.3))}>Skip ${icon("arrow", 24)}</a>`;
+  const skip = (x, y, dim) => `<a class="at dz-skip ${dim ? "dim" : ""} fade" href="#/login" data-skip ${P(x, y, null, null, D(.3))}>Skip ${icon("arrow", 24)}</a>`;
   const hdr = (h) => `<div class="hline" style="top:calc(${h} * var(--u))"></div>`;
   const wrap = (inner) => `<div class="dz-page"><div class="frame">${inner}</div></div>`;
   let html;
@@ -338,11 +338,13 @@ function settings(ctx) {
     <div class="panel"><h3 style="margin-bottom:14px">Profile</h3><form id="pf"><div class="field"><label for="nm">Full name</label><input id="nm" value="${esc(u.displayName || "")}"></div><div class="field"><label>Email</label><input value="${esc(u.email)}" disabled></div>
       <div class="row-between"><span>Account type</span><span class="pill">${esc(role)}</span></div><button class="btn primary">Save changes</button></form></div>
     <div class="panel"><div class="row-between"><div><h3>Appearance</h3><p class="muted">Switch between light and dark mode</p></div>${ctx.themeBtn()}</div></div>
+    <div class="panel"><div class="row-between"><div><h3>Product tour</h3><p class="muted">Replay the quick tour of Faxton Rentals</p></div><button class="btn" id="tour">Replay tour</button></div></div>
     <div class="panel"><div class="row-between"><div><h3>Install the app</h3><p class="muted">Add Faxton Rentals to your home screen or desktop</p></div><button class="btn" id="install">Install</button></div></div>
     ${ctx.S.isAdmin ? `<div class="panel"><div class="row-between"><div><h3>Admin console</h3><p class="muted">Manage listings, users and applications</p></div><a class="btn" href="#/admin">Open</a></div></div>` : ""}
     <button class="btn" id="out" style="justify-self:start">${icon("logout", 18)} Sign out</button></div>`,
     mount() {
       $("#pf").onsubmit = async (e) => { e.preventDefault(); const name = $("#nm").value.trim(); try { await updateProfile(auth.currentUser, { displayName: name }); await st.saveProfile(u.uid, { name }); toast("Profile updated."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } };
+      $("#tour").onclick = () => { ctx.resetTour(u); ctx.go("#/"); if (location.hash === "#/" || location.hash === "") ctx.render(); };
       $("#install").onclick = async () => { if (ctx.canInstall()) return void (await ctx.installApp()); modal(`<h2>Install Faxton Rentals</h2><p class="muted" style="margin:8px 0 14px">Open this site in your browser, then:</p><p><b>Chrome / Edge (computer or Android):</b> click the install icon in the address bar, or menu → “Install Faxton Rentals”.</p><p style="margin-top:10px"><b>iPhone / iPad (Safari):</b> tap Share → “Add to Home Screen”.</p>`); };
       $("#out").onclick = async () => { await ctx.logout(); ctx.go("#/login"); };
     } };
