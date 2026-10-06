@@ -162,14 +162,14 @@ render();
 (function splash() {
   const el = $("#splash"), root = document.documentElement;
   if (!el || root.classList.contains("no-splash")) return;
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 3900;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 7600;
   let done = false;
-  const lbl = $("#spLabel"), phrases = [[1500, "Preparing your homes"], [2700, "Almost there"]];
+  const lbl = $("#spLabel"), phrases = [[2800, "Preparing your homes"], [5400, "Almost there"]];
   phrases.forEach(([t, txt]) => setTimeout(() => { if (lbl && !done) { lbl.style.opacity = 0; setTimeout(() => { lbl.textContent = txt; lbl.style.opacity = 1; }, 250); } }, t));
   const finish = () => { if (done) return; done = true; el.classList.add("leave"); root.classList.add("ready"); document.dispatchEvent(new Event("splash-done")); setTimeout(() => el.remove(), 1000); };
   const poll = setInterval(() => { if (S.ready && performance.now() - started >= MIN) { clearInterval(poll); finish(); } }, 100);
   el.addEventListener("click", () => { if (S.ready) { clearInterval(poll); finish(); } });
-  setTimeout(() => { clearInterval(poll); finish(); }, 9000); // never get stuck, even offline
+  setTimeout(() => { clearInterval(poll); finish(); }, 12000); // never get stuck, even offline
 })();
 
 // ---------- installable app (PWA) ----------
