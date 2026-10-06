@@ -48,6 +48,23 @@ export async function sendMessage(user, cid, text, extra = {}) {
   await b.commit();
 }
 
+// ---- ownership & roles ----
+export const OWNER_EMAIL = "isaacij6yes@gmail.com";
+export async function getOwnerUid() { try { const s = await getDoc(doc(db, "config", "owner")); return s.exists() ? s.data().uid : null; } catch { return null; } }
+// First verified sign-in by the owner email claims ownership. Firestore rules enforce this; the client only attempts it.
+export async function claimOwnership(user) {
+  await setDoc(doc(db, "config", "owner"), { uid: user.uid, email: user.email, since: serverTimestamp() });
+  await setDoc(doc(db, "users", user.uid), { role: "owner" }, { merge: true });
+}
+export const setRole = (uid, role) => updateDoc(doc(db, "users", uid), { role });
+export async function transferOwnership(fromUid, toUid) {
+  const b = writeBatch(db);
+  b.update(doc(db, "config", "owner"), { uid: toUid });
+  b.update(doc(db, "users", fromUid), { role: "admin" });
+  b.update(doc(db, "users", toUid), { role: "owner" });
+  await b.commit();
+}
+
 // ---- admin ----
 export async function adminAll(col) { try { return (await getDocs(collection(db, col))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; } }
 export const setStatus = (col, id, status) => updateDoc(doc(db, col, id), { status });
