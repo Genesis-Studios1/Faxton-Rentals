@@ -365,3 +365,23 @@ html:not(.ready){overflow:hidden}
   .ob-img{height:calc(380 * var(--u));width:100%}.ob-foot{position:sticky;bottom:0;height:calc(120 * var(--u))}
   .ob-skip{min-width:0}.ob-btn.back,.ob-btn.cta{min-width:calc(150 * var(--u));height:calc(70 * var(--u))}.ob-prog{display:none}.ob-foot-in{display:flex;justify-content:space-between}
 }
+
+/* ===== sidebar: slim strip that only extends sideways on hover (labels sit beside the icons, so nothing grows taller) ===== */
+@media (min-width:861px){
+  .app-rail{width:72px;padding:18px 0 12px}
+  .app-rail:hover,.app-rail:focus-within,.tour-rail .app-rail{width:216px}
+  .app-rail .rail-top{flex:none;padding:0 0 14px 20px;min-height:0;gap:0}
+  .app-rail .rail-chev{margin-left:auto;margin-right:18px}
+  .app-rail nav{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;margin-top:0}.app-rail nav::-webkit-scrollbar{display:none}
+  .app-rail a.item,.app-rail:hover a.item,.app-rail:focus-within a.item,.tour-rail .app-rail a.item{display:flex;align-items:center;justify-items:unset;gap:0;padding:12px 16px;height:48px;font-size:.95rem}
+  .app-rail a.item>span{flex:none;max-height:none;max-width:0;margin-left:0;opacity:0;transform:none;overflow:hidden;white-space:nowrap;transition:max-width .38s cubic-bezier(.2,.8,.2,1),margin .38s,opacity .25s}
+  .app-rail:hover a.item>span,.app-rail:focus-within a.item>span,.tour-rail .app-rail a.item>span{max-width:140px;margin-left:16px;opacity:1;transform:none;transition-delay:.04s}
+  .app-rail .rail-bottom{flex:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+  .app-rail .rail-user{height:52px;padding:8px 10px;gap:0}.app-rail .rail-user>span:last-child{max-width:0;overflow:hidden;white-space:nowrap;opacity:0;margin-left:0;transition:max-width .38s cubic-bezier(.2,.8,.2,1),margin .38s,opacity .25s}
+  .app-rail:hover .rail-user>span:last-child,.app-rail:focus-within .rail-user>span:last-child,.tour-rail .app-rail .rail-user>span:last-child{max-width:140px;margin-left:14px;opacity:1}
+  .rail.app-rail a.item .badge{left:34px;top:7px;width:10px;min-width:10px;height:10px;padding:0;font-size:0;border:2px solid var(--surface)}
+}
+@media (min-width:861px) and (max-height:620px){
+  .app-rail{padding-top:10px}.app-rail .rail-top{padding-bottom:6px}.app-rail .logo-svg{height:30px}
+  .app-rail a.item,.app-rail:hover a.item,.app-rail:focus-within a.item{height:42px;padding-block:9px}.app-rail .rail-user{height:46px}
+}
