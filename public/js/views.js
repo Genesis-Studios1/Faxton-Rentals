@@ -112,7 +112,7 @@ function authPage(ctx, mode) {
       form.onsubmit = (e) => {
         e.preventDefault(); const v = Object.fromEntries(new FormData(form)); const btn = form.querySelector("button[type=submit]");
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email || "")) return (err.textContent = "Enter a valid email address.");
-        if (login) { if (!v.password) return (err.textContent = "Enter your password."); return run(() => ctx.signIn(v.email, v.password), btn); }
+        if (login) { if (!v.password) return (err.textContent = "Enter your password."); return run(() => ctx.signIn(v.email, v.password, $("#remember").checked), btn); }
         if (!v.name?.trim()) return (err.textContent = "Enter your full name.");
         if ((v.password || "").length < 8) return (err.textContent = "Password must be at least 8 characters.");
         if (!$("#terms").checked) return (err.textContent = "Please accept the Terms and Privacy Policy.");
@@ -249,12 +249,12 @@ async function messages(ctx, cid) {
 
 // ---------- settings ----------
 function settings(ctx) {
-  const u = ctx.S.user, role = ctx.S.profile?.role || "renter";
+  const u = ctx.S.user, role = ctx.S.role;
   return { title: "Settings", html: `<div class="page-head"><div><h1>Settings</h1><p>Manage your account</p></div></div><div class="settings-grid">
     <div class="panel"><h3 style="margin-bottom:14px">Profile</h3><form id="pf"><div class="field"><label for="nm">Full name</label><input id="nm" value="${esc(u.displayName || "")}"></div><div class="field"><label>Email</label><input value="${esc(u.email)}" disabled></div>
       <div class="row-between"><span>Account type</span><span class="pill">${esc(role)}</span></div><button class="btn primary">Save changes</button></form></div>
     <div class="panel"><div class="row-between"><div><h3>Appearance</h3><p class="muted">Switch between light and dark mode</p></div>${ctx.themeBtn()}</div></div>
-    ${role === "admin" ? `<div class="panel"><div class="row-between"><div><h3>Admin console</h3><p class="muted">Manage listings, users and applications</p></div><a class="btn" href="#/admin">Open</a></div></div>` : ""}
+    ${ctx.S.isAdmin ? `<div class="panel"><div class="row-between"><div><h3>Admin console</h3><p class="muted">Manage listings, users and applications</p></div><a class="btn" href="#/admin">Open</a></div></div>` : ""}
     <button class="btn" id="out" style="justify-self:start">${icon("logout", 18)} Sign out</button></div>`,
     mount() {
       $("#pf").onsubmit = async (e) => { e.preventDefault(); const name = $("#nm").value.trim(); try { await updateProfile(auth.currentUser, { displayName: name }); await st.saveProfile(u.uid, { name }); toast("Profile updated."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } };
@@ -264,8 +264,8 @@ function settings(ctx) {
 
 // ---------- admin ----------
 async function admin(ctx, sub) {
-  const isAdmin = ctx.S.profile?.role === "admin";
-  if (!isAdmin) return { title: "Admin", html: `<div class="empty"><h2>Admin access required</h2><p>Your account isn’t an administrator. Set <code>role</code> to <code>admin</code> on your user document in Firestore.</p><p style="margin-top:14px"><a class="btn" href="#/">Back home</a></p></div>` };
+  const isAdmin = ctx.S.isAdmin;
+  if (!isAdmin) return { title: "Admin", html: `<div class="empty"><h2>Admin access required</h2><p>Your account isn’t an administrator. Ask the owner to promote your account.</p><p style="margin-top:14px"><a class="btn" href="#/">Back home</a></p></div>` };
   const [ls, apps, views, users] = await Promise.all([st.adminAll("listings"), st.adminAll("applications"), st.adminAll("viewings"), st.adminAll("users")]);
   const pending = ls.filter((l) => /pending|flag/i.test(l.status)), by = (a) => [...a].sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0));
   const th = (x) => `<img class="th" src="${esc(x.images?.[0] || x.image || "img/palm-court.webp")}" alt="">`;
@@ -279,7 +279,12 @@ async function admin(ctx, sub) {
       <div><div class="panel"><h3 style="margin-bottom:8px">Needs attention</h3><div class="attn"><div class="ico">${icon("doc", 22)}</div><div class="grow"><b>${pending.length} listings to review</b><small>New submissions awaiting approval</small></div><a class="link" href="#/admin/listings">View →</a></div><div class="attn"><div class="ico">${icon("user", 22)}</div><div class="grow"><b>${apps.filter((a) => /review/i.test(a.status)).length} applications in review</b><small>Waiting for a decision</small></div><a class="link" href="#/admin/applications">View →</a></div></div>
       <div class="panel"><div class="panel-head"><h3>Recent activity</h3></div><ul class="timeline">${by([...apps.map((a) => ({ ...a, t: "Rental application submitted", s: a.title })), ...views.map((v) => ({ ...v, t: "Viewing requested", s: v.title }))]).slice(0, 5).map((e) => `<li><i></i><div class="grow"><b>${e.t}</b><small>${esc(e.s)}</small></div><small>${rel(e.createdAt)}</small></li>`).join("") || '<li class="muted">No activity yet.</li>'}</ul></div></div></div>`;
   else if (sub === "listings") body = `<div class="page-head"><h1>Listings</h1>${!ls.length ? `<button class="btn primary" id="seed">Add sample listings</button>` : ""}</div><div class="panel">${table(["Property", "Agent", "Status", "Action"], ls.map(lrow))}</div>`;
-  else if (sub === "users") body = `<div class="page-head"><h1>Users</h1></div><div class="panel">${table(["Name", "Email", "Role"], users.map((u) => `<tr><td><b>${esc(u.name || "—")}</b></td><td>${esc(u.email)}</td><td><span class="pill">${esc(u.role)}</span></td></tr>`))}</div>`;
+  else if (sub === "users") {
+    const me = ctx.S.user.uid, owner = ctx.S.ownerUid, canManage = ctx.S.isOwner;
+    const roleOf = (u) => (u.id === owner ? "owner" : u.role === "owner" ? "admin" : u.role || "renter");
+    body = `<div class="page-head"><div><h1>Users</h1><p>${canManage ? "As the owner you can promote, demote and transfer ownership." : "Only the owner can change roles."}</p></div></div><div class="panel">${table(["Name", "Email", "Role", ...(canManage ? ["Actions"] : [])], users.map((u) => { const r = roleOf(u);
+      return `<tr><td><b>${esc(u.name || "—")}</b>${u.id === me ? ' <span class="muted">(you)</span>' : ""}</td><td>${esc(u.email)}</td><td><span class="pill ${r === "owner" ? "info" : ""}">${esc(r)}</span></td>${canManage ? `<td>${r === "owner" ? '<span class="muted">Owner</span>' : `<div style="display:flex;gap:8px;flex-wrap:wrap"><select data-role="${esc(u.id)}" aria-label="Role for ${esc(u.email)}">${["renter", "agent", "admin"].map((x) => `<option ${x === r ? "selected" : ""}>${x}</option>`).join("")}</select><button class="btn sm" data-transfer="${esc(u.id)}">Make owner</button></div>`}</td>` : ""}</tr>`; }))}</div>`;
+  }
   else if (sub === "applications") body = `<div class="page-head"><h1>Rental applications</h1></div><div class="panel">${table(["Applicant", "Property", "Move-in", "Status", "Action"], by(apps).map((a) => `<tr><td><b>${esc(a.name)}</b><small class="muted" style="display:block">${esc(a.email)}</small></td><td>${esc(a.title)}</td><td>${esc(a.moveIn)}</td><td>${statusPill(a.status)}</td><td><select data-app="${esc(a.id)}" aria-label="Status">${["Under review", "Awaiting documents", "Approved", "Rejected"].map((s) => `<option ${s === a.status ? "selected" : ""}>${s}</option>`).join("")}</select></td></tr>`))}</div>`;
   else if (sub === "viewings") body = `<div class="page-head"><h1>Viewings</h1></div><div class="panel">${table(["Renter", "Property", "When", "Status", "Action"], by(views).map((v) => `<tr><td><b>${esc(v.name)}</b></td><td>${esc(v.title)}</td><td>${esc(fmtDate(v.when))}, ${esc(v.slot)}</td><td>${statusPill(v.status)}</td><td><select data-view="${esc(v.id)}" aria-label="Status">${["Requested", "Confirmed", "Completed", "Cancelled"].map((s) => `<option ${s === v.status ? "selected" : ""}>${s}</option>`).join("")}</select></td></tr>`))}</div>`;
   else body = `<div class="page-head"><h1 style="text-transform:capitalize">${esc(sub)}</h1></div><div class="empty panel">This section is coming soon.</div>`;
@@ -288,6 +293,10 @@ async function admin(ctx, sub) {
       const seed = $("#seed"); if (seed) seed.onclick = async () => { seed.disabled = true; try { await st.seedListings(); toast("Sample listings added."); ctx.render(); } catch (e) { toast(friendlyErr(e)); seed.disabled = false; } };
       $$("[data-review]", root).forEach((b) => (b.onclick = () => { const l = ls.find((x) => x.id === b.dataset.review); const m = modal(`<h2>${esc(l.title)}</h2><p class="muted" style="margin-bottom:14px">${esc(l.area)}, ${esc(l.city)} · ${naira(l.price)} / year</p><img src="${esc(l.images[0])}" alt="" style="width:100%;border-radius:12px;margin-bottom:14px"><p style="margin-bottom:18px">${esc(l.desc)}</p><div style="display:flex;gap:10px"><button class="btn primary" data-s="active">Approve</button><button class="btn" data-s="rejected">Reject</button></div>`);
         $$("[data-s]", m.el).forEach((x) => (x.onclick = async () => { try { await st.setStatus("listings", l.id, x.dataset.s); m.close(); toast("Listing updated."); ctx.render(); } catch (e) { toast(friendlyErr(e)); } })); }));
+      $$("select[data-role]", root).forEach((sel) => (sel.onchange = async () => { const prev = users.find((u) => u.id === sel.dataset.role); try { await st.setRole(sel.dataset.role, sel.value); toast(sel.value === "admin" ? "Promoted to admin." : "Role updated."); } catch (e) { toast(friendlyErr(e)); sel.value = prev?.role || "renter"; } }));
+      $$("[data-transfer]", root).forEach((b) => (b.onclick = () => { const t = users.find((u) => u.id === b.dataset.transfer);
+        const m = modal(`<h2>Transfer ownership</h2><p class="muted" style="margin-bottom:14px">${esc(t.name || t.email)} will become the owner of Faxton Rentals and you will become an admin. Only they will be able to change roles or transfer ownership again.</p><form id="tf"><div class="field"><label for="tc">Type <b>${esc(t.email)}</b> to confirm</label><input id="tc" autocomplete="off"></div><div class="err" id="te"></div><button class="btn primary block">Transfer ownership</button></form>`);
+        $("#tf", m.el).onsubmit = async (e) => { e.preventDefault(); if ($("#tc", m.el).value.trim().toLowerCase() !== String(t.email).toLowerCase()) return ($("#te", m.el).textContent = "Email doesn’t match."); try { await st.transferOwnership(ctx.S.user.uid, t.id); m.close(); toast("Ownership transferred."); await ctx.refreshUser(); } catch (x) { $("#te", m.el).textContent = friendlyErr(x); } }; }));
       $$("[data-app]", root).forEach((s) => (s.onchange = async () => { try { await st.setStatus("applications", s.dataset.app, s.value); toast("Status updated."); } catch (e) { toast(friendlyErr(e)); } }));
       $$("select[data-view]", root).forEach((s) => (s.onchange = async () => { try { await st.setStatus("viewings", s.dataset.view, s.value); toast("Status updated."); } catch (e) { toast(friendlyErr(e)); } }));
     } };

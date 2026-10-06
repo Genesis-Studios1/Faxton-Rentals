@@ -2,13 +2,34 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
-    function isAdmin() { return signedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
+    function ownerDoc() { return /databases/$(database)/documents/config/owner; }
+    // The single owner is whoever config/owner points at. Only the owner can transfer it.
+    function isOwner() { return signedIn() && exists(ownerDoc()) && get(ownerDoc()).data.uid == request.auth.uid; }
+    function isAdmin() {
+      return isOwner() || (signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
 
+    // Ownership: claimed once by the owner email (verified), then transferable only by the current owner.
+    match /config/owner {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && !exists(ownerDoc())
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() == 'isaacij6yes@gmail.com'
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if isOwner()
+        && request.resource.data.uid != resource.data.uid
+        && exists(/databases/$(database)/documents/users/$(request.resource.data.uid));
+      allow delete: if false;
+    }
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if signedIn() && request.auth.uid == uid && request.resource.data.role in ['renter', 'agent'];
-      allow update: if signedIn() && request.auth.uid == uid && request.resource.data.role == resource.data.role;
+      // Users can edit their own profile but never their role. Only the owner can change roles.
+      allow update: if signedIn() && ((request.auth.uid == uid && request.resource.data.role == resource.data.role) || isOwner());
     }
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin();
