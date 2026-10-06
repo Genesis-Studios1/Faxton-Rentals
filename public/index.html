@@ -2,20 +2,80 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Faxton Rentals — Your next home starts here</title>
 <meta name="description" content="Find, view and rent homes across Nigeria with Faxton Rentals.">
 <meta name="theme-color" content="#073b2d">
-<script>
-  try { document.documentElement.dataset.theme = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) {}
-</script>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/svg+xml" href="assets/mark.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Faxton">
+<script>
+  // Light mode is the default. Dark mode only applies if the user switched to it.
+  try {
+    document.documentElement.dataset.theme = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+    if (sessionStorage.getItem('splashed')) document.documentElement.classList.add('no-splash', 'ready');
+  } catch (e) { document.documentElement.dataset.theme = 'light'; }
+</script>
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="css/app.css">
+<style>
+  /* Splash screen: inline so it paints before anything else loads */
+  #splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;text-align:center;overflow:hidden;color:#fff;
+    background:radial-gradient(120% 90% at 50% 38%,#0b4a39 0%,#073b2d 55%,#052c22 100%);transition:opacity .75s cubic-bezier(.4,0,.2,1),transform .75s cubic-bezier(.4,0,.2,1),filter .75s}
+  #splash.leave{opacity:0;transform:scale(1.06);filter:blur(8px);pointer-events:none}
+  html.no-splash #splash{display:none}
+  #splash .sp-bld{position:absolute;right:0;bottom:0;width:min(46vw,560px);opacity:0;mix-blend-mode:luminosity;animation:spBld 1.6s .1s cubic-bezier(.2,.8,.2,1) forwards}
+  #splash .sp-glow{position:absolute;width:60vmin;height:60vmin;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,.28),transparent 65%);opacity:0;animation:spGlow 2.2s .5s ease-out forwards}
+  #splash .sp-center{position:relative;display:grid;justify-items:center;gap:0}
+  #splash .sp-mark{width:clamp(120px,19vw,200px);height:auto;overflow:visible}
+  #splash .sp-mark path{transform-box:fill-box;opacity:0}
+  #splash .sp-f{fill:#34d399;transform-origin:left center;animation:spF .8s .2s cubic-bezier(.2,.9,.25,1) forwards}
+  #splash .sp-s{fill:#fff;transform-origin:center bottom;animation:spS .6s .6s cubic-bezier(.2,.9,.25,1) forwards}
+  #splash .sp-r{fill:#fff;transform-origin:left bottom;animation:spR .8s .4s cubic-bezier(.2,.9,.25,1) forwards}
+  #splash .sp-mark{animation:spPulse 1.2s 1.1s ease-in-out 1}
+  #splash .sp-word{font:400 clamp(2.1rem,6.2vw,4rem)/1.1 'Inter Tight',Inter,system-ui,sans-serif;margin-top:clamp(14px,2.4vw,26px);white-space:nowrap}
+  #splash .sp-word b{font-weight:800;display:inline-block;opacity:0;animation:spWord .9s .9s cubic-bezier(.2,.8,.2,1) forwards}
+  #splash .sp-word span{display:inline-block;opacity:0;animation:spWord .9s 1.1s cubic-bezier(.2,.8,.2,1) forwards}
+  #splash .sp-tag{margin:clamp(10px,1.6vw,18px) 0 0;font:400 clamp(.78rem,1.8vw,1.1rem)/1.4 Inter,system-ui,sans-serif;color:#a9d9c6;letter-spacing:.2em;opacity:0;animation:spTag 1.1s 1.4s ease-out forwards}
+  #splash .sp-dots{position:absolute;left:0;right:0;bottom:clamp(48px,9vh,96px);display:flex;gap:14px;justify-content:center;align-items:center}
+  #splash .sp-dots i{display:block;position:relative;width:12px;height:12px;border-radius:99px;background:rgba(255,255,255,.28);overflow:hidden;opacity:0;animation:spDotIn .5s .3s forwards}
+  #splash .sp-dots i b{position:absolute;inset:0;background:#34d399;transform:scaleX(0);transform-origin:left}
+  #splash .sp-dots i:nth-child(1){animation:spDotIn .5s .4s forwards,spPill .9s 1.0s ease-in-out forwards}.sp-dots i:nth-child(1) b{animation:spFill .8s 1.0s ease-in-out forwards}
+  #splash .sp-dots i:nth-child(2){animation:spDotIn .5s .4s forwards,spPill .9s 1.8s ease-in-out forwards}.sp-dots i:nth-child(2) b{animation:spFill .8s 1.8s ease-in-out forwards}
+  #splash .sp-dots i:nth-child(3){animation:spDotIn .5s .5s forwards,spPill .9s 2.6s ease-in-out forwards}.sp-dots i:nth-child(3) b{animation:spFill .8s 2.6s ease-in-out forwards}
+  @keyframes spBld{from{opacity:0;transform:translate(60px,40px)}to{opacity:.3;transform:none}}
+  @keyframes spGlow{0%{opacity:0;transform:scale(.6)}50%{opacity:1}100%{opacity:.55;transform:scale(1.1)}}
+  @keyframes spF{from{opacity:0;transform:translateX(-45%) scaleX(.4)}to{opacity:1;transform:none}}
+  @keyframes spS{from{opacity:0;transform:scaleY(0)}to{opacity:1;transform:none}}
+  @keyframes spR{from{opacity:0;transform:translate(35%,25%) rotate(10deg)}to{opacity:1;transform:none}}
+  @keyframes spPulse{0%,100%{filter:drop-shadow(0 0 0 rgba(52,211,153,0))}50%{filter:drop-shadow(0 0 22px rgba(52,211,153,.55))}}
+  @keyframes spWord{from{opacity:0;transform:translateY(18px);letter-spacing:.14em}to{opacity:1;transform:none;letter-spacing:-.01em}}
+  @keyframes spTag{from{opacity:0;letter-spacing:.42em}to{opacity:1;letter-spacing:.2em}}
+  @keyframes spDotIn{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+  @keyframes spPill{0%{width:12px}25%,75%{width:46px}100%{width:12px}}
+  @keyframes spFill{to{transform:scaleX(1)}}
+  @media (prefers-reduced-motion:reduce){#splash *,#splash{animation-duration:.01s!important;animation-delay:0s!important;transition-duration:.2s!important}#splash .sp-dots i b{transform:scaleX(1)}}
+</style>
 </head>
 <body>
+<div id="splash" role="status" aria-label="Loading Faxton Rentals">
+  <img class="sp-bld" src="img/splash-bld.webp" alt="">
+  <div class="sp-glow"></div>
+  <div class="sp-center">
+    <svg class="sp-mark" viewBox="570 235 415 355" aria-hidden="true">
+      <path class="sp-f" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/>
+      <path class="sp-s" d="M702 455L775 429V581H702Z"/>
+      <path class="sp-r" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/>
+    </svg>
+    <div class="sp-word"><b>Faxton</b> <span>Rentals</span></div>
+    <p class="sp-tag">Your next home starts here.</p>
+  </div>
+  <div class="sp-dots" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i></div>
+</div>
 <div id="app"></div>
 <noscript>Faxton Rentals needs JavaScript to run.</noscript>
 <script type="module" src="js/main.js"></script>

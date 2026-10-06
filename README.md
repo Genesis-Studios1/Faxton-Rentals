@@ -20,9 +20,14 @@ This is enforced in `firestore.rules`, not just in the browser. The owner can la
 **Admin → Users → Make owner** (the previous owner becomes an admin).
 
 ## Run locally
-```bash
-npx serve public          # then open http://localhost:3000
-```
+Windows: double-click **run-locally.bat**. Mac/Linux: `./run-locally.sh`. Or: `npx serve public` and open http://localhost:3000
+(Needs Node.js. Don't open `index.html` directly from the folder — browsers block ES modules on `file://`.)
+
+## Install it as an app
+Once it is running on a web address (https://faxton-rentals.web.app or localhost) it is an installable app (PWA):
+- **Chrome / Edge:** click the install icon in the address bar, or *Settings → Install the app* inside Faxton Rentals.
+- **iPhone / iPad (Safari):** Share → *Add to Home Screen*. **Android:** menu → *Install app*.
+It opens in its own window, shows the animated splash, and reopens fast.
 
 ## One-time Firebase setup
 ```bash
