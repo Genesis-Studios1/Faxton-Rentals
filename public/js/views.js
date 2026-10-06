@@ -367,7 +367,7 @@ function settings(ctx, section) {
       ${card("Product tour", "Replay the quick tour of Faxton Rentals.", `<div class="set-actions"><button class="btn" id="tour">Replay tour</button></div>`)}
       ${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="set-actions"><button class="btn" id="install">Install</button></div><p class="note">App version ${BUILD}</p>`)}</div>`;
   const [h1, sub] = SET_TITLE[section];
-  return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><h1>${h1}</h1><p class="lead-s">${sub}</p>${body}</div></div>`,
+  return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><div class="set-head"><div><h1>${h1}</h1><p class="lead-s">${sub}</p></div><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>${body}</div></div>`,
     mount() {
       const save = async (patch, msg = "Saved.") => { try { await st.saveProfile(u.uid, patch); ctx.S.profile = { ...(ctx.S.profile || {}), ...patch }; toast(msg); } catch (x) { toast(friendlyErr(x)); throw x; } };
       $("#out").onclick = async () => { await ctx.logout(); ctx.go("#/login"); };
