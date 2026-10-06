@@ -1,6 +1,6 @@
 import { db } from "./firebase.js";
 import { SEED } from "./data.js";
-import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch }
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
@@ -25,11 +25,20 @@ export async function toggleSaved(user, id, on) {
 }
 
 // ---- viewings, applications ----
-export const addViewing = (user, l, when, slot) => addDoc(collection(db, "viewings"), { uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
-export const addApplication = (user, l, moveIn) => addDoc(collection(db, "applications"), { uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: l.price + l.service + l.deposit, moveIn, status: "Under review", createdAt: serverTimestamp() });
+export const addViewing = (user, l, when, slot, extra = {}) => addDoc(collection(db, "viewings"), { ...extra, uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
+export const addApplication = (user, l, moveIn, details = {}) => addDoc(collection(db, "applications"), { details, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: l.price + l.service + l.deposit, moveIn, status: "Under review", createdAt: serverTimestamp() });
 const mine = async (col, user) => { try { return (await getDocs(query(collection(db, col), where("uid", "==", user.uid)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); } catch { return []; } };
 export const myViewings = (u) => mine("viewings", u);
 export const myApplications = (u) => mine("applications", u);
+
+// ---- documents (stored per user; files up to ~700 KB are kept in the document itself) ----
+export const myDocs = (u) => mine("documents", u);
+export const addDocument = (u, d) => addDoc(collection(db, "documents"), { ...d, uid: u.uid, status: "Uploaded", createdAt: serverTimestamp() });
+export const removeDocument = (id) => deleteDoc(doc(db, "documents", id));
+
+// ---- support tickets ----
+export const myTickets = (u) => mine("tickets", u);
+export const addTicket = (u, t) => addDoc(collection(db, "tickets"), { ...t, uid: u.uid, name: u.displayName || u.email, status: "Open", ref: "FR-" + (1000 + Math.floor(Math.random() * 9000)), createdAt: serverTimestamp() });
 
 // ---- messaging ----
 export const convId = (user, l) => `${user.uid}__${l.id}`;
