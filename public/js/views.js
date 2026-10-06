@@ -63,49 +63,29 @@ const feat = (x, top, box, ic, tx, tw, fs, text, desc, fsd, lhd, d) => `<div cla
 const bars = (x, y, n, bw, gap, bh) => `<div class="at dz-bars fade" ${P(x, y, null, null, `--bw:${bw};--bg:${gap};--bh:${bh};${D(.5)}`)}>${[1, 2, 3].map((i) => `<i class="${i === n ? "on" : ""}"></i>`).join("")}</div>`;
 const arrowBtn = (cls, href, x, y, w, h, fs, inner, d = 0.6, extra = "") => `<a class="at dz-btn ${cls} rise" href="${href}" ${P(x, y, w, h, `${FS(fs)}--rad:14;${D(d)}${extra}`)}>${inner}</a>`;
 
+// Onboarding: logo, text and Back share the left margin line; Skip, the photo and Continue share the right one.
+const OB = [
+  { eyebrow: "Find your space.", h1: "A home that fits<br>your life.", lead: "Explore rental homes across Nigeria. Find the space that feels right for you.", kind: "soft", img: "ob-1", alt: "Modern home with a landscaped entrance", cta: "Continue", next: "#/onboarding/2",
+    feats: [["search", "Search by neighbourhood"], ["sliders3", "Filter by budget and bedrooms"], ["heart", "Save your favourite homes"]] },
+  { eyebrow: "Take a closer look", h1: "Find a time.<br>Take a tour.", lead: "Connect with an agent and choose a viewing time that works for you.", kind: "box", img: "ob-2", alt: "Bright living room with a city view", cta: "Continue", next: "#/onboarding/3",
+    feats: [["msg", "Chat with the listing agent"], ["cal", "Choose an available viewing slot"], ["home", "Keep track of your visits"]] },
+  { eyebrow: "Make yourself at home.", h1: "Your rental life,<br>all in one place.", lead: "Keep your applications, documents and conversations together.", kind: "round", img: "ob-3", alt: "Dining room with a city view", cta: "Get started", next: "#/signup",
+    feats: [["doc", "Track your rental application"], ["folder", "Access your tenancy documents"], ["chatdots", "Stay connected with your agent"]] },
+];
 function onboarding(ctx, n) {
-  const skip = (x, y, dim) => `<a class="at dz-skip edge-tr ${dim ? "dim" : ""} fade" href="#/login" data-skip ${P(x, y, null, null, D(.3))}>Skip ${icon("arrow", 24)}</a>`;
-  const hdr = (h) => `<div class="hline" style="top:calc(${h} * var(--u))"></div>`;
-  const wrap = (inner) => `<div class="dz-page"><div class="frame">${inner}</div></div>`;
-  let html;
-  if (n === 1) html = wrap(`${hdr(95)}${dzLogo(95, 28, 44, 34)}${skip(1518, 38)}
-    <div class="at dz-eyebrow rise" ${P(90, 162, null, null, D(.1))}>Find your space</div>
-    <h1 class="at rise" ${P(88, 207, 620, null, `${FS(82, 78)}letter-spacing:-.048em;${D(.2)}`)}>A home that<br>fits your life.</h1>
-    <p class="at dz-lead rise" ${P(90, 384, 600, null, `${FS(24.7, 33)}color:#7b8682;${D(.35)}`)}>Explore rental homes across Nigeria, from your<br>first apartment to your next family home.</p>
-    ${feat(91, 485, 66, "search", 185, 240, 22, "Search your favourite<br>neighbourhoods", "", 0, 0, .45)}
-    ${feat(91, 575, 66, "sliders3", 185, 240, 22, "Filter by budget and<br>bedrooms", "", 0, 0, .55)}
-    ${feat(91, 662, 66, "heart", 185, 240, 22, "Save homes you love", "", 0, 0, .65)}
-    <div class="at fade" ${P(91, 762, null, null, `display:flex;align-items:center;gap:calc(6 * var(--u));${FS(21)}${D(.7)}`)}><b style="color:var(--brand);font-weight:700">01</b><span style="color:#9aa5a0">/ 03</span></div>
-    ${bars(186, 771, 1, 95, 12, 8)}
-    ${arrowBtn("primary", "#/onboarding/2", 91, 816, 322, 65, 24.5, `Continue ${icon("arrow", 26)}`, .8, `justify-content:space-between;padding:0 calc(36 * var(--u)) 0 calc(96 * var(--u));`)}
-    <a class="at fade" href="#/login" data-skip ${P(460, 834, null, null, `${FS(22.5)}font-weight:500;border-bottom:calc(3 * var(--u)) solid var(--brand);padding-bottom:calc(4 * var(--u));color:var(--head);${D(.9)}`)}>Sign in</a>
-    <div class="at dz-img reveal" ${P(752, 134, 884, 768)}><img src="img/onb-house.webp" alt="Modern home in Lekki, Lagos"></div>`);
-  if (n === 2) html = wrap(`${hdr(82)}${dzLogo(86, 17, 50, 31)}${skip(1512, 31)}${hdr(849)}
-    <div class="at dz-eyebrow rise" ${P(86, 137, null, null, D(.1))}>See it for yourself</div>
-    <h1 class="at rise" ${P(84, 176, 640, null, `${FS(106, 93)}letter-spacing:-.07em;${D(.2)}`)}>Find a time.<br>Take a tour.</h1>
-    <p class="at dz-lead rise" ${P(86, 380, 600, null, `${FS(28.4, 38)}color:#4f5a55;${D(.35)}`)}>Speak with a realtor and book a viewing<br>from their available times.</p>
-    ${feat(86, 494, 78, "cal", 199, 420, 22.5, "Choose an available slot", "See a realtor’s real-time availability<br>and pick a time that works for you.", 19.3, 25, .45)}
-    ${feat(86, 614, 78, "chatdots", 199, 420, 22.5, "Chat before your visit", "Ask questions, get more details<br>and confirm everything in chat.", 19.3, 25, .55)}
-    ${feat(86, 734, 78, "list", 199, 420, 22.5, "Keep track of your viewings", "All your scheduled and past viewings<br>in one place.", 19.3, 25, .65)}
-    <div class="at dz-img reveal" ${P(703, 109, 930, 713)}><img src="img/onb-living.webp" alt="Bright living room with a city view"></div>
-    ${arrowBtn("", "#/onboarding/1", 86, 864, 250, 56, 22, `${icon("left", 24)} Back`, .6)}
-    ${bars(633, 879, 2, 128, 11, 7)}
-    <div class="at fade" ${P(633, 898, 407, null, `text-align:center;${FS(18)}font-weight:600;color:var(--head);letter-spacing:.03em;${D(.7)}`)}>02 <span style="font-weight:400;color:#8a9690">/ 03</span></div>
-    ${arrowBtn("primary", "#/onboarding/3", 1337, 864, 250, 56, 22, `Continue ${icon("arrow", 24)}`, .8)}`);
-  if (n === 3) html = wrap(`${hdr(80)}${dzLogo(78, 18, 42, 30)}${skip(1531, 30, true)}
-    <div class="at dz-eyebrow rise" ${P(78, 149, null, null, D(.1))}>Settle in simply</div>
-    <h1 class="at rise" ${P(78, 190, 640, null, `${FS(72, 76)}letter-spacing:-.044em;${D(.2)}`)}>Your rental life,<br>organised.</h1>
-    <p class="at dz-lead rise" ${P(78, 352, 560, null, `${FS(23.8, 35)}color:#7b8682;${D(.35)}`)}>Keep your applications, tenancy documents<br>and conversations together in one place.</p>
-    ${feat(78, 458, 85, "doccheck", 195, 420, 23.4, "Track rental applications", "See the status of all your applications<br>in real time.", 18.2, 26, .45)}
-    ${feat(78, 586, 85, "doc", 195, 420, 23.4, "Access tenancy documents", "Store and view your agreements,<br>receipts and important files.", 18.2, 26, .55)}
-    ${feat(78, 720, 85, "chatlines", 195, 420, 23.4, "Message your agent", "Chat with your agent easily, all in<br>one place.", 18.2, 26, .65)}
-    ${bars(78, 872, 3, 131, 7, 8)}
-    <div class="at fade" ${P(512, 867, null, null, `${FS(16.5)}color:#6c7873;${D(.7)}`)}>03 / 03</div>
-    <div class="at dz-img reveal" ${P(668, 110, 975, 682)}><img src="img/onb-room.webp" alt="Furnished apartment with a rental summary card"></div>
-    ${arrowBtn("", "#/onboarding/2", 1185, 819, 198, 57, 22, "Back", .6)}
-    ${arrowBtn("primary", "#/signup", 1401, 819, 242, 57, 22, "Create account", .8)}
-    <p class="at fade" ${P(1185, 888, 458, null, `text-align:center;${FS(17)}color:#5f6b66;${D(1)}`)}>Already a member? <a class="dz-link" href="#/login" data-skip>Sign in</a></p>`);
-  return { full: true, title: "Welcome", html, mount() { $$("[data-skip],a[href='#/signup'],a[href='#/login']").forEach((a) => a.addEventListener("click", markSeen)); } };
+  const s = OB[n - 1], back = n > 1 ? `#/onboarding/${n - 1}` : null;
+  const html = `<div class="ob">
+    <header class="ob-head"><div class="ob-in"><a class="ob-logo fade" href="#/onboarding/1" aria-label="Faxton Rentals">${logoMark()}<span><b>Faxton</b> Rentals</span></a><a class="ob-skip fade" href="#/login" style="--d:.3s">Skip</a></div></header>
+    <main class="ob-in ob-main">
+      <section class="ob-text"><div class="ob-eyebrow rise" style="--d:.1s">${s.eyebrow}</div><h1 class="rise" style="--d:.2s">${s.h1}</h1><p class="ob-lead rise" style="--d:.32s">${s.lead}</p>
+        <ul class="ob-feats ${s.kind}">${s.feats.map(([ic, t], i) => `<li class="rise" style="--d:${0.42 + i * 0.1}s"><span class="ob-fi">${icon(ic, 28, 1.8)}</span><span>${t}</span></li>`).join("")}</ul></section>
+      <div class="ob-img reveal"><img src="img/${s.img}.webp" alt="${s.alt}"></div>
+    </main>
+    <footer class="ob-foot"><div class="ob-in ob-foot-in">
+      ${back ? `<a class="ob-btn back rise" href="${back}">Back</a>` : `<span class="ob-btn back off rise" aria-disabled="true">${icon("left", 20)} Back</span>`}
+      <div class="ob-prog fade" style="--d:.5s"><div class="ob-bars">${[1, 2, 3].map((i) => `<i class="${i === n ? "on" : ""}"></i>`).join("")}</div><span>0${n} / 03</span></div>
+      <a class="ob-btn cta rise" href="${s.next}" style="--d:.7s">${s.cta} ${icon("arrow", 22)}</a></div></footer></div>`;
+  return { full: true, title: "Welcome", html };
 }
 
 // ---------- sign up / log in ----------

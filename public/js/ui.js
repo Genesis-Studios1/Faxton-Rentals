@@ -58,6 +58,7 @@ const P = {
   chatdots: '<path d="M21 11.500a8.500 8.500 0 01-12.300 7.600L3.500 20.500l1.400-4.800A8.500 8.500 0 1121 11.500z"/><path d="M8.500 11.500h.01M12.500 11.500h.01M16.500 11.500h.01" stroke-width="2.800"/>',
   doccheck: '<path d="M13 21H6V3h8l4 4v5"/><path d="M14 3v4h4M9 11h6M9 15h3"/><circle cx="17.500" cy="17.500" r="4.200" fill="currentColor" stroke="none"/><path d="M15.600 17.600l1.400 1.400 2.400-2.600" stroke="#fff" stroke-width="1.800"/>',
   chatlines: '<path d="M4 4.500h16v12H11.500L7 20.500v-4H4z"/><path d="M8 9h8M8 12.500h5"/>',
+  folder: '<path d="M3 7a2 2 0 012-2h4l2 2.500h8a2 2 0 012 2V18a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
   logout: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
 };
 export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
