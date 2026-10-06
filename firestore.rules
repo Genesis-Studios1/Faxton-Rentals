@@ -82,6 +82,18 @@ service cloud.firestore {
       allow update: if isAdmin();
     }
 
+    match /tickets/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Open'
+        && short(request.resource.data.subject, 160) && short(request.resource.data.message, 2000);
+      allow read: if owns() || isAdmin();
+      allow update: if isAdmin();
+    }
+    match /documents/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && short(request.resource.data.name, 160) && request.resource.data.size < 900000;
+      allow read, delete: if owns() || isAdmin();
+      allow update: if isAdmin();
+    }
     match /conversations/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
       allow read: if owns() || isAdmin();

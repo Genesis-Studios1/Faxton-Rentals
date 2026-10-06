@@ -32,36 +32,37 @@ export const go = (h) => { if (location.hash === h) render(); else location.hash
 const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?"); return { path: p.replace(/\/+$/, "") || "/", q: Object.fromEntries(new URLSearchParams(q || "")) }; };
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
-const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/bookings", "My rentals", "cal"]];
-const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Rental applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/reports", "chart", "Reports"], ["/admin/support", "headset", "Support"], ["/settings", "gear", "Settings"]];
+const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
+const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/support", "msg", "Support"], ["/admin/reports", "chart", "Reports"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
-const WRAPPED = ["/saved", "/bookings", "/payments"];
+const WRAPPED = ["/bookings"];
 const isSettings = (p) => p === "/settings" || p.startsWith("/settings/");
 
 function shell(path, inner, { admin = false, pending = 0 } = {}) {
   return admin ? adminShell(path, inner, pending) : appShell(path, inner);
 }
-// Admin console keeps its own labelled sidebar (logo top-left).
+// Admin console: its own header + labelled sidebar, with a way back to the site.
 function adminShell(path, inner, pending) {
   const on = (p) => (p === "/admin" ? path === p : path === p || path.startsWith(p + "/"));
   const items = ANAV.map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
-  return `<div class="shell admin ${isCollapsed() ? "collapsed" : ""}">
-    <aside class="rail" aria-label="Admin navigation"><div class="rail-top">${logo("Admin console")}<button class="rail-collapse" id="collapse" aria-label="Collapse sidebar">${icon("dchev", 22)}</button></div>
-      <nav>${items}</nav><div class="rail-bottom"><a class="rail-user" href="#/settings"><span class="avatar">${esc(initials(userName()))}</span><span>${esc(userName())}</span></a></div></aside>
-    <main class="main page" id="main">${topbar(true)}${verifyBanner()}${inner}</main></div>`;
+  return `<div class="adm"><header class="adm-top"><a class="logo" href="#/admin" aria-label="Admin overview">${logo().match(/<svg.*<\/svg>/s)[0]}<span class="logo-word"><b>Faxton</b> Rentals</span></a><span class="vr"></span><span class="adm-title">Admin console</span><span style="flex:1"></span>
+      <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label><a class="icon-btn bell ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 22)}</a>
+      <a class="me-btn" href="#/settings" aria-label="Account">${avatarHtml()}${icon("chev", 18)}</a></header>
+    <div class="adm-body"><aside class="adm-side" aria-label="Admin navigation"><nav>${items}</nav><a class="adm-back" href="#/">${icon("left", 20)} Go back to Faxton Rentals</a></aside>
+    <main class="adm-main page" id="main">${verifyBanner()}${inner}</main></div></div>`;
 }
 // The site's navigation: a top bar with the logo at the left, the page tabs, the bell and the account menu.
 function appShell(path, inner) {
-  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/bookings" ? path === "/bookings" || path === "/payments" : path === h || path.startsWith(h + "/"));
+  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply"].some((p) => path === p || path.startsWith(p + "/")) : path === h || path.startsWith(h + "/"));
   const links = TOPNAV.map(([h, l, ic]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}><span class="tn-ic">${icon(ic, 24)}</span><span class="tn-lb">${l}</span>${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
   const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
       <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
-      <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/bookings">${icon("cal", 18)} Bookings</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a>
+      <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/rentals">${icon("cal", 18)} My rentals</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a>
       ${S.isAdmin ? `<a role="menuitem" href="#/admin">${icon("building", 18)} Admin console</a>` : ""}<button role="menuitem" id="logoutBtn">${icon("logout", 18)} Sign out</button></div></div>`;
   const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
-  const back = isSettings(path) || path === "/" || path === "/messages" || path.startsWith("/messages/") ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
+  const back = !(path === "/search" || path.startsWith("/home/")) ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
   return `<header class="topnav"><div class="tn-in">${logo()}<nav class="tn-links" aria-label="Main">${links}</nav>
     <div class="tn-right"><a class="icon-btn bell ${S.unread ? "dot" : ""}" id="bell" href="#/messages" aria-label="Messages and notifications">${icon("bell", 22)}</a>${menu}</div></div></header>
     <main class="main-top page ${isSettings(path) ? "is-settings" : ""}" id="main">${verifyBanner()}${back}${body}</main>`;
