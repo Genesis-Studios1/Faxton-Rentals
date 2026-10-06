@@ -3,118 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Faxton Rentals — Find your next rental home</title>
-<meta name="description" content="Browse and book rental homes, apartments and villas.">
+<title>Faxton Rentals — Your next home starts here</title>
+<meta name="description" content="Find, view and rent homes across Nigeria with Faxton Rentals.">
+<meta name="theme-color" content="#073b2d">
 <script>
-  // apply saved theme before paint to avoid a flash
-  try {
-    var t = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-    document.documentElement.dataset.theme = t;
-  } catch (e) {}
+  try { document.documentElement.dataset.theme = localStorage.getItem('theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch (e) {}
 </script>
 <link rel="icon" type="image/svg+xml" href="assets/mark.svg">
-<link rel="stylesheet" href="styles.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<header class="nav">
-  <div class="container nav-inner">
-    <a class="logo" href="#top"><svg class="logo-svg" viewBox="570 235 415 355" aria-hidden="true"><path class="lg-a" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/><path class="lg-b" d="M702 455L775 429V581H702Z"/><path class="lg-b" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/></svg><span class="logo-word"><b>Faxton</b> Rentals</span></a>
-    <nav class="nav-links" aria-label="Main">
-      <a href="#listings">Rentals</a>
-      <a href="#how">How it works</a>
-      <a href="#contact">Contact</a>
-    </nav>
-    <div class="nav-actions">
-      <button class="btn ghost" id="favToggle" aria-label="Saved homes">♥ <span id="favCount">0</span></button>
-      <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode" title="Toggle theme"></button>
-    </div>
-  </div>
-</header>
-
-<main id="top">
-  <section class="hero">
-    <div class="container">
-      <h1>Find a place that feels like home</h1>
-      <p class="sub">Verified rentals, transparent pricing, book a viewing in minutes.</p>
-      <form class="search" id="searchForm" role="search">
-        <label>Location
-          <input id="q" type="search" placeholder="City or neighborhood" autocomplete="off">
-        </label>
-        <label>Type
-          <select id="type">
-            <option value="">Any</option>
-            <option>Apartment</option><option>House</option><option>Villa</option><option>Studio</option><option>Townhouse</option>
-          </select>
-        </label>
-        <label>Bedrooms
-          <select id="beds">
-            <option value="0">Any</option>
-            <option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option>
-          </select>
-        </label>
-        <label>Max rent / month
-          <select id="maxPrice">
-            <option value="0">No limit</option>
-            <option value="1000">$1,000</option><option value="1500">$1,500</option><option value="2500">$2,500</option><option value="4000">$4,000</option>
-          </select>
-        </label>
-        <button class="btn primary" type="submit">Search</button>
-      </form>
-    </div>
-  </section>
-
-  <section class="container" id="listings">
-    <div class="toolbar">
-      <div>
-        <h2>Available rentals</h2>
-        <p class="muted" id="resultCount"></p>
-      </div>
-      <div class="toolbar-controls">
-        <label class="chip-check"><input type="checkbox" id="petOnly"> Pet friendly</label>
-        <label class="chip-check"><input type="checkbox" id="favOnly"> Saved only</label>
-        <select id="sort" aria-label="Sort">
-          <option value="featured">Featured</option>
-          <option value="low">Price: low to high</option>
-          <option value="high">Price: high to low</option>
-          <option value="beds">Most bedrooms</option>
-        </select>
-      </div>
-    </div>
-    <div class="grid" id="grid"></div>
-    <div class="empty" id="empty" hidden>
-      <h3>No homes match your search</h3>
-      <p class="muted">Try widening your filters.</p>
-      <button class="btn" id="reset">Reset filters</button>
-    </div>
-  </section>
-
-  <section class="how container" id="how">
-    <h2>How it works</h2>
-    <div class="steps">
-      <div class="step"><span>1</span><h3>Search</h3><p>Filter by location, price, size and amenities.</p></div>
-      <div class="step"><span>2</span><h3>Book a viewing</h3><p>Pick a date and send a request to the host.</p></div>
-      <div class="step"><span>3</span><h3>Move in</h3><p>Confirm details with the host and get your keys.</p></div>
-    </div>
-  </section>
-</main>
-
-<footer class="footer" id="contact">
-  <div class="container foot-inner">
-    <div><a class="logo" href="#top"><svg class="logo-svg" viewBox="570 235 415 355" aria-hidden="true"><path class="lg-a" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/><path class="lg-b" d="M702 455L775 429V581H702Z"/><path class="lg-b" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/></svg><span class="logo-word"><b>Faxton</b> Rentals</span></a>
-      <p class="muted">Rent with confidence.</p></div>
-    <p class="muted">hello@faxtonrentals.example · © <span id="yr"></span> Faxton Rentals</p>
-  </div>
-</footer>
-
-<!-- Property modal -->
-<dialog id="modal" aria-labelledby="mTitle">
-  <button class="close" id="mClose" aria-label="Close">✕</button>
-  <div class="m-body" id="mBody"></div>
-</dialog>
-
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-<script src="data.js"></script>
-<script src="app.js"></script>
+<div id="app"></div>
+<noscript>Faxton Rentals needs JavaScript to run.</noscript>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
