@@ -178,4 +178,9 @@ export let installPrompt = null;
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; document.dispatchEvent(new Event("installable")); });
 addEventListener("appinstalled", () => { installPrompt = null; toast("Faxton Rentals installed."); });
 export async function installApp() { if (!installPrompt) return false; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; return true; }
-if ("serviceWorker" in navigator && location.protocol.startsWith("http")) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) addEventListener("load", () => {
+  const had = !!navigator.serviceWorker.controller; let reloaded = false;
+  // When a new version of the app takes over, reload once so you always see the latest changes.
+  navigator.serviceWorker.addEventListener("controllerchange", () => { if (had && !reloaded) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.register("sw.js").then((r) => r.update()).catch(() => {});
+});

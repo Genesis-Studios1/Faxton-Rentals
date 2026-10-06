@@ -51,11 +51,12 @@ In the Firebase console (project **faxton-rentals**):
 2. Authentication → Settings → Authorized domains → make sure `faxton-rentals.web.app` and `faxton-rentals.firebaseapp.com` are listed (add your custom domain later).
 3. Build → Firestore Database → Create database (production mode).
 
-## Deploy (Windows cmd or PowerShell)
-```bash
-npm install -g firebase-tools
-firebase login
-firebase use faxton-rentals
-firebase deploy
+## Deploy / update (Windows cmd or PowerShell)
+First time only: `npm install -g firebase-tools`, `firebase login`.
+
+Every time you want the newest version live (run inside the Faxton-Rentals folder):
 ```
-Run `firebase deploy` again every time you change the app. Live at https://faxton-rentals.web.app.
+npm run update
+```
+That pulls the latest code from GitHub and deploys it. To deploy without pulling: `npm run deploy`.
+Then open https://faxton-rentals.web.app and press **Ctrl + Shift + R** (hard refresh).
