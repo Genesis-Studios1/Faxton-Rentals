@@ -1,0 +1,39 @@
+name: Deploy to Firebase
+# Deploys the site (and Firestore rules) from GitHub's servers, so no local Firebase CLI is needed.
+# One-time setup: add a repository secret named FIREBASE_SERVICE_ACCOUNT containing the service-account JSON
+# (Firebase console -> Project settings -> Service accounts -> Generate new private key).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deploy key
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$KEY" ]; then echo "::error::Missing repository secret FIREBASE_SERVICE_ACCOUNT. See README > Deploy from GitHub."; exit 1; fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Deploy hosting
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$KEY" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
+      - name: Deploy Firestore rules (needs the Firestore database to exist)
+        continue-on-error: true
+        run: npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals --non-interactive
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
