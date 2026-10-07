@@ -1,0 +1,193 @@
+name: Build and release apps
+# Builds the Android, iPhone, Windows and Mac apps and publishes them as a GitHub Release.
+# Run it from the Actions tab ("Run workflow") and type a version such as 1.0.1, or push a tag like v1.0.1.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version number, e.g. 1.0.1"
+        required: true
+        default: "1.0.0"
+  push:
+    tags: ["v*"]
+concurrency:
+  group: release-apps
+  cancel-in-progress: false
+permissions:
+  contents: read
+env:
+  VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      v: ${{ steps.v.outputs.v }}
+      code: ${{ steps.v.outputs.code }}
+    steps:
+      - id: v
+        run: |
+          V="${VERSION#v}"
+          [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Version must look like 1.2.3"; exit 1; }
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - name: Install and create the Android project
+        working-directory: apps/mobile
+        run: |
+          npm install --no-audit --no-fund
+          npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
+          npx cap add android
+          npx capacitor-assets generate --android --assetPath assets
+          npx cap sync android
+      - name: Harden and version the Android project
+        working-directory: apps/mobile/android
+        run: |
+          M=app/src/main/AndroidManifest.xml
+          sed -i 's/android:allowBackup="true"/android:allowBackup="false"/' "$M"
+          sed -i 's/<application/<application android:usesCleartextTraffic="false"/' "$M"
+          sed -i "s/versionCode 1/versionCode ${{ needs.version.outputs.code }}/; s/versionName \"1.0\"/versionName \"${{ needs.version.outputs.v }}\"/" app/build.gradle
+          grep -n "versionCode\|versionName" app/build.gradle
+      - name: Build (signed when the signing secrets exist)
+        working-directory: apps/mobile/android
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.jks"
+            SIGN="-Pandroid.injected.signing.store.file=$RUNNER_TEMP/release.jks -Pandroid.injected.signing.store.password=$KS_PASS -Pandroid.injected.signing.key.alias=$KEY_ALIAS -Pandroid.injected.signing.key.password=$KEY_PASS"
+            ./gradlew --no-daemon assembleRelease bundleRelease $SIGN
+            cp app/build/outputs/apk/release/app-release.apk ../../../Faxton-Rentals-Android.apk
+            cp app/build/outputs/bundle/release/app-release.aab ../../../Faxton-Rentals-Android.aab
+            rm -f "$RUNNER_TEMP/release.jks"
+          else
+            echo "::warning::No Android signing key set. Building a debug-signed APK (installs fine, but updates need the same key each time)."
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk ../../../Faxton-Rentals-Android.apk
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: Faxton-Rentals-Android.*
+          if-no-files-found: error
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build the Windows installer
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          npm install --no-audit --no-fund
+          npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
+          npx electron-builder --win --publish never
+          ls dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            apps/desktop/dist/Faxton-Rentals-Windows.exe
+            apps/desktop/dist/Faxton-Rentals-Windows.exe.blockmap
+            apps/desktop/dist/latest.yml
+          if-no-files-found: error
+
+  mac:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build the Mac apps (Apple Silicon and Intel)
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm install --no-audit --no-fund
+          npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
+          npx electron-builder --mac --publish never
+          ls dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: |
+            apps/desktop/dist/Faxton-Rentals-Mac-*.dmg
+            apps/desktop/dist/Faxton-Rentals-Mac-*.zip
+          if-no-files-found: error
+
+  ios:
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Create the iOS project
+        working-directory: apps/mobile
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add ios
+          npx capacitor-assets generate --ios --assetPath assets
+          npx cap sync ios
+      - name: Version the iOS project
+        working-directory: apps/mobile/ios/App
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ needs.version.outputs.v }}" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ needs.version.outputs.code }}" App/Info.plist
+      - name: Build an unsigned iPhone app (.ipa)
+        working-directory: apps/mobile/ios/App
+        run: |
+          WS=App.xcworkspace; [ -d "$WS" ] || WS=""
+          if [ -n "$WS" ]; then TARGET="-workspace $WS"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" archive
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" "$RUNNER_TEMP/ipa/Payload/"
+          (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Faxton-Rentals-iPhone-unsigned.ipa" Payload)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: Faxton-Rentals-iPhone-unsigned.ipa
+          if-no-files-found: error
+
+  release:
+    needs: [version, android, windows, mac, ios]
+    if: ${{ !cancelled() && needs.version.result == 'success' && (needs.android.result == 'success' || needs.windows.result == 'success' || needs.mac.result == 'success' || needs.ios.result == 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - run: ls -la out
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.version.outputs.v }}
+          name: Faxton Rentals ${{ needs.version.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          fail_on_unmatched_files: false
+          files: out/*
+          body: |
+            Faxton Rentals ${{ needs.version.outputs.v }}
+            - Android: Faxton-Rentals-Android.apk
+            - iPhone: Faxton-Rentals-iPhone-unsigned.ipa (install with AltStore or Sideloadly)
+            - Windows: Faxton-Rentals-Windows.exe
+            - Mac: Faxton-Rentals-Mac-arm64.dmg (Apple Silicon) / Faxton-Rentals-Mac-x64.dmg (Intel)

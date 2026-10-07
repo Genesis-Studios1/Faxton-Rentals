@@ -819,6 +819,9 @@ details{border-top:1px solid var(--border);padding:12px 0}details:first-of-type{
 .side-card{padding:20px!important}.btn{height:42px}.sec-head h2,.hm-sec h2{font-size:clamp(1.25rem,1.7vw,1.6rem)!important}
 .wrap{max-width:1180px}
 }
+.ga-ver{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:6px 0 16px}.ga-ver b{font-size:1.1rem;color:var(--head)}.ga-ver span{color:var(--muted)}
+.ga-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.ga-card{padding:22px;display:grid;gap:8px;align-content:start}.ga-card h3{margin:0}.ga-card p{margin:0;line-height:1.5}.ga-ic{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:var(--soft);color:var(--head)}.ga-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.ga-btns .btn small{opacity:.75;margin-left:6px}
+@media (max-width:760px){.ga-grid{grid-template-columns:1fr}}
 /* DARK-AUTO-BEGIN */
 :root[data-theme=dark] .pill.warn{color:#f3c15a!important}
 :root[data-theme=dark] .dz-fi{background:#1b3a31!important}

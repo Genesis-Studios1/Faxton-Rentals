@@ -5,3 +5,5 @@ serviceAccount*.json
 *-firebase-adminsdk-*.json
 node_modules/
 .firebase/
+node_modules
+dist

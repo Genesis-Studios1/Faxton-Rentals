@@ -1,0 +1,43 @@
+{
+  "name": "faxton-rentals-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Faxton Rentals for Windows and macOS",
+  "author": "Faxton Rentals",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.faxton.rentals",
+    "productName": "Faxton Rentals",
+    "copyright": "Faxton Rentals",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "offline.html", "package.json"],
+    "asar": true,
+    "publish": [{ "provider": "github", "owner": "musazaneerah4-crypto", "repo": "Faxton-Rentals" }],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "artifactName": "Faxton-Rentals-Windows.${ext}",
+      "icon": "build/icon.png"
+    },
+    "nsis": { "oneClick": true, "perMachine": false, "deleteAppDataOnUninstall": false, "createDesktopShortcut": true },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }, { "target": "zip", "arch": ["arm64", "x64"] }],
+      "artifactName": "Faxton-Rentals-Mac-${arch}.${ext}",
+      "category": "public.app-category.lifestyle",
+      "icon": "build/icon.png",
+      "identity": null,
+      "hardenedRuntime": false
+    }
+  }
+}

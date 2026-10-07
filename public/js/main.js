@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/fi
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr } from "./ui.js";
 import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations } from "./store.js";
 import * as V from "./views.js";
+import { checkShellUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
 
 export const S = { nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
@@ -33,7 +34,7 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
-const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/support", "msg", "Support"], ["/admin/reports", "chart", "Reports"]];
+const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/support", "msg", "Support"], ["/admin/reports", "chart", "Reports"], ["/admin/get-app", "download", "Get the app"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
@@ -99,6 +100,7 @@ export async function render() {
   wire();
   scrollTo(0, 0);
   view.mount?.(app, ctx);
+  checkShellUpdate(ctx, toast);
   if (path === "/" && S.user && !tourSeen(S.user)) whenReady(() => { if (parse().path === "/") startTour(S.user, (S.user.displayName || "").split(" ")[0]); });
 }
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
