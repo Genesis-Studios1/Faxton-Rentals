@@ -19,3 +19,6 @@ setTimeout(function () {
   };
   document.body.appendChild(d);
 }, 12000);
+
+// The splash plays once per browser session; reloads go straight to the app.
+try { if (sessionStorage.getItem("splashed")) document.documentElement.classList.add("no-splash", "ready"); } catch (e) {}
