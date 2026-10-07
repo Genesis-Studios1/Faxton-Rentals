@@ -4,6 +4,7 @@ import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal,
 import * as st from "./store.js";
 import * as PG from "./pages.js";
 import * as A2 from "./admin2.js";
+import * as APPS from "./apps.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
@@ -433,6 +434,7 @@ function settings(ctx, section) {
 async function admin(ctx, sub) {
   const isAdmin = ctx.S.isAdmin;
   if (!isAdmin) return { title: "Admin", html: `<div class="empty"><h2>Admin access required</h2><p>Your account isn’t an administrator. Ask the owner to promote your account.</p><p style="margin-top:14px"><a class="btn" href="#/">Back home</a></p></div>` };
+  if (sub === "get-app") return APPS.getAppPage(ctx);
   const [ls, apps, views, users, tks] = await Promise.all([st.adminAll("listings"), st.adminAll("applications"), st.adminAll("viewings"), st.adminAll("users"), st.adminAll("tickets")]);
   const pending = ls.filter((l) => /pending|flag/i.test(l.status)), by = (a) => [...a].sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0));
   const th = (x) => `<img class="th" src="${esc(x.images?.[0] || x.image || "img/palm-court.webp")}" alt="">`;

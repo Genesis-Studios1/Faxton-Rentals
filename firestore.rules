@@ -71,31 +71,38 @@ service cloud.firestore {
 
     match /viewings/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
-        && request.resource.data.status == 'Requested';
+        && request.resource.data.status == 'Requested'
+        && request.resource.data.keys().size() <= 30
+        && short(request.resource.data.title, 200) && short(request.resource.data.name, 200);
       allow read: if owns() || isAdmin();
       allow update: if isAdmin();
     }
     match /applications/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
-        && request.resource.data.status == 'Under review';
+        && request.resource.data.status == 'Under review'
+        && request.resource.data.keys().size() <= 30
+        && short(request.resource.data.title, 200) && short(request.resource.data.name, 200);
       allow read: if owns() || isAdmin();
       allow update: if isAdmin();
     }
 
     match /tickets/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Open'
-        && short(request.resource.data.subject, 160) && short(request.resource.data.message, 2000);
+        && short(request.resource.data.subject, 160) && short(request.resource.data.message, 2000)
+        && request.resource.data.keys().size() <= 12;
       allow read: if owns() || isAdmin();
       allow update: if isAdmin();
     }
     match /documents/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
-        && short(request.resource.data.name, 160) && request.resource.data.size < 900000;
+        && short(request.resource.data.name, 160) && request.resource.data.size < 900000
+        && request.resource.data.keys().size() <= 15
+        && request.resource.data.data is string && request.resource.data.data.size() < 1000000;
       allow read, delete: if owns() || isAdmin();
       allow update: if isAdmin();
     }
     match /conversations/{id} {
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.keys().size() <= 20;
       allow read: if owns() || isAdmin();
       allow update: if (owns() && request.resource.data.uid == resource.data.uid) || isAdmin();
       match /messages/{mid} {
