@@ -193,15 +193,21 @@ async function discover(ctx) {
   // "Homes you might love": listings that match the saved rental preferences come first
   const score = (l) => (pr.area && (l.area + " " + l.city).toLowerCase().includes(pr.area) ? 2 : 0) + (pr.type && l.type === pr.type ? 1 : 0) + (pr.budget && inRange(l.price, pr.budget) ? 1 : 0);
   const list = [...all].map((l, i) => [l, i]).sort((x, y) => score(y[0]) - score(x[0]) || x[1] - y[1]).map((x) => x[0]);
-  return { title: "Home", html: `<section class="d-hero"><div class="wrap d-wrap"><div class="d-hero-text"><div class="eyebrow-s rise">Your next chapter</div><h1 class="rise" style="--d:.08s">Find a place to call home.</h1><p class="rise" style="--d:.18s">Discover rentals that fit your budget and your lifestyle.</p></div><img class="d-hero-img reveal" src="img/hero.webp" alt="Modern home in Lagos"></div></section>
-    <div class="wrap"><form class="searchbar rise" style="--d:.3s" id="sb" role="search">
+  const TABS = [["", "All homes"], ["Apartment", "Apartments"], ["House", "Houses"], ["Studio", "Studios"]];
+  const cardsFor = (t) => { const rows = list.filter((l) => !t || l.type === t).slice(0, 3); return rows.length ? rows.map((l, i) => homeCard(l, ctx.S.saved, i)).join("") : `<p class="muted hm-none">No ${t.toLowerCase()} listings yet.</p>`; };
+  return { title: "Home", html: `<div class="wrap hm">
+    <section class="hm-hero"><div class="hm-text"><div class="eyebrow-s rise">Find your next chapter</div><h1 class="rise" style="--d:.08s">A place to live.<br>A place to<br>call home.</h1><p class="rise" style="--d:.18s">Find a rental that fits your life, in a neighbourhood you love.</p></div><div class="hm-img reveal" style="background-image:url(img/hero.webp)" role="img" aria-label="Modern home in Lagos"></div></section>
+    <form class="searchbar hm-search rise" style="--d:.3s" id="sb" role="search">
       <div class="sb-cell">${icon("pin", 26)}<label>Location<select name="area">${opts(AREAS, pr.area || "lekki")}</select></label></div>
       <div class="sb-cell">${icon("home", 26)}<label>Property type<select name="type"><option value="">Any type</option>${TYPES.map((t) => `<option ${t === pr.type ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
-      <div class="sb-cell">${icon("coins", 26)}<label>Budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
+      <div class="sb-cell">${icon("coins", 26)}<label>Yearly budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
       <button class="btn primary">${icon("search", 22)} Search homes</button></form>
-    <div class="sec-head rise" style="--d:.4s"><h2>Homes you might love</h2><a class="link" href="#/search">View all homes ${icon("arrow", 18)}</a></div>
-    <div class="cards">${list.slice(0, 3).map((l, i) => homeCard(l, ctx.S.saved, i)).join("")}</div></div>`,
-    mount(root) { bindCards(root, ctx); $("#sb").onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); ctx.go("#/search?" + p); }; } };
+    <div class="hm-pop rise" style="--d:.35s"><span>Popular locations:</span>${[["lekki", "Lekki"], ["ajah", "Ajah"], ["yaba", "Yaba"], ["ikeja", "Ikeja"]].map(([v, l], i) => `<a class="chip-l" href="#/search?area=${v}">${i === 0 ? icon("pin", 16) : ""}${l}</a>`).join("")}</div>
+    <div class="hm-sec rise" style="--d:.4s"><div><h2>Find your kind of home</h2><p>Explore rentals selected for your next move.</p></div><div class="hm-tabs" role="tablist">${TABS.map(([v, l], i) => `<button role="tab" class="${i ? "" : "on"}" data-t="${v}">${l}</button>`).join("")}</div><a class="link" href="#/search">View all homes ${icon("arrow", 18)}</a></div>
+    <div class="cards" id="hmcards">${cardsFor("")}</div>
+    <div class="hm-feats rise" style="--d:.5s"><div><span class="hm-fi">${icon("pin", 24)}</span><b>Find your neighbourhood</b><p>Discover great areas, with everything you need nearby.</p></div><div><span class="hm-fi">${icon("cal", 24)}</span><b>Book a viewing</b><p>Schedule and tour your shortlisted homes with ease.</p></div><div><span class="hm-fi">${icon("user", 24)}</span><b>Manage your rental</b><p>Keep track of your enquiries, viewings and tenancy all in one place.</p></div></div></div>`,
+    mount(root) { bindCards(root, ctx); $("#sb").onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); ctx.go("#/search?" + p); };
+      $$(".hm-tabs [data-t]", root).forEach((b) => (b.onclick = () => { $$(".hm-tabs [data-t]", root).forEach((x) => x.classList.toggle("on", x === b)); $("#hmcards").innerHTML = cardsFor(b.dataset.t); bindCards(root, ctx); })); } };
 }
 
 // ---------- search ----------
