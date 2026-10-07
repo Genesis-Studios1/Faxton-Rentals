@@ -822,6 +822,42 @@ details{border-top:1px solid var(--border);padding:12px 0}details:first-of-type{
 .ga-ver{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:6px 0 16px}.ga-ver b{font-size:1.1rem;color:var(--head)}.ga-ver span{color:var(--muted)}
 .ga-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.ga-card{padding:22px;display:grid;gap:8px;align-content:start}.ga-card h3{margin:0}.ga-card p{margin:0;line-height:1.5}.ga-ic{display:grid;place-items:center;width:48px;height:48px;border-radius:12px;background:var(--soft);color:var(--head)}.ga-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.ga-btns .btn small{opacity:.75;margin-left:6px}
 @media (max-width:760px){.ga-grid{grid-template-columns:1fr}}
+
+/* ---- design layer: calmer and photo-first (patterns from Airbnb, Zillow, StreetEasy and Rightmove) ---- */
+:root[data-theme=light] .topnav,:root[data-theme=light] .main-top{--bg:#fff;--surface:#f7f7f5;--border:#e6e6e1;--soft:#f0f3f1;--shadow:0 2px 12px rgba(0,0,0,.06);--r:12px}
+:root[data-theme=light] body:has(.main-top){background:#fff}
+.main-top :is(h1,h2,h3,h4){font-weight:650!important;letter-spacing:-.012em!important;word-spacing:.04em}
+.main-top .hm-text h1{font-weight:700!important;letter-spacing:-.02em!important;word-spacing:.06em}
+.main-top .rise,.main-top .fade,.main-top .reveal{animation-duration:.3s!important;animation-delay:0s!important}
+/* listing cards: bare photo with the text underneath, no frame, no shine */
+.main-top .card{border:0;background:transparent;border-radius:0;box-shadow:none;overflow:visible}
+.main-top .card:hover{transform:none;box-shadow:none}
+.main-top .card-img{border-radius:14px;aspect-ratio:4/3}
+.main-top .card-img::before,.main-top .card-img::after,.main-top .peek{display:none!important}
+.main-top .card:hover .card-img img{transform:scale(1.03)}
+.main-top .card-body{padding:10px 2px 0;gap:1px}
+.main-top .card-body h3{font-size:1rem;margin:0}
+.main-top .hc-top{align-items:flex-start}
+.main-top .loc{font-size:.88rem}
+.main-top .avail{background:none;padding:0;color:var(--muted);font-weight:500;font-size:.82rem;display:inline-flex;align-items:center;gap:6px}
+.main-top .avail::before{content:"";width:7px;height:7px;border-radius:50%;background:#1a9d6e}.main-top .avail.off::before{background:#c9a227}
+.main-top .hc-price{font-weight:650;color:var(--head);font-size:1rem;margin-top:4px}
+.main-top .facts{font-size:.86rem;color:var(--muted);gap:8px}.main-top .facts .ic,.main-top .facts svg{width:16px;height:16px}
+.main-top .heart{background:rgba(255,255,255,.92);box-shadow:none;width:34px;height:34px}
+/* chips and tabs: outlined, not mint pills */
+.main-top .chip-l{background:var(--card);border:1px solid var(--border);height:36px;font-weight:500}.main-top .chip-l:hover{transform:none;background:var(--surface)}
+.main-top .btn{border-radius:10px;font-weight:600}.main-top .btn:hover{transform:none}
+/* containers: flat with a hairline */
+.main-top :is(.panel,.pg-box,.set-card,.side-card){box-shadow:none;border-radius:12px}
+.main-top .hm-feats{background:none;border-radius:0;border-top:1px solid var(--border);padding:22px 0 6px;margin-top:34px}
+.main-top .hm-feats>div+div{border-left:1px solid var(--border)}
+.main-top .hm-fi{background:var(--surface)}
+.main-top .hm-sec{margin-top:34px}
+.main-top .hm-text .eyebrow-s{letter-spacing:.14em;font-weight:500}
+.main-top .hm-hero{border-radius:20px}.main-top .hm-img{border-radius:0 20px 20px 0}
+.main-top .searchbar{border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.1)}
+.main-top .searchbar .btn.primary{border-radius:10px}
+.main-top .sec-head h2{font-weight:650!important}
 /* DARK-AUTO-BEGIN */
 :root[data-theme=dark] .pill.warn{color:#f3c15a!important}
 :root[data-theme=dark] .dz-fi{background:#1b3a31!important}
