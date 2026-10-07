@@ -89,7 +89,8 @@ export async function render() {
 
   const ctx = { path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   bar(true);
-  const view = await V.route(ctx);
+  let view;
+  try { view = await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="empty"><h2>Something went wrong</h2><p>This page couldn’t load. Please refresh, or go back home.</p><p style="margin-top:14px"><a class="btn primary" href="#/">Go home</a></p></div>`); return wire(); }
   if (id !== renderId) return;
   bar(false);
   if (!view) { app.innerHTML = shell(path, `<div class="empty"><h2>Page not found</h2><p><a class="link" href="#/">Go home</a></p></div>`); return wire(); }
@@ -167,7 +168,7 @@ async function refreshAuthState(u) {
     $$("#bell").forEach((b) => b.classList.toggle("dot", n > 0));
   });
 }
-onAuthStateChanged(auth, async (u) => { await refreshAuthState(u); S.ready = true; render(); });
+onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
 addEventListener("hashchange", () => { S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
 render();
