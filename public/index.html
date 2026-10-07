@@ -15,10 +15,21 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Faxton">
-<script src="js/boot.js?v=2026-10-07.32"></script>
-<link rel="stylesheet" href="css/fonts.css?v=2026-10-07.32">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js">
+<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js">
+<link rel="modulepreload" href="js/firebase.js">
+<link rel="modulepreload" href="js/store.js">
+<link rel="modulepreload" href="js/ui.js">
+<link rel="modulepreload" href="js/views.js">
+<link rel="modulepreload" href="js/pages.js">
+<link rel="modulepreload" href="js/admin2.js">
+<link rel="modulepreload" href="js/data.js">
+<link rel="modulepreload" href="js/tour.js">
+<script src="js/boot.js?v=2026-10-07.33"></script>
+<link rel="stylesheet" href="css/fonts.css?v=2026-10-07.33">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="css/app.css?v=2026-10-07.32">
+<link rel="stylesheet" href="css/app.css?v=2026-10-07.33">
 <style>
   /* Splash screen: inline so it paints before anything else loads. The artwork is your image: its lines are revealed (drawn) over 2 seconds. */
   #splash{position:fixed;inset:0;z-index:1000;overflow:hidden;color:#fff;background:#01100c;font-family:Inter,system-ui,sans-serif;clip-path:circle(150% at 50% 44%);transition:clip-path .95s cubic-bezier(.75,0,.2,1),opacity .95s ease-in}
@@ -78,6 +89,6 @@
 </div>
 <div id="app"></div>
 <noscript>Faxton Rentals needs JavaScript to run.</noscript>
-<script type="module" src="js/main.js?v=2026-10-07.32"></script>
+<script type="module" src="js/main.js?v=2026-10-07.33"></script>
 </body>
 </html>
