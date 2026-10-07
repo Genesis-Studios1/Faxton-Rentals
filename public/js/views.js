@@ -124,8 +124,8 @@ function authPage(ctx, mode) {
       <div class="m-or"><span>or</span></div>${mGoogle}</form>
     <p class="m-foot">${login ? `New to Faxton Rentals? <a class="dz-link" href="#/signup">Create an account →</a>` : `Already have an account? <a class="dz-link" href="#/login">Sign in</a>`}</p></main></div>`;
   else if (!login) html = `<div class="dz-page"><div class="frame">
-    ${dzLogo(108, 31, 45, 29.5)}
     <div class="at dz-bgimg edge-l reveal" ${P(0, 0, 916, 941, `background-image:url(img/signup-hero.webp);--W:916;`)}></div>
+    ${dzLogo(108, 31, 45, 29.5)}
     <div class="at dz-overlay-title rise" ${P(87, 765, 600, null, `${FS(52, 52)}font-weight:400;letter-spacing:-.02em;${D(.6)}`)}>Make room for<br>what comes next.</div>
     <div class="at fade m-hide" ${P(88, 888, 57, 3, `background:#34d399;${D(.9)}`)}></div>
     <div class="at dz-card edge-r fade" ${P(916, 0, 756, 941, `border-radius:0;--W:756;${D(.1)}`)}></div>
