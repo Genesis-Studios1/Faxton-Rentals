@@ -150,7 +150,7 @@ function authPage(ctx, mode) {
     <div class="at dz-overlay-title rise" ${P(87, 815, 700, null, `${FS(42, 50)}font-weight:600;letter-spacing:-.02em;${D(.6)}`)}>A fresh start begins here.</div>
     <div class="at fade m-hide" ${P(87, 884, 57, 3, `background:#34d399;${D(.9)}`)}></div>
     <div class="at dz-card edge-r fade" ${P(883, 0, 789, 941, `border-radius:0;--W:789;${D(.1)}`)}></div>
-    <form id="f" novalidate>
+    <form id="f" class="at" novalidate ${P(0, 0, 1672, 941)}>
     <h1 class="at rise" ${P(960, 134, 700, null, `${FS(60.5, 76)}letter-spacing:-.058em;${D(.25)}`)}>Welcome back</h1>
     <p class="at rise" ${P(962, 207, 700, null, `${FS(34.4, 44)}color:#68746f;letter-spacing:-.02em;${D(.3)}`)}>Sign in to find your next home.</p>
     <div class="at dz-label rise" ${P(963, 297, null, null, `${FS(20)}${D(.4)}`)}>Email address</div>${field("email", 963, 335, 637, 66, 20, "mail", "Enter your email address", "email", 'autocomplete="email"', .4)}
@@ -161,8 +161,8 @@ function authPage(ctx, mode) {
     <button class="at dz-btn primary rise" type="submit" ${P(963, 617, 637, 68, `${FS(24)}--rad:8;${D(.55)}`)}>Sign in ${icon("arrow", 26)}</button>
     <div class="at dz-sep fade" ${P(963, 705, 637, 26, `${FS(18)}${D(.6)}`)}>or</div>
     ${google(963, 749, 637, 69, 21, .6)}
-    </form>
     <p class="at fade" ${P(963, 860, 637, null, `text-align:center;${FS(19)}color:#5f6b66;${D(.7)}`)}>New to Faxton Rentals? <a class="dz-link" href="#/signup">Create an account <span aria-hidden="true">→</span></a></p>
+    </form>
   </div></div>`;
   return { full: true, title: login ? "Sign in" : "Create account", html,
     mount() {

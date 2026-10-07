@@ -764,3 +764,6 @@ details{border-top:1px solid var(--border);padding:12px 0}details:first-of-type{
 .is-settings .set-nav hr{display:block;margin:auto 0 10px;border-top:1px solid var(--border)}
 }
 @media (max-width:700px){.is-settings .set-nav a:hover,.is-settings .set-out:hover{transform:none}}
+
+/* keep the auth form centred in the white panel at any window width */
+@media (min-width:861px){.dz-page form#f.at{transform:translateX(calc(25vw - 418 * var(--u)))}}
