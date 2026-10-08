@@ -142,16 +142,22 @@ async function signUp(name, email, pw, role) {
 export async function refreshProfile() { if (S.user) S.profile = await getProfile(S.user.uid); }
 export async function resendVerification() { await sendEmailVerification(auth.currentUser); }
 export async function refreshUser() { await auth.currentUser.reload(); await refreshAuthState(auth.currentUser); render(); }
+// Remember the last blocked request so network errors can say which address was refused.
+addEventListener("securitypolicyviolation", (e) => { window.__csp = `${e.violatedDirective} blocked ${String(e.blockedURI).slice(0, 80)}`; });
 async function signInGoogle() {
   // Google blocks sign-in inside an app's embedded browser, so the mobile app asks Google natively and hands the result to Firebase.
   const cap = window.Capacitor;
   if (/FaxtonApp\/mobile/.test(navigator.userAgent) && cap) {
     const native = cap.registerPlugin ? cap.registerPlugin("FirebaseAuthentication") : cap.Plugins?.FirebaseAuthentication;
     if (!native) throw Object.assign(new Error("Google sign-in plugin missing"), { code: "app/plugin-missing" });
-    const r = await native.signInWithGoogle({ skipNativeAuth: true });
+    let r;
+    try { r = await native.signInWithGoogle({ skipNativeAuth: true }); }
+    catch (e) { throw Object.assign(new Error(e?.message || "Google step failed"), { code: "google/" + (e?.code || e?.message || "error") }); }
     const idToken = r?.credential?.idToken;
     if (!idToken) throw Object.assign(new Error("No Google token returned"), { code: "app/no-token" });
-    const c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken));
+    let c;
+    try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken)); }
+    catch (e) { throw Object.assign(new Error(e?.message), { code: `firebase/${e?.code || "error"}${window.__csp ? " | " + window.__csp : ""}` }); }
     return ensureProfile(c.user);
   }
   const c = await signInWithPopup(auth, google); await ensureProfile(c.user);
