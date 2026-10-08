@@ -149,7 +149,8 @@ async function probeGoogle() {
   const k = auth.app.options.apiKey, d = auth.app.options.authDomain;
   const t = [["api", `https://identitytoolkit.googleapis.com/v1/projects?key=${k}`, "cors"], ["frame", `https://${d}/__/auth/iframe`, "no-cors"], ["gapi", "https://apis.google.com/js/api.js", "no-cors"], ["acct", "https://accounts.google.com/favicon.ico", "no-cors"]];
   const r = await Promise.all(t.map(async ([n, u, mode]) => { const s = performance.now(), c = new AbortController(), id = setTimeout(() => c.abort(), 6000); try { await fetch(u, { mode, signal: c.signal, cache: "no-store" }); return `${n}:ok${Math.round(performance.now() - s)}`; } catch (x) { return `${n}:${x?.name === "AbortError" ? "timeout" : "fail"}`; } finally { clearTimeout(id); } }));
-  return "|" + r.join(",");
+  const seen = performance.getEntriesByType("resource").filter((x) => /googleapis|firebaseapp|google\.com|gstatic/.test(x.name) && !/identitytoolkit.*projects\?key/.test(x.name) || /accounts:|projects/.test(x.name)).slice(-4).map((x) => `${new URL(x.name).host.split(".")[0]}${new URL(x.name).pathname.split("/").pop().slice(0, 14)}:${x.responseStatus || 0}/${Math.round(x.duration)}`);
+  return "|" + r.join(",") + "|seen:" + seen.join(",") + (window.__csp ? "|" + window.__csp : "");
 }
 async function signInGoogle() {
   // Google blocks sign-in inside an app's embedded browser, so the mobile app asks Google natively and hands the result to Firebase.
