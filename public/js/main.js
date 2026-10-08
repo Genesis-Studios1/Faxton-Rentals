@@ -202,6 +202,8 @@ onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch
 addEventListener("hashchange", () => { S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
 render();
+// Give every table cell its column name, so phones can show tables as stacked cards.
+new MutationObserver(() => $$(".tbl-wrap table").forEach((t) => { const hd = [...(t.tHead?.rows[0]?.cells || [])].map((c) => c.textContent.trim()); [...t.tBodies].forEach((b) => [...b.rows].forEach((r) => [...r.cells].forEach((c, i) => { if (hd[i] && c.dataset.label !== hd[i]) c.dataset.label = hd[i]; }))); })).observe(app, { childList: true, subtree: true });
 
 // ---------- splash: plays once per session, dismisses when the app is ready ----------
 (function splash() {
