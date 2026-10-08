@@ -390,7 +390,10 @@ function settings(ctx, section) {
       <details><summary>How do I apply to rent?</summary><p>On a home page choose <b>Apply to rent</b> and pick your move-in date. Track the status in <b>Payments</b>.</p></details>
       <details><summary>Where do I message an agent?</summary><p>Tap <b>Message agent</b> on a home, or open <b>Messages</b> in the side menu.</p></details>`)}
       ${card("Product tour", "Replay the quick tour of Faxton Rentals.", `<div class="set-actions"><button class="btn" id="tour">Replay tour</button></div>`)}
-      ${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="set-actions"><button class="btn" id="install">Install</button></div><p class="note">App version ${BUILD}</p>`)}</div>`;
+      ${updCard}${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="set-actions"><button class="btn" id="install">Install</button></div><p class="note">App version ${BUILD}</p>`)}</div>`;
+  const shell = APPS.shellInfo(), autoUpd = !!pr.autoUpdate;
+  const updCard = card("App updates", shell ? `You’re using the ${shell.platform.startsWith("mac") ? "Mac" : shell.platform === "windows" ? "Windows" : shell.platform === "android" ? "Android" : "iPhone"} app, version ${esc(shell.version)}.` : "On the web you always get the newest version automatically. Installed apps (Android, iPhone, Windows, Mac) can update themselves too.",
+    `<div class="sw-row"><span class="sw-ic">${icon("download", 26, 1.7)}</span><div><b>Automatic updates</b><p>Download new versions as soon as they’re available.</p></div><button type="button" class="switch ${autoUpd ? "on" : ""}" role="switch" aria-checked="${autoUpd}" id="autoUpd" aria-label="Automatic updates"><i></i></button></div>${shell ? `<div class="set-actions"><button class="btn" id="chkUpd">Check for updates</button></div>` : ""}`);
   const [h1, sub] = SET_TITLE[section];
   return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><div class="set-head"><div><h1>${h1}</h1><p class="lead-s">${sub}</p></div><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>${body}</div></div>`,
     mount() {
@@ -402,6 +405,8 @@ function settings(ctx, section) {
         b.classList.toggle("on", next); b.setAttribute("aria-checked", next);
         try { await save({ [g]: { ...base, ...cur, [k]: next } }); } catch { b.classList.toggle("on", !next); b.setAttribute("aria-checked", !next); }
       }));
+      const au = $("#autoUpd"); if (au) au.onclick = async () => { const next = !au.classList.contains("on"); au.classList.toggle("on", next); au.setAttribute("aria-checked", next); try { await save({ prefs: { ...(ctx.S.profile?.prefs || {}), autoUpdate: next } }, next ? "Automatic updates are on." : "Automatic updates are off."); APPS.syncShellAutoUpdate(next); } catch { au.classList.toggle("on", !next); au.setAttribute("aria-checked", !next); } };
+      const cu = $("#chkUpd"); if (cu) cu.onclick = () => { const r = APPS.checkNow(ctx.S); if (r === "current") toast("You’re on the latest version."); };
       const pf = $("#pf");
       if (pf) {
         $("#cancel").onclick = () => ctx.render();
@@ -409,7 +414,7 @@ function settings(ctx, section) {
           e.preventDefault(); const err = $("#perr"), nm = $("#nm").value.trim(); err.textContent = "";
           if (!nm) return (err.textContent = "Enter your full name.");
           const btn = pf.querySelector("button[type=submit]"); btn.disabled = true;
-          try { await updateProfile(auth.currentUser, { displayName: nm }); await save({ name: nm, phone: $("#ph").value.trim(), location: $("#lc").value, prefs: { area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile updated."); ctx.render(); } catch {} finally { btn.disabled = false; }
+          try { await updateProfile(auth.currentUser, { displayName: nm }); await save({ name: nm, phone: $("#ph").value.trim(), location: $("#lc").value, prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile updated."); ctx.render(); } catch {} finally { btn.disabled = false; }
         };
         $("#photoBtn").onclick = () => $("#photo").click();
         $("#photo").onchange = (e) => {
@@ -434,7 +439,7 @@ function settings(ctx, section) {
 async function admin(ctx, sub) {
   const isAdmin = ctx.S.isAdmin;
   if (!isAdmin) return { title: "Admin", html: `<div class="empty"><h2>Admin access required</h2><p>Your account isn’t an administrator. Ask the owner to promote your account.</p><p style="margin-top:14px"><a class="btn" href="#/">Back home</a></p></div>` };
-  if (sub === "get-app") return APPS.getAppPage(ctx);
+  if (sub === "get-app") return APPS.installationsPage(ctx);
   const [ls, apps, views, users, tks] = await Promise.all([st.adminAll("listings"), st.adminAll("applications"), st.adminAll("viewings"), st.adminAll("users"), st.adminAll("tickets")]);
   const pending = ls.filter((l) => /pending|flag/i.test(l.status)), by = (a) => [...a].sort((x, y) => (y.createdAt?.seconds || 0) - (x.createdAt?.seconds || 0));
   const th = (x) => `<img class="th" src="${esc(x.images?.[0] || x.image || "img/palm-court.webp")}" alt="">`;

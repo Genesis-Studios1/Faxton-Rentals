@@ -46,6 +46,7 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
+          node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent='FaxtonApp/mobile/${{ needs.version.outputs.v }}';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add android
           npx capacitor-assets generate --android --assetPath assets
           npx cap sync android
@@ -143,6 +144,7 @@ jobs:
         working-directory: apps/mobile
         run: |
           npm install --no-audit --no-fund
+          node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent='FaxtonApp/mobile/${{ needs.version.outputs.v }}';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add ios
           npx capacitor-assets generate --ios --assetPath assets
           npx cap sync ios

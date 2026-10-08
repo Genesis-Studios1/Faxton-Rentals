@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/fi
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr } from "./ui.js";
 import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations } from "./store.js";
 import * as V from "./views.js";
-import { checkShellUpdate } from "./apps.js";
+import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
 
 export const S = { nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
@@ -34,7 +34,7 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
-const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/support", "msg", "Support"], ["/admin/reports", "chart", "Reports"], ["/admin/get-app", "download", "Get the app"]];
+const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/support", "msg", "Support"], ["/admin/reports", "chart", "Reports"], ["/admin/get-app", "download", "Installations"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
@@ -100,7 +100,7 @@ export async function render() {
   wire();
   scrollTo(0, 0);
   view.mount?.(app, ctx);
-  checkShellUpdate(ctx, toast);
+  if (S.user) { startUpdateWatch(S); syncShellAutoUpdate(S.profile?.prefs?.autoUpdate); } else stopUpdateWatch();
   if (path === "/" && S.user && !tourSeen(S.user)) whenReady(() => { if (parse().path === "/") startTour(S.user, (S.user.displayName || "").split(" ")[0]); });
 }
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
@@ -152,8 +152,7 @@ export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 async function refreshAuthState(u) {
   S.user = u; S.profile = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (u) {
-    S.profile = await getProfile(u.uid);
-    S.ownerUid = await getOwnerUid();
+    [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
     // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
     if (!S.ownerUid && u.emailVerified) {
       try { await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = await getProfile(u.uid); toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
@@ -162,7 +161,7 @@ async function refreshAuthState(u) {
     S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
     S.isAdmin = S.isOwner || S.role === "admin";
   }
-  S.saved = new Set(await getSaved(u));
+  S.saved = new Set(u ? S.profile?.saved || [] : await getSaved(u));
   S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0;
   if (u) S.unsubConvs = watchConversations(u, (c) => {
     const n = c.filter((x) => x.unread).length; if (n === S.unread) return; S.unread = n;
@@ -179,7 +178,7 @@ render();
 (function splash() {
   const el = $("#splash"), root = document.documentElement;
   if (!el || root.classList.contains("no-splash")) return;
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 3300;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 2800;
   let done = false;
   const finish = () => { if (done) return; done = true; try { sessionStorage.setItem("splashed", "1"); } catch {} el.classList.add("leave"); root.classList.add("ready"); document.dispatchEvent(new Event("splash-done")); setTimeout(() => el.remove(), 1000); };
   const poll = setInterval(() => { if (S.ready && performance.now() - started >= MIN) { clearInterval(poll); finish(); } }, 100);

@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function admin() {
+      let u = firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
+      let o = firestore.get(/databases/(default)/documents/config/owner);
+      return request.auth != null && (u.data.role == 'admin' || o.data.uid == request.auth.uid);
+    }
+    // Installer files are public downloads (they contain no secrets). Only admins can upload or remove them.
+    match /installers/{version}/{file} {
+      allow read: if true;
+      allow write: if admin() && request.resource.size < 600 * 1024 * 1024;
+      allow delete: if admin();
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

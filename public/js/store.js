@@ -5,14 +5,21 @@ import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, whe
 
 let cache = null;
 // Fill any missing fields so a partial or older Firestore listing can never break a page.
-const norm = (l) => { const seed = SEED.find((x) => x.id === l.id) || {}; const o = { ...seed, ...l }; o.agent = { ...(seed.agent || {}), ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; return o; };
+const norm = (l) => { const seed = SEED.find((x) => x && x.id === l.id) || {}; const o = { ...seed, ...l }; o.agent = { ...(seed.agent || {}), ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; return o; };
 export async function getListings(force = false) {
   if (cache && !force) return cache;
-  try {
-    const snap = await getDocs(query(collection(db, "listings"), where("status", "==", "active")));
-    cache = snap.empty ? SEED : snap.docs.map((d) => norm({ ...d.data(), id: d.id }));
-  } catch { cache = SEED; }
-  return cache;
+  // Stale-while-revalidate: show the last known listings instantly, then refresh them in the background.
+  let stored = null; try { stored = JSON.parse(localStorage.getItem("lst") || "null"); } catch {}
+  const fetchFresh = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, "listings"), where("status", "==", "active")));
+      cache = snap.empty ? SEED : snap.docs.map((d) => norm({ ...d.data(), id: d.id }));
+    } catch { cache = SEED; }
+    try { localStorage.setItem("lst", JSON.stringify(cache)); } catch {}
+    return cache;
+  };
+  if (stored?.length && !force) { cache = stored.filter(Boolean).map(norm); fetchFresh(); return cache; }
+  return fetchFresh();
 }
 export const getListing = async (id) => (await getListings()).find((l) => l.id === id) || null;
 
@@ -80,6 +87,9 @@ export async function transferOwnership(fromUid, toUid) {
 export async function adminAll(col) { try { return (await getDocs(collection(db, col))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; } }
 export const patch = (col, id, data) => { cache = null; return updateDoc(doc(db, col, id), data); };
 export const createListing = (l) => { cache = null; return setDoc(doc(db, "listings", l.id), { ...l, createdAt: serverTimestamp() }); };
+export const watchReleases = (cb) => onSnapshot(query(collection(db, "appReleases"), where("published", "==", true)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => cb([]));
+export const saveRelease = (id, data) => (id ? updateDoc(doc(db, "appReleases", id), { ...data, updatedAt: serverTimestamp() }) : addDoc(collection(db, "appReleases"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
+export const removeRelease = (id) => deleteDoc(doc(db, "appReleases", id));
 export const setStatus = (col, id, status) => updateDoc(doc(db, col, id), { status });
 export async function seedListings() {
   const b = writeBatch(db);

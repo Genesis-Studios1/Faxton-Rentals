@@ -36,6 +36,7 @@ const P = {
   share: '<circle cx="6" cy="12" r="2.500"/><circle cx="18" cy="6" r="2.500"/><circle cx="18" cy="18" r="2.500"/><path d="M8.200 11l7.600-4M8.200 13l7.600 4"/>',
   send: '<path d="M3 11l18-8-8 18-2-8z"/>',
   clip: '<path d="M20 11l-8 8a5 5 0 01-7-7l9-9a3.500 3.500 0 015 5l-9 9a2 2 0 01-3-3l8-8"/>',
+  upload: '<path d="M12 16V5M7 9l5-5 5 5M5 20h14"/>',
   download: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
   phone: '<path d="M5 4h4l2 5-2.500 1.500a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A15 15 0 013 6a2 2 0 012-2z"/>',
   video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/>',
@@ -104,4 +105,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || "Something went wrong. Please try again.");
 
-export const BUILD = "2026-10-07.35";
+export const BUILD = "2026-10-08.36";
