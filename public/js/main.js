@@ -144,6 +144,13 @@ export async function resendVerification() { await sendEmailVerification(auth.cu
 export async function refreshUser() { await auth.currentUser.reload(); await refreshAuthState(auth.currentUser); render(); }
 // Remember the last blocked request so network errors can say which address was refused.
 addEventListener("securitypolicyviolation", (e) => { window.__csp = `${e.violatedDirective} blocked ${String(e.blockedURI).slice(0, 80)}`; });
+// After a network failure, test each address Google sign-in needs so the error says which one is unreachable.
+async function probeGoogle() {
+  const k = auth.app.options.apiKey, d = auth.app.options.authDomain;
+  const t = [["api", `https://identitytoolkit.googleapis.com/v1/projects?key=${k}`, "cors"], ["frame", `https://${d}/__/auth/iframe`, "no-cors"], ["gapi", "https://apis.google.com/js/api.js", "no-cors"], ["acct", "https://accounts.google.com/favicon.ico", "no-cors"]];
+  const r = await Promise.all(t.map(async ([n, u, mode]) => { const s = performance.now(), c = new AbortController(), id = setTimeout(() => c.abort(), 6000); try { await fetch(u, { mode, signal: c.signal, cache: "no-store" }); return `${n}:ok${Math.round(performance.now() - s)}`; } catch (x) { return `${n}:${x?.name === "AbortError" ? "timeout" : "fail"}`; } finally { clearTimeout(id); } }));
+  return "|" + r.join(",");
+}
 async function signInGoogle() {
   // Google blocks sign-in inside an app's embedded browser, so the mobile app asks Google natively and hands the result to Firebase.
   const cap = window.Capacitor;
@@ -167,7 +174,8 @@ async function signInGoogle() {
     const known = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/unauthorized-domain", "auth/operation-not-allowed", "auth/too-many-requests", "auth/popup-blocked"];
     if (known.includes(e?.code)) throw e;
     const ms = Math.round(performance.now() - t0);
-    throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}` });
+    const probes = e?.code === "auth/network-request-failed" ? await probeGoogle() : "";
+    throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
   }
   await ensureProfile(c.user);
 }
