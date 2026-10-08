@@ -922,6 +922,27 @@ details{border-top:1px solid var(--border);padding:12px 0}details:first-of-type{
   .hmc .heart{position:absolute;right:10px;top:10px}.hmc-p{display:block;margin:10px 2px 2px;font-size:1.1rem;color:#0e1a15}.hmc-p small{font-weight:400;color:var(--muted);font-size:.8rem}
   .hmc-f{display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:.8rem;margin:0 2px}.hmc-f span{display:inline-flex;align-items:center;gap:4px}
 }
+
+/* ---- admin on phones: menu as a tidy grid, tables as stacked cards ---- */
+@media (max-width:760px){
+  .adm-side nav{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;overflow:visible!important}
+  .adm-side a.item{flex-direction:column!important;height:auto!important;min-height:58px;padding:8px 2px!important;gap:4px!important;font-size:.7rem!important;text-align:center;justify-content:center}
+  .adm-side a.item svg,.adm-side a.item .ic{width:20px!important;height:20px!important}
+  .adm-side a.item .badge{position:absolute;top:4px;right:8px}.adm-side a.item{position:relative}
+  .tbl-wrap{overflow:visible!important}
+  .tbl-wrap table,.tbl-wrap tbody,.tbl-wrap tr,.tbl-wrap td{display:block!important;width:100%!important}
+  .tbl-wrap thead{display:none!important}
+  .tbl-wrap tr{padding:12px 14px!important;border-bottom:1px solid var(--border)}
+  .tbl-wrap tr:last-child{border-bottom:0}
+  .tbl-wrap td{display:flex!important;justify-content:space-between;align-items:center;gap:14px;padding:5px 0!important;border:0!important;text-align:right}
+  .tbl-wrap td::before{content:attr(data-label);color:var(--muted);font-size:.82rem;text-align:left;flex:none}
+  .tbl-wrap td:first-child{justify-content:flex-start;text-align:left}.tbl-wrap td:first-child::before{display:none}
+  .tbl-wrap td[colspan]{justify-content:flex-start}.tbl-wrap td[colspan]::before{display:none}
+  .tbl-wrap td select{max-width:60%}
+  .a2-list td,.a2-list th{display:flex!important}.a2-list td:nth-child(2),.a2-list td:nth-child(5){display:flex!important}
+  .tbl-wrap .cell{min-width:0}
+}
+@media (max-width:760px){.a2-tabs{gap:0}.a2-tabs button{padding:10px 9px;font-size:.9rem;flex:1 1 auto}.a2-tabs button b{min-width:18px;padding:0 5px;margin-left:2px}}
 /* DARK-AUTO-BEGIN */
 :root[data-theme=dark] .pill.warn{color:#f3c15a!important}
 :root[data-theme=dark] .dz-fi{background:#1b3a31!important}
