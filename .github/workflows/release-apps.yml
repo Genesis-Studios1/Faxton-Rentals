@@ -48,6 +48,7 @@ jobs:
           npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
           node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent='FaxtonApp/mobile/${{ needs.version.outputs.v }}';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add android
+          cp google-services.json android/app/google-services.json
           npx capacitor-assets generate --android --assetPath assets
           npx cap sync android
       - name: Harden and version the Android project
