@@ -160,7 +160,16 @@ async function signInGoogle() {
     catch (e) { throw Object.assign(new Error(e?.message), { code: `firebase/${e?.code || "error"}${window.__csp ? " | " + window.__csp : ""}` }); }
     return ensureProfile(c.user);
   }
-  const c = await signInWithPopup(auth, google); await ensureProfile(c.user);
+  const t0 = performance.now();
+  let c;
+  try { c = await signInWithPopup(auth, google); }
+  catch (e) {
+    const known = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/unauthorized-domain", "auth/operation-not-allowed", "auth/too-many-requests", "auth/popup-blocked"];
+    if (known.includes(e?.code)) throw e;
+    const ms = Math.round(performance.now() - t0);
+    throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}` });
+  }
+  await ensureProfile(c.user);
 }
 const logout = () => signOut(auth);
 async function setSaved(id, on) {
