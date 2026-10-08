@@ -144,3 +144,27 @@ export async function installationsPage(ctx) {
   } };
 }
 const strip = ({ id, createdAt, updatedAt, ...rest }) => rest;
+
+// ---------- public "Get the app" page (also reachable when signed out) ----------
+function detectPlatform() {
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) return "android";
+  if (/iPhone|iPad|iPod/i.test(ua)) return "iphone";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Mac/i.test(ua)) return "mac_arm64";
+  return "";
+}
+export async function downloadPage(ctx) {
+  let rel = null;
+  try { const g = await githubLatest(); rel = { version: g.version, files: g.files }; } catch {}
+  const mine = detectPlatform();
+  const order = PLATFORMS.map((x) => (x[0] === "iphone" ? [...x.slice(0, 4), "Easiest: open this site in Safari, tap Share, then Add to Home Screen. Advanced: install the .ipa with AltStore or Sideloadly."] : x)).sort((a, b) => (a[0] === mine ? -1 : b[0] === mine ? 1 : 0));
+  const canPwa = ctx.canInstall?.();
+  const card = ([k, name, ic, , tip]) => { const f = rel?.files?.[k], hot = k === mine; return `<section class="dl-card ${hot ? "hot" : ""}"><span class="dl-ic">${icon(ic, 26)}</span><div class="dl-t"><b>${esc(name)}${hot ? ' <em>Recommended for your device</em>' : ""}</b><p>${esc(tip)}</p></div>${f ? `<a class="btn ${hot ? "primary" : ""}" href="${esc(f.url)}" rel="noopener">${icon("download", 18)} Download${f.size ? ` <small>${mb(f.size)}</small>` : ""}</a>` : `<span class="btn" aria-disabled="true" style="opacity:.5;cursor:default">Coming soon</span>`}</section>`; };
+  const html = `<main class="dl-page"><header class="dl-head"><a class="ob-logo" href="#/" aria-label="Faxton Rentals"><span><b>Faxton</b> Rentals</span></a><a class="ob-skip" href="#/">Back to site</a></header>
+    <div class="dl-in"><div class="dl-hero"><h1>Get the Faxton Rentals app</h1><p>Search homes, book viewings and chat with agents from your phone or computer.${rel ? ` Latest version ${esc(rel.version)}.` : ""}</p>
+    ${canPwa ? `<button class="btn primary" id="pwa">${icon("download", 18)} Install from this browser</button>` : ""}</div>
+    <div class="dl-list">${order.map(card).join("")}</div>
+    <p class="dl-note">Prefer not to download a file? On an iPhone, open this site in Safari, tap Share, then <b>Add to Home Screen</b>. On Android or desktop Chrome and Edge, use the install icon in the address bar.</p></div></main>`;
+  return { full: true, title: "Get the app", html, mount(root) { const b = $("#pwa", root); if (b) b.onclick = () => ctx.installApp(); } };
+}
