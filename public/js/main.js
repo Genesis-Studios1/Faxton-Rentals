@@ -61,7 +61,7 @@ function appShell(path, inner) {
   const links = TOPNAV.map(([h, l, ic]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}><span class="tn-ic">${icon(ic, 24)}</span><span class="tn-lb">${l}</span>${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
   const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
       <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
-      <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/rentals">${icon("cal", 18)} My rentals</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a>
+      <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/rentals">${icon("cal", 18)} My rentals</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a><a role="menuitem" href="#/download">${icon("download", 18)} Get the app</a>
       ${S.isAdmin ? `<a role="menuitem" href="#/admin">${icon("building", 18)} Admin console</a>` : ""}<button role="menuitem" id="logoutBtn">${icon("logout", 18)} Sign out</button></div></div>`;
   const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
   const back = !(path === "/search" || path.startsWith("/home/")) ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
@@ -85,7 +85,7 @@ export async function render() {
   const { path, q } = parse();
   if (!S.ready) return;
   // Everything except onboarding, login and sign-up needs an account. Signed-out visitors start at the onboarding.
-  const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup" || path === "/forgot";
+  const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup" || path === "/forgot" || path === "/download";
   if (!S.user && !open) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (S.user && open) return go("#" + (q.next || "/"));
 

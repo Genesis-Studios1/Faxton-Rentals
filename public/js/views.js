@@ -51,6 +51,7 @@ export async function route(ctx) {
   if (path === "/login") return authPage(ctx, "login");
   if (path === "/signup") return authPage(ctx, "signup");
   if (path === "/forgot") return PG.forgotPage(ctx);
+  if (path === "/download") return APPS.downloadPage(ctx);
   if (path === "/") return discover(ctx);
   if (path === "/search") return search(ctx);
   if ((m = path.match(/^\/home\/([^/]+)$/))) return detail(ctx, decodeURIComponent(m[1]));
@@ -84,11 +85,11 @@ const arrowBtn = (cls, href, x, y, w, h, fs, inner, d = 0.6, extra = "") => `<a 
 // Onboarding: logo, text and Back share the left margin line; Skip, the photo and Continue share the right one.
 const OB = [
   { eyebrow: "Find your space.", h1: "A home that fits<br>your life.", lead: "Explore rental homes across Nigeria. Find the space that feels right for you.", kind: "soft", img: "ob-1", alt: "Modern home with a landscaped entrance", cta: "Continue", next: "#/onboarding/2",
-    feats: [["search", "Search by neighbourhood"], ["sliders3", "Filter by budget and bedrooms"], ["heart", "Save your favourite homes"]] },
+    feats: [["search", "Search by neighbourhood", "Find homes in your preferred locations"], ["sliders3", "Filter by budget and bedrooms", "Narrow down to what suits you"], ["heart", "Save your favourite homes", "Keep track of places you love"]] },
   { eyebrow: "Take a closer look", h1: "Find a time.<br>Take a tour.", lead: "Connect with an agent and choose a viewing time that works for you.", kind: "box", img: "ob-2", alt: "Bright living room with a city view", cta: "Continue", next: "#/onboarding/3",
-    feats: [["msg", "Chat with the listing agent"], ["cal", "Choose an available viewing slot"], ["home", "Keep track of your visits"]] },
+    feats: [["msg", "Chat with the listing agent", "Ask questions before you visit"], ["cal", "Choose an available viewing slot", "Pick a time that suits you"], ["home", "Keep track of your visits", "See every viewing in one place"]] },
   { eyebrow: "Make yourself at home.", h1: "Your rental life,<br>all in one place.", lead: "Keep your applications, documents and conversations together.", kind: "round", img: "ob-3", alt: "Dining room with a city view", cta: "Get started", next: "#/signup",
-    feats: [["doc", "Track your rental application"], ["folder", "Access your tenancy documents"], ["chatdots", "Stay connected with your agent"]] },
+    feats: [["doc", "Track your rental application", "See every step of your progress"], ["folder", "Access your tenancy documents", "Agreements and receipts, safely stored"], ["chatdots", "Stay connected with your agent", "Messages and updates in one place"]] },
 ];
 function onboarding(ctx, n) {
   const s = OB[n - 1], back = n > 1 ? `#/onboarding/${n - 1}` : null;
@@ -96,7 +97,7 @@ function onboarding(ctx, n) {
     <header class="ob-head"><div class="ob-in"><a class="ob-logo fade" href="#/onboarding/1" aria-label="Faxton Rentals">${logoMark()}<span><b>Faxton</b> Rentals</span></a><a class="ob-skip fade" href="#/login" style="--d:.3s">Skip</a></div></header>
     <main class="ob-in ob-main">
       <section class="ob-text"><div class="ob-eyebrow rise" style="--d:.1s">${s.eyebrow}</div><h1 class="rise" style="--d:.2s">${s.h1}</h1><p class="ob-lead rise" style="--d:.32s">${s.lead}</p>
-        <ul class="ob-feats ${s.kind}">${s.feats.map(([ic, t], i) => `<li class="rise" style="--d:${0.42 + i * 0.1}s"><span class="ob-fi">${icon(ic, 28, 1.8)}</span><span>${t}</span></li>`).join("")}</ul></section>
+        <ul class="ob-feats ${s.kind}">${s.feats.map(([ic, t, d], i) => `<li class="rise" style="--d:${0.42 + i * 0.1}s"><span class="ob-fi">${icon(ic, 28, 1.8)}</span><span class="ob-ft"><b>${t}</b><small>${d || ""}</small></span><span class="ob-ch">${icon("arrow", 20)}</span></li>`).join("")}</ul></section>
       <div class="ob-img reveal"><img src="img/${s.img}.webp" alt="${s.alt}"></div>
     </main>
     <footer class="ob-foot"><div class="ob-in ob-foot-in">
@@ -206,6 +207,7 @@ async function discover(ctx) {
     <div class="hm-pop rise" style="--d:.35s"><span>Popular locations:</span>${[["lekki", "Lekki"], ["ajah", "Ajah"], ["yaba", "Yaba"], ["ikeja", "Ikeja"]].map(([v, l], i) => `<a class="chip-l" href="#/search?area=${v}">${i === 0 ? icon("pin", 16) : ""}${l}</a>`).join("")}</div>
     <div class="hm-sec rise" style="--d:.4s"><div><h2>Find your kind of home</h2><p>Explore rentals selected for your next move.</p></div><div class="hm-tabs" role="tablist">${TABS.map(([v, l], i) => `<button role="tab" class="${i ? "" : "on"}" data-t="${v}">${l}</button>`).join("")}</div><a class="link" href="#/search">View all homes ${icon("arrow", 18)}</a></div>
     <div class="cards" id="hmcards">${cardsFor("")}</div>
+    <section class="hm-app rise" style="--d:.55s"><div><h3>Take Faxton Rentals with you</h3><p>Install the app on your phone or computer for faster access and update alerts.</p></div><a class="btn primary" href="#/download">${icon("download", 18)} Get the app</a></section>
     <div class="hm-feats rise" style="--d:.5s"><div><span class="hm-fi">${icon("pin", 24)}</span><b>Find your neighbourhood</b><p>Discover great areas, with everything you need nearby.</p></div><div><span class="hm-fi">${icon("cal", 24)}</span><b>Book a viewing</b><p>Schedule and tour your shortlisted homes with ease.</p></div><div><span class="hm-fi">${icon("user", 24)}</span><b>Manage your rental</b><p>Keep track of your enquiries, viewings and tenancy all in one place.</p></div></div></div>`,
     mount(root) { bindCards(root, ctx); $("#sb").onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); ctx.go("#/search?" + p); };
       $$(".hm-tabs [data-t]", root).forEach((b) => (b.onclick = () => { $$(".hm-tabs [data-t]", root).forEach((x) => x.classList.toggle("on", x === b)); $("#hmcards").innerHTML = cardsFor(b.dataset.t); bindCards(root, ctx); })); } };
@@ -393,7 +395,7 @@ function settings(ctx, section) {
       <details><summary>How do I apply to rent?</summary><p>On a home page choose <b>Apply to rent</b> and pick your move-in date. Track the status in <b>Payments</b>.</p></details>
       <details><summary>Where do I message an agent?</summary><p>Tap <b>Message agent</b> on a home, or open <b>Messages</b> in the side menu.</p></details>`)}
       ${card("Product tour", "Replay the quick tour of Faxton Rentals.", `<div class="set-actions"><button class="btn" id="tour">Replay tour</button></div>`)}
-      ${updCard}${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="set-actions"><button class="btn" id="install">Install</button></div><p class="note">App version ${BUILD}</p>`)}</div>`;
+      ${updCard}${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="set-actions"><button class="btn" id="install">Install</button><a class="btn" href="#/download">All download options</a></div><p class="note">App version ${BUILD}</p>`)}</div>`;
   const [h1, sub] = SET_TITLE[section];
   return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><div class="set-head"><div><h1>${h1}</h1><p class="lead-s">${sub}</p></div><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>${body}</div></div>`,
     mount() {
