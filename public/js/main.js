@@ -143,12 +143,14 @@ export async function refreshProfile() { if (S.user) S.profile = await getProfil
 export async function resendVerification() { await sendEmailVerification(auth.currentUser); }
 export async function refreshUser() { await auth.currentUser.reload(); await refreshAuthState(auth.currentUser); render(); }
 async function signInGoogle() {
-  // Google blocks sign-in inside an app's embedded browser, so the Android app asks Google natively and hands the result to Firebase.
-  const native = window.Capacitor?.Plugins?.FirebaseAuthentication;
-  if (native && /FaxtonApp\/mobile/.test(navigator.userAgent)) {
+  // Google blocks sign-in inside an app's embedded browser, so the mobile app asks Google natively and hands the result to Firebase.
+  const cap = window.Capacitor;
+  if (/FaxtonApp\/mobile/.test(navigator.userAgent) && cap) {
+    const native = cap.registerPlugin ? cap.registerPlugin("FirebaseAuthentication") : cap.Plugins?.FirebaseAuthentication;
+    if (!native) throw Object.assign(new Error("Google sign-in plugin missing"), { code: "app/plugin-missing" });
     const r = await native.signInWithGoogle({ skipNativeAuth: true });
     const idToken = r?.credential?.idToken;
-    if (!idToken) throw new Error("Google sign-in was cancelled.");
+    if (!idToken) throw Object.assign(new Error("No Google token returned"), { code: "app/no-token" });
     const c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken));
     return ensureProfile(c.user);
   }

@@ -103,6 +103,6 @@ export const friendlyErr = (e) => ({
   "auth/popup-closed-by-user": "Sign-in was cancelled.", "auth/operation-not-allowed": "This sign-in method isn't enabled yet in Firebase Authentication.",
   "auth/unauthorized-domain": "This domain isn't authorised in Firebase Authentication yet.", "auth/too-many-requests": "Too many attempts. Try again shortly.",
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
-}[e?.code?.replace("firestore/", "")] || "Something went wrong. Please try again.");
+}[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-08.41";
+export const BUILD = "2026-10-08.42";
