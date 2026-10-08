@@ -26,7 +26,7 @@ export const SEED = [
     desc: "A well-kept 2-bedroom apartment a short walk from Victoria Island's offices, restaurants and the waterfront." },
   { ...base, id: "detached-5bed", title: "5 Bedroom Detached House", area: "Lekki", type: "House", price: 4800000, beds: 5, baths: 5, sqm: 420, lat: 6.4549, lng: 3.5233, agent: ngozi,
     images: ["img/detached-5bed.webp"], amenities: ["Parking", "Security", "Generator", "Garden", "Pool"],
-    desc: "A luxurious detached house with a covered patio, private compound and space for the whole family, in a gated Lekki estate." },,
+    desc: "A luxurious detached house with a covered patio, private compound and space for the whole family, in a gated Lekki estate." },
   { ...base, id: "harbour-view", title: "Harbour View Apartments", area: "Victoria Island", type: "Apartment", price: 5500000, beds: 3, baths: 3, sqm: 190, lat: 6.4281, lng: 3.4219, agent: daniel, service: 500000, deposit: 500000, available: false,
     images: ["img/detached-5bed.webp"], amenities: ["Parking", "Security", "Generator", "Balcony"],
     desc: "A modern waterfront apartment block in Victoria Island with glass balconies and secure parking. Currently unavailable." }

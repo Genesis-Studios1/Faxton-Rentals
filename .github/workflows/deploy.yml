@@ -34,6 +34,9 @@ jobs:
       - name: Deploy Firestore rules (needs the Firestore database to exist)
         continue-on-error: true
         run: npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals --non-interactive
+      - name: Deploy Storage rules (needs Firebase Storage to be enabled)
+        continue-on-error: true
+        run: npx --yes firebase-tools deploy --only storage --project faxton-rentals --non-interactive
       - name: Remove key
         if: always()
         run: rm -f "$RUNNER_TEMP/sa.json"

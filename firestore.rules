@@ -93,6 +93,17 @@ service cloud.firestore {
       allow read: if owns() || isAdmin();
       allow update: if isAdmin();
     }
+    // App releases managed from Admin > Installations. Signed-in users can read published ones; only admins write.
+    match /appReleases/{id} {
+      allow read: if signedIn() && (resource.data.published == true || isAdmin());
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['version', 'name', 'notes', 'mandatory', 'published', 'files', 'createdAt', 'updatedAt'])
+        && short(request.resource.data.version, 20) && short(request.resource.data.name, 120)
+        && short(request.resource.data.notes, 4000)
+        && request.resource.data.published is bool && request.resource.data.mandatory is bool
+        && request.resource.data.files is map && request.resource.data.files.size() <= 6;
+      allow delete: if isAdmin();
+    }
     match /documents/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
         && short(request.resource.data.name, 160) && request.resource.data.size < 900000

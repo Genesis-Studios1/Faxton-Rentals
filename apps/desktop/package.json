@@ -22,7 +22,7 @@
     "productName": "Faxton Rentals",
     "copyright": "Faxton Rentals",
     "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "offline.html", "package.json"],
+    "files": ["main.js", "preload.js", "offline.html", "package.json"],
     "asar": true,
     "publish": [{ "provider": "github", "owner": "musazaneerah4-crypto", "repo": "Faxton-Rentals" }],
     "win": {

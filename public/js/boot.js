@@ -20,5 +20,14 @@ setTimeout(function () {
   document.body.appendChild(d);
 }, 12000);
 
-// The splash plays once per browser session; reloads go straight to the app.
-try { if (sessionStorage.getItem("splashed")) document.documentElement.classList.add("no-splash", "ready"); } catch (e) {}
+// The house-drawing splash is a pre-rendered video (smooth on every device). If a device refuses to autoplay it, show the finished artwork instead.
+document.addEventListener("DOMContentLoaded", function () {
+  var v = document.getElementById("spv"), sp = document.getElementById("splash");
+  if (!v || !sp) return;
+  var fb = function () { sp.classList.add("fb"); };
+  v.addEventListener("error", fb, true);
+  try { var p = v.play(); if (p && p.catch) p.catch(fb); } catch (e) { fb(); }
+  setTimeout(function () { if (v.paused || v.currentTime === 0) fb(); }, 1500);
+  var retry = function () { if (sp.classList.contains("fb") && v.paused) { v.currentTime = 0; v.play().then(function () { sp.classList.remove("fb"); }, function () {}); } };
+  addEventListener("touchstart", retry, { once: true, passive: true }); addEventListener("click", retry, { once: true });
+});

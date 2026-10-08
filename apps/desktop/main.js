@@ -1,6 +1,6 @@
 // Faxton Rentals desktop shell (Windows + macOS). It opens the live site in a locked-down window,
 // so the app is always the latest deployed version. The shell itself updates through GitHub Releases.
-const { app, BrowserWindow, Menu, shell, session, dialog } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain } = require("electron");
 const path = require("path");
 
 const SITE = "https://faxton-rentals.web.app";
@@ -12,7 +12,7 @@ const hostOf = (u) => { try { return new URL(u).host; } catch { return ""; } };
 const platform = process.platform === "darwin" ? "mac" : "win";
 // Google refuses sign-in from browsers that call themselves "Electron", so present a plain Chrome user agent plus our app tag.
 let UA = "";
-const makeUA = () => `${session.defaultSession.getUserAgent().replace(/ Electron\/[\d.]+/, "").replace(/ faxton-rentals-desktop\/[\d.]+/i, "").replace(/ Faxton Rentals\/[\d.]+/i, "")} FaxtonApp/desktop-${platform}/${app.getVersion()}`;
+const makeUA = () => `${session.defaultSession.getUserAgent().replace(/ Electron\/[\d.]+/, "").replace(/ faxton-rentals-desktop\/[\d.]+/i, "").replace(/ Faxton Rentals\/[\d.]+/i, "")} FaxtonApp/desktop-${platform}/${app.getVersion()} arch/${process.arch}`;
 
 if (!app.requestSingleInstanceLock()) app.quit();
 
@@ -22,7 +22,7 @@ function create() {
     width: 1280, height: 820, minWidth: 420, minHeight: 640, show: false, backgroundColor: "#0a4a3a",
     title: "Faxton Rentals", autoHideMenuBar: true,
     webPreferences: {
-      contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true,
+      contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, preload: path.join(__dirname, "preload.js"),
       allowRunningInsecureContent: false, experimentalFeatures: false, spellcheck: true, devTools: !app.isPackaged,
     },
   });
@@ -59,11 +59,18 @@ app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
 
 // Windows installs updates automatically. macOS builds are unsigned, so Mac users are pointed at the download page instead.
+let autoUpdateOn = true;
+ipcMain.on("faxton:auto-update", (event, on) => {
+  // Only our own site may change this, never another page loaded in the window.
+  if (hostOf(event.senderFrame?.url || "") !== HOST) return;
+  autoUpdateOn = !!on;
+  try { require("electron-updater").autoUpdater.autoDownload = autoUpdateOn; } catch {}
+});
 function checkForUpdates() {
   if (!app.isPackaged) return;
   try {
     const { autoUpdater } = require("electron-updater");
-    autoUpdater.autoDownload = true;
+    autoUpdater.autoDownload = autoUpdateOn;
     autoUpdater.autoInstallOnAppQuit = true;
     autoUpdater.on("error", () => {});
     if (process.platform === "win32") {
