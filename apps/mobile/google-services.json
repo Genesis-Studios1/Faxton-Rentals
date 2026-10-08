@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "426381186757",
+    "project_id": "faxton-rentals",
+    "storage_bucket": "faxton-rentals.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:426381186757:android:4c83ee1bd4fa6e4cddc2ac",
+        "android_client_info": {
+          "package_name": "com.faxton.rentals"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "426381186757-t53dbg3io0h01d0rbpuo5g93qcl74f6r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYosFaV2nNcBQ7P3zyr2IF1TuqgdkBGI0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "426381186757-t53dbg3io0h01d0rbpuo5g93qcl74f6r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

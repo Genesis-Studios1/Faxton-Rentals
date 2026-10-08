@@ -8,10 +8,33 @@
     "url": "https://faxton-rentals.web.app",
     "cleartext": false,
     "androidScheme": "https",
-    "allowNavigation": ["faxton-rentals.web.app", "*.firebaseapp.com", "accounts.google.com"],
+    "allowNavigation": [
+      "faxton-rentals.web.app",
+      "*.firebaseapp.com",
+      "accounts.google.com"
+    ],
     "errorPath": "index.html"
   },
-  "android": { "allowMixedContent": false, "webContentsDebuggingEnabled": false, "backgroundColor": "#0a4a3a" },
-  "ios": { "contentInset": "automatic", "backgroundColor": "#0a4a3a" },
-  "plugins": { "SplashScreen": { "launchShowDuration": 1500, "backgroundColor": "#041812", "showSpinner": false } }
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#0a4a3a"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#0a4a3a"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#041812",
+      "showSpinner": false
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": [
+        "google.com"
+      ]
+    }
+  }
 }

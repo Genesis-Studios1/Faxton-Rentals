@@ -1,5 +1,6 @@
 import { auth, db, google } from "./firebase.js";
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, setPersistence, browserLocalPersistence, browserSessionPersistence }
+import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr } from "./ui.js";
@@ -141,7 +142,18 @@ async function signUp(name, email, pw, role) {
 export async function refreshProfile() { if (S.user) S.profile = await getProfile(S.user.uid); }
 export async function resendVerification() { await sendEmailVerification(auth.currentUser); }
 export async function refreshUser() { await auth.currentUser.reload(); await refreshAuthState(auth.currentUser); render(); }
-async function signInGoogle() { const c = await signInWithPopup(auth, google); await ensureProfile(c.user); }
+async function signInGoogle() {
+  // Google blocks sign-in inside an app's embedded browser, so the Android app asks Google natively and hands the result to Firebase.
+  const native = window.Capacitor?.Plugins?.FirebaseAuthentication;
+  if (native && /FaxtonApp\/mobile/.test(navigator.userAgent)) {
+    const r = await native.signInWithGoogle({ skipNativeAuth: true });
+    const idToken = r?.credential?.idToken;
+    if (!idToken) throw new Error("Google sign-in was cancelled.");
+    const c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken));
+    return ensureProfile(c.user);
+  }
+  const c = await signInWithPopup(auth, google); await ensureProfile(c.user);
+}
 const logout = () => signOut(auth);
 async function setSaved(id, on) {
   on ? S.saved.add(id) : S.saved.delete(id);
