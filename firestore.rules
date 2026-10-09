@@ -148,7 +148,8 @@ service cloud.firestore {
       allow update: if isAdmin() || (ownsListing() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
         // Viewing safety: the renter checks in and out, flags an emergency and records who the details were shared with.
         || (owns() && request.resource.data.uid == resource.data.uid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkIn', 'checkOut', 'sos', 'sharedWith'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checkIn', 'checkOut', 'sos', 'sharedWith', 'trusted'])
+          && (!('trusted' in request.resource.data) || request.resource.data.trusted is map)
           && (!('checkIn' in request.resource.data) || request.resource.data.checkIn is map)
           && (!('checkOut' in request.resource.data) || request.resource.data.checkOut is map)
           && (!('sos' in request.resource.data) || request.resource.data.sos is map)
