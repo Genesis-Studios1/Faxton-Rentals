@@ -1701,3 +1701,17 @@ dialog.nodismiss .close{display:none!important}
 @media (max-width:700px){.pf-ov{padding:0;place-items:stretch}.pf-sheet{width:100%;max-height:100dvh;border-radius:0;border:0}.pf-cover{height:140px}}
 .pf-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}.pf-av>span:not(.pf-vb){position:absolute;inset:0}
 .pf-tiles{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}@media (max-width:700px){.pf-t{font-size:.8rem;padding:12px 4px}}
+
+/* ---- emoji reactions ---- */
+.mx-rx{display:flex;flex-wrap:wrap;gap:4px;margin:-4px 6px 0;position:relative;z-index:1}.mx-row.me .mx-rx{justify-content:flex-end}
+.mx-rx button{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:999px;background:var(--card);color:var(--text);padding:2px 8px;font-size:.95rem;line-height:1.3;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.18)}.mx-rx button b{font-size:.78rem;font-weight:600;color:var(--muted)}.mx-rx button.mine{border-color:var(--brand);background:var(--soft)}
+.mx-react{display:flex;gap:2px;padding:6px 6px 8px;border-bottom:1px solid var(--border);margin-bottom:4px}.mx-react button{width:36px;height:36px;border:0;border-radius:50%;background:none;font-size:1.3rem;display:grid;place-items:center;cursor:pointer;padding:0}.mx-react button:hover,.mx-react button.on{background:var(--soft)}
+.mx-rmore{display:flex;flex-wrap:wrap;gap:2px;padding:4px 6px 8px;max-width:244px;border-bottom:1px solid var(--border);margin-bottom:4px}.mx-rmore[hidden]{display:none}.mx-rmore button{width:36px;height:36px;border:0;border-radius:8px;background:none;font-size:1.25rem;display:grid;place-items:center;cursor:pointer;padding:0}.mx-rmore button:hover{background:var(--soft)}
+.mx-mm{min-width:250px}
+.pf-r.flat{cursor:default}.pf-r.flat:hover{background:none}.pf-r.flat[data-k]{pointer-events:none}
+/* the cover fades into the card instead of ending in a hard edge */
+.pf-cover{-webkit-mask-image:linear-gradient(#000 55%,transparent);mask-image:linear-gradient(#000 55%,transparent);height:170px}
+.pf-x,.pf-more{z-index:3}.pf-cover{overflow:visible}
+.pf-body{margin-top:-30px;position:relative;padding-top:0}.pf-av{margin-top:0}
+.pf-t span{white-space:nowrap}
+.pf-body{margin-top:0}.pf-av{margin-top:-66px}
