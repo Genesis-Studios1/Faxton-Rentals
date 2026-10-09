@@ -67,7 +67,7 @@ export const setStaffUnread = (cid, v) => updateDoc(doc(db, "conversations", cid
 export async function sendMessage(user, cid, text, extra = {}, unread = false, convExtra = {}) {
   const b = writeBatch(db);
   b.set(doc(collection(db, "conversations", cid, "messages")), { from: user.uid, text, at: serverTimestamp(), ...extra });
-  b.update(doc(db, "conversations", cid), { last: text, lastAt: serverTimestamp(), unread, ...convExtra });
+  b.update(doc(db, "conversations", cid), { last: text || (extra.image ? "📷 Photo" : extra.audio ? "🎤 Voice message" : extra.file ? "📎 " + (extra.fname || "File") : ""), lastAt: serverTimestamp(), unread, ...convExtra });
   await b.commit();
 }
 export const markRead = (cid) => updateDoc(doc(db, "conversations", cid), { unread: false });
@@ -137,3 +137,10 @@ export const blockUser = (me, uid, name = "") => setDoc(doc(db, "blocks", `${me.
 export const unblockUser = (me, uid) => deleteDoc(doc(db, "blocks", `${me.uid}_${uid}`));
 export const isBlocked = async (blocker, blocked) => { try { return (await getDoc(doc(db, "blocks", `${blocker}_${blocked}`))).exists(); } catch { return false; } };
 export const reportUser = (me, r) => addDoc(collection(db, "reports"), { ...r, reporterUid: me.uid, reporterName: me.displayName || me.email || "", status: "New", createdAt: serverTimestamp() });
+
+// ---- call relay (TURN) servers, set by an admin ----
+export const getIce = async () => { try { const s = await getDoc(doc(db, "config", "ice")); return s.exists() ? s.data().servers || [] : []; } catch { return []; } };
+export const saveIce = (servers) => setDoc(doc(db, "config", "ice"), { servers, updatedAt: serverTimestamp() });
+
+// Pin one message to the top of a conversation (null removes the pin).
+export const pinMessage = (cid, pin) => updateDoc(doc(db, "conversations", cid), { pinned: pin || deleteField() });

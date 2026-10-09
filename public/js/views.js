@@ -499,29 +499,106 @@ async function messages(ctx, cid) {
         const chat = $("#chat"); if (chat) chat.dataset.cid = ""; drawSide(); if (cid && !convs().some((x) => x.id === cid)) { ctx.go("#/messages"); } else drawChat();
       };
       let paintThread = () => {}, tfind = "";
+      const fmtDurS = (n) => { n = Math.max(0, Math.round(n || 0)); return Math.floor(n / 60) + ":" + String(n % 60).padStart(2, "0"); };
+      const fmtSize = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round((n || 0) / 1024)) + " KB");
+      const unreadFrom = (cid2) => { try { return +localStorage.getItem("seen_" + cid2) || 0; } catch { return 0; } };
       const dayLabel = (sec) => { const d = new Date(sec * 1000), n = new Date(); const same = (a, b) => a.toDateString() === b.toDateString(); const y = new Date(n); y.setDate(n.getDate() - 1); return same(d, n) ? "Today" : same(d, y) ? "Yesterday" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
       const callText = (c) => { const outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), vid = c.kind === "video" ? "video" : "voice", st2 = c.status; return st2 === "missed" || st2 === "cancelled" ? [outc ? `Cancelled ${vid} call` : `Missed ${vid} call`, "No answer"] : st2 === "declined" ? [`Declined ${vid} call`, ""] : st2 === "ringing" ? [`${outc ? "Calling" : "Incoming"} ${vid} call`, "Ringing…"] : [`${outc ? "Outgoing" : "Incoming"} ${vid} call`, c.duration ? `${CALLS.fmtDur(c.duration)} · ${c.duration < 60 ? c.duration + " seconds" : Math.round(c.duration / 60) + " minutes"}` : ""]; };
-      const callCard = (c) => { const [t, sub] = callText(c), outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), bad = /Missed|Declined|Cancelled/.test(t); return `<div class="mx-row ${outc ? "me" : ""}"><div class="mx-cc ${outc ? "me" : ""} ${bad ? "bad" : ""}"><span class="mx-ci">${icon(c.kind === "video" ? "video" : "phone", 22)}</span><div><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</div><time>${c.createdAt?.seconds ? fmtTime(c.createdAt) : ""}</time></div></div>`; };
+      const callCard = (c) => { const [t, sub] = callText(c), outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), bad = /Missed|Declined|Cancelled/.test(t), back = bad && !outc; return `<div class="mx-row ${outc ? "me" : ""}"><${back ? 'button type="button" data-cb2="' + esc(c.id) + '"' : "div"} class="mx-cc ${outc ? "me" : ""} ${bad ? "bad" : "ok"}"><span class="mx-ci">${icon(c.kind === "video" ? "video" : "phone", 22)}</span><div><b>${t}</b><small>${back ? "Tap to call back" : sub}</small></div><time>${c.createdAt?.seconds ? fmtTime(c.createdAt) : ""}</time></${back ? "button" : "div"}></div>`; };
       const tk = (mine) => (mine ? `<span class="ticks">${icon("check", 14, 2.4)}${icon("check", 14, 2.4)}</span>` : "");
       const bubble = (m, c) => {
         const mineB = isMine(m, c), av = mineB ? myAv() : other(c).avatar;
         if (m.type === "booking") return `<div class="mx-row"><div class="mx-bk"><img src="${esc(m.image || "")}" alt=""><div><b class="bk-when">${icon("cal", 18)} ${esc(fmtDate(m.when))}, ${esc(m.slot)}</b><b>${esc(m.title)}</b><span class="muted">${esc(m.area)}</span><a class="btn sm" href="#/bookings">View booking</a></div></div></div>`;
-        return `<div class="mx-row ${mineB ? "me" : ""}"><img class="mx-bav" src="${esc(av)}" alt="" referrerpolicy="no-referrer"><div class="mx-bw"><div class="mx-b">${esc(m.text)}<time class="in">${m.at ? fmtTime(m.at) : ""}${tk(mineB)}</time></div><time class="out">${m.at ? fmtTime(m.at) : ""}${tk(mineB)}</time></div></div>`;
+        const q = m.reply ? `<button type="button" class="mx-rq" data-goto="${esc(m.reply.id || "")}"><b>${esc(m.reply.name || "")}</b><span>${esc(m.reply.text || "")}</span></button>` : "";
+        const pic = m.image ? `<img class="mx-pic" data-pic="${esc(m.id)}" src="${esc(m.image)}" alt="Photo">` : "";
+        const wave = (m.wave && m.wave.length ? m.wave : Array.from({ length: 40 }, (_, i) => 20 + ((i * 37) % 55))).slice(0, 40);
+        const vn = m.audio ? `<div class="mx-vn" data-vn="${esc(m.id)}"><button type="button" class="mx-play" aria-label="Play voice message">${icon("play", 20)}</button><div class="mx-wv">${wave.map((h) => `<i style="height:${Math.max(8, Math.min(100, h))}%"></i>`).join("")}</div><span class="mx-vd">${fmtDurS(m.dur)}</span></div>` : "";
+        const fl = m.file ? `<div class="mx-file"><span class="mx-fi">${icon("doc", 22)}</span><div><b>${esc(m.fname || "File")}</b><small>${fmtSize(m.fsize)} · ${esc((String(m.fname || "").split(".").pop() || "file").toUpperCase())}</small></div><a class="mx-dl" href="${esc(m.file)}" download="${esc(m.fname || "file")}" aria-label="Download">${icon("download", 18)}</a></div>` : "";
+        return `<div class="mx-row ${mineB ? "me" : ""}" data-mid="${esc(m.id || "")}"><img class="mx-bav" src="${esc(av)}" alt="" referrerpolicy="no-referrer"><div class="mx-bw"><div class="mx-b ${m.image ? "has-pic" : ""} ${m.audio ? "has-vn" : ""} ${m.file ? "has-file" : ""}">${q}${pic}${vn}${fl}${m.text ? `<span class="mx-tx">${esc(m.text)}</span>` : ""}<time class="in">${m.at ? fmtTime(m.at) : ""}${tk(mineB)}</time><button type="button" class="mx-ma" data-act="${esc(m.id || "")}" aria-label="Message options">${icon("dchev", 14)}</button></div><time class="out">${m.at ? fmtTime(m.at) : ""}${tk(mineB)}</time></div></div>`;
       };
       const listingCard = (c) => c.listingId === "direct" ? "" : `<div class="mx-lcard"><div class="mx-limg"><img src="${esc(c.image)}" alt=""><span class="mx-badge">Available</span></div><div class="mx-lb"><div class="mx-lt"><h3>${esc(c.listingTitle)}</h3><span class="mx-lp">${naira(c.price)} <small>per year</small></span></div><p class="mx-lloc">${icon("pin", 16)} ${esc(c.area)}${/,/.test(c.area || "") ? "" : ", Lagos"}</p><div class="mx-lf"><span>${icon("bed", 18)} ${c.beds === 0 ? "Studio" : c.beds + " Beds"}</span><span>${icon("bath", 18)} ${c.baths} Baths</span></div></div><div class="mx-lact"><a class="btn mx-vl" href="#/home/${esc(c.listingId)}">View listing</a><a class="mx-ext" href="#/home/${esc(c.listingId)}" aria-label="Open listing">${icon("share", 18)}</a></div></div>`;
       const drawChat = () => {
         const c = convs().find((x) => x.id === cid); const chat = $("#chat");
         if (!c) { unsubM?.(); chat.dataset.cid = ""; chat.innerHTML = `<div class="mx-empty"><span>${icon("chatdots", 34)}</span><h2>${convs().length ? "Select a conversation" : "No messages yet"}</h2><p>${faxton() ? "Choose a person to reply as Faxton Rentals." : "Message a listing agent to start chatting."}</p></div>`; return; }
-        if (chat.dataset.cid === cid + mode) return; chat.dataset.cid = cid + mode;
+        if (chat.dataset.cid === cid + mode) { drawChat.paintPin?.(c); return; } chat.dataset.cid = cid + mode;
         if (faxton() ? c.staffUnread : c.unread && c.uid === me) (faxton() ? st.setStaffUnread(cid, false) : st.markRead(cid)).catch(() => {});
         const o = other(c), direct = c.listingId === "direct", agentView = !faxton() && !direct;
+        const seenAt = unreadFrom(cid); try { localStorage.setItem("seen_" + cid, String(Math.floor(Date.now() / 1000))); } catch {}
         chat.innerHTML = `<header class="mx-head"><a class="mx-back" href="#/messages" aria-label="Back">${icon("left", 22)}</a><span class="mx-hav"><img src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"></span><div class="mx-hn"><b>${esc(o.name)}</b><span>${faxton() ? "Replying as Faxton Rentals" : esc(o.role)}</span></div>
           <div class="mx-acts"><button type="button" class="mx-ab mx-d" id="mxFind" aria-label="Search in this chat" title="Search in this chat">${icon("search", 21)}</button><button type="button" class="mx-ab" data-call="voice" aria-label="Voice call" title="Voice call">${icon("phone", 21)}</button><button type="button" class="mx-ab" data-call="video" aria-label="Video call" title="Video call">${icon("video", 21)}</button>
           <span class="mx-more"><button type="button" class="mx-dots" id="mxMore" aria-label="More options" aria-haspopup="menu">${icon("dots", 20)}</button><div class="menu mx-menu" id="mxMenu" role="menu" hidden>${agentView ? `<a role="menuitem" href="#/book/${esc(c.listingId)}">${icon("cal", 18)} Schedule viewing</a><a role="menuitem" href="#/agent/${esc(c.agent.id)}">${icon("user", 18)} View profile</a><a role="menuitem" href="#/home/${esc(c.listingId)}">${icon("home", 18)} View listing</a>` : ""}${faxton() ? `<a role="menuitem" href="#/admin/users">${icon("users", 18)} All users</a>` : ""}<a role="menuitem" href="#/messages" data-calls>${icon("phone", 18)} Call history</a>${agentView ? `<span id="mxSafe"></span>` : ""}${staff ? `<button role="menuitem" type="button" data-sw>${icon("share", 18)} Switch to ${faxton() ? "me" : "Faxton"}</button>` : ""}</div></span></div></header>
+          <div class="mx-pin" id="mxPin" hidden></div>
           <div class="mx-find" id="mxFindBar" hidden><input id="mxFindIn" type="search" placeholder="Search in this chat…" aria-label="Search in this chat"></div>
           <div class="mx-thread" id="thread"></div><div class="mx-emoji" id="emoji" hidden>${EMOJI.map((e) => `<button type="button">${e}</button>`).join("")}</div>
-          <form class="mx-comp" id="cf" autocomplete="off"><button type="button" class="mx-ib mx-circ" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><button type="button" class="mx-ib mx-circ" data-soon aria-label="Attach">${icon("plus", 22)}</button><input id="ci" placeholder="${staff ? "Type a message… or /switch" : "Type a message"}" maxlength="2000" aria-label="Message"><button class="mx-send" id="sendB" aria-label="Send" type="submit"><span class="mx-mic">${icon("mic", 24)}</span><span class="mx-snd">${icon("send", 22)}</span></button></form>`;
+          <div class="mx-reply" id="mxReply" hidden></div>
+          <form class="mx-comp" id="cf" autocomplete="off"><div class="mx-rec" id="mxRec" hidden><button type="button" id="recX" aria-label="Cancel recording">${icon("trash", 20)}</button><i class="mx-rdot"></i><span id="recT">0:00</span><div class="mx-live" id="recW">${"<i></i>".repeat(28)}</div><button type="button" class="mx-recsend" id="recS" aria-label="Send voice message">${icon("send", 20)}</button></div><input type="file" id="mxFile" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" multiple hidden><button type="button" class="mx-ib mx-circ" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><button type="button" class="mx-ib mx-circ" id="mxAttach" aria-label="Add a photo" title="Add a photo">${icon("plus", 22)}</button><input id="ci" placeholder="${staff ? "Type a message… or /switch" : "Type a message"}" maxlength="2000" aria-label="Message"><button class="mx-send" id="sendB" aria-label="Send" type="submit"><span class="mx-mic">${icon("mic", 24)}</span><span class="mx-snd">${icon("send", 22)}</span></button></form>`;
         $$("[data-soon]", chat).forEach((b) => (b.onclick = () => toast("Coming soon.")));
+        // --- reply, pin, photos ---
+        let replyTo = null, ms = [];
+        const paintReply = () => { const r = $("#mxReply"); if (!r) return; r.hidden = !replyTo; r.innerHTML = replyTo ? `<div><b>${esc(replyTo.name)}</b><span>${esc(replyTo.text)}</span></div><button type="button" aria-label="Cancel reply">${icon("x", 16)}</button>` : ""; const x = $("button", r); if (x) x.onclick = () => { replyTo = null; paintReply(); }; };
+        const msgOf = (id) => ms.find((m) => m.id === id);
+        const startReply = (m) => { replyTo = { id: m.id, name: isMine(m, c) ? "You" : o.name, text: (m.text || (m.image ? "📷 Photo" : "")).slice(0, 140) }; paintReply(); $("#ci")?.focus(); };
+        const paintPin = (cc) => { const pn = $("#mxPin"); if (!pn) return; const p0 = cc?.pinned; pn.hidden = !p0; pn.innerHTML = p0 ? `<span>${icon("pin", 16)}</span><button type="button" class="mx-pt" data-goto="${esc(p0.id)}"><b>Pinned message</b><span>${esc(p0.text || "📷 Photo")}</span></button><button type="button" class="mx-pu" aria-label="Unpin">${icon("x", 16)}</button>` : ""; const u = $(".mx-pu", pn); if (u) u.onclick = () => st.pinMessage(cid, null).catch((x) => toast(friendlyErr(x))); };
+        paintPin(c); drawChat.paintPin = paintPin;
+        const jump = (id) => { const row = $(`[data-mid="${CSS.escape(id)}"]`); if (!row) return toast("That message is further up."); row.scrollIntoView({ block: "center", behavior: "smooth" }); row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1400); };
+        const squeeze = (file) => new Promise((res, rej) => { if (!/^image\//.test(file.type)) return rej(new Error("Choose an image file.")); const img = new Image(), url = URL.createObjectURL(file); img.onload = () => { let w = Math.min(1280, img.width), q = 0.78, out = ""; for (let i = 0; i < 6; i++) { const cv = document.createElement("canvas"); cv.width = w; cv.height = Math.round(img.height * w / img.width); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); out = cv.toDataURL("image/jpeg", q); if (out.length < 380000) break; w = Math.round(w * 0.8); q = Math.max(0.5, q - 0.08); } URL.revokeObjectURL(url); out.length < 420000 ? res(out) : rej(new Error("That picture is too large.")); }; img.onerror = () => rej(new Error("That picture couldn’t be read.")); img.src = url; });
+        const sendPics = async (files) => { for (const f of [...files].filter((x) => /^image\//.test(x.type)).slice(0, 6)) { try { const data = await squeeze(f), extra = { image: data }; if (replyTo) extra.reply = replyTo; replyTo = null; paintReply(); await send("", extra); } catch (x) { toast(friendlyErr(x)); } } };
+        const send = (t, extra = {}) => (faxton() ? st.sendMessage(ctx.S.user, cid, t, extra, true, { staffUnread: false }) : st.sendMessage(ctx.S.user, cid, t, extra, c.uid !== me, c.listingId === "direct" && c.uid === me ? { staffUnread: true } : {}));
+        const file = $("#mxFile"); $("#mxAttach").onclick = () => file.click(); file.onchange = () => { sendFiles(file.files); file.value = ""; };
+        chat.ondragover = (e) => { if ([...(e.dataTransfer?.types || [])].includes("Files")) { e.preventDefault(); chat.classList.add("drop"); } };
+        chat.ondragleave = (e) => { if (e.target === chat || !chat.contains(e.relatedTarget)) chat.classList.remove("drop"); };
+        chat.ondrop = (e) => { e.preventDefault(); chat.classList.remove("drop"); if (e.dataTransfer?.files?.length) sendFiles(e.dataTransfer.files); };
+        $("#ci").addEventListener("paste", (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.some((f) => /^image\//.test(f.type))) { e.preventDefault(); sendPics(fs); } });
+        // The small menu for one message: reply, pin, copy.
+        const mm = document.createElement("div"); mm.className = "menu mx-mm"; mm.hidden = true; chat.append(mm);
+        const openMM = (id, x, y) => { const m = msgOf(id); if (!m) return; const pinned = c.pinned?.id === id || convs().find((z) => z.id === cid)?.pinned?.id === id; mm.innerHTML = `<button type="button" data-a="reply">${icon("chev", 16)} Reply</button><button type="button" data-a="pin">${icon("pin", 16)} ${pinned ? "Unpin" : "Pin"}</button>${m.text ? `<button type="button" data-a="copy">${icon("doc", 16)} Copy</button>` : ""}`; mm.hidden = false; const r = chat.getBoundingClientRect(); mm.style.left = Math.max(8, Math.min(x - r.left, r.width - 170)) + "px"; mm.style.top = Math.max(8, Math.min(y - r.top, r.height - 140)) + "px";
+          mm.onclick = async (e) => { const a = e.target.closest("button")?.dataset.a; mm.hidden = true; if (a === "reply") startReply(m); else if (a === "copy") { try { await navigator.clipboard.writeText(m.text); toast("Copied."); } catch {} } else if (a === "pin") { try { await st.pinMessage(cid, pinned ? null : { id: m.id, text: (m.text || "").slice(0, 120), name: isMine(m, c) ? "You" : o.name }); } catch (x) { toast(friendlyErr(x)); } } }; };
+        document.addEventListener("click", (e) => { if (!e.target.closest(".mx-mm")) mm.hidden = true; }); 
+        const thread = $("#thread");
+        const sendFiles = async (files) => { for (const f of [...files].slice(0, 6)) { if (/^image\//.test(f.type)) { await sendPics([f]); continue; }
+            if (f.size > 400000) { toast("Documents can be up to 400 KB here. Send a smaller file or share a link."); continue; }
+            try { const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("That file couldn’t be read.")); r.readAsDataURL(f); }); const extra = { file: data, fname: f.name.slice(0, 80), fsize: f.size }; if (replyTo) extra.reply = replyTo; replyTo = null; paintReply(); await send("", extra); } catch (x) { toast(friendlyErr(x)); } } };
+        // --- voice messages ---
+        let vr = null;
+        const recUi = (on) => { $("#mxRec").hidden = !on; $("#cf").classList.toggle("recording", on); };
+        const stopVoice = (send2) => { if (!vr) return; const v = vr; vr = null; v.finish(send2); };
+        const startVoice = async () => {
+          if (vr) return stopVoice(true);
+          if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("Voice messages aren’t supported on this device.");
+          let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { return toast("Allow microphone access to record voice messages."); }
+          const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+          const rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 20000 }), chunks = [], peaks = [];
+          rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+          let ac = null, an = null, buf = null; try { ac = new (window.AudioContext || window.webkitAudioContext)(); an = ac.createAnalyser(); an.fftSize = 512; ac.createMediaStreamSource(stream).connect(an); buf = new Uint8Array(an.fftSize); } catch {}
+          const t0 = Date.now(), bars = [...$("#recW").children];
+          const iv = setInterval(() => { let m = 0; if (an) { an.getByteTimeDomainData(buf); for (const x of buf) m = Math.max(m, Math.abs(x - 128)); } peaks.push(m / 128); bars.forEach((b, i) => { const v = peaks[peaks.length - bars.length + i] ?? 0; b.style.height = Math.max(8, Math.min(100, Math.round(v * 160))) + "%"; }); const sec = (Date.now() - t0) / 1000; $("#recT").textContent = fmtDurS(sec); if (sec >= 90) stopVoice(true); }, 100);
+          vr = { finish: (doSend) => { clearInterval(iv); const dur = Math.round((Date.now() - t0) / 1000); rec.onstop = async () => { stream.getTracks().forEach((t) => t.stop()); try { ac?.close(); } catch {} recUi(false); if (!doSend || dur < 1 || !chunks.length) return; const blob = new Blob(chunks, { type: rec.mimeType || mime || "audio/webm" });
+              const data = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); }); if (data.length > 560000) return toast("That voice message is too long. Keep it under a minute and a half.");
+              const n = 40, wave = Array.from({ length: n }, (_, i) => { const a = Math.floor(i * peaks.length / n), z = Math.max(a + 1, Math.floor((i + 1) * peaks.length / n)); return Math.max(...peaks.slice(a, z), 0.04); }), mx = Math.max(...wave, 0.05);
+              const extra = { audio: data, dur, wave: wave.map((w) => Math.max(10, Math.round(w / mx * 100))) }; if (replyTo) extra.reply = replyTo; replyTo = null; paintReply(); try { await send("", extra); } catch (x) { toast(friendlyErr(x)); } };
+            try { rec.stop(); } catch { recUi(false); } } };
+          rec.start(250); recUi(true); $("#recT").textContent = "0:00";
+        };
+        $("#recX").onclick = () => stopVoice(false); $("#recS").onclick = () => stopVoice(true); drawChat.startVoice = startVoice;
+        // play a voice message
+        let playing = null;
+        thread.addEventListener("click", (e) => { const btn = e.target.closest(".mx-play"); if (!btn) return; const box = btn.closest("[data-vn]"), id = box.dataset.vn, m = msgOf(id); if (!m) return;
+          if (playing && playing.id === id) { playing.a.paused ? playing.a.play() : playing.a.pause(); return; }
+          if (playing) { playing.a.pause(); playing.reset(); }
+          const a = new Audio(m.audio), bars = [...box.querySelectorAll(".mx-wv i")], reset = () => { box.classList.remove("playing"); bars.forEach((b) => b.classList.remove("on")); };
+          playing = { id, a, reset }; a.onplay = () => box.classList.add("playing"); a.onpause = () => box.classList.remove("playing");
+          a.ontimeupdate = () => { const f = a.duration ? a.currentTime / a.duration : 0; bars.forEach((b, i) => b.classList.toggle("on", i / bars.length < f)); };
+          a.onended = () => { reset(); playing = null; }; a.play().catch(() => toast("Couldn’t play that message.")); });
+        // call back from a missed-call card
+        thread.addEventListener("click", (e) => { const cb = e.target.closest("[data-cb2]"); if (cb) beginCall(c, "voice"); });
+        thread.addEventListener("click", (e) => { const a = e.target.closest("[data-act]"); if (a) { e.stopPropagation(); const r = a.getBoundingClientRect(); return openMM(a.dataset.act, r.left - 120, r.bottom + 6); } const g = e.target.closest("[data-goto]"); if (g) return jump(g.dataset.goto); const pc2 = e.target.closest("[data-pic]"); if (pc2) openViewer([{ type: "image", src: pc2.src }], 0); });
+        thread.addEventListener("contextmenu", (e) => { const row = e.target.closest("[data-mid]"); if (row) { e.preventDefault(); openMM(row.dataset.mid, e.clientX, e.clientY); } });
+        // Swipe a message sideways to reply to it; hold it to open the menu (phones).
+        let sx = 0, sy = 0, row = null, dx = 0, lp = null, moved = false;
+        thread.addEventListener("touchstart", (e) => { row = e.target.closest("[data-mid]"); if (!row || e.touches.length !== 1) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY; dx = 0; moved = false; const id = row.dataset.mid, t = e.touches[0]; lp = setTimeout(() => { if (!moved) { navigator.vibrate?.(15); openMM(id, t.clientX, t.clientY); } }, 520); }, { passive: true });
+        thread.addEventListener("touchmove", (e) => { if (!row) return; const t = e.touches[0], mx = t.clientX - sx, my = t.clientY - sy; if (!moved && Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.4) moved = true; if (Math.abs(my) > 14 && !moved) { clearTimeout(lp); row = null; return; } if (moved) { clearTimeout(lp); dx = Math.max(-80, Math.min(80, mx)); const w = row.querySelector(".mx-bw"); if (w) w.style.transform = `translateX(${dx}px)`; row.classList.toggle("swipe", Math.abs(dx) > 52); } }, { passive: true });
+        const endSwipe = () => { clearTimeout(lp); if (!row) return; const w = row.querySelector(".mx-bw"); if (w) { w.style.transition = "transform .18s"; w.style.transform = ""; setTimeout(() => (w.style.transition = ""), 200); } if (moved && Math.abs(dx) > 52) { const m = msgOf(row.dataset.mid); if (m) startReply(m); } row.classList.remove("swipe"); row = null; moved = false; };
+        thread.addEventListener("touchend", endSwipe); thread.addEventListener("touchcancel", endSwipe);
         const ciEl = $("#ci"), sendB = $("#sendB"); const syncSend = () => sendB.classList.toggle("has", !!ciEl.value.trim()); ciEl.addEventListener("input", syncSend);
         $("#mxFind").onclick = () => { const bar = $("#mxFindBar"); bar.hidden = !bar.hidden; if (!bar.hidden) $("#mxFindIn").focus(); else { tfind = ""; $("#mxFindIn").value = ""; paintThread(); } };
         $("#mxFindIn").oninput = (e) => { tfind = e.target.value.trim().toLowerCase(); paintThread(); };
@@ -545,17 +622,18 @@ async function messages(ctx, cid) {
         const sw = $("[data-sw]", menu); if (sw) sw.onclick = () => { closeMenu(); switchMode(); };
         const em = $("#emoji"); $("#emojiBtn").onclick = () => (em.hidden = !em.hidden); em.onclick = (e) => { const b = e.target.closest("button"); if (b) { $("#ci").value += b.textContent; $("#ci").focus(); } };
         $("#cf").onsubmit = async (e) => {
-          e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return toast("Voice messages are coming soon.");
+          e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return startVoice();
           if (staff && t.toLowerCase() === "/switch") { i.value = ""; return switchMode(); }
           i.value = ""; syncSend(); em.hidden = true;
-          try { faxton() ? await st.sendMessage(ctx.S.user, cid, t, {}, true, { staffUnread: false }) : await st.sendMessage(ctx.S.user, cid, t, {}, c.uid !== me, c.listingId === "direct" && c.uid === me ? { staffUnread: true } : {}); } catch (x) { toast(friendlyErr(x)); i.value = t; }
+          try { const extra = replyTo ? { reply: replyTo } : {}; replyTo = null; paintReply(); await send(t, extra); } catch (x) { toast(friendlyErr(x)); i.value = t; }
         };
-        let ms = [];
         paintThread = () => {
           const th = $("#thread"); if (!th) return; const near = th.scrollHeight - th.scrollTop - th.clientHeight < 80;
           const items = [...ms.map((m) => ({ t: m.at?.seconds || Date.now() / 1000, m })), ...calls.filter((x) => x.convId === cid && x.callerUid && (x.status !== "ringing" || Date.now() / 1000 - (x.createdAt?.seconds || 0) < 90)).map((x) => ({ t: x.createdAt?.seconds || Date.now() / 1000, k: x }))].sort((a, b) => a.t - b.t);
           const out = []; let day = "", first = true;
+          let divDone = false; const newCount = items.filter((x) => !x.k && !isMine(x.m, c) && x.t > seenAt).length;
           items.forEach((it) => {
+            if (!divDone && seenAt && newCount && !it.k && !isMine(it.m, c) && it.t > seenAt) { divDone = true; out.push(`<div class="mx-unread"><span>${newCount} unread message${newCount > 1 ? "s" : ""}</span></div>`); }
             const d = dayLabel(it.t); if (d !== day) { day = d; out.push(`<span class="mx-day">${d}</span>`); }
             if (it.k) out.push(callCard(it.k)); else if (!tfind || String(it.m.text || "").toLowerCase().includes(tfind)) { out.push(bubble(it.m, c)); if (first) { out.push(listingCard(c)); first = false; } }
           });
@@ -691,6 +769,7 @@ async function admin(ctx, sub) {
   if (sub === "listings" || sub === "users" || sub === "support") { const v = sub === "listings" ? A2.listings(ctx, ls) : sub === "users" ? A2.users(ctx, users) : A2.support(ctx, tks); return { title: "Admin", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "verifications") { const v = DASH.verifications(ctx, users); return { title: "Verifications", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "suggestions") { const v = DASH.suggestions(ctx, await st.adminAll("suggestions")); return { title: "Suggestions", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
+  if (sub === "calls") { const v = DASH.callSetup(ctx, await st.getIce()); return { title: "Call setup", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "user-reports") { const v = DASH.userReports(ctx, await st.adminAll("reports")); return { title: "User reports", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "") { const v = DASH.platform(ctx, { ls, apps, views, users, tks }); return { title: "Admin", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   let body;

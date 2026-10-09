@@ -252,6 +252,24 @@ export function verifications(ctx, users) {
 }
 
 // ---------- suggestion box (admin and support) ----------
+export function callSetup(ctx, servers) {
+  const sample = JSON.stringify([{ urls: ["turn:YOUR-SERVER:80", "turn:YOUR-SERVER:443?transport=tcp"], username: "YOUR-USERNAME", credential: "YOUR-PASSWORD" }], null, 2);
+  const html = `<div class="page-head"><div><h1>Call setup</h1><p>Make calls work between any two networks.</p></div></div>
+    <section class="panel" style="padding:20px;max-width:760px"><h3>Relay server (TURN)</h3>
+      <p class="muted" style="margin:6px 0 12px">Calls go straight between two devices. Some networks (mobile data, offices, some home routers) block that and the call stays on “Connecting…”. A relay server fixes it. Create a free account with a TURN provider such as <b>metered.ca</b> or <b>Cloudflare Realtime</b>, copy the ICE servers list they give you, and paste it here. Nothing is stored in the app’s code.</p>
+      <p class="muted" style="margin-bottom:10px">Status: <b>${servers.length ? servers.length + " server" + (servers.length > 1 ? "s" : "") + " saved. Calls can use the relay." : "no relay set. Calls use direct connections only."}</b></p>
+      <textarea id="iceT" rows="10" spellcheck="false" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:.85rem" placeholder='${esc(sample)}'>${servers.length ? esc(JSON.stringify(servers, null, 2)) : ""}</textarea>
+      <p class="err" id="iceE" role="alert"></p><div class="a2-act"><button class="btn" id="iceX" ${servers.length ? "" : "disabled"}>Remove relay</button><button class="btn primary" id="iceS">Save</button></div></section>`;
+  return { html, mount(root) {
+    const err = $("#iceE", root);
+    $("#iceS", root).onclick = async () => {
+      err.textContent = ""; let v; try { v = JSON.parse($("#iceT", root).value || "[]"); } catch { return (err.textContent = "That isn’t valid JSON. Paste the list exactly as the provider shows it."); }
+      if (!Array.isArray(v) || !v.length || !v.every((x) => x && x.urls && (!String(JSON.stringify(x.urls)).includes("turn") || (x.username && x.credential)))) return (err.textContent = "Each server needs urls, and TURN servers also need a username and credential.");
+      try { await st.saveIce(v); toast("Saved. New calls will use the relay."); } catch (e) { err.textContent = friendlyErr(e); }
+    };
+    $("#iceX", root).onclick = async () => { try { await st.saveIce([]); $("#iceT", root).value = ""; toast("Relay removed."); } catch (e) { toast(friendlyErr(e)); } };
+  } };
+}
 export function userReports(ctx, items) {
   const by = [...items].sort((a, b) => secOf(b) - secOf(a));
   const html = `<div class="page-head"><div><h1>User reports</h1><p>People reported by other users. Review each one and update its status.</p></div></div><div class="panel">${tbl(["Reported", "Reported by", "Reason", "Details", "Date", "Status"], by.map((x) => `<tr><td><b>${esc(x.targetName || "")}</b><small class="muted" style="display:block">${esc(x.targetUid || "")}</small></td><td>${esc(x.reporterName || "")}</td><td>${esc(x.reason || "")}</td><td style="max-width:360px;white-space:pre-wrap">${esc(x.details || "")}</td><td class="muted">${day(x.createdAt)}</td><td><select data-rp="${esc(x.id)}" aria-label="Status">${["New", "Reviewing", "Action taken", "Dismissed"].map((o) => `<option ${o === x.status ? "selected" : ""}>${o}</option>`).join("")}</select></td></tr>`), "No reports yet.")}</div>`;
