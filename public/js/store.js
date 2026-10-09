@@ -1,5 +1,6 @@
 import { db } from "./firebase.js";
 import { SEED } from "./data.js";
+import { moveIn as costOf } from "./area.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -35,7 +36,7 @@ export async function toggleSaved(user, id, on) {
 
 // ---- viewings, applications ----
 export const addViewing = (user, l, when, slot, extra = {}) => addDoc(collection(db, "viewings"), { ...extra, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
-export const addApplication = (user, l, moveIn, details = {}) => addDoc(collection(db, "applications"), { details, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: l.price + l.service + l.deposit, moveIn, status: "Under review", createdAt: serverTimestamp() });
+export const addApplication = (user, l, moveIn, details = {}, extra = {}) => addDoc(collection(db, "applications"), { ...extra, details, rent: extra.rent || l.price, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: costOf(l, extra.rent || l.price).total, moveIn, status: "Under review", createdAt: serverTimestamp() });
 const mine = async (col, user) => { try { return (await getDocs(query(collection(db, col), where("uid", "==", user.uid)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); } catch { return []; } };
 export const myViewings = (u) => mine("viewings", u);
 export const myApplications = (u) => mine("applications", u);

@@ -1,6 +1,8 @@
 // Agent profile, apply-to-rent, book-a-viewing and documents pages.
 import { $, $$, esc, naira, icon, toast, modal, friendlyErr, initials, verifiedBadge } from "./ui.js";
 import * as st from "./store.js";
+import * as AREA from "./area.js";
+import * as OFFERS from "./offers.js";
 
 const bedsLabel = (n) => (n === 0 ? "Studio" : `${n} bed${n > 1 ? "s" : ""}`);
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -61,10 +63,10 @@ export async function bookPage(ctx, id) {
   if (!S.date) { const d = new Date(today.getTime() + 864e5); while (d.getDay() === 0) d.setDate(d.getDate() + 1); S.date = d; }
   S.month = new Date(S.date.getFullYear(), S.date.getMonth(), 1);
   const TIMES = ["10:00 AM", "12:00 PM", "2:00 PM", "4:00 PM"]; if (!TIMES.includes(S.slot)) S.slot = TIMES[0];
-  const total = l.price + l.service + l.deposit;
+  const total = AREA.moveIn(l).total;
   const side = `<aside class="pg-box prop-side"><div class="ps-img"><img src="${esc(l.thumb || l.images[0])}" alt="${esc(l.title)}"><button class="heart ${ctx.S.saved.has(l.id) ? "on" : ""}" data-fav="${esc(l.id)}" aria-label="Save">${icon("heart", 20)}</button></div>
     <h3>${esc(l.title)}</h3><p class="loc">${icon("pin", 16)} ${esc(l.area)}, ${esc(l.city)}</p><p class="facts hr"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><i>•</i><span>${icon("bath", 18)}${l.baths} baths</span></p><hr>
-    <div class="kvs"><div><span>Annual rent</span><b>${naira(l.price)}</b></div><div><span>Service charge</span><b>${naira(l.service)}</b></div><div><span>Refundable deposit</span><b>${naira(l.deposit)}</b></div></div><div class="kvs tot"><div><span>Total due</span><b>${naira(total)}</b></div></div>
+    ${AREA.costKvs(l)}
     <div class="ps-agent"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><div><b>${esc(l.agent.name)}</b><small>Property Agent</small></div><a class="round-btn" href="#/agent/${esc(l.agent.id)}" aria-label="Agent profile">${icon("phone", 22)}</a><a class="round-btn" href="#/messages" aria-label="Messages">${icon("msg", 22)}</a></div></aside>`;
   return { title: "Book a viewing", html: `<div class="wrap pg"><a class="back-link" href="#/home/${esc(l.id)}">${icon("left", 20)} Back to property</a><h1 class="pg-h1">Book a viewing</h1><p class="pg-sub">Choose a date and time to see this property. It’s quick and easy.</p>
     <div id="bk"></div></div>`,
@@ -120,14 +122,16 @@ const DKEY = (u, id) => `draft_${u.uid}_${id}`;
 const loadDraft = (u, id) => { try { return JSON.parse(localStorage.getItem(DKEY(u, id))) || {}; } catch { return {}; } };
 export async function applyPage(ctx, id) {
   const l = await st.getListing(id); if (!l) return notFound();
-  const u = ctx.S.user, p = ctx.S.profile || {}, total = l.price + l.service + l.deposit, tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  let rent = l.price, offerId = "";
+  if (ctx.q.offer) { const o = await OFFERS.getOffer(ctx.q.offer); if (o && o.uid === ctx.S.user.uid && o.listingId === l.id && o.status === "Accepted") { rent = o.amount; offerId = o.id; } }
+  const u = ctx.S.user, p = ctx.S.profile || {}, total = AREA.moveIn(l, rent).total, tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   const D = { name: u.displayName || "", email: u.email, phone: p.phone || "", address: "", movein: "", occupants: "", note: "", status: "", employer: "", job: "", income: "", ...loadDraft(u, id) };
   let step = Math.min(Math.max(+D._step || 1, 1), 4); const files = { id: D.idFile || "", income: D.incomeFile || "" };
   const imgs = l.images, STEPS = ["Personal details", "Employment", "Documents", "Review"];
   return { title: "Apply to rent", html: `<div class="wrap pg"><h1 class="pg-h1">Apply for ${esc(l.title)}</h1><p class="pg-sub">Complete your application to be considered for this home.</p><div class="ap-grid"><div id="ap"></div>
     <aside class="pg-box prop-side"><div class="ps-img"><img id="apimg" src="${esc(imgs[0] || l.thumb)}" alt="${esc(l.title)}"><span class="counter" id="apc">1 / ${Math.max(imgs.length, 1)}</span></div>
     <h3>${esc(l.title)}</h3><p class="loc">${icon("pin", 16)} ${esc(l.area)}, ${esc(l.city)}</p><p class="facts hr"><span>${icon("bed", 18)}${l.beds === 0 ? "Studio" : l.beds + " bedrooms"}</span><i class="sep"></i><span>${icon("bath", 18)}${l.baths} bathrooms</span></p><hr>
-    <h4>Rental details</h4><div class="kvs"><div><span>Annual rent</span><b>${naira(l.price)} / year</b></div><div><span>Service charge</span><b>${naira(l.service)} / year</b></div><div><span>Refundable deposit</span><b>${naira(l.deposit)}</b></div></div><div class="kvs tot"><div><span>Total due on signing</span><b>${naira(total)}</b></div></div><hr>
+    <h4>Rental details</h4>${offerId ? `<p class="of-agreed">${icon("checkc", 16)} Agreed rent ${naira(rent)} (asking ${naira(l.price)})</p>` : ""}${AREA.costKvs(l, rent, "Total due on signing")}<hr>
     <h4>Agent</h4><div class="ps-agent"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><div><b>${esc(l.agent.name)}</b><small>Property Consultant</small></div><a class="round-btn" href="#/agent/${esc(l.agent.id)}" aria-label="Agent profile">${icon("phone", 22)}</a><a class="round-btn" href="#/messages" aria-label="Messages">${icon("mail", 22)}</a></div></aside></div></div>`,
     mount(root) {
       const ap = $("#ap", root); let k = 0;
@@ -162,7 +166,7 @@ export async function applyPage(ctx, id) {
           if (step < 4) { step++; save(); draw(); return scrollTo({ top: 0, behavior: "smooth" }); }
           if (!$("#agree").checked) return (err.textContent = "Please confirm your information is accurate.");
           const b = $("#ct"); b.disabled = true;
-          try { await st.addApplication(u, l, D.movein, { name: D.name, phone: "+234 " + D.phone, address: D.address, occupants: D.occupants, note: D.note, employment: D.status, employer: D.employer, job: D.job, income: D.income, idFile: files.id, incomeFile: files.income });
+          try { await st.addApplication(u, l, D.movein, { name: D.name, phone: "+234 " + D.phone, address: D.address, occupants: D.occupants, note: D.note, employment: D.status, employer: D.employer, job: D.job, income: D.income, idFile: files.id, incomeFile: files.income }, offerId ? { rent, offerId } : {});
             try { localStorage.removeItem(DKEY(u, id)); } catch {} toast("Application submitted."); ctx.go("#/payments"); } catch (e) { err.textContent = friendlyErr(e); b.disabled = false; }
         };
       };
@@ -171,7 +175,7 @@ export async function applyPage(ctx, id) {
 }
 
 // ============================ rentals nav + documents ============================
-export const rentalsNav = (active) => `<div class="rn-tabs" role="tablist">${[["/rentals", "Overview"], ["/bookings", "Viewings"], ["/applications", "Applications"], ["/payments", "Payments"], ["/documents", "Documents"]].map(([h, l]) => `<a href="#${h}" class="${h === active ? "on" : ""}" ${h === active ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</div>`;
+export const rentalsNav = (active) => `<div class="rn-tabs" role="tablist">${[["/rentals", "Overview"], ["/bookings", "Viewings"], ["/applications", "Applications"], ["/payments", "Payments"], ["/offers", "Offers"], ["/documents", "Documents"]].map(([h, l]) => `<a href="#${h}" class="${h === active ? "on" : ""}" ${h === active ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</div>`;
 const fmtSize = (n) => (n > 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB");
 const dstat = (s) => `<span class="pill ${/review/i.test(s) ? "warn" : ""}"><i class="dot"></i>${esc(s)}</span>`;
 export async function documentsPage(ctx) {
@@ -228,7 +232,7 @@ const dlong = (d) => d.toLocaleDateString("en-GB", { day: "numeric", month: "lon
 // ============================ payments ============================
 export async function paymentsPage(ctx) {
   const { act, l, listings } = await tenancy(ctx), prop = l || listings[0];
-  const rows = act && l ? [["Rent (Annual)", l.price], ["Service charge (Annual)", l.service], ["Refundable deposit", l.deposit]] : [];
+  const rows = act && l ? AREA.moveIn(l).items.map(([t, v]) => [t, v]) : [];
   const total = rows.reduce((s, r) => s + r[1], 0);
   return { title: "Payments", html: `<div class="wrap pg">${crumbBar("Payments")}${rentalsNav("/payments")}<h1 class="pg-h1">Payments</h1><p class="pg-sub">Track your payments, view receipts and stay up to date with your rental.</p>
     <div class="pay-grid"><div><section class="pg-box">${prop ? propHead(prop) : ""}</section>
@@ -261,7 +265,7 @@ export async function applicationsPage(ctx) {
           s.innerHTML = `<div class="as-top"><div><h2>${esc(a.l.title)}</h2><p class="loc">${icon("pin", 18)} ${esc(a.l.area)}, ${esc(a.l.city)}</p></div>${statusChip(st1)}</div><img class="as-img" src="${esc(a.l.images[0])}" alt="">
             <p class="facts"><span>${icon("bed", 20)}${bedsLabel(a.l.beds)}</span><span>${icon("bath", 20)}${a.l.baths} bathrooms</span><span>${icon("area", 20)}${a.l.sqm} m²</span></p>
             ${a.draft ? "" : `<h3>Application timeline</h3><ol class="tl">${steps.map(([t, d], i) => `<li class="${i < done ? "ok" : i === done ? "cur" : ""}"><i>${i < done ? icon("check", 14, 3) : ""}</i><div><b>${t}</b><p>${d}</p></div><span>${i === 0 ? fmtD(a.createdAt) + "<br>" + fmtT(a.createdAt) : i === done && !ACTIVE(st1) ? '<em>In progress</em>' : "–"}</span></li>`).join("")}</ol>`}
-            <h3>Payment summary</h3><div class="kvs"><div><span>Yearly rent</span><b>${naira(a.l.price)}</b></div><div><span>Service charge</span><b>${naira(a.l.service)}</b></div><div><span>Refundable deposit</span><b>${naira(a.l.deposit)}</b></div></div><div class="kvs tot"><div><span>Total (due on approval)</span><b>${naira(a.l.price + a.l.service + a.l.deposit)}</b></div></div>
+            <h3>Payment summary</h3>${AREA.costKvs(a.l, a.rent || a.l.price, "Total (due on approval)")}
             <div class="as-btns"><button class="btn" id="ma">${icon("msg", 22)} Message agent</button>${a.draft ? `<a class="btn solid" href="#/apply/${esc(a.listingId)}">${icon("pdf", 22)} Continue application</a>` : `<button class="btn solid" id="va">${icon("pdf", 22)} View application</button>`}</div>`;
           $("#ma", s).onclick = async () => { try { const cid = await st.ensureConversation(ctx.S.user, a.l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } };
           const va = $("#va", s); if (va) va.onclick = () => { const d = a.details || {}; modal(`<h2>Your application</h2><p class="muted" style="margin-bottom:12px">${esc(a.l.title)}</p>${[["Name", d.name], ["Phone", d.phone], ["Move-in date", a.moveIn], ["Occupants", d.occupants], ["Employment", d.employment], ["Employer", d.employer], ["Monthly income", d.income], ["Current address", d.address || "Not provided"]].filter((r) => r[1]).map(([k, v2]) => `<div class="kv"><span>${k}</span><b>${esc(v2)}</b></div>`).join("")}`); };

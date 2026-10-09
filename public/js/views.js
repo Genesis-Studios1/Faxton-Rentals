@@ -14,6 +14,8 @@ import { countryOptions } from "./countries.js";
 import * as APPS from "./apps.js";
 import * as SAFE from "./safety.js";
 import { openProfile } from "./profile.js";
+import * as AREA from "./area.js";
+import * as OFFERS from "./offers.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
@@ -75,6 +77,7 @@ export async function route(ctx) {
   if (path === "/help") return PG.helpPage(ctx);
   if (path === "/messages" || path.startsWith("/messages/")) return messages(ctx, decodeURIComponent(path.split("/")[2] || ""));
   if (path === "/bookings") return bookings(ctx);
+  if (path === "/offers") return OFFERS.offersPage(ctx, PG.rentalsNav);
   if (path === "/payments") return PG.paymentsPage(ctx);
   if (path === "/applications") return PG.applicationsPage(ctx);
   if (path === "/rentals") return PG.rentalPage(ctx);
@@ -362,7 +365,7 @@ function planHtml(l) {
 async function detail(ctx, id) {
   const l = await st.getListing(id);
   if (!l) return { title: "Not found", html: `<div class="empty"><h2>This home isn’t available</h2><p><a class="link" href="#/search">Browse homes</a></p></div>` };
-  const total = l.price + l.service + l.deposit, on = ctx.S.saved.has(l.id), A = { Parking: "car", "Water supply": "drop", Security: "shield", Balcony: "building" };
+  const mi = AREA.moveIn(l), total = mi.total, on = ctx.S.saved.has(l.id), A = { Parking: "car", "Water supply": "drop", Security: "shield", Balcony: "building" };
   const im = l.images, vids = (l.videos || []).map((u) => ({ type: "video", ...videoEmbed(u) })), media = [...im.map((src) => ({ type: "img", src })), ...vids];
   const gal = im.length > 1 ? `<div class="gallery"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div><div><img src="${esc(im[1])}" alt=""></div><div>${im[2] ? `<img src="${esc(im[2])}" alt="">` : ""}<button class="show-all" id="all">${icon("img", 18)} Show all photos</button></div></div>` : `<div class="gallery one"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div></div>`;
   const all = (await st.getListings().catch(() => [])).filter((x) => x.id !== l.id && x.city === l.city), cat = catOf(l);
@@ -381,18 +384,19 @@ async function detail(ctx, id) {
     ${gal}${vids.length ? `<div class="vid-row"><button type="button" class="vid-btn" data-vid="${im.length}"><span class="vid-ic">${icon("video", 20)}</span><span><b>Watch ${vids.length > 1 ? vids.length + " videos" : "the video tour"}</b><small>${im.length} photo${im.length === 1 ? "" : "s"} · ${vids.length} video${vids.length === 1 ? "" : "s"}</small></span></button></div>` : ""}
     <div class="detail"><div class="dt-main">
       <div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div>${l.sqm ? `<div class="fact">${icon("area", 22)}${l.sqm} m²</div>` : ""}<div class="fact">${icon("car", 22)}${parking}</div></div>
-      <div class="dt-tabs" role="tablist">${[["overview", "Overview"], ["features", "Features"], ["location", "Location"], ["plan", "Floor plan"], ["media", "Media"]].map(([k, t], i) => `<button type="button" role="tab" class="${i ? "" : "on"}" data-pane="${k}">${t}</button>`).join("")}</div>
+      <div class="dt-tabs" role="tablist">${[["overview", "Overview"], ["features", "Features"], ["location", "Location"], ["hood", "Neighbourhood"], ["plan", "Floor plan"], ["media", "Media"]].map(([k, t], i) => `<button type="button" role="tab" class="${i ? "" : "on"}" data-pane="${k}">${t}</button>`).join("")}</div>
       <section class="dt-pane" id="p-overview">${(desc.length ? desc : ["The agent hasn’t added a description yet."]).map((x) => `<p class="dt-desc">${esc(x)}</p>`).join("")}<p class="dt-desc">Listed by ${esc(l.agent.name)}. Rent is paid per year. Documents are available for inspection after your viewing.</p>
         <div class="dt-info">${info.map(([ic, k, v]) => `<div><span>${icon(ic, 18)} ${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
-        <div class="dt-pay"><h2>Payment estimate</h2><div class="dt-pay-in"><div><h4>Payment plan</h4><div class="dt-plans" role="radiogroup" aria-label="Payment plan">${PLANS.map(([t, n], i) => `<button type="button" role="radio" aria-checked="${i === 0}" class="${i === 0 ? "on" : ""}" data-n="${n}">${t}</button>`).join("")}</div><p class="muted">Estimate only. Your agent confirms the final plan.</p></div>
-          <div class="dt-est"><span>Est. payment each time</span><b id="estP">${naira(l.price)}</b><small id="estN">Paid once a year</small><hr><div class="dt-rows"><div><span>Service charge</span><b>${naira(l.service)}</b></div><div><span>Refundable deposit</span><b>${naira(l.deposit)}</b></div><div><span>Move-in total</span><b id="estT">${naira(total)}</b></div></div></div></div></div></section>
+        ${AREA.costHtml(l)}</section>
       <section class="dt-pane" id="p-features" hidden>${l.amenities.length ? `<div class="ft-grid">${l.amenities.map((a) => `<div class="ft"><span class="ft-i">${icon(amenIcon(a), 22)}</span><b>${esc(a)}</b></div>`).join("")}</div>` : `<p class="muted">No features have been listed yet.</p>`}<div class="ft-facts"><div><span>Bedrooms</span><b>${l.beds === 0 ? "Studio" : l.beds}</b></div><div><span>Bathrooms</span><b>${l.baths}</b></div><div><span>Area</span><b>${l.sqm ? l.sqm + " m²" : "Not listed"}</b></div><div><span>Parking</span><b>${esc(parking)}</b></div></div></section>
       <section class="dt-pane" id="p-location" hidden>${hasPin ? `<div class="dmap lg" id="dmap"><span class="dmap-pill">${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</span></div>` : `<div class="dmap lg dmap-none"><span>${icon("pin", 28)}</span><b>${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</b><small>The exact pin hasn’t been shared yet.</small></div>`}<div class="dmap-row"><span class="muted">${icon("pin", 16)} ${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</span><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${hasPin ? l.lat + "," + l.lng : encodeURIComponent(l.area + ", " + l.city)}">${icon("arrow", 16)} Open in Google Maps</a></div></section>
+      <section class="dt-pane" id="p-hood" hidden>${AREA.neighbourhoodHtml(l, all)}</section>
       <section class="dt-pane" id="p-plan" hidden>${l.floorPlan ? `<img class="dt-fp" src="${esc(l.floorPlan)}" alt="Floor plan of ${esc(l.title)}">` : planHtml(l)}</section>
       <section class="dt-pane" id="p-media" hidden><h3 class="md-h">Photos <b>${im.length}</b></h3><div class="md-grid">${im.map((src, k) => `<button type="button" class="md-i" data-m="${k}" aria-label="Open photo ${k + 1}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join("")}</div>${vids.length ? `<h3 class="md-h">Videos <b>${vids.length}</b></h3><div class="md-grid">${vids.map((v, k) => `<button type="button" class="md-i md-v" data-m="${im.length + k}" aria-label="Play video ${k + 1}">${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy">` : `<span class="md-vb"></span>`}<span class="md-play">${icon("video", 26)}</span><em>Video ${k + 1}</em></button>`).join("")}</div>` : `<p class="muted" style="margin-top:14px">No videos have been added for this home yet.</p>`}</section>
     </div>
     <aside class="side-card"><div class="big-price">${naira(l.price)} <small>/ year</small></div><p class="muted">Annual payment</p>
-      <div class="rows"><div><span>Rent</span><span>${naira(l.price)}</span></div><div><span>Service charge</span><span>${naira(l.service)}</span></div><div><span>Refundable deposit</span><span>${naira(l.deposit)}</span></div><div class="total"><span>Move-in total</span><span>${naira(total)}</span></div></div>
+      <div class="rows"><div><span>Rent</span><span>${naira(l.price)}</span></div><div><span>Agency &amp; legal fees</span><span>${naira(mi.fees)}</span></div><div><span>Service charge</span><span>${naira(l.service)}</span></div><div><span>Caution (refundable)</span><span>${naira(l.deposit)}</span></div><div class="total"><span>Move-in total</span><span>${naira(total)}</span></div></div>
+      <a class="sc-tc" href="#" id="tcJump">${icon("calc", 16)} See the full cost breakdown</a>
       <button class="btn primary block" id="apply" style="padding:15px">Apply to rent ${icon("arrow", 20)}</button>
       <div class="sc-agent"><div class="sc-av"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><i class="on" title="Online"></i></div><div><a href="#/agent/${esc(l.agent.id)}" class="sc-name">${esc(l.agent.name)}</a><small>${esc(l.agent.title || "Property consultant")}</small>${l.agent.rating ? `<div class="sc-rate">${icon("star", 13)} <b>${esc(l.agent.rating)}</b></div>` : ""}</div></div>
       <div class="sc-msg"><button class="btn block" id="msg">${icon("msg", 18)} Message agent</button><button class="btn sc-call" id="callAgent" aria-label="Call the agent" title="Call the agent">${icon("phone", 20)}</button></div>
@@ -400,7 +404,7 @@ async function detail(ctx, id) {
       <div class="sc-seg" role="radiogroup" aria-label="Tour type"><button type="button" role="radio" aria-checked="true" class="on" data-tour="person">In person</button><button type="button" role="radio" aria-checked="false" data-tour="virtual">Virtual</button></div>
       <label class="sc-date">${icon("cal", 20)}<select id="bkDate" aria-label="Date">${bkDays.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></label>
       <p class="muted sc-t">Available times</p><div class="sc-times" id="bkTimes">${["10:00 AM", "12:00 PM", "2:00 PM", "4:00 PM"].map((t, i) => `<button type="button" class="${i ? "" : "on"}" data-time="${t}">${t}</button>`).join("")}</div>
-      <button class="btn block" id="view" style="padding:14px">${icon("cal", 20)} Book a viewing</button>
+      <div class="sc-two"><button class="btn" id="view">${icon("cal", 18)} Book a viewing</button><button class="btn" id="offer">${icon("tag", 18)} Make an offer</button></div><div id="ofBanner"></div>
       <p class="muted" style="font-size:.88rem;display:flex;gap:8px;margin-top:12px">${icon("info", 18)}<span>Review the <a class="link" href="#/terms" style="text-decoration:underline">terms</a> before making a payment.</span></p></aside></div>
     ${similar.length ? `<section class="dt-sim"><h2><i></i>Similar homes</h2><p class="muted">More like this in ${esc(l.city)}</p><div class="sim-grid">${similar.map(simCard).join("")}</div></section>` : ""}</div>`,
     mount(root) {
@@ -414,9 +418,12 @@ async function detail(ctx, id) {
       let mapDone = false;
       $$(".dt-tabs [data-pane]").forEach((b) => (b.onclick = () => {
         $$(".dt-tabs [data-pane]").forEach((x) => x.classList.toggle("on", x === b)); $$(".dt-pane").forEach((p) => (p.hidden = p.id !== "p-" + b.dataset.pane));
+        if (b.dataset.pane === "hood" && !hoodDone) { hoodDone = true; AREA.mountNeighbourhood($("#p-hood"), l); }
         if (b.dataset.pane === "location" && hasPin && !mapDone) { mapDone = true; loadLeaflet().then(() => { const el = $("#dmap"); if (!el) return; const map = L.map(el, { scrollWheelZoom: false }).setView([l.lat, l.lng], 15); tiles().addTo(map); L.marker([l.lat, l.lng]).addTo(map); ctrlZoom(map); setTimeout(() => map.invalidateSize(), 100); ctx.S.cleanups.push(() => map.remove()); }).catch(() => { mapDone = false; }); }
       }));
-      $$(".dt-plans [data-n]").forEach((b) => (b.onclick = () => { const n = +b.dataset.n; $$(".dt-plans button").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); }); $("#estP").textContent = naira(Math.round(l.price / n)); $("#estN").textContent = n === 1 ? "Paid once a year" : `Paid ${n} times a year`; $("#estT").textContent = naira(Math.round(l.price / n) + l.service + l.deposit); }));
+      AREA.mountCost(root, l);
+      let hoodDone = false;
+      $("#tcJump").onclick = (e) => { e.preventDefault(); $$(".dt-tabs [data-pane]")[0].click(); $(".tc")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
       st.getPublic(l.ownerUid || l.agent.id).then((pb) => { if (pb?.verified) $(".sc-name")?.insertAdjacentHTML("beforeend", " " + verifiedBadge(16)); });
       const scav = $(".sc-av"); if (scav) { scav.style.cursor = "pointer"; scav.onclick = async () => { const uid = l.ownerUid || l.agent.id, pb = await st.getPublic(uid); openProfile(ctx, { uid, name: l.agent.name, avatar: l.agent.avatar, role: ["agent", "agency", "landlord"].includes(pb?.role) ? pb.role : "agent", area: l.area, onMessage: () => $("#msg")?.click(), onCall: () => $("#callAgent")?.click() }); }; }
       $("#msg").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } });
@@ -427,6 +434,9 @@ async function detail(ctx, id) {
       $("#callAgent").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l), to = l.ownerUid && l.ownerUid !== ctx.S.user.uid ? l.ownerUid : "staff"; CALLS2.startCall(ctx, { convId: cid, to, toName: to === "staff" ? "Faxton team" : l.agent.name, kind: "voice", title: l.title, image: l.thumb || l.images[0], area: l.area }); } catch (e) { toast(friendlyErr(e)); } });
       $$("[data-m]").forEach((b) => (b.onclick = () => openViewer(media, +b.dataset.m)));
       $("#apply").onclick = authed(() => ctx.go("#/apply/" + l.id));
+      const ofBan = async () => { if (!ctx.S.user) return; const o = await OFFERS.myOpenOffer(ctx.S.user.uid, l.id), b = $("#ofBanner"); if (!b) return; b.innerHTML = o ? `<a class="of-ban ${o.status.toLowerCase()}" href="#/offers">${icon("tag", 16)}<span><b>${o.status === "Accepted" ? "Offer accepted at " + naira(o.amount) : o.status === "Countered" ? "Counter-offer: " + naira(o.amount) : "Your offer: " + naira(o.amount)}</b><small>${o.status === "Accepted" ? "Apply at the agreed rent" : o.status === "Countered" ? "The owner replied. Your turn." : "Waiting for the owner"}</small></span>${icon("arrow", 16)}</a>` : ""; };
+      ofBan();
+      $("#offer").onclick = authed(() => { if (ctx.S.user.uid === l.ownerUid) return toast("This is your own listing."); if (l.available === false) return toast("This home isn’t available right now."); OFFERS.offerDialog(ctx, l, ofBan); });
     } };
 }
 
