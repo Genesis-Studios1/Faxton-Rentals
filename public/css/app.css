@@ -1914,3 +1914,8 @@ dialog.nodismiss .close{display:none!important}
 .pf-vb .vseal{display:block;width:34px;height:34px;vertical-align:baseline}
 .pf-vb .vseal path:first-of-type{stroke:var(--bg);stroke-width:2.8;stroke-linejoin:round;paint-order:stroke}
 .pf-av{overflow:visible}
+
+/* the verified badge is a plain round circle */
+.pf-vb .vseal circle{stroke:var(--bg);stroke-width:2.4;paint-order:stroke}
+.pf-vb .vseal path:first-of-type{stroke:none}
+.pf-vb .vseal path:last-of-type{stroke:#fff}
