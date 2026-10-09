@@ -1,5 +1,5 @@
 // Agent profile, apply-to-rent, book-a-viewing and documents pages.
-import { $, $$, esc, naira, icon, toast, modal, friendlyErr, initials } from "./ui.js";
+import { $, $$, esc, naira, icon, toast, modal, friendlyErr, initials, verifiedBadge } from "./ui.js";
 import * as st from "./store.js";
 
 const bedsLabel = (n) => (n === 0 ? "Studio" : `${n} bed${n > 1 ? "s" : ""}`);
@@ -41,6 +41,8 @@ export async function agentPage(ctx, id) {
     <div class="cards pg-cards">${mine.map((l) => miniCard(l, ctx.S.saved)).join("")}</div></div>`,
     mount(root) {
       bindMini(root, ctx); let day = days[0] ? iso(days[0]) : "";
+      // The green tick only appears for agents an admin has verified; the "identity verified" line is hidden for real agents who aren't.
+      st.getPublic(id).then((pb) => { const idv = $(".idv", root); if (pb?.verified) $(".ag-info h1", root)?.insertAdjacentHTML("beforeend", " " + verifiedBadge(26)); else if (mine[0].ownerUid && idv) idv.remove(); });
       const lid = mine[0].id;
       $$("[data-day]", root).forEach((b) => (b.onclick = () => { day = b.dataset.day; $$("[data-day]", root).forEach((x) => x.classList.toggle("on", x === b)); }));
       $$("[data-slot]", root).forEach((b) => (b.onclick = () => ctx.go(`#/book/${lid}?date=${day}&slot=${encodeURIComponent(b.dataset.slot)}`)));

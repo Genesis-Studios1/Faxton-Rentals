@@ -1,6 +1,6 @@
 import { auth } from "./firebase.js";
 import { updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal, friendlyErr, BUILD } from "./ui.js";
+import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal, friendlyErr, BUILD, verifiedBadge } from "./ui.js";
 import * as st from "./store.js";
 import * as PG from "./pages.js";
 import * as A2 from "./admin2.js";
@@ -13,6 +13,7 @@ import { collectDetails, verifyPopup, resizePhoto, askResidence } from "./onboar
 import { countryOptions } from "./countries.js";
 import * as APPS from "./apps.js";
 import * as SAFE from "./safety.js";
+import { openProfile } from "./profile.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
@@ -416,6 +417,8 @@ async function detail(ctx, id) {
         if (b.dataset.pane === "location" && hasPin && !mapDone) { mapDone = true; loadLeaflet().then(() => { const el = $("#dmap"); if (!el) return; const map = L.map(el, { scrollWheelZoom: false }).setView([l.lat, l.lng], 15); tiles().addTo(map); L.marker([l.lat, l.lng]).addTo(map); ctrlZoom(map); setTimeout(() => map.invalidateSize(), 100); ctx.S.cleanups.push(() => map.remove()); }).catch(() => { mapDone = false; }); }
       }));
       $$(".dt-plans [data-n]").forEach((b) => (b.onclick = () => { const n = +b.dataset.n; $$(".dt-plans button").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); }); $("#estP").textContent = naira(Math.round(l.price / n)); $("#estN").textContent = n === 1 ? "Paid once a year" : `Paid ${n} times a year`; $("#estT").textContent = naira(Math.round(l.price / n) + l.service + l.deposit); }));
+      st.getPublic(l.ownerUid || l.agent.id).then((pb) => { if (pb?.verified) $(".sc-name")?.insertAdjacentHTML("beforeend", " " + verifiedBadge(16)); });
+      const scav = $(".sc-av"); if (scav) { scav.style.cursor = "pointer"; scav.onclick = async () => { const uid = l.ownerUid || l.agent.id, pb = await st.getPublic(uid); openProfile(ctx, { uid, name: l.agent.name, avatar: l.agent.avatar, role: ["agent", "agency", "landlord"].includes(pb?.role) ? pb.role : "agent", area: l.area, onMessage: () => $("#msg")?.click(), onCall: () => $("#callAgent")?.click() }); }; }
       $("#msg").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } });
       let tour = "person", slot = "10:00 AM";
       $$("[data-tour]").forEach((b) => (b.onclick = () => { tour = b.dataset.tour; $$("[data-tour]").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); }); }));
@@ -589,6 +592,22 @@ async function messages(ctx, cid) {
           playing = { id, a, reset }; a.onplay = () => box.classList.add("playing"); a.onpause = () => box.classList.remove("playing");
           a.ontimeupdate = () => { const f = a.duration ? a.currentTime / a.duration : 0; bars.forEach((b, i) => b.classList.toggle("on", i / bars.length < f)); };
           a.onended = () => { reset(); playing = null; }; a.play().catch(() => toast("Couldn’t play that message.")); });
+        // Tap a picture to see that person's profile; businesses and verified agents get the green tick.
+        const showProfile = async () => {
+          let uid = "", role = "user";
+          if (faxton()) { uid = c.uid; role = "user"; }
+          else if (c.listingId === "direct") role = "team";
+          else { const l = await st.getListing(c.listingId).catch(() => null); uid = l?.ownerUid || c.agent.id || ""; const pb = await st.getPublic(uid); role = ["agent", "agency", "landlord"].includes(pb?.role) ? pb.role : "agent"; }
+          const imgs = ms.filter((m) => m.image).map((m) => ({ type: "image", src: m.image }));
+          openProfile(ctx, { uid, name: o.name, avatar: o.avatar && !o.avatar.startsWith("data:") ? o.avatar : "", role, area: agentView ? c.area : "", media: ms.filter((m) => m.image || m.file),
+            pinned: convs().find((z) => z.id === cid)?.pinned, onMessage: () => $("#ci")?.focus(), onCall: (k) => beginCall(c, k), onSearch: () => { const bar = $("#mxFindBar"); bar.hidden = false; $("#mxFindIn").focus(); },
+            onMedia: () => (imgs.length ? openViewer(imgs, 0) : toast("Documents are saved with their messages. Use the download button on each one.")), onPinned: () => jump(convs().find((z) => z.id === cid)?.pinned?.id),
+            ...(safety && safety.uid() ? { onBlock: () => safety.block(), blocked: safety.blocked() } : {}), ...(safety ? { onReport: () => safety.report() } : {}) });
+        };
+        const hav = $(".mx-hav"); if (hav) { hav.style.cursor = "pointer"; hav.onclick = showProfile; }
+        thread.addEventListener("click", (e) => { const av = e.target.closest(".mx-bav"); if (av && !av.closest(".me")) showProfile(); });
+        // a green tick next to the name when the person is verified
+        (async () => { let ver = c.listingId === "direct" && !faxton(); if (!ver && !faxton() && agentView) { const l = await st.getListing(c.listingId).catch(() => null); ver = !!(await st.getPublic(l?.ownerUid || c.agent.id))?.verified; } else if (faxton()) ver = !!(await st.getPublic(c.uid))?.verified; const nm = $(".mx-hn b"); if (ver && nm && !nm.querySelector(".vseal")) nm.insertAdjacentHTML("beforeend", " " + verifiedBadge(18)); })();
         // call back from a missed-call card
         thread.addEventListener("click", (e) => { const cb = e.target.closest("[data-cb2]"); if (cb) beginCall(c, "voice"); });
         thread.addEventListener("click", (e) => { const a = e.target.closest("[data-act]"); if (a) { e.stopPropagation(); const r = a.getBoundingClientRect(); return openMM(a.dataset.act, r.left - 120, r.bottom + 6); } const g = e.target.closest("[data-goto]"); if (g) return jump(g.dataset.goto); const pc2 = e.target.closest("[data-pic]"); if (pc2) openViewer([{ type: "image", src: pc2.src }], 0); });
@@ -607,6 +626,7 @@ async function messages(ctx, cid) {
         const closeMenu = () => { menu.hidden = true; }; document.addEventListener("click", closeMenu); ctx.S.cleanups.push(() => document.removeEventListener("click", closeMenu));
         const cl = $("[data-calls]", menu); if (cl) cl.onclick = (e) => { e.preventDefault(); tab = "calls"; drawSide(); closeMenu(); };
         // Block and report the person on the other side (listing owners and agents).
+        let safety = null;
         if (agentView) {
           let ouid = "", blocked = false;
           const paint = () => {
@@ -616,6 +636,8 @@ async function messages(ctx, cid) {
             const bk = $("[data-blk]", box); if (bk) bk.onclick = async () => { closeMenu(); if (blocked) { try { await st.unblockUser(ctx.S.user, ouid); blocked = false; toast("Unblocked."); paint(); } catch (x) { toast(friendlyErr(x)); } } else if (await SAFE.blockDialog(ctx, { uid: ouid, name: o.name })) { blocked = true; paint(); } };
             $("[data-rep]", box).onclick = () => { closeMenu(); SAFE.reportDialog(ctx, { targetUid: ouid || c.agent.id, targetName: o.name, convId: cid }); };
           };
+          const doBlock = async () => { if (blocked) { try { await st.unblockUser(ctx.S.user, ouid); blocked = false; toast("Unblocked."); paint(); } catch (x) { toast(friendlyErr(x)); } } else if (await SAFE.blockDialog(ctx, { uid: ouid, name: o.name })) { blocked = true; paint(); } };
+          safety = { uid: () => ouid, blocked: () => blocked, block: () => ouid && doBlock(), report: () => SAFE.reportDialog(ctx, { targetUid: ouid || c.agent.id, targetName: o.name, convId: cid }) };
           paint();
           st.getListing(c.listingId).then(async (l) => { ouid = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : ""; blocked = ouid ? await st.isBlocked(me, ouid) : false; paint(); }).catch(() => {});
         }
@@ -688,6 +710,7 @@ function settings(ctx, section) {
       ${card("Personal details", "", `<div class="pd-top">${initialsHtml}<div><b class="pd-name">${esc(name || "Your name")}</b><br><button type="button" class="btn sm" id="photoBtn">${icon("camera", 18)} Change photo</button><input type="file" id="photo" accept="image/*" hidden></div></div>
         <div class="f2"><label class="fl">Full name<input id="nm" value="${esc(name)}" autocomplete="name" maxlength="120"></label>
           <label class="fl">Email address<span class="in-wrap"><input value="${esc(u.email)}" disabled><span class="vbadge ${u.emailVerified ? "" : "no"}">${u.emailVerified ? `${icon("check", 14, 2.4)} Verified` : "Not verified"}</span></span></label>
+          <label class="fl">About<input id="ab" maxlength="160" placeholder="A short line about you" autocomplete="off"></label>
           <label class="fl">Phone number<input id="ph" type="tel" placeholder="Add phone number" value="${esc(p.phone || "")}" autocomplete="tel" maxlength="30"></label>
           <label class="fl">Country<select id="lcc">${countryOptions(p.country || "Nigeria")}</select></label><label class="fl">City<input id="lct" maxlength="60" value="${esc(p.city || "")}" placeholder="e.g. Lagos"></label></div>
         <p class="note">Your contact details are only shared when you choose.</p>`)}
@@ -730,11 +753,12 @@ function settings(ctx, section) {
       const cu = $("#chkUpd"); if (cu) cu.onclick = () => { const r = APPS.checkNow(ctx.S); if (r === "current") toast("You’re on the latest version."); };
       const pf = $("#pf");
       if (pf) {
+        st.getPublic(ctx.S.user.uid).then((pp) => { const a = $("#ab"); if (a && pp?.about) a.value = pp.about; });
         $("#cancel").onclick = () => ctx.render();
         pf.onsubmit = async (e) => {
           e.preventDefault(); const err = $("#perr"), nm = $("#nm").value.trim(); err.textContent = "";
           if (!nm) return (err.textContent = "Enter your full name.");
-          const btn = pf.querySelector("button[type=submit]"); btn.disabled = true;
+          const btn = pf.querySelector("button[type=submit]"); btn.disabled = true; st.syncPublic(ctx.S.user.uid, { about: ($("#ab")?.value || "").trim() });
           try { await updateProfile(auth.currentUser, { displayName: nm }); await save({ name: nm, phone: $("#ph").value.trim(), country: $("#lcc").value, city: $("#lct").value.trim(), location: `${$("#lct").value.trim()}, ${$("#lcc").value}`, prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile updated."); ctx.render(); } catch {} finally { btn.disabled = false; }
         };
         $("#photoBtn").onclick = () => $("#photo").click();

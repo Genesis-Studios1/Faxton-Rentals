@@ -113,7 +113,10 @@ export async function seedListings() {
 export async function ownedDocs(col, uid) { try { return (await getDocs(query(collection(db, col), where("ownerUid", "==", uid)))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; } }
 
 // ---- verification of agencies and agents, notifications, suggestions ----
-export const verifyUser = (uid, verification) => updateDoc(doc(db, "users", uid), { verified: verification.status === "verified", verification });
+export const verifyUser = async (uid, verification) => {
+  await updateDoc(doc(db, "users", uid), { verified: verification.status === "verified", verification });
+  try { const u = (await getDoc(doc(db, "users", uid))).data() || {}; await setDoc(doc(db, "profiles", uid), { name: u.agency?.business || u.name || "User", role: u.role || "", photo: u.photo || "", verified: verification.status === "verified", updatedAt: serverTimestamp() }, { merge: true }); pubCache.delete(uid); } catch {}
+};
 export const notify = (uid, n) => addDoc(collection(db, "notifications"), { uid, read: false, createdAt: serverTimestamp(), ...n });
 export const watchNotifications = (uid, cb) => onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid), where("read", "==", false)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
 export const watchAllNotifications = (uid, cb) => onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid)),
@@ -144,3 +147,10 @@ export const saveIce = (servers) => setDoc(doc(db, "config", "ice"), { servers, 
 
 // Pin one message to the top of a conversation (null removes the pin).
 export const pinMessage = (cid, pin) => updateDoc(doc(db, "conversations", cid), { pinned: pin || deleteField() });
+
+// ---- public profile cards (what people see when they tap a picture) ----
+const pubCache = new Map();
+export const getPublic = async (uid) => { if (!uid) return null; if (pubCache.has(uid)) return pubCache.get(uid); let v = null; try { const s = await getDoc(doc(db, "profiles", uid)); v = s.exists() ? s.data() : null; } catch {} pubCache.set(uid, v); return v; };
+export const syncPublic = (uid, d) => { pubCache.delete(uid); return setDoc(doc(db, "profiles", uid), { ...d, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); };
+// An admin opening the Users page marks everyone already verified on their public card too.
+export const syncVerified = (users) => Promise.all(users.filter((u) => u.verified === true && u.id).map((u) => setDoc(doc(db, "profiles", u.id), { name: u.agency?.business || u.name || "User", role: u.role || "", photo: u.photo || "", verified: true, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {})));
