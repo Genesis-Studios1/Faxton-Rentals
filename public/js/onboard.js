@@ -82,12 +82,13 @@ export const resizePhoto = (file) => new Promise((res, rej) => {
   img.onerror = () => rej(new Error("That picture couldn’t be read.")); img.src = url;
 });
 
-// Everyone gives the country and city they live in. `required` stops the window being dismissed.
+// Everyone gives the country and city they live in. The window only closes once it's filled in and submitted
+// (during sign-up there's also a Cancel button).
 export function askResidence({ required = false, country = "Nigeria", city = "" } = {}) {
   return new Promise((resolve) => {
-    const m = modal(`<h2>Where do you live?</h2><p class="muted" style="margin:4px 0 12px">Tell us your country and city so we can show you the right homes and keep your account secure.</p><form id="rs" class="a2-form" novalidate><div class="field"><label for="rc">Country of residence</label><select id="rc" required>${countryOptions(country)}</select></div><div class="field"><label for="rt">City</label><input id="rt" required maxlength="60" placeholder="e.g. Lagos" value="${esc(city)}" autocomplete="address-level2"></div><p class="err" id="rse" role="alert"></p><div class="a2-act"><button class="btn primary" type="submit">Continue</button></div></form>`);
-    let sent = false; if (required) { m.el.classList.add("nodismiss"); m.el.addEventListener("cancel", (e) => e.preventDefault()); }
-    m.el.addEventListener("close", () => { if (!sent) resolve(null); });
+    const m = modal(`<h2>Area of residence</h2><p class="muted" style="margin:4px 0 12px">Enter the country and city where you live. We use it to show you the right homes and keep your account secure.</p><form id="rs" class="a2-form" novalidate><div class="field"><label for="rc">Country</label><select id="rc" required>${countryOptions(country)}</select></div><div class="field"><label for="rt">City</label><input id="rt" required maxlength="60" placeholder="e.g. Lagos" value="${esc(city)}" autocomplete="address-level2"></div><p class="err" id="rse" role="alert"></p><div class="a2-act">${required ? "" : `<button type="button" class="btn" id="rsNo">Cancel</button>`}<button class="btn primary" type="submit">Save</button></div></form>`, { sticky: true });
+    let sent = false; m.el.addEventListener("close", () => { if (!sent) resolve(null); });
+    const no = $("#rsNo", m.el); if (no) no.onclick = () => m.close();
     $("#rs", m.el).onsubmit = (e) => { e.preventDefault(); const c = $("#rc", m.el).value, t = $("#rt", m.el).value.trim(); if (!c) return ($("#rse", m.el).textContent = "Choose your country."); if (t.length < 2) return ($("#rse", m.el).textContent = "Enter your city."); sent = true; m.close(); resolve({ country: c, city: t }); };
   });
 }

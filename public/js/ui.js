@@ -92,12 +92,14 @@ export function toast(msg, opt) {
   t.textContent = msg; if (opt?.href) { const a = document.createElement("a"); a.href = opt.href; a.textContent = opt.action || "Open"; a.style.cssText = "margin-left:12px;font-weight:700;text-decoration:underline;color:inherit"; t.append(a); }
   t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), opt?.href ? 9000 : 3200);
 }
-export function modal(html) {
+export function modal(html, { sticky = false } = {}) {
   const d = document.createElement("dialog"); d.className = "modal";
-  d.innerHTML = `<button class="icon-btn close" aria-label="Close">${icon("x", 18)}</button>${html}`;
+  d.innerHTML = `${sticky ? "" : `<button class="icon-btn close" aria-label="Close">${icon("x", 18)}</button>`}${html}`;
   document.body.append(d); d.showModal();
   const close = () => { d.close(); d.remove(); };
-  $(".close", d).onclick = close; d.addEventListener("click", (e) => { if (e.target === d) close(); }); d.addEventListener("cancel", () => setTimeout(() => d.remove()));
+  // A sticky window stays until it is completed: no × button, no click outside, no Escape.
+  if (sticky) d.addEventListener("cancel", (e) => e.preventDefault());
+  else { $(".close", d).onclick = close; d.addEventListener("click", (e) => { if (e.target === d) close(); }); d.addEventListener("cancel", () => setTimeout(() => d.remove())); }
   return { el: d, close };
 }
 export const friendlyErr = (e) => ({
@@ -109,4 +111,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-09.59";
+export const BUILD = "2026-10-09.61";

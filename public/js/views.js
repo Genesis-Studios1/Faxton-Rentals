@@ -5,6 +5,7 @@ import * as st from "./store.js";
 import * as PG from "./pages.js";
 import * as A2 from "./admin2.js";
 import * as DASH from "./dash.js";
+import * as LEGAL from "./legal.js";
 import { loadLeaflet, ctrlZoom, tiles } from "./maps.js";
 import * as CALLS from "./calls.js";
 import { collectDetails, verifyPopup, resizePhoto, askResidence } from "./onboard.js";
@@ -62,6 +63,7 @@ export async function route(ctx) {
   if (path === "/login") return authPage(ctx, "login");
   if (path === "/signup") return authPage(ctx, "signup");
   if (path === "/forgot") return PG.forgotPage(ctx);
+  if (path === "/terms" || path === "/privacy") return LEGAL.legalPage(ctx, path.slice(1));
   if (path === "/download") return APPS.downloadPage(ctx);
   if (path === "/") return discover(ctx);
   if (path === "/search") return search(ctx);
@@ -83,7 +85,7 @@ export async function route(ctx) {
   if (path === "/support" || path === "/support/tickets" || path === "/support/suggestions") return DASH.supportPage(ctx, path.split("/")[2] || "");
   if (path === "/portfolio") return DASH.ownerPage(ctx, "landlord");
   if (path === "/agency") return DASH.ownerPage(ctx, "agency");
-  if (path === "/agent-dashboard") return DASH.ownerPage(ctx, "agent");
+  if (path === "/agent-dashboard" || /^\/agent-dashboard\/(leads|clients|viewings|listings)$/.test(path)) return DASH.ownerPage(ctx, "agent", path.split("/")[2] || "");
   if (path === "/admin" || path.startsWith("/admin/")) return admin(ctx, path.split("/")[2] || "");
   return null;
 }
@@ -136,7 +138,7 @@ function authPage(ctx, mode) {
     <main class="m-card"><h1>${login ? "Welcome back" : "Create your account"}</h1><p class="m-sub">${login ? "Sign in to find your next home." : "Find your place with Faxton."}</p>
     <p class="m-as">${login ? "Sign in as" : "I am…"}</p><div class="dz-role four m-role" role="tablist" aria-label="Account type">${login ? `<button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button>` : `<button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button>`}</div>
     <form id="f" novalidate>${login ? mf("email", "Email address", "mail", "Enter your email address", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Enter your password", "password", 'autocomplete="current-password"') + `<div class="m-row"><label class="m-chk"><input type="checkbox" id="remember"> Remember me</label><a href="#" id="forgot" class="dz-link">Forgot password?</a></div>`
-      : `<div class="m-avrow"><button type="button" id="avBtn" class="av-pick" aria-label="Add a profile photo">${icon("camera", 22)}</button><input type="file" id="avFile" accept="image/*" hidden><span><b>Profile photo</b><small>Optional. You can change it later in Settings.</small></span></div>` + mf("name", "Full name", "user", "Your full name", "text", 'autocomplete="name"') + mf("email", "Email address", "mail", "you@example.com", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Create a password", "password", 'autocomplete="new-password"') + `<label class="m-chk terms"><input type="checkbox" id="terms"> <span>I agree to the <a class="dz-link" href="#/signup">Terms</a> and <a class="dz-link" href="#/signup">Privacy Policy</a></span></label>`}
+      : `<div class="m-avrow"><button type="button" id="avBtn" class="av-pick" aria-label="Add a profile photo">${icon("camera", 22)}</button><input type="file" id="avFile" accept="image/*" hidden><span><b>Profile photo</b><small>Optional. You can change it later in Settings.</small></span></div>` + mf("name", "Full name", "user", "Your full name", "text", 'autocomplete="name"') + mf("email", "Email address", "mail", "you@example.com", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Create a password", "password", 'autocomplete="new-password"') + `<label class="m-chk terms"><input type="checkbox" id="terms"> <span>I agree to the <a class="dz-link" href="#/terms">Terms</a> and <a class="dz-link" href="#/privacy">Privacy Policy</a></span></label>`}
       <div class="m-hint dz-hint" id="err" role="alert" data-default="${login ? "" : "At least 8 characters"}">${login ? "" : "At least 8 characters"}</div>
       <button class="m-btn primary" type="submit">${login ? "Sign in" : "Create account"} ${icon("arrow", 22)}</button>
       <div class="m-or"><span>or</span></div>${mGoogle}</form>
@@ -155,7 +157,7 @@ function authPage(ctx, mode) {
     <div class="at dz-label rise" ${P(1021, 426, null, null, `${FS(16)}${D(.45)}`)}>Email address</div>${field("email", 1021, 456, 546, 49, 17, "mail", "you@example.com", "email", 'autocomplete="email"', .45)}
     <div class="at dz-label rise" ${P(1021, 524, null, null, `${FS(16)}${D(.5)}`)}>Password</div>${field("password", 1021, 554, 546, 49, 17, "lock", "Create a password", "password", 'autocomplete="new-password"', .5)}
     <div class="at dz-hint" id="err" role="alert" data-default="At least 8 characters" ${P(1021, 608, 546, null, FS(15))}>At least 8 characters</div>
-    <div class="at dz-check rise" ${P(1021, 650, null, null, `${FS(16)}${D(.55)}`)}><input type="checkbox" id="terms" aria-label="I agree to the Terms and Privacy Policy"><label for="terms">I agree to the <a class="dz-link" style="font-weight:400" href="#/signup">Terms</a> and <a class="dz-link" style="font-weight:400" href="#/signup">Privacy Policy</a></label></div>
+    <div class="at dz-check rise" ${P(1021, 650, null, null, `${FS(16)}${D(.55)}`)}><input type="checkbox" id="terms" aria-label="I agree to the Terms and Privacy Policy"><label for="terms">I agree to the <a class="dz-link" style="font-weight:400" href="#/terms">Terms</a> and <a class="dz-link" style="font-weight:400" href="#/privacy">Privacy Policy</a></label></div>
     <button class="at dz-btn primary rise" type="submit" ${P(1021, 698, 546, 50, `${FS(19)}--rad:8;${D(.6)}`)}>Create account ${icon("arrow", 22)}</button>
     <div class="at dz-sep fade" ${P(1021, 760, 546, 24, `${FS(17)}${D(.65)}`)}>or</div>
     ${google(1021, 796, 546, 50, 19, .65)}
@@ -191,6 +193,8 @@ function authPage(ctx, mode) {
       else if (ctx.S.bannedNote) say(friendlyErr({ code: "app/banned" }));
       else if (login && ctx.q.next) { err.dataset.default = "Please log in to access this feature."; err.textContent = err.dataset.default; }
       $$("[data-role]").forEach((b) => { b.classList.toggle("on", b.dataset.role === role); b.onclick = () => { role = b.dataset.role; $$("[data-role]").forEach((x) => x.classList.toggle("on", x === b)); }; });
+      try { const d = JSON.parse(sessionStorage.getItem("signupDraft") || "null"); if (d && !login) { ["name", "email"].forEach((k) => { if (d[k] && $("#" + k)) $("#" + k).value = d[k]; }); if (d.role && $(`[data-role="${d.role}"]`)) $(`[data-role="${d.role}"]`).click(); if (d.terms && $("#terms")) $("#terms").checked = true; } } catch {}
+      if (!login) { const keep = () => { try { sessionStorage.setItem("signupDraft", JSON.stringify({ name: $("#name")?.value || "", email: $("#email")?.value || "", role, terms: !!$("#terms")?.checked })); } catch {} }; form.addEventListener("input", keep); form.addEventListener("change", keep); $$("[data-role]").forEach((b) => b.addEventListener("click", () => setTimeout(keep))); $$("a.dz-link[href='#/terms'],a.dz-link[href='#/privacy']").forEach((a) => a.addEventListener("click", keep)); }
       let photo = null; const av = $("#avBtn");
       if (av) { av.onclick = () => $("#avFile").click(); $("#avFile").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { photo = await resizePhoto(f); av.innerHTML = `<img src="${photo}" alt="">`; av.classList.add("has"); } catch (x) { say(friendlyErr(x)); } }; }
       $$(".eye").forEach((b) => (b.onclick = () => { const i = b.parentElement.querySelector("input"); i.type = i.type === "password" ? "text" : "password"; }));
@@ -200,6 +204,7 @@ function authPage(ctx, mode) {
         say(""); if (btn) btn.disabled = true;
         try {
           const got = await fn();
+          try { sessionStorage.removeItem("signupDraft"); } catch {}
           // "Sign in as" a home owner or agency only works for accounts registered that way (staff can always sign in).
           if (login && WHO[role] && got && got !== role && !STAFF.includes(got)) { await ctx.logout(); return say(`This account isn’t registered as ${WHO[role]}. Choose “Renter”, or create ${WHO[role]} account.`); }
           const made = ctx.S.justCreated; ctx.S.justCreated = null;

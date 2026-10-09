@@ -32,7 +32,7 @@ const donut = (items, top, sub) => { const tot = items.reduce((a, x) => a + x[1]
 const rank = (rows) => { const max = Math.max(1, ...rows.map((r) => r[1])); return `<ul class="dsh-rank">${rows.map(([l, v, t]) => `<li><span>${esc(l)}</span><div><i style="width:${(v / max) * 100}%"></i></div><b>${t ?? v}</b></li>`).join("") || `<li class="muted">No data yet.</li>`}</ul>`; };
 const tbl = (cols, rows, empty = "Nothing here yet.") => `<div class="tbl-wrap dsh-tbl"><table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${rows.join("") || `<tr><td colspan="${cols.length}" class="muted">${esc(empty)}</td></tr>`}</tbody></table></div>`;
 const pill = (s) => { const k = String(s); return `<span class="pill ${/pending|review|requested|open|waiting|overdue/i.test(k) ? "warn" : /flag|reject|cancel|high/i.test(k) ? "bad" : /progress/i.test(k) ? "info" : ""}">${esc(s)}</span>`; };
-const thumb = (l) => `<img class="th" src="${esc(l.images?.[0] || l.thumb || "img/palm-court.webp")}" alt="" loading="lazy">`;
+const thumb = (l) => `<img class="dsh-th" src="${esc(l.images?.[0] || l.thumb || "img/palm-court.webp")}" alt="" loading="lazy">`;
 const csv = (name, head, rows) => { const q = (v) => `"${String(v).replace(/"/g, '""')}"`, b = new Blob([[head, ...rows].map((r) => r.map(q).join(",")).join("\n")], { type: "text/csv" }), a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
 
 // ---------- 1. platform analytics (admin and owner) ----------
@@ -148,6 +148,61 @@ export function portfolio(ctx, { ls, apps, views }, kind = "landlord") {
   } };
 }
 
+// ---------- 5. agent desk (leads, viewings, listings, clients) ----------
+const leadsOf = (apps, views) => [
+  ...views.map((v) => ({ id: v.id, kind: "viewing", name: v.name || "Prospect", email: "", prop: v.title, listingId: v.listingId, area: v.area, src: "Viewing request", stage: v.status === "Confirmed" ? "Viewing Scheduled" : v.status === "Completed" ? "Viewed" : /cancel/i.test(v.status || "") ? "Declined" : "New Lead", when: v.when, slot: v.slot, createdAt: v.createdAt })),
+  ...apps.map((a) => ({ id: a.id, kind: "application", name: a.name || "Applicant", email: a.email, prop: a.title, listingId: a.listingId, area: a.area, src: "Application", stage: /approved|active/i.test(a.status || "") ? "Closed" : /reject|cancel|declin/i.test(a.status || "") ? "Declined" : "Application", createdAt: a.createdAt })),
+].sort((x, y) => secOf(y) - secOf(x));
+const stageCls = (st0) => ({ "New Lead": "info", "Viewing Scheduled": "info", Viewed: "", Application: "warn", Closed: "", Declined: "bad" }[st0] ?? "");
+const stagePill = (s0) => `<span class="pill ${stageCls(s0)}">${esc(s0)}</span>`;
+const todayKey = () => new Date().toISOString().slice(0, 10);
+const longDay = (iso) => { const d = new Date(iso); return isNaN(d) ? { a: String(iso || "—"), b: "" } : { a: d.toISOString().slice(0, 10) === todayKey() ? "Today" : d.toLocaleDateString("en-GB", { weekday: "short" }), b: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) }; };
+
+export function agentDash(ctx, { ls, apps, views }, sub = "") {
+  const ms = months(6), L = ms.length - 1, mname = ms.map((m) => m.label), leads = leadsOf(apps, views), live = ls.filter(isActive);
+  const prof = ctx.S.profile || {}, needsV = !prof.verified, vst = prof.verification?.status || "pending";
+  const closed = apps.filter((a) => /approved|active/i.test(a.status || "")), thisMon = (docs) => perMonth(docs, ms)[L], lastMon = (docs) => perMonth(docs, ms)[L - 1];
+  const conv = leads.length ? Math.round((closed.length / leads.length) * 1000) / 10 : 0;
+  const booked = views.filter((v) => /confirmed|completed/i.test(v.status || ""));
+  const stages = [["New Lead", leads.filter((x) => x.stage === "New Lead").length], ["Viewing Scheduled", leads.filter((x) => x.stage === "Viewing Scheduled" || x.stage === "Viewed").length], ["Application", leads.filter((x) => x.stage === "Application").length], ["Closed", leads.filter((x) => x.stage === "Closed").length], ["Declined", leads.filter((x) => x.stage === "Declined").length]];
+  const perL = (id) => ({ e: [...apps, ...views].filter((x) => x.listingId === id).length, v: views.filter((x) => x.listingId === id).length });
+  const rowL = (x) => `<tr><td><div class="cell"><span class="avatar a2-av">${esc(initials(x.name))}</span><b>${esc(x.name)}</b></div></td><td>${esc(x.prop || "—")}</td><td>${esc(x.src)}</td><td>${stagePill(x.stage)}</td><td class="muted">${ago(x.createdAt)}</td></tr>`;
+  const upcoming = views.filter((v) => !/cancel|completed/i.test(v.status || "")).sort((a, b) => String(a.when).localeCompare(String(b.when)));
+  const vbanner = needsV ? `<section class="dsh-vf ${vst === "rejected" ? "bad" : ""}" data-t="verify"><span class="vf-ic">${icon(vst === "rejected" ? "info" : "clock", 24)}</span><div><b>${vst === "rejected" ? "We couldn’t verify your account" : "Your account is being verified"}</b><p>${vst === "rejected" ? esc(prof.verification?.reason || "Please contact support for details.") : "This usually takes about 10 minutes. We’ll notify you the moment you’re verified, and then you can start listing properties."}</p></div></section>` : "";
+  const tip = `<div class="dsh-tip"><span class="dsh-ki sm">${icon("chart", 18)}</span><div><b>Consistent follow-ups close deals.</b><small>Keep the momentum going.</small></div></div>`;
+  const header = (title, subt, act = "") => head({ eyebrow: "", title, sub: subt, actions: act || `<button class="btn primary" id="addp" ${needsV ? 'aria-disabled="true" style="opacity:.55"' : ""}>${icon("plus", 18)} Add property</button>` });
+  let body;
+  if (sub === "leads") body = header("Leads", `${leads.length} people have asked about your listings.`) + panel("All leads", "Newest first", tbl(["Name", "Property interest", "Source", "Stage", "Last contact"], leads.map(rowL), "No leads yet. They appear when someone books a viewing or applies."));
+  else if (sub === "clients") { const seen = new Map(); leads.forEach((x) => { const k = (x.email || x.name).toLowerCase(); if (!seen.has(k)) seen.set(k, { ...x, n: 0 }); seen.get(k).n++; }); body = header("Clients", `${seen.size} client${seen.size === 1 ? "" : "s"}`) + panel("Everyone you’re working with", "", tbl(["Client", "Email", "Latest interest", "Enquiries", "Stage"], [...seen.values()].map((x) => `<tr><td><div class="cell"><span class="avatar a2-av">${esc(initials(x.name))}</span><b>${esc(x.name)}</b></div></td><td class="muted">${esc(x.email || "—")}</td><td>${esc(x.prop || "—")}</td><td>${x.n}</td><td>${stagePill(x.stage)}</td></tr>`), "No clients yet.")); }
+  else if (sub === "viewings") body = header("Viewings", `${views.length} viewing request${views.length === 1 ? "" : "s"}`) + panel("Respond to viewing requests", "Confirm or decline", tbl(["Prospect", "Property", "When", "Status"], [...views].sort((a, b) => secOf(b) - secOf(a)).map((v) => `<tr><td><b>${esc(v.name || "")}</b></td><td>${esc(v.title || "")}</td><td>${esc(v.when || "")}${v.slot ? `, ${esc(v.slot)}` : ""}</td><td><select data-view="${esc(v.id)}" aria-label="Status">${["Requested", "Confirmed", "Completed", "Cancelled"].map((o) => `<option ${o === v.status ? "selected" : ""}>${o}</option>`).join("")}</select></td></tr>`), "No viewing requests yet."));
+  else if (sub === "listings") body = header("Listings", `${ls.length} propert${ls.length === 1 ? "y" : "ies"}`) + panel("Your listings", "", tbl(["Property", "Rent / yr", "Enquiries", "Status", ""], ls.map((l) => `<tr><td><div class="cell">${thumb(l)}<div><b>${esc(l.title)}</b><small>${esc(l.area || "")}, ${esc(l.city || "")}</small></div></div></td><td>${naira(l.price)}</td><td>${perL(l.id).e}</td><td>${pill(/pending|flag/i.test(l.status || "") ? "Pending review" : l.archived ? "Archived" : "Available")}</td><td><div class="dsh-btns">${isActive(l) ? `<a class="btn sm" href="#/home/${esc(l.id)}">View</a>` : ""}<button type="button" class="btn sm" data-loc="${esc(l.id)}">${icon("pin", 14)} ${l.hasPin ? "Edit location" : "Set location"}</button></div></td></tr>`), "You haven’t added a property yet."));
+  else {
+    const tasks = [
+      ...views.filter((v) => v.status === "Requested").slice(0, 3).map((v) => ({ ic: "phone", t: `Respond to ${v.name || "a prospect"}`, d: `Viewing request: ${v.title || ""}`, w: v.slot || "Today", late: true, href: "/agent-dashboard/viewings" })),
+      ...views.filter((v) => v.status === "Confirmed" && String(v.when).slice(0, 10) === todayKey()).slice(0, 2).map((v) => ({ ic: "cal", t: `Viewing with ${v.name || "a prospect"}`, d: v.title || "", w: v.slot || "Today", href: "/agent-dashboard/viewings" })),
+      ...apps.filter((a) => /review/i.test(a.status || "")).slice(0, 3).map((a) => ({ ic: "doc", t: `Review ${a.name || "an applicant"}’s application`, d: a.title || "", w: "Today", href: "/agent-dashboard/leads" })),
+    ].slice(0, 5);
+    let done = {}; try { done = JSON.parse(localStorage.getItem("tasks_" + ctx.S.user.uid + "_" + todayKey()) || "{}"); } catch {}
+    body = `${header("Welcome back, " + first(ctx), "Here’s what’s happening with your leads, listings and performance this month.", `${tip}<button class="btn primary" id="addp" ${needsV ? 'aria-disabled="true" style="opacity:.55"' : ""}>${icon("plus", 18)} Add property</button>`)}${vbanner}
+    <div class="dsh-kpis k6" data-t="kpis">${[
+      kpi({ ic: "users", label: "Total Leads", value: leads.length, d: pct(thisMon([...apps, ...views]), lastMon([...apps, ...views])), sub: `${thisMon([...apps, ...views])} new this month`, href: "/agent-dashboard/leads" }),
+      kpi({ ic: "home", label: "Active Listings", value: live.length, sub: `${ls.length - live.length} not live yet`, tone: "b", href: "/agent-dashboard/listings" }),
+      kpi({ ic: "cal", label: "Viewings Booked", value: booked.length, d: pct(thisMon(booked), lastMon(booked)), sub: `${views.filter((v) => v.status === "Requested").length} waiting for you`, tone: "p", href: "/agent-dashboard/viewings" }),
+      kpi({ ic: "building", label: "Closed Deals", value: closed.length, d: pct(thisMon(closed), lastMon(closed)), sub: `${thisMon(closed)} this month`, tone: "y" }),
+      kpi({ ic: "chart", label: "Conversion Rate", value: conv + "%", sub: "closed deals ÷ leads", tone: "c" }),
+      kpi({ ic: "coins", label: "Commission Earned", value: naira(0), sub: "Recorded once payments go live", tone: "g" }),
+    ].join("")}</div>
+    <div class="dsh-grid g3">${panel("Deals closed", "Approved tenants per month", `<div class="dsh-big">${closed.length}<small>closed in total</small></div>${bars([perMonth(closed, ms)], mname)}`)}${panel("Lead Pipeline", "This month", `<div class="dsh-big">${leads.length}<small>Total leads</small></div><ul class="dsh-funnel pct">${stages.map(([l, v], i) => `<li><span>${esc(l)}</span><div><i style="width:${leads.length ? Math.max(v ? 6 : 1, (v / leads.length) * 100) : 1}%;opacity:${1 - i * 0.14}"></i></div><b>${v} (${leads.length ? Math.round((v / leads.length) * 100) : 0}%)</b></li>`).join("")}</ul>`, "", "", "pipe")}${panel("Tasks / Follow-ups Due Today", "", `<ul class="dsh-tasks">${tasks.map((t, i) => `<li><label class="dsh-ck"><input type="checkbox" data-task="${i}-${esc(t.t)}" ${done[i + "-" + t.t] ? "checked" : ""}><span></span></label><span class="dsh-ki sm">${icon(t.ic, 16)}</span><div><b>${esc(t.t)}</b><small>${esc(t.d)}</small></div><em class="${t.late ? "late" : ""}">${esc(t.w)}${t.late ? "<br>Overdue" : ""}</em></li>`).join("") || `<li class="muted">You’re all caught up.</li>`}</ul>`)}</div>
+    <div class="dsh-grid g322">${panel("Recent Leads", "", tbl(["Name", "Property interest", "Source", "Stage", "Last contact"], leads.slice(0, 5).map(rowL), "No leads yet."), link("/agent-dashboard/leads"))}${panel("Upcoming Viewings", "", tbl(["Date", "Time", "Property", "Client"], upcoming.slice(0, 5).map((v) => { const d = longDay(v.when); return `<tr><td><b>${esc(d.a)}</b><small class="muted" style="display:block">${esc(d.b)}</small></td><td>${esc(v.slot || "—")}</td><td>${esc(v.title || "")}</td><td>${esc(v.name || "")}</td></tr>`; }), "No upcoming viewings."), link("/agent-dashboard/viewings"), "", "views")}${panel("Top Listings", "", `<ul class="dsh-tl">${[...ls].sort((a, b) => perL(b.id).e - perL(a.id).e).slice(0, 4).map((l) => `<li>${thumb(l)}<div><b>${esc(l.title)}</b><small>${icon("pin", 12)} ${esc(l.area || "")}</small><strong>${naira(l.price)}</strong></div><span><b>${perL(l.id).e}</b>Enquiries</span><span><b>${perL(l.id).v}</b>Viewings</span></li>`).join("") || `<li class="muted">Add a property to see it here.</li>`}</ul>`, link("/agent-dashboard/listings"), "", "props")}</div>`;
+  }
+  return { html: `<div class="dsh">${sub ? vbanner : ""}${body}</div>`, mount(root) {
+    const addp = $("#addp", root); if (addp) addp.onclick = () => (needsV ? toast("Your account is still being verified. You’ll be able to list properties as soon as it’s done.") : addProperty(ctx, () => ctx.render()));
+    $$("select[data-view]", root).forEach((sel) => (sel.onchange = async () => { try { await st.setStatus("viewings", sel.dataset.view, sel.value); toast("Status updated."); } catch (e) { toast(friendlyErr(e)); } }));
+    $$("[data-loc]", root).forEach((b) => (b.onclick = async () => { const l = ls.find((x) => x.id === b.dataset.loc); const r = await pickLocation({ lat: l.hasPin ? l.lat : undefined, lng: l.hasPin ? l.lng : undefined, title: `Location of ${l.title}` }); if (!r) return; try { await st.patch("listings", l.id, { lat: r.lat, lng: r.lng, hasPin: true }); toast("Location saved. It now shows on the map."); ctx.render(); } catch (e) { toast(friendlyErr(e)); } }));
+    $$("[data-task]", root).forEach((c) => (c.onchange = () => { try { const k = "tasks_" + ctx.S.user.uid + "_" + todayKey(), o = JSON.parse(localStorage.getItem(k) || "{}"); o[c.dataset.task] = c.checked; localStorage.setItem(k, JSON.stringify(o)); } catch {} c.closest("li").classList.toggle("done", c.checked); }));
+  } };
+}
+
 // ---------- page loaders used by the router ----------
 export const allowed = (ctx, kind) => ctx.S.isAdmin || ctx.S.role === kind;
 export const denied = () => ({ title: "Not available", html: `<div class="empty"><h2>This area isn’t available for your account</h2><p>Ask the Faxton owner to give your account access.</p><p style="margin-top:14px"><a class="btn" href="#/">Back home</a></p></div>` });
@@ -158,10 +213,10 @@ export async function supportPage(ctx, sub) {
   if (sub === "tickets") { const A2 = await import("./admin2.js"); const v = A2.support(ctx, tks); return { title: "Tickets", role: "support", html: v.html, mount: v.mount }; }
   const v = support(ctx, { tks, convs }); return { title: "Support dashboard", role: "support", html: v.html, mount: v.mount };
 }
-export async function ownerPage(ctx, kind) {
+export async function ownerPage(ctx, kind, sub = "") {
   if (!allowed(ctx, kind)) return denied();
   const uid = ctx.S.user.uid, [ls, apps, views] = await Promise.all([st.ownedDocs("listings", uid), st.ownedDocs("applications", uid), st.ownedDocs("viewings", uid)]);
-  const v = portfolio(ctx, { ls, apps, views }, kind); return { title: { agency: "Agency dashboard", agent: "Agent dashboard", landlord: "My portfolio" }[kind], role: kind, html: v.html, mount: v.mount };
+  const v = kind === "agent" ? agentDash(ctx, { ls, apps, views }, sub) : portfolio(ctx, { ls, apps, views }, kind); return { title: { agency: "Agency dashboard", agent: "Agent dashboard", landlord: "My portfolio" }[kind], role: kind, html: v.html, mount: v.mount };
 }
 
 // ---------- admin: verification requests ----------
