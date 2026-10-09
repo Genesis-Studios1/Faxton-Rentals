@@ -3,6 +3,7 @@ import { $, $$, esc, naira, icon, toast, modal, friendlyErr, initials, verifiedB
 import * as st from "./store.js";
 import * as AREA from "./area.js";
 import * as OFFERS from "./offers.js";
+import * as VS from "./viewsafe.js";
 
 const bedsLabel = (n) => (n === 0 ? "Studio" : `${n} bed${n > 1 ? "s" : ""}`);
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -58,7 +59,7 @@ export async function agentPage(ctx, id) {
 export async function bookPage(ctx, id) {
   const l = await st.getListing(id); if (!l) return notFound();
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const S = { date: ctx.q.date ? new Date(ctx.q.date + "T00:00:00") : null, slot: ctx.q.slot || "", tour: ctx.q.tour === "virtual" ? "Virtual tour" : "In-person tour", step: 1, month: null, phone: ctx.S.profile?.phone || "", note: "" };
+  const S = { date: ctx.q.date ? new Date(ctx.q.date + "T00:00:00") : null, slot: ctx.q.slot || "", tour: ctx.q.tour === "virtual" ? "Virtual tour" : "In-person tour", step: 1, month: null, phone: ctx.S.profile?.phone || "", note: "", trusted: VS.getTrusted(ctx.S.user.uid) || {}, agentVerified: false };
   if (S.date && (isNaN(S.date) || S.date <= today || S.date.getDay() === 0)) S.date = null;
   if (!S.date) { const d = new Date(today.getTime() + 864e5); while (d.getDay() === 0) d.setDate(d.getDate() + 1); S.date = d; }
   S.month = new Date(S.date.getFullYear(), S.date.getMonth(), 1);
@@ -87,8 +88,8 @@ export async function bookPage(ctx, id) {
               <h2 class="tt">Tour type</h2><div class="tour-types">${[["In-person tour", "pin", "Meet the agent at the property"], ["Virtual tour", "video", "Join a live video tour"]].map(([t, ic, d]) => `<button type="button" class="tt-opt ${S.tour === t ? "on" : ""}" data-tt="${t}"><i class="rd"></i><span><b>${icon(ic, 20)} ${t}</b><small>${d}</small></span></button>`).join("")}</div></div></section>`;
         } else if (step === 2) {
           main = `<section class="pg-box form-box"><h2>Your details</h2><p class="sub">The agent will use these to confirm your viewing.</p><div class="f2"><label class="fl">Full name<input id="bn" value="${esc(ctx.S.user.displayName || "")}" disabled></label><label class="fl">Email address<input value="${esc(ctx.S.user.email)}" disabled></label>
-            <label class="fl">Phone number<input id="bp" type="tel" placeholder="Enter your phone number" value="${esc(S.phone)}" maxlength="30"></label></div><label class="fl" style="margin-top:14px">Note for the agent (optional)<textarea id="bnote" rows="3" maxlength="300" placeholder="Anything the agent should know?">${esc(S.note)}</textarea></label><div class="err" id="berr" role="alert"></div></section>`;
-        } else main = `<section class="pg-box form-box"><h2>Confirm your viewing</h2><p class="sub">Check the details below, then confirm.</p><div class="kv"><span>Property</span><b>${esc(l.title)}</b></div><div class="kv"><span>Date</span><b>${longDate(S.date)}</b></div><div class="kv"><span>Time</span><b>${S.slot}</b></div><div class="kv"><span>Tour type</span><b>${S.tour}</b></div><div class="kv"><span>Agent</span><b>${esc(l.agent.name)}</b></div><div class="kv"><span>Phone</span><b>${esc(S.phone || "—")}</b></div><div class="err" id="berr" role="alert"></div></section>`;
+            <label class="fl">Phone number<input id="bp" type="tel" placeholder="Enter your phone number" value="${esc(S.phone)}" maxlength="30"></label></div><label class="fl" style="margin-top:14px">Note for the agent (optional)<textarea id="bnote" rows="3" maxlength="300" placeholder="Anything the agent should know?">${esc(S.note)}</textarea></label>${VS.trustedFields(S.trusted)}<div class="err" id="berr" role="alert"></div></section>`;
+        } else main = `<section class="pg-box form-box"><h2>Confirm your viewing</h2><p class="sub">Check the details below, then confirm.</p><div class="kv"><span>Property</span><b>${esc(l.title)}</b></div><div class="kv"><span>Date</span><b>${longDate(S.date)}</b></div><div class="kv"><span>Time</span><b>${S.slot}</b></div><div class="kv"><span>Tour type</span><b>${S.tour}</b></div><div class="kv"><span>Agent</span><b>${esc(l.agent.name)}</b></div><div class="kv"><span>Phone</span><b>${esc(S.phone || "—")}</b></div>${S.trusted?.name ? `<div class="kv"><span>Trusted contact</span><b>${esc(S.trusted.name)}</b></div>` : ""}<h3 class="vs-h3">Your agent</h3>${VS.identityHtml(l.agent, S.agentVerified)}<details class="vs-tips"><summary>${icon("shield", 16)} Staying safe at a viewing</summary><ul><li>View in daylight and tell someone where you are going.</li><li>Check in when you arrive and check out when you leave. We’ll prompt you if it runs long.</li><li>Never pay cash or a deposit before you have seen the home and the documents.</li><li>Use the Emergency button on your Viewings page if anything feels wrong.</li></ul></details><div class="err" id="berr" role="alert"></div></section>`;
         bk.innerHTML = `${hdr}<div class="bk-grid">${main}${side}</div>
           <div class="bk-bar"><span class="cal-ic">${icon("cal", 26)}</span><div><small>Selected viewing</small><b>${longDate(S.date)} at ${S.slot}</b></div>${step > 1 ? `<button class="btn" id="bb">Back</button>` : ""}<button class="btn solid" id="bn2">${step === 3 ? "Confirm viewing" : "Continue"} ${icon("arrow", 20)}</button></div>`;
         wire();
@@ -102,17 +103,17 @@ export async function bookPage(ctx, id) {
         $("#bn2", bk).onclick = async () => {
           keep(); const err = $("#berr", bk);
           if (S.step === 2 && !/^[+\d][\d\s-]{6,}$/.test(S.phone.trim())) return (err.textContent = "Enter a valid phone number.");
+          if (S.step === 2 && !VS.validTrusted(bk)) return (err.textContent = "Enter both the name and a valid phone number for your trusted contact, or leave both empty.");
           if (S.step < 3) { S.step++; return draw(); }
           const b = $("#bn2", bk); b.disabled = true;
-          try { await st.addViewing(ctx.S.user, l, iso(S.date), S.slot, { tour: S.tour, phone: S.phone, note: S.note });
+          try { await st.addViewing(ctx.S.user, l, iso(S.date), S.slot, { tour: S.tour, phone: S.phone, note: S.note, agentUid: l.ownerUid || l.agent.id, agentName: l.agent.name, agentPhoto: l.agent.avatar, agentVerified: !!S.agentVerified, ...(S.trusted?.name && S.trusted?.phone ? { trusted: S.trusted } : {}) });
+            if (S.trusted?.name && S.trusted?.phone) VS.saveTrusted(ctx.S.user.uid, S.trusted);
             try { const cid = await st.ensureConversation(ctx.S.user, l); await st.sendMessage(ctx.S.user, cid, `Viewing requested: ${longDate(S.date)}, ${S.slot}`, { type: "booking", when: iso(S.date), slot: S.slot, title: l.title, area: l.area, image: l.thumb || l.images[0] }); } catch {}
             toast("Viewing requested. We’ll confirm shortly."); ctx.go("#/bookings"); } catch (e) { err.textContent = friendlyErr(e); b.disabled = false; }
         };
       };
-      const keep = () => { const p = $("#bp", bk), n = $("#bnote", bk); if (p) S.phone = p.value; if (n) S.note = n.value; };
-      $$("[data-hp]", root).forEach((b) => (b.onclick = () => { const sug = b.dataset.hp === "sug"; $$("[data-hp]", root).forEach((x) => x.classList.toggle("on", x === b)); $("#hpSug", root).hidden = !sug; $(".help-cats", root).hidden = sug; $(".help-grid", root).hidden = sug; }));
-      $("#sf", root).onsubmit = async (e) => { e.preventDefault(); const text = $("#sgx", root).value.trim(), err = $("#sge", root); err.textContent = ""; if (text.length < 5) return (err.textContent = "Please write a little more."); const btn = e.target.querySelector("button"); btn.disabled = true;
-        try { await st.addSuggestion(ctx.S.user, { topic: $("#sgt", root).value, text }); $("#sgx", root).value = ""; toast("Thank you! Your suggestion has been sent."); } catch (x) { err.textContent = friendlyErr(x); } finally { btn.disabled = false; } };
+      const keep = () => { const p = $("#bp", bk), n = $("#bnote", bk); if (p) S.phone = p.value; if (n) S.note = n.value; if ($("#tcName", bk)) S.trusted = { name: $("#tcName", bk).value.trim(), phone: $("#tcPhone", bk).value.trim() }; };
+      st.getPublic(l.ownerUid || l.agent.id).then((pb) => { S.agentVerified = !!pb?.verified; if (S.step === 3) draw(); });
       draw();
     } };
 }
@@ -368,6 +369,9 @@ export async function helpPage(ctx) {
           try { await st.addTicket(ctx.S.user, { subject: $("#ts", m.el).value, message: msg }); m.close(); toast("Request sent. We’ll reply by email."); ctx.render(); } catch (x) { $("#te2", m.el).textContent = friendlyErr(x); b.disabled = false; } }; };
       $("#nt", root).onclick = form;
       $("#vt", root).onclick = () => { if (!tickets.length) return toast("No tickets yet."); modal(`<h2>My tickets</h2>${tickets.map((t) => `<div class="tk" style="margin-top:10px"><div class="tk-top"><small>#${esc(t.ref)}</small><span class="pill info">${esc(t.status)}</span></div><b>${esc(t.subject)}</b><p>${esc(t.message)}</p><small class="muted">Opened ${fmtD(t.createdAt)}</small></div>`).join("")}`); };
+      $$("[data-hp]", root).forEach((b) => (b.onclick = () => { const sug = b.dataset.hp === "sug"; $$("[data-hp]", root).forEach((x) => x.classList.toggle("on", x === b)); $("#hpSug", root).hidden = !sug; $(".help-cats", root).hidden = sug; $(".help-grid", root).hidden = sug; }));
+      $("#sf", root).onsubmit = async (e) => { e.preventDefault(); const text = $("#sgx", root).value.trim(), err = $("#sge", root); err.textContent = ""; if (text.length < 5) return (err.textContent = "Please write a little more."); const btn = e.target.querySelector("button"); btn.disabled = true;
+        try { await st.addSuggestion(ctx.S.user, { topic: $("#sgt", root).value, text }); $("#sgx", root).value = ""; toast("Thank you! Your suggestion has been sent."); } catch (x) { err.textContent = friendlyErr(x); } finally { btn.disabled = false; } };
       draw();
     } };
 }
