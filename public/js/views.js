@@ -273,16 +273,49 @@ async function search(ctx) {
     } };
 }
 
+// ---------- photo & video viewer ----------
+const videoEmbed = (u) => {
+  let m;
+  if ((m = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/))([\w-]{11})/.exec(u))) return { kind: "frame", src: `https://www.youtube-nocookie.com/embed/${m[1]}?rel=0`, thumb: `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` };
+  if ((m = /vimeo\.com\/(?:video\/)?(\d+)/.exec(u))) return { kind: "frame", src: `https://player.vimeo.com/video/${m[1]}` };
+  return { kind: "file", src: u };
+};
+function openViewer(items, start = 0) {
+  if (!items.length || document.querySelector(".vw-ov")) return;
+  let i = start;
+  const ov = document.createElement("div"); ov.className = "vw-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Photos and videos");
+  const stage = () => { const it = items[i];
+    return it.type === "video" ? (it.kind === "frame" ? `<iframe src="${esc(it.src)}" title="Video tour" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>` : `<video src="${esc(it.src)}" controls playsinline preload="metadata" autoplay></video>`) : `<img src="${esc(it.src)}" alt="">`; };
+  const paint = () => {
+    $(".vw-stage", ov).innerHTML = stage();
+    $(".vw-count", ov).textContent = `${i + 1} / ${items.length}`;
+    $$(".vw-th", ov).forEach((b, k) => b.classList.toggle("on", k === i));
+    $(".vw-th.on", ov)?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  };
+  ov.innerHTML = `<button type="button" class="vw-x" aria-label="Close">${icon("x", 22)}</button><button type="button" class="vw-nav vw-prev" aria-label="Previous">${icon("left", 24)}</button><div class="vw-stage"></div><button type="button" class="vw-nav vw-next" aria-label="Next"><span style="display:grid;transform:rotate(180deg)">${icon("left", 24)}</span></button>
+    <div class="vw-bar"><span class="vw-count"></span><div class="vw-strip">${items.map((it, k) => `<button type="button" class="vw-th" data-k="${k}" aria-label="${it.type === "video" ? "Video" : "Photo"} ${k + 1}">${it.type === "video" ? `<span class="vw-play">${icon("video", 18)}</span>` : `<img src="${esc(it.src)}" alt="" loading="lazy">`}</button>`).join("")}</div></div>`;
+  document.body.append(ov); document.documentElement.classList.add("dlx-lock");
+  const shut = () => { document.removeEventListener("keydown", key); document.documentElement.classList.remove("dlx-lock"); ov.remove(); };
+  const go = (d) => { i = (i + d + items.length) % items.length; paint(); };
+  const key = (e) => { if (e.key === "Escape") shut(); else if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1); };
+  document.addEventListener("keydown", key);
+  $(".vw-x", ov).onclick = shut; $(".vw-prev", ov).onclick = () => go(-1); $(".vw-next", ov).onclick = () => go(1);
+  ov.addEventListener("click", (e) => { if (e.target === ov || e.target.classList.contains("vw-stage")) shut(); });
+  $$(".vw-th", ov).forEach((b) => (b.onclick = () => { i = +b.dataset.k; paint(); }));
+  let x0 = null; ov.addEventListener("touchstart", (e) => (x0 = e.touches[0].clientX), { passive: true }); ov.addEventListener("touchend", (e) => { if (x0 !== null && Math.abs(e.changedTouches[0].clientX - x0) > 50) go(e.changedTouches[0].clientX < x0 ? 1 : -1); x0 = null; }, { passive: true });
+  paint(); $(".vw-x", ov).focus();
+}
+
 // ---------- detail ----------
 async function detail(ctx, id) {
   const l = await st.getListing(id);
   if (!l) return { title: "Not found", html: `<div class="empty"><h2>This home isn’t available</h2><p><a class="link" href="#/search">Browse homes</a></p></div>` };
   const total = l.price + l.service + l.deposit, on = ctx.S.saved.has(l.id), A = { Parking: "car", "Water supply": "drop", Security: "shield", Balcony: "building" };
-  const im = l.images, gal = im.length > 1 ? `<div class="gallery"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div><div><img src="${esc(im[1])}" alt=""></div><div>${im[2] ? `<img src="${esc(im[2])}" alt="">` : ""}<button class="show-all" id="all">${icon("img", 18)} Show all photos</button></div></div>` : `<div class="gallery one"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div></div>`;
+  const im = l.images, vids = (l.videos || []).map((u) => ({ type: "video", ...videoEmbed(u) })), media = [...im.map((src) => ({ type: "img", src })), ...vids], gal = im.length > 1 ? `<div class="gallery"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div><div><img src="${esc(im[1])}" alt=""></div><div>${im[2] ? `<img src="${esc(im[2])}" alt="">` : ""}<button class="show-all" id="all">${icon("img", 18)} Show all photos</button></div></div>` : `<div class="gallery one"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div></div>`;
   return { title: l.title, html: `<div class="wrap"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Discover</a>${icon("chev", 14)}<a href="#/search">${esc(l.city)}</a>${icon("chev", 14)}<a href="#/search?area=${esc(l.area.split(/[ ,]/)[0].toLowerCase())}">${esc(l.area.split(",")[0].replace(" Phase 1", ""))}</a></nav>
     <div class="detail"><div><div class="d-head"><div><h1>${esc(l.title)}</h1><div class="loc" style="color:var(--text);margin-top:8px;font-size:1.05rem"><span style="color:var(--brand)">${icon("pin", 20)}</span>${esc(l.area)}, ${esc(l.city)}</div></div>
       <div style="display:flex;gap:10px"><button class="btn sm" id="save" style="border-color:var(--border);color:var(--text)">${icon("heart", 18)} <span>${on ? "Saved" : "Save"}</span></button><button class="btn sm" id="share" style="border-color:var(--border);color:var(--text)">${icon("share", 18)} Share</button></div></div>
-      ${gal}<div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div><div class="fact">${icon("area", 22)}${l.sqm} m²</div></div>
+      ${gal}${vids.length ? `<div class="vid-row"><button type="button" class="vid-btn" data-vid="${im.length}"><span class="vid-ic">${icon("video", 20)}</span><span><b>Watch ${vids.length > 1 ? vids.length + " videos" : "the video tour"}</b><small>${im.length} photo${im.length === 1 ? "" : "s"} · ${vids.length} video${vids.length === 1 ? "" : "s"}</small></span></button></div>` : ""}<div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div><div class="fact">${icon("area", 22)}${l.sqm} m²</div></div>
       <h2 style="margin:28px 0 8px">About this home</h2><p class="muted" style="max-width:720px;font-size:1.05rem">${esc(l.desc)}</p><hr class="divider">
       <div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap"><h2>Amenities</h2><div class="amen" style="margin:0">${l.amenities.map((a) => `<span>${icon(A[a] || "check", 22)}${esc(a)}</span>`).join("")}</div></div></div>
     <aside class="side-card"><div class="big-price">${naira(l.price)} <small>/ year</small></div><p class="muted">Annual payment</p>
@@ -294,7 +327,9 @@ async function detail(ctx, id) {
       const authed = (fn) => () => (ctx.S.user ? fn() : (toast("Please sign in first."), ctx.go("#/login?next=" + encodeURIComponent("/home/" + l.id))));
       $("#save").onclick = async () => { const n = !ctx.S.saved.has(l.id); await ctx.setSaved(l.id, n); $("#save span").textContent = n ? "Saved" : "Save"; };
       $("#share").onclick = async () => { const url = location.href; try { navigator.share ? await navigator.share({ title: l.title, url }) : (await navigator.clipboard.writeText(url), toast("Link copied.")); } catch {} };
-      const all = $("#all"); if (all) all.onclick = () => modal(`<h2>${esc(l.title)}</h2><div class="lightbox">${im.map((s) => `<img src="${esc(s)}" alt="">`).join("")}</div>`);
+      const all = $("#all"); if (all) all.onclick = () => openViewer(media, 0);
+      $$(".gallery img").forEach((g, k) => { g.style.cursor = "zoom-in"; g.onclick = () => openViewer(media, k); });
+      $$("[data-vid]").forEach((b) => (b.onclick = () => openViewer(media, +b.dataset.vid)));
       $("#msg").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } });
       $("#view").onclick = authed(() => ctx.go("#/book/" + l.id));
       $("#apply").onclick = authed(() => ctx.go("#/apply/" + l.id));

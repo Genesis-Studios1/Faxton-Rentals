@@ -5,7 +5,7 @@ import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, whe
 
 let cache = null;
 // Fill any missing fields so a partial or older Firestore listing can never break a page.
-const norm = (l) => { const seed = SEED.find((x) => x && x.id === l.id) || {}; const o = { ...seed, ...l }; o.agent = { ...(seed.agent || {}), ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; return o; };
+const norm = (l) => { const seed = SEED.find((x) => x && x.id === l.id) || {}; const o = { ...seed, ...l }; o.agent = { ...(seed.agent || {}), ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
 export async function getListings(force = false) {
   if (cache && !force) return cache;
   // Stale-while-revalidate: show the last known listings instantly, then refresh them in the background.
