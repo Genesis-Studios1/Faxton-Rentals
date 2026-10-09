@@ -1665,7 +1665,7 @@ dialog.nodismiss .close{display:none!important}
 @media (max-width:860px){.mx-thread{background-size:480px 448px}}
 
 /* ---- chat in the dark design: curved backdrop, voice messages, files, call cards, unread line ---- */
-:root[data-theme=dark] .mx-thread{background-image:linear-gradient(rgba(3,14,11,.42),rgba(3,14,11,.42)),url(../img/call-bg-wide.webp);background-size:cover;background-position:center}
+:root[data-theme=dark] .mx-thread{background-image:linear-gradient(rgba(3,14,11,.30),rgba(3,14,11,.30)),url(../img/call-bg-wide.webp);background-size:cover;background-position:center}
 .mx-vn{display:flex;align-items:center;gap:12px;min-width:min(300px,60vw)}.mx-play{width:44px;height:44px;border-radius:50%;border:0;background:color-mix(in srgb,currentColor 14%,transparent);color:inherit;display:grid;place-items:center;flex:none;cursor:pointer}.mx-play svg{margin-left:2px}.mx-vn.playing .mx-play svg{display:none}.mx-vn.playing .mx-play:after{content:"";width:12px;height:14px;border-left:4px solid currentColor;border-right:4px solid currentColor}
 .mx-wv{display:flex;align-items:center;gap:2px;height:34px;flex:1}.mx-wv i{flex:1;max-width:5px;min-width:2px;border-radius:2px;background:currentColor;opacity:.35}.mx-wv i.on{background:#34d399;opacity:1}.mx-row:not(.me) .mx-wv i.on{background:var(--brand)}
 .mx-vd{font-size:.8rem;opacity:.75;align-self:flex-end;margin-bottom:2px;white-space:nowrap}.mx-b.has-vn{padding-right:14px}
