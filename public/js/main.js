@@ -144,6 +144,7 @@ async function ensureProfile(u, extra = {}) {
 async function rejectIfBanned(u) {
   const p = await getProfile(u.uid);
   if (p?.banned) { S.bannedNote = true; try { await signOut(auth); } catch {} throw Object.assign(new Error("banned"), { code: "app/banned" }); }
+  return p;
 }
 async function signIn(email, pw, remember = true) {
   await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
@@ -153,13 +154,14 @@ async function signIn(email, pw, remember = true) {
     if (["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password"].includes(e?.code) && (await hasAccountMarker(email)) === false) throw Object.assign(new Error("no account"), { code: "app/no-account" });
     throw e;
   }
-  await rejectIfBanned(c.user);
+  const p = await rejectIfBanned(c.user);
   writeAccountMarker(email);
+  return p?.role || "renter";
 }
 async function signUp(name, email, pw, role) {
   const c = await createUserWithEmailAndPassword(auth, email, pw);
   try { await updateProfile(c.user, { displayName: name }); } catch {}
-  const mk = () => ensureProfile(c.user, { name, role: role === "agent" ? "agent" : "renter" });
+  const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter" });
   try { await mk(); } catch { await mk(); }
   try { await sendEmailVerification(c.user); } catch {}
   // Load the new profile now so the app opens signed in on the home page.
@@ -178,7 +180,7 @@ async function probeGoogle() {
   const seen = performance.getEntriesByType("resource").filter((x) => /googleapis|firebaseapp|google\.com|gstatic/.test(x.name) && !/identitytoolkit.*projects\?key/.test(x.name) || /accounts:|projects/.test(x.name)).slice(-4).map((x) => `${new URL(x.name).host.split(".")[0]}${new URL(x.name).pathname.split("/").pop().slice(0, 14)}:${x.responseStatus || 0}/${Math.round(x.duration)}`);
   return "|" + r.join(",") + "|seen:" + seen.join(",") + (window.__csp ? "|" + window.__csp : "");
 }
-async function signInGoogle() {
+async function signInGoogle(chosen = "renter") {
   // Google blocks sign-in inside an app's embedded browser, so the mobile app asks Google natively and hands the result to Firebase.
   const cap = window.Capacitor;
   if (/FaxtonApp\/mobile/.test(navigator.userAgent) && cap) {
@@ -192,7 +194,7 @@ async function signInGoogle() {
     let c;
     try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken)); }
     catch (e) { throw Object.assign(new Error(e?.message), { code: `firebase/${e?.code || "error"}${window.__csp ? " | " + window.__csp : ""}` }); }
-    await ensureProfile(c.user); return rejectIfBanned(c.user);
+    await ensureProfile(c.user, { role: chosen }); return (await rejectIfBanned(c.user))?.role || "renter";
   }
   const t0 = performance.now();
   let c;
@@ -204,8 +206,8 @@ async function signInGoogle() {
     const probes = e?.code === "auth/network-request-failed" ? await probeGoogle() : "";
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
   }
-  await ensureProfile(c.user);
-  await rejectIfBanned(c.user);
+  await ensureProfile(c.user, { role: ["landlord", "agency"].includes(chosen) ? chosen : "renter" });
+  return (await rejectIfBanned(c.user))?.role || "renter";
 }
 const logout = () => signOut(auth);
 async function setSaved(id, on) {
