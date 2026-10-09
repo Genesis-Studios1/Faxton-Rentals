@@ -154,3 +154,6 @@ export const getPublic = async (uid) => { if (!uid) return null; if (pubCache.ha
 export const syncPublic = (uid, d) => { pubCache.delete(uid); return setDoc(doc(db, "profiles", uid), { ...d, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {}); };
 // An admin opening the Users page marks everyone already verified on their public card too.
 export const syncVerified = (users) => Promise.all(users.filter((u) => u.verified === true && u.id).map((u) => setDoc(doc(db, "profiles", u.id), { name: u.agency?.business || u.name || "User", role: u.role || "", photo: u.photo || "", verified: true, updatedAt: serverTimestamp() }, { merge: true }).catch(() => {})));
+
+// React to a message with an emoji (null removes my reaction).
+export const reactToMessage = (cid, mid, uid, emoji) => updateDoc(doc(db, "conversations", cid, "messages", mid), { ["reactions." + uid]: emoji || deleteField() });
