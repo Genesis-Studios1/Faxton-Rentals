@@ -52,7 +52,7 @@ const ROLE_UI = {
   support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
   landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console: its own header + labelled sidebar, with a way back to the site.
@@ -97,7 +97,8 @@ export async function render() {
   if (!S.ready) return;
   // Everything except onboarding, login and sign-up needs an account. Signed-out visitors start at the onboarding.
   const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup" || path === "/forgot" || path === "/download";
-  if (!S.user && !open) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
+  const pub = path === "/terms" || path === "/privacy";
+  if (!S.user && !open && !pub) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (S.user && open) return go("#" + (q.next || "/"));
   // Staff accounts open their own dashboard first, once per visit.
   if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
@@ -116,8 +117,13 @@ export async function render() {
   view.mount?.(app, ctx);
   if (S.user) { startUpdateWatch(S); syncShellAutoUpdate(S.profile?.prefs?.autoUpdate); } else stopUpdateWatch();
   const tk = !S.user ? null : path === "/" ? (S.isAdmin || ROLE_UI[S.role] ? null : "renter") : S.isAdmin && path === "/admin" ? "admin" : ROLE_UI[S.role]?.home === path ? S.role : null;
-  if (S.user && S.profile && !S.profile.country && !S.askingRes) { S.askingRes = true; askResidence({ required: true }).then(async (r) => { if (!r) return; try { await saveProfile(S.user.uid, { country: r.country, city: r.city, location: `${r.city}, ${r.country}` }); S.profile = { ...S.profile, ...r }; toast("Thanks! Your location is saved."); } catch (e) { toast(friendlyErr(e)); } finally { S.askingRes = false; } }); }
-  else if (S.user && (path === "/" || path === roleHome())) whenReady(() => setTimeout(askNotifications, 600));
+  // After the splash, on the home page (or a staff member's dashboard), anyone without an area of residence is asked once.
+  const homeish = path === "/" || path === roleHome();
+  if (S.user && S.profile && !S.profile.country && homeish) whenReady(() => {
+    if (S.askingRes || S.profile?.country || !(parse().path === "/" || parse().path === roleHome())) return; S.askingRes = true;
+    askResidence({ required: true }).then(async (r) => { if (!r) { S.askingRes = false; return; } try { await saveProfile(S.user.uid, { country: r.country, city: r.city, location: `${r.city}, ${r.country}` }); S.profile = { ...S.profile, ...r }; toast("Thanks! Your area of residence is saved."); setTimeout(askNotifications, 800); } catch (e) { toast(friendlyErr(e)); } finally { S.askingRes = false; } });
+  });
+  else if (S.user && homeish) whenReady(() => setTimeout(askNotifications, 600));
   if (tk && !tourSeen(S.user, tk)) whenReady(() => { if (parse().path === path) startTour(S.user, (S.user.displayName || "").split(" ")[0], tk); });
 }
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
