@@ -5,6 +5,7 @@ import * as st from "./store.js";
 import * as PG from "./pages.js";
 import * as A2 from "./admin2.js";
 import * as DASH from "./dash.js";
+import { collectDetails, verifyPopup } from "./onboard.js";
 import * as APPS from "./apps.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
@@ -69,9 +70,10 @@ export async function route(ctx) {
   if ((m = path.match(/^\/apply\/([^/]+)$/))) return PG.applyPage(ctx, decodeURIComponent(m[1]));
   if ((m = path.match(/^\/call\/([^/]+)$/))) return PG.callPage(ctx, decodeURIComponent(m[1]));
   if (path === "/settings" || path.startsWith("/settings/")) return settings(ctx, path.split("/")[2] || "profile");
-  if (path === "/support" || path === "/support/tickets") return DASH.supportPage(ctx, path.split("/")[2] || "");
-  if (path === "/portfolio") return DASH.ownerPage(ctx, false);
-  if (path === "/agency") return DASH.ownerPage(ctx, true);
+  if (path === "/support" || path === "/support/tickets" || path === "/support/suggestions") return DASH.supportPage(ctx, path.split("/")[2] || "");
+  if (path === "/portfolio") return DASH.ownerPage(ctx, "landlord");
+  if (path === "/agency") return DASH.ownerPage(ctx, "agency");
+  if (path === "/agent-dashboard") return DASH.ownerPage(ctx, "agent");
   if (path === "/admin" || path.startsWith("/admin/")) return admin(ctx, path.split("/")[2] || "");
   return null;
 }
@@ -122,7 +124,7 @@ function authPage(ctx, mode) {
   const mGoogle = `<button type="button" id="google" class="m-btn ghost">${GOOGLE.replace('class="gicon"', 'class="gicon" style="width:22px;height:22px"')} Continue with Google</button>`;
   if (mobile) html = `<div class="m-auth"><header class="m-hero" style="background-image:linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,0) 45%,rgba(0,0,0,.55)),url(img/${login ? "login-hero" : "signup-hero"}.webp)"><a class="m-logo" href="#/" aria-label="Faxton Rentals">${logoMark()}<span><b>Faxton</b> Rentals</span></a><p>${login ? "A fresh start begins here." : "Make room for what comes next."}</p></header>
     <main class="m-card"><h1>${login ? "Welcome back" : "Create your account"}</h1><p class="m-sub">${login ? "Sign in to find your next home." : "Find your place with Faxton."}</p>
-    <p class="m-as">${login ? "Sign in as" : "I am…"}</p><div class="dz-role three m-role" role="tablist" aria-label="Account type">${login ? `<button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button>` : `<button type="button" class="on" data-role="renter">I’m renting</button><button type="button" data-role="landlord">I own a home</button><button type="button" data-role="agency">I’m an agency</button>`}</div>
+    <p class="m-as">${login ? "Sign in as" : "I am…"}</p><div class="dz-role four m-role" role="tablist" aria-label="Account type">${login ? `<button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button>` : `<button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button>`}</div>
     <form id="f" novalidate>${login ? mf("email", "Email address", "mail", "Enter your email address", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Enter your password", "password", 'autocomplete="current-password"') + `<div class="m-row"><label class="m-chk"><input type="checkbox" id="remember"> Remember me</label><a href="#" id="forgot" class="dz-link">Forgot password?</a></div>`
       : mf("name", "Full name", "user", "Your full name", "text", 'autocomplete="name"') + mf("email", "Email address", "mail", "you@example.com", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Create a password", "password", 'autocomplete="new-password"') + `<label class="m-chk terms"><input type="checkbox" id="terms"> <span>I agree to the <a class="dz-link" href="#/signup">Terms</a> and <a class="dz-link" href="#/signup">Privacy Policy</a></span></label>`}
       <div class="m-hint dz-hint" id="err" role="alert" data-default="${login ? "" : "At least 8 characters"}">${login ? "" : "At least 8 characters"}</div>
@@ -138,7 +140,7 @@ function authPage(ctx, mode) {
     <form id="f" class="at" novalidate ${P(0, -38, 1672, 941)}>
     <h1 class="at rise" ${P(916, 134, 756, null, `text-align:center;${FS(41, 56)}letter-spacing:-.036em;${D(.25)}`)}>Find your place with Faxton</h1>
     <p class="at rise" ${P(916, 193, 756, null, `text-align:center;${FS(22)}color:#68746f;${D(.3)}`)}>Create an account to get started.</p>
-    <div class="at dz-role three rise" role="tablist" aria-label="Account type" ${P(1021, 257, 546, 49, D(.35))}><button type="button" class="on" data-role="renter">I’m renting</button><button type="button" data-role="landlord">I own a home</button><button type="button" data-role="agency">I’m an agency</button></div>
+    <div class="at dz-role four rise" role="tablist" aria-label="Account type" ${P(1021, 257, 546, 49, D(.35))}><button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button></div>
     <div class="at dz-label rise" ${P(1021, 328, null, null, `${FS(16)}${D(.4)}`)}>Full name</div>${field("name", 1021, 358, 546, 49, 17, "user", "Your full name", "text", 'autocomplete="name"', .4)}
     <div class="at dz-label rise" ${P(1021, 426, null, null, `${FS(16)}${D(.45)}`)}>Email address</div>${field("email", 1021, 456, 546, 49, 17, "mail", "you@example.com", "email", 'autocomplete="email"', .45)}
     <div class="at dz-label rise" ${P(1021, 524, null, null, `${FS(16)}${D(.5)}`)}>Password</div>${field("password", 1021, 554, 546, 49, 17, "lock", "Create a password", "password", 'autocomplete="new-password"', .5)}
@@ -159,7 +161,7 @@ function authPage(ctx, mode) {
     <form id="f" class="at" novalidate ${P(0, 0, 1672, 941)}>
     <h1 class="at rise" ${P(960, 134, 700, null, `${FS(60.5, 76)}letter-spacing:-.058em;${D(.25)}`)}>Welcome back</h1>
     <p class="at rise" ${P(962, 207, 700, null, `${FS(34.4, 44)}color:#68746f;letter-spacing:-.02em;${D(.3)}`)}>Sign in to find your next home.</p>
-    <div class="at dz-role three rise" role="tablist" aria-label="Sign in as" ${P(963, 257, 637, 36, D(.35))}><button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button></div>
+    <div class="at dz-role four rise" role="tablist" aria-label="Sign in as" ${P(963, 257, 637, 36, D(.35))}><button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button></div>
     <div class="at dz-label rise" ${P(963, 297, null, null, `${FS(20)}${D(.4)}`)}>Email address</div>${field("email", 963, 335, 637, 66, 20, "mail", "Enter your email address", "email", 'autocomplete="email"', .4)}
     <div class="at dz-label rise" ${P(963, 428, null, null, `${FS(20)}${D(.45)}`)}>Password</div>${field("password", 963, 466, 637, 66, 20, "lock", "Enter your password", "password", 'autocomplete="current-password"', .45)}
     <div class="at dz-check rise" ${P(963, 561, null, null, `${FS(19)}--cb:27;${D(.5)}`)}><input type="checkbox" id="remember" aria-label="Remember me"><label for="remember">Remember me</label></div>
@@ -173,20 +175,22 @@ function authPage(ctx, mode) {
   </div></div>`;
   return { full: true, title: login ? "Sign in" : "Create account", html,
     mount() {
-      const err = $("#err"), form = $("#f"); let role = ctx.q.role === "agent" ? "agent" : ["landlord", "agency"].includes(ctx.q.role) ? ctx.q.role : "renter";
+      const err = $("#err"), form = $("#f"); let role = ["agent", "landlord", "agency"].includes(ctx.q.role) ? ctx.q.role : "renter";
       const say = (m) => { err.textContent = m || err.dataset.default; err.classList.toggle("bad", !!m); };
       if (ctx.S.bannedNote) say(friendlyErr({ code: "app/banned" }));
       else if (login && ctx.q.next) { err.dataset.default = "Please log in to access this feature."; err.textContent = err.dataset.default; }
       $$("[data-role]").forEach((b) => { b.classList.toggle("on", b.dataset.role === role); b.onclick = () => { role = b.dataset.role; $$("[data-role]").forEach((x) => x.classList.toggle("on", x === b)); }; });
       $$(".eye").forEach((b) => (b.onclick = () => { const i = b.parentElement.querySelector("input"); i.type = i.type === "password" ? "text" : "password"; }));
       $$("input", form).forEach((i) => i.addEventListener("input", () => say("")));
-      const STAFF = ["admin", "owner", "support"], WHO = { landlord: "a home owner", agency: "an agency" };
+      const STAFF = ["admin", "owner", "support"], WHO = { landlord: "a home owner", agency: "an agency", agent: "an agent" };
       const run = async (fn, btn) => {
         say(""); if (btn) btn.disabled = true;
         try {
           const got = await fn();
           // "Sign in as" a home owner or agency only works for accounts registered that way (staff can always sign in).
           if (login && WHO[role] && got && got !== role && !STAFF.includes(got)) { await ctx.logout(); return say(`This account isn’t registered as ${WHO[role]}. Choose “Renter”, or create ${WHO[role]} account.`); }
+          const made = ctx.S.justCreated; ctx.S.justCreated = null;
+          if (made === "agency" || made === "agent") { ctx.go("#" + next); await verifyPopup(made); return; }
           ctx.go("#" + next);
         } catch (e) { say(friendlyErr(e)); } finally { if (btn) btn.disabled = false; }
       };
@@ -197,9 +201,18 @@ function authPage(ctx, mode) {
         if (!v.name?.trim()) return say("Enter your full name.");
         if ((v.password || "").length < 8) return say("Password must be at least 8 characters.");
         if (!$("#terms").checked) return say("Please accept the Terms and Privacy Policy.");
-        run(() => ctx.signUp(v.name.trim(), v.email, v.password, role), btn);
+        (async () => {
+          const details = role === "agency" || role === "agent" ? await collectDetails(role, v.name.trim()) : undefined;
+          if (details === null) return;
+          run(() => ctx.signUp(v.name.trim(), v.email, v.password, role, details), btn);
+        })();
       };
-      $("#google").onclick = (e) => run(() => ctx.signInGoogle(role), e.currentTarget);
+      $("#google").onclick = async (e) => {
+        const btn = e.currentTarget;
+        // New agencies and agents give their business details first. On the sign-in page a brand-new Google account starts as a renter.
+        let details; if (!login && (role === "agency" || role === "agent")) { details = await collectDetails(role, ""); if (details === null) return; }
+        run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, details), btn);
+      };
       const f = $("#forgot"); if (f) f.onclick = (e) => { e.preventDefault(); const em = ($("#email")?.value || "").trim(); ctx.go("#/forgot" + (em ? "?email=" + encodeURIComponent(em) : "")); };
     } };
 }
@@ -497,7 +510,7 @@ function settings(ctx, section) {
       }
       const rs = $("#resendV"); if (rs) rs.onclick = async () => { try { await ctx.resendVerification(); toast("Verification email sent."); } catch (x) { toast(friendlyErr(x)); } };
       const rp = $("#resetPw"); if (rp) rp.onclick = async () => { try { await ctx.resetPassword(u.email); toast("Password reset email sent."); } catch (x) { toast(friendlyErr(x)); } };
-      const tr = $("#tour"); if (tr) tr.onclick = () => { ctx.resetTour(u); ctx.go("#/"); if (location.hash === "#/" || location.hash === "") ctx.render(); };
+      const tr = $("#tour"); if (tr) tr.onclick = () => { ctx.resetTour(u); const h = "#" + ctx.dashHome(); ctx.go(h); };
       const ins = $("#install"); if (ins) ins.onclick = async () => { if (ctx.canInstall()) return void (await ctx.installApp()); ctx.go("#/download"); };
     } };
 }
@@ -513,6 +526,8 @@ async function admin(ctx, sub) {
   const table = (head, rows) => `<div class="tbl-wrap"><table><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("") || `<tr><td colspan="${head.length}" class="muted">Nothing here yet.</td></tr>`}</tbody></table></div>`;
   const lrow = (l) => `<tr><td><div class="cell">${th(l)}<div><b>${esc(l.title)}</b><small>${esc(l.area)}, ${esc(l.city)}</small></div></div></td><td><div class="cell"><img class="avatar" src="${esc(l.agent?.avatar || "")}" alt="">${esc(l.agent?.name || "")}</div></td><td>${statusPill(l.status === "pending" ? "Pending Review" : l.status === "flagged" ? "Flagged Review" : l.status)}</td><td><button class="btn primary sm" data-review="${esc(l.id)}">Review</button></td></tr>`;
   if (sub === "listings" || sub === "users" || sub === "support") { const v = sub === "listings" ? A2.listings(ctx, ls) : sub === "users" ? A2.users(ctx, users) : A2.support(ctx, tks); return { title: "Admin", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
+  if (sub === "verifications") { const v = DASH.verifications(ctx, users); return { title: "Verifications", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
+  if (sub === "suggestions") { const v = DASH.suggestions(ctx, await st.adminAll("suggestions")); return { title: "Suggestions", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "") { const v = DASH.platform(ctx, { ls, apps, views, users, tks }); return { title: "Admin", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   let body;
   if (sub === "") body = `<div class="adm-welcome"><div><h1>Welcome back, ${esc((ctx.S.user.displayName || "").split(" ")[0] || "there")}</h1><p>Here’s what’s happening on Faxton Rentals today.</p></div><span class="muted">${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>${!ls.length ? `<button class="btn primary" id="seed">Add sample listings</button>` : ""}</div>

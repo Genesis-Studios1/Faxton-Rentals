@@ -4,12 +4,13 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, markNotificationRead, watchPendingVerifications } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
+import { verifyPopup, verifiedPopup } from "./onboard.js";
 
-export const S = { nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
+export const S = { shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
 
 // ---------- theme ----------
@@ -35,7 +36,7 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
-const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/support", "msg", "Support"], ["/admin/reports", "chart", "Reports"], ["/admin/get-app", "download", "Installations"]];
+const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "building", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "cal", "Viewings"], ["/admin/payments", "wallet", "Payments"], ["/admin/verifications", "shield", "Verifications"], ["/admin/support", "msg", "Support"], ["/admin/suggestions", "chatlines", "Suggestions"], ["/admin/reports", "chart", "Reports"], ["/admin/get-app", "download", "Installations"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
@@ -47,16 +48,17 @@ function shell(path, inner, { admin = false, pending = 0, role = "" } = {}) {
 }
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
-  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
+  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
   landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console: its own header + labelled sidebar, with a way back to the site.
 function adminShell(path, inner, pending, role = "") {
   const R = ROLE_UI[role];
   const on = (p) => (p === "/admin" || (R && p === R.home) ? path === p : path === p || path.startsWith(p + "/"));
-  const items = (R ? R.nav : ANAV).map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
+  const items = (R ? R.nav : ANAV).map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}${l === "Verifications" ? `<b class="badge" data-vbadge ${S.pendingV ? "" : "hidden"}>${S.pendingV || ""}</b>` : ""}</a>`).join("");
   return `<div class="adm"><header class="adm-top"><a class="logo" href="#${R ? R.home : "/admin"}" aria-label="Dashboard">${logo().match(/<svg.*<\/svg>/s)[0]}<span class="logo-word"><b>Faxton</b> Rentals</span></a><span class="vr"></span><span class="adm-title">${R ? R.title : "Admin console"}</span><span style="flex:1"></span>
       <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label>${themeBtn()}<a class="icon-btn bell ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 22)}</a>
       <a class="me-btn" href="#/settings" aria-label="Account">${avatarHtml()}${icon("chev", 18)}</a></header>
@@ -99,7 +101,7 @@ export async function render() {
   // Staff accounts open their own dashboard first, once per visit.
   if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
 
-  const ctx = { path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
+  const ctx = { dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
   try { view = await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="empty"><h2>Something went wrong</h2><p>This page couldn’t load. Please refresh, or go back home.</p><p style="margin-top:14px"><a class="btn primary" href="#/">Go home</a></p></div>`); return wire(); }
@@ -112,7 +114,8 @@ export async function render() {
   scrollTo(0, 0);
   view.mount?.(app, ctx);
   if (S.user) { startUpdateWatch(S); syncShellAutoUpdate(S.profile?.prefs?.autoUpdate); } else stopUpdateWatch();
-  if (path === "/" && S.user && !tourSeen(S.user)) whenReady(() => { if (parse().path === "/") startTour(S.user, (S.user.displayName || "").split(" ")[0]); });
+  const tk = !S.user ? null : path === "/" ? (S.isAdmin || ROLE_UI[S.role] ? null : "renter") : S.isAdmin && path === "/admin" ? "admin" : ROLE_UI[S.role]?.home === path ? S.role : null;
+  if (tk && !tourSeen(S.user, tk)) whenReady(() => { if (parse().path === path) startTour(S.user, (S.user.displayName || "").split(" ")[0], tk); });
 }
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
 function wire() {
@@ -137,7 +140,16 @@ function wire() {
 async function ensureProfile(u, extra = {}) {
   const ref = doc(db, "users", u.uid);
   const snap = await getDoc(ref);
-  if (!snap.exists()) await setDoc(ref, { name: u.displayName || extra.name || "", email: u.email, role: extra.role || "renter", saved: [], createdAt: serverTimestamp() });
+  if (!snap.exists()) {
+    let role = extra.role || "renter";
+    const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp() };
+    // Agencies and agents join unverified, with their business details attached, until an admin verifies them.
+    if (role === "agency" && extra.details) { d.agency = extra.details; d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() }; }
+    else if (role === "agent" && extra.details) { d.agentInfo = extra.details; d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() }; }
+    else if (role === "agency" || role === "agent") role = "renter";
+    d.role = role;
+    await setDoc(ref, d); S.justCreated = role;
+  }
   if (u.email) writeAccountMarker(u.email);
 }
 // A banned account is signed out straight away and told why.
@@ -158,14 +170,19 @@ async function signIn(email, pw, remember = true) {
   writeAccountMarker(email);
   return p?.role || "renter";
 }
-async function signUp(name, email, pw, role) {
+async function signUp(name, email, pw, role, details) {
   const c = await createUserWithEmailAndPassword(auth, email, pw);
   try { await updateProfile(c.user, { displayName: name }); } catch {}
-  const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter" });
+  const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter", details });
   try { await mk(); } catch { await mk(); }
   try { await sendEmailVerification(c.user); } catch {}
   // Load the new profile now so the app opens signed in on the home page.
   await refreshAuthState(auth.currentUser);
+}
+function showNotification(n) {
+  markNotificationRead(n.id);
+  if (n.kind === "verified") verifiedPopup(n.title, n.body, "Go to my dashboard", () => go("#" + (roleHome() || "/")));
+  else toast(n.title + (n.body ? ": " + n.body : ""));
 }
 export async function refreshProfile() { if (S.user) S.profile = await getProfile(S.user.uid); }
 export async function resendVerification() { await sendEmailVerification(auth.currentUser); }
@@ -180,7 +197,7 @@ async function probeGoogle() {
   const seen = performance.getEntriesByType("resource").filter((x) => /googleapis|firebaseapp|google\.com|gstatic/.test(x.name) && !/identitytoolkit.*projects\?key/.test(x.name) || /accounts:|projects/.test(x.name)).slice(-4).map((x) => `${new URL(x.name).host.split(".")[0]}${new URL(x.name).pathname.split("/").pop().slice(0, 14)}:${x.responseStatus || 0}/${Math.round(x.duration)}`);
   return "|" + r.join(",") + "|seen:" + seen.join(",") + (window.__csp ? "|" + window.__csp : "");
 }
-async function signInGoogle(chosen = "renter") {
+async function signInGoogle(chosen = "renter", details) {
   // Google blocks sign-in inside an app's embedded browser, so the mobile app asks Google natively and hands the result to Firebase.
   const cap = window.Capacitor;
   if (/FaxtonApp\/mobile/.test(navigator.userAgent) && cap) {
@@ -194,7 +211,7 @@ async function signInGoogle(chosen = "renter") {
     let c;
     try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken)); }
     catch (e) { throw Object.assign(new Error(e?.message), { code: `firebase/${e?.code || "error"}${window.__csp ? " | " + window.__csp : ""}` }); }
-    await ensureProfile(c.user, { role: chosen }); return (await rejectIfBanned(c.user))?.role || "renter";
+    await ensureProfile(c.user, { role: chosen, details }); return (await rejectIfBanned(c.user))?.role || "renter";
   }
   const t0 = performance.now();
   let c;
@@ -206,7 +223,7 @@ async function signInGoogle(chosen = "renter") {
     const probes = e?.code === "auth/network-request-failed" ? await probeGoogle() : "";
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
   }
-  await ensureProfile(c.user, { role: ["landlord", "agency"].includes(chosen) ? chosen : "renter" });
+  await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details });
   return (await rejectIfBanned(c.user))?.role || "renter";
 }
 const logout = () => signOut(auth);
@@ -217,6 +234,7 @@ async function setSaved(id, on) {
 export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 async function refreshAuthState(u) {
+  if (!u) { S.unsubNotes?.(); S.unsubNotes = null; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; }
   S.user = u; S.profile = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
@@ -224,7 +242,15 @@ async function refreshAuthState(u) {
     if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
     S.bannedNote = false;
     if (!S.profile) { try { await ensureProfile(u); S.profile = await getProfile(u.uid); } catch { /* rules refused; leave signed in without a profile */ } }
-    S.unsubProfile?.(); S.unsubProfile = watchProfile(u.uid, (p) => { if (p?.banned && S.user?.uid === u.uid) { S.bannedNote = true; signOut(auth); } });
+    S.unsubProfile?.(); S.unsubProfile = watchProfile(u.uid, (p) => {
+      if (S.user?.uid !== u.uid || !p) return;
+      if (p.banned) { S.bannedNote = true; signOut(auth); return; }
+      const was = S.profile; S.profile = p;
+      // A role change or a verification decision made by an admin shows up straight away.
+      if (was && (p.role !== was.role)) refreshAuthState(auth.currentUser).then(render);
+      else if (was && (p.verified !== was.verified || p.verification?.status !== was.verification?.status)) render();
+    });
+    S.unsubNotes?.(); S.unsubNotes = watchNotifications(u.uid, (list) => list.forEach((n) => { if (S.shownNotes.has(n.id)) return; S.shownNotes.add(n.id); showNotification(n); }));
     // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
     if (!S.ownerUid && u.emailVerified) {
       try { await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = await getProfile(u.uid); toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
@@ -232,6 +258,9 @@ async function refreshAuthState(u) {
     S.isOwner = S.ownerUid === u.uid;
     S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
     S.isAdmin = S.isOwner || S.role === "admin";
+    S.unsubVerif?.(); S.unsubVerif = null;
+    if (S.isAdmin) { let first = true; S.unsubVerif = watchPendingVerifications((list) => { const n = list.length, grew = n > (S.pendingV || 0); S.pendingV = n; $$("[data-vbadge]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
+      if (first && n) toast(`${n} verification request${n > 1 ? "s" : ""} waiting for you.`); else if (!first && grew) toast("New verification request: an agency or agent is waiting for you."); first = false; }); }
   }
   S.saved = new Set(u ? S.profile?.saved || [] : await getSaved(u));
   S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0;

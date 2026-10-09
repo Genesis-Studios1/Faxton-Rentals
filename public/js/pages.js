@@ -106,6 +106,9 @@ export async function bookPage(ctx, id) {
         };
       };
       const keep = () => { const p = $("#bp", bk), n = $("#bnote", bk); if (p) S.phone = p.value; if (n) S.note = n.value; };
+      $$("[data-hp]", root).forEach((b) => (b.onclick = () => { const sug = b.dataset.hp === "sug"; $$("[data-hp]", root).forEach((x) => x.classList.toggle("on", x === b)); $("#hpSug", root).hidden = !sug; $(".help-cats", root).hidden = sug; $(".help-grid", root).hidden = sug; }));
+      $("#sf", root).onsubmit = async (e) => { e.preventDefault(); const text = $("#sgx", root).value.trim(), err = $("#sge", root); err.textContent = ""; if (text.length < 5) return (err.textContent = "Please write a little more."); const btn = e.target.querySelector("button"); btn.disabled = true;
+        try { await st.addSuggestion(ctx.S.user, { topic: $("#sgt", root).value, text }); $("#sgx", root).value = ""; toast("Thank you! Your suggestion has been sent."); } catch (x) { err.textContent = friendlyErr(x); } finally { btn.disabled = false; } };
       draw();
     } };
 }
@@ -337,6 +340,10 @@ export async function helpPage(ctx) {
   const cats = [["rent", "home", "Renting a home", "Viewings, applications, contracts and moving in."], ["pay", "coins", "Payments & receipts", "Rent, service charges, deposits and invoices."], ["acct", "user", "Account access", "Logging in, account security and managing your details."]];
   const t0 = tickets[0];
   return { title: "Help centre", html: `<div class="wrap pg"><section class="help-hero"><div class="hh-text"><span class="eyebrow-s light">Help centre</span><h1>How can we help?</h1><p>Find answers to common questions or get in touch with our support team.</p><label class="hh-search">${icon("search", 24)}<input id="hq" type="search" placeholder="Search for help" aria-label="Search for help"></label></div><div class="hh-img"></div></section>
+    <div class="a2-tabs hp-tabs" role="tablist"><button role="tab" class="on" data-hp="help">Help &amp; FAQ</button><button role="tab" data-hp="sug">${icon("chatlines", 18)} Send a suggestion</button></div>
+    <section class="pg-box hp-sug" id="hpSug" hidden><h2>Send us a suggestion</h2><p class="sub">Got an idea that would make Faxton Rentals better? Tell us. Every suggestion is read by the team.</p>
+      <form id="sf" novalidate><label class="fl">Topic<select id="sgt"><option>New feature</option><option>Design and layout</option><option>Listings and search</option><option>Payments</option><option>Something else</option></select></label>
+      <label class="fl">Your suggestion<textarea id="sgx" rows="6" maxlength="2000" placeholder="Describe your idea…"></textarea></label><p class="err" id="sge" role="alert"></p><button class="btn solid" type="submit">${icon("send", 20)} Send suggestion</button></form></section>
     <div class="help-cats">${cats.map(([k, ic, t, d]) => `<button type="button" class="hc" data-cat="${k}"><span class="si">${icon(ic, 30)}</span><div><b>${t}</b><small>${d}</small></div>${icon("chev", 22).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</button>`).join("")}</div>
     <div class="help-grid"><section class="pg-box"><h2>Frequently asked questions</h2><p class="sub">Quick answers to the most common questions from our renters.</p><div id="faq"></div></section>
       <aside class="pg-box"><h2>Contact support</h2><p class="sub">Still need help? Our team is here for you.</p><button class="btn solid block" id="nt">${icon("mail", 22)} New support request</button><button class="link vt" id="vt">View my tickets ${icon("arrow", 18)}</button><hr><h3>Your latest support ticket</h3>

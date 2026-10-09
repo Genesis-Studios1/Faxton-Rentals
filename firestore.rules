@@ -16,6 +16,10 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'renter') : '';
     }
     function isSupport() { return myRole() == 'support'; }
+    function isVerified() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verified', false) == true;
+    }
     function ownsListing() { return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
     function short(v, n) { return v is string && v.size() <= n; }
@@ -51,27 +55,37 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      // Agencies and agents register with business details and start unverified (an admin verifies them).
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.role in ['renter', 'agent', 'landlord', 'agency']
-        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'agency', 'agentInfo', 'verification'])
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
-        && request.resource.data.saved.size() <= 500;
-      // Users edit their own profile but never role, email or ban status. The owner can change anything;
-      // an admin can only ban or unban renters and agents.
+        && request.resource.data.saved.size() <= 500
+        && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency']))
+        && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
+        && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
+      // Users edit their own profile but never role, email, ban or verification. The owner can change anything;
+      // an admin can ban or unban non-owners and verify agents and agencies, nothing else.
       allow update: if signedIn() && (
         (request.auth.uid == uid
           && request.resource.data.role == resource.data.role
           && request.resource.data.email == resource.data.email
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt'])
+          && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+          && request.resource.data.get('verification', null) == resource.data.get('verification', null)
+          && request.resource.data.get('agency', null) == resource.data.get('agency', null)
+          && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo'])
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
           && profileOk(request.resource.data))
         || isOwner()
         || (isAdmin() && uid != request.auth.uid
-          && resource.data.role in ['renter', 'agent']
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt'])));
+          && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
+              || (resource.data.role in ['agent', 'agency']
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification'])))));
       allow delete: if false;
     }
 
@@ -86,7 +100,7 @@ service cloud.firestore {
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
       // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
-      allow create: if isAdmin() || (signedIn() && myRole() in ['landlord', 'agency']
+      allow create: if isAdmin() || (signedIn() && (myRole() == 'landlord' || (myRole() in ['agency', 'agent'] && isVerified()))
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
       allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
@@ -128,6 +142,21 @@ service cloud.firestore {
         && request.resource.data.published is bool && request.resource.data.mandatory is bool
         && request.resource.data.files is map && request.resource.data.files.size() <= 20;
       allow delete: if isAdmin();
+    }
+    // In-app notifications (for example "you have been verified"). Only admins create them; people read and mark their own.
+    match /notifications/{id} {
+      allow create: if isAdmin() && short(request.resource.data.title, 160) && short(request.resource.data.body, 600)
+        && request.resource.data.keys().size() <= 8;
+      allow read: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
+      allow update: if signedIn() && resource.data.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+    // Suggestion box on the Contact us page.
+    match /suggestions/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && short(request.resource.data.text, 2000) && request.resource.data.text.size() >= 5
+        && request.resource.data.keys().size() <= 10;
+      allow read, update: if isAdmin() || isSupport();
     }
     match /documents/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
