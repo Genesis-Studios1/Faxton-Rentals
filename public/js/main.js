@@ -1,3 +1,4 @@
+import { detectTenant } from "./myhome.js";
 import { auth, db, google } from "./firebase.js";
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
@@ -39,7 +40,8 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
-const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "clipList", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/admin/payments", "card", "Payments"], ["/admin/verifications", "shield", "Verifications"], ["/admin/support", "chatdots", "Support"], ["/admin/suggestions", "chatlines", "Suggestions"], ["/admin/user-reports", "flag", "User reports"], ["/admin/reports", "bars3", "Reports"], ["/admin/calls", "phone", "Call setup"], ["/admin/get-app", "download", "Installations"]];
+const topnav = () => (S.tenant ? TOPNAV.map((x) => (x[0] === "/rentals" ? ["/myhome", "My home", "home"] : x)) : TOPNAV);
+const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "clipList", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/admin/payments", "card", "Payments"], ["/admin/verifications", "shield", "Verifications"], ["/admin/support", "chatdots", "Support"], ["/admin/suggestions", "chatlines", "Suggestions"], ["/admin/user-reports", "flag", "User reports"], ["/admin/reports", "bars3", "Reports"], ["/admin/calls", "phone", "Call setup"], ["/admin/get-app", "download", "Installations"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="" referrerpolicy="no-referrer">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
@@ -52,9 +54,9 @@ function shell(path, inner, { admin = false, pending = 0, role = "" } = {}) {
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
   support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
-  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
+  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console: its own header + labelled sidebar, with a way back to the site.
@@ -70,8 +72,8 @@ function adminShell(path, inner, pending, role = "") {
 }
 // The site's navigation: a top bar with the logo at the left, the page tabs, the bell and the account menu.
 function appShell(path, inner) {
-  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => path === p || path.startsWith(p + "/")) : path === h || path.startsWith(h + "/"));
-  const links = TOPNAV.map(([h, l, ic]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}><span class="tn-ic">${icon(ic, 24)}</span><span class="tn-lb">${l}</span>${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
+  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/myhome" ? path === "/myhome" || path.startsWith("/myhome/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => path === p || path.startsWith(p + "/")) : path === h || path.startsWith(h + "/"));
+  const links = topnav().map(([h, l, ic]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}><span class="tn-ic">${icon(ic, 24)}</span><span class="tn-lb">${l}</span>${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
   const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
       <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
       <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/match">${icon("sparkle", 18)} Smart Home Match</a><a role="menuitem" href="#/rentals">${icon("cal", 18)} My rentals</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a><a role="menuitem" href="#/?to=app">${icon("download", 18)} Get the app</a>
@@ -308,7 +310,7 @@ export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 async function refreshAuthState(u) {
   if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; }
-  S.user = u; S.profile = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
+  S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
     [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
@@ -334,6 +336,8 @@ async function refreshAuthState(u) {
     S.isOwner = S.ownerUid === u.uid;
     S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
     S.isAdmin = S.isOwner || S.role === "admin";
+    // Approved tenants get a My Home dashboard instead of "My rentals". The lookup never holds up sign-in for long.
+    S.tenant = null; if (!S.isAdmin && S.role === "renter") S.tenant = await Promise.race([detectTenant(u).catch(() => null), new Promise((r) => setTimeout(() => r(null), 2500))]);
     S.unsubCalls?.(); S.unsubCalls = watchIncoming({ S, user: u }, S.isAdmin || S.role === "support");
     S.unsubVerif?.(); S.unsubVerif = null;
     if (S.isAdmin) { let first = true; S.unsubVerif = watchPendingVerifications((list) => { const n = list.length, grew = n > (S.pendingV || 0); S.pendingV = n; $$("[data-vbadge]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });

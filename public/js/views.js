@@ -17,6 +17,8 @@ import { openProfile } from "./profile.js";
 import * as AREA from "./area.js";
 import * as OFFERS from "./offers.js";
 import * as MATCH from "./match.js";
+import * as MYHOME from "./myhome.js";
+import * as TENANTS from "./tenants.js";
 import * as VS from "./viewsafe.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
@@ -79,6 +81,8 @@ export async function route(ctx) {
   if (path === "/help") return PG.helpPage(ctx);
   if (path === "/messages" || path.startsWith("/messages/")) return messages(ctx, decodeURIComponent(path.split("/")[2] || ""));
   if (path === "/bookings") return bookings(ctx);
+  if (path === "/myhome" || path.startsWith("/myhome/")) return MYHOME.myHomePage(ctx, path.split("/")[2] || "");
+  if (path === "/tenants" || path.startsWith("/tenants/")) return TENANTS.tenantsPage(ctx, path.split("/")[2] || "maintenance");
   if (path === "/match") return MATCH.matchPage(ctx);
   if (path === "/offers") return OFFERS.offersPage(ctx, PG.rentalsNav);
   if (path === "/payments") return PG.paymentsPage(ctx);
@@ -263,6 +267,7 @@ async function discover(ctx) {
   const mobile = `<div class="hm-m"><section class="hmm-hero"><div class="hmm-text"><div class="hmm-eye rise">Find your space.</div><h1 class="rise" style="--d:.08s">A home that fits your life.</h1><p class="rise" style="--d:.16s">Explore rental homes across Nigeria. Find the space that feels right for you.</p></div></section>
     <form class="hmm-search rise" id="hmmS" role="search" style="--d:.24s"><span class="hmm-si">${icon("search", 22)}</span><input name="area" type="search" placeholder="Search by neighbourhood, city or property type" aria-label="Search homes" autocomplete="off"><button aria-label="Search">${icon("search", 22)}</button></form>
     <div class="hmm-chips rise" style="--d:.3s"><a href="#/search">${icon("home", 26)}<span>Browse neighbourhoods</span></a><a href="#/search">${icon("sliders3", 26)}<span>Filter by budget and bedrooms</span></a><a href="#/saved">${icon("heart", 26)}<span>Save your favourite homes</span></a></div>
+    ${MYHOME.homeCard(ctx.S)}
     ${MATCH.matchBanner()}
     <section class="hmm-app rise" style="--d:.36s"><div class="hmm-app-top"><div><div class="hmm-eye light">Get Faxton Rentals everywhere</div><h2>Start exploring on your device.</h2><p>Download the Faxton Rentals app or continue on web.</p>${dlNow}</div><img src="img/app-devices.webp" alt="Faxton Rentals on phone and laptop" loading="lazy"></div>
       <div class="hm-os-row">${os("os-android.webp", "Android", "Get the app")}${os("os-apple.webp", "iOS", "Get the app")}${os("os-windows.webp", "Windows", "Use on desktop")}${macTile}</div></section>
@@ -276,6 +281,7 @@ async function discover(ctx) {
       <div class="sb-cell">${icon("coins", 26)}<label>Yearly budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
       <button class="btn primary">${icon("search", 22)} Search homes</button></form>
     <div class="hm-pop rise" style="--d:.35s"><span>Popular locations:</span>${[["lekki", "Lekki"], ["ajah", "Ajah"], ["yaba", "Yaba"], ["ikeja", "Ikeja"]].map(([v, l], i) => `<a class="chip-l" href="#/search?area=${v}">${i === 0 ? icon("pin", 16) : ""}${l}</a>`).join("")}</div>
+    ${MYHOME.homeCard(ctx.S)}
     ${MATCH.matchBanner("wide")}
     <div class="hm-sec rise" style="--d:.4s"><div><h2>Find your kind of home</h2><p>Explore rentals selected for your next move.</p></div><div class="hm-tabs" role="tablist">${TABS.map(([v, l], i) => `<button role="tab" class="${i ? "" : "on"}" data-t="${v}">${l}</button>`).join("")}</div><a class="link" href="#/search">View all homes ${icon("arrow", 18)}</a></div>
     <div class="cards" id="hmcards">${cardsFor("")}</div>

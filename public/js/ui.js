@@ -14,7 +14,7 @@ const P = {
   route: '<circle cx="6" cy="18" r="2.500"/><circle cx="18" cy="6" r="2.500"/><path d="M8.500 18H15a3 3 0 000-6H9a3 3 0 010-6h6.500"/>',
   sos: '<path d="M12 3.500L2.500 20h19z"/><path d="M12 10v4.500M12 17.500h.01"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.500" cy="8.500" r="1.200"/>',
-  wrench: '<path d="M14.500 6.500a4 4 0 005 5L20 18a2.500 2.500 0 01-3.500 0l-6-6A2.500 2.500 0 018 8.500l-3-3 2-2 3 3a4 4 0 004.500 0z" transform="translate(0 1)"/>',
+  wrench: '<path d="M14.700 6.300a4 4 0 00-5.400 5.100L3 17.700 6.300 21l6.300-6.300a4 4 0 005.100-5.400l-2.500 2.500-2.300-.4-.4-2.300z"/>',
   handshake: '<path d="M2 12l4-4 4 1 3-2 4 3 5-1M2 12l5 6 3-1 2 2 3-1 1.500 1.500L22 12M9 14l3 3"/>',
   calc: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.500 7h7M8.500 12h.01M12 12h.01M15.500 12h.01M8.500 16h.01M12 16h.01M15.500 16h.01" stroke-width="2"/>',
   sparkle: '<path d="M12 3l1.800 5.200L19 10l-5.200 1.800L12 17l-1.800-5.200L5 10l5.200-1.800zM19 16l.8 2.200L22 19l-2.200.8L19 22l-.8-2.200L16 19l2.200-.8z"/>',
@@ -132,4 +132,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-09.89";
+export const BUILD = "2026-10-09.90";
