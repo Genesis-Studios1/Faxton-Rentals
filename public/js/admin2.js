@@ -52,6 +52,7 @@ export function listings(ctx, ls) {
 
 // ---------- Users & agents ----------
 export function users(ctx, us) {
+  try { st.syncVerified(us); } catch {}
   const me = ctx.S.user.uid, owner = ctx.S.ownerUid, canManage = ctx.S.isOwner;
   const ROLES = [["renter", "Renter"], ["agent", "Agent"], ["landlord", "Property owner"], ["agency", "Agency"], ["support", "Support"], ["admin", "Admin"]];
   const roleOf = (u) => (u.id === owner ? "Owner" : u.role === "owner" || u.role === "admin" ? "Admin" : ROLES.find(([v]) => v === u.role)?.[1] || "Renter");

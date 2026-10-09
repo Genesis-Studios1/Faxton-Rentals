@@ -62,6 +62,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Public profile card: what other people see when they tap a profile picture. Only an admin can set the verified tick.
+    match /profiles/{uid} {
+      function pubOk(d) {
+        return d.keys().hasOnly(['name', 'photo', 'role', 'city', 'country', 'about', 'website', 'verified', 'updatedAt'])
+          && short(d.get('name', ''), 120) && short(d.get('about', ''), 300) && short(d.get('website', ''), 160)
+          && short(d.get('city', ''), 60) && short(d.get('country', ''), 60) && short(d.get('role', ''), 20)
+          && (!('photo' in d) || (d.photo is string && d.photo.size() <= 70000));
+      }
+      allow read: if signedIn();
+      allow create: if signedIn() && pubOk(request.resource.data)
+        && ((request.auth.uid == uid && request.resource.data.get('verified', false) == false) || isAdmin());
+      allow update: if signedIn() && pubOk(request.resource.data)
+        && ((request.auth.uid == uid && request.resource.data.get('verified', false) == resource.data.get('verified', false)) || isAdmin());
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       // Agencies and agents register with business details and start unverified (an admin verifies them).

@@ -11,6 +11,7 @@ import { startTour, tourSeen, resetTour } from "./tour.js";
 import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
 import { watchIncoming } from "./calls.js";
 import { siteFooter, wireFooter } from "./footer.js";
+import { syncPublic } from "./store.js";
 
 export const S = { notes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
@@ -310,6 +311,8 @@ async function refreshAuthState(u) {
     [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
     if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
     S.bannedNote = false;
+    // Keep my public card (name, photo, role, about) up to date for the people who tap my picture.
+    { const pr = S.profile || {}; if (pr.name || u.displayName) syncPublic(u.uid, { name: (pr.role === "agency" && pr.agency?.business) || pr.name || u.displayName || "User", photo: pr.photo || "", role: pr.role || "renter", city: pr.city || "", country: pr.country || "", website: pr.agency?.website || "" }); }
     if (S.profile?.deletion?.status === "approved" && Date.now() >= (S.profile.deletion.requestedAt || 0) + 864e5) return finalizeDeletion(u);
     if (!S.profile) { try { await ensureProfile(u); S.profile = await getProfile(u.uid); } catch { /* rules refused; leave signed in without a profile */ } }
     S.unsubProfile?.(); S.unsubProfile = watchProfile(u.uid, (p) => {
