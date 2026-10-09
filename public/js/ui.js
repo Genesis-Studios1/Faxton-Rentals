@@ -100,6 +100,14 @@ const P = {
   trash: '<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>',
   eyeo: '<path d="M2 12s4-7 10 -7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   logout: '<path d="M10 4H5v16h5M15 8l4 4-4 4M19 12H9"/>',
+  // shell additions: a proper cog, a right chevron and "solid" twins used for active tabs (the owner asked for filled active icons)
+  cog: '<path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  chevR: '<path d="M9 6l6 6-6 6"/>',
+  homeFill: '<path fill="currentColor" d="M12 3L3.200 10.600V20.200c0 .4.4.8.8.8H9.500v-5.600h5V21H20c.4 0 .8-.4.8-.8V10.600z"/>',
+  searchFill: '<circle cx="11" cy="11" r="7" fill="currentColor" fill-opacity=".22"/><path d="M20 20l-3.500-3.500"/>',
+  msgFill: '<path fill="currentColor" d="M4 5h16v11H9l-5 4z"/>',
+  userFill: '<circle cx="12" cy="8" r="4.200" fill="currentColor"/><path fill="currentColor" d="M4.200 21c.9-4 4-6 7.800-6s6.900 2 7.800 6z"/>',
+  bellFill: '<path fill="currentColor" d="M6 17V11a6 6 0 0112 0v6l1.500 2h-15z"/><path d="M10 21h4"/>',
 };
 export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
 
@@ -109,14 +117,14 @@ export const logo = (sub = "") => `<a class="logo" href="#/">${logoMark()}<span 
 
 let toastT;
 export function toast(msg, opt) {
-  let t = $("#toast"); if (!t) { t = document.createElement("div"); t.id = "toast"; t.setAttribute("role", "status"); document.body.append(t); }
-  t.textContent = msg; if (opt?.href) { const a = document.createElement("a"); a.href = opt.href; a.textContent = opt.action || "Open"; a.style.cssText = "margin-left:12px;font-weight:700;text-decoration:underline;color:inherit"; t.append(a); }
+  let t = $("#toast"); if (!t) { t = document.createElement("div"); t.id = "toast"; t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); document.body.append(t); }
+  t.textContent = msg; t.dataset.kind = opt?.kind || ""; if (opt?.href) { const a = document.createElement("a"); a.href = opt.href; a.textContent = opt.action || "Open"; a.className = "toast-act"; t.append(a); }
   t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), opt?.href ? 9000 : 3200);
 }
 export function modal(html, { sticky = false } = {}) {
   const d = document.createElement("dialog"); d.className = "modal";
   d.innerHTML = `${sticky ? "" : `<button class="icon-btn close" aria-label="Close">${icon("x", 18)}</button>`}${html}`;
-  document.body.append(d); d.showModal();
+  document.body.append(d); d.showModal(); d.tabIndex = -1; if (!d.querySelector("[autofocus]")) d.focus({ preventScroll: true });
   const close = () => { d.close(); d.remove(); };
   // A sticky window stays until it is completed: no × button, no click outside, no Escape.
   if (sticky) d.addEventListener("cancel", (e) => e.preventDefault());

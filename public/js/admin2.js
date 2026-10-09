@@ -1,133 +1,436 @@
-// Admin: Manage listings, Users & agents and Support inbox (two/three-pane designs).
+// Console pages for the owner and admins: review queue, listings, users, verifications, applications and viewings.
+// The overview, payments, support inbox, suggestions, reports, call setup and the staff portals live in dash.js.
 import * as CALLS from "./calls.js";
-import { $, $$, esc, naira, icon, toast, modal, friendlyErr, initials } from "./ui.js";
+import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
+import * as VS from "./viewsafe.js";
+import * as AX from "./ax.js";
+import { createList } from "./ax-list.js";
 
-const rel = (t) => { const s = t?.seconds; if (!s) return "Just now"; const m = (Date.now() / 1000 - s) / 60; return m < 60 ? `${Math.max(1, Math.floor(m))} min ago` : m < 1440 ? `${Math.floor(m / 60)} hr ago` : `${Math.floor(m / 1440)} day${m >= 2880 ? "s" : ""} ago`; };
-const searchBox = (id, ph) => `<label class="a2-search">${icon("search", 18)}<input id="${id}" type="search" placeholder="${ph}" autocomplete="off"></label>`;
-const sel = (id, label, list) => `<label class="a2-sel"><select id="${id}" aria-label="${label}">${list.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("")}</select></label>`;
-const pillFor = (s) => { const k = String(s).toLowerCase(); return `<span class="pill ${/pending|review|open|invited/.test(k) ? "warn" : /flag|reject|suspend|urgent|high/.test(k) ? "bad" : /archiv|resolved|inactive/.test(k) ? "mute" : ""}">${esc(s)}</span>`; };
-const listingState = (l) => (l.archived ? "Archived" : /pending|flag/i.test(l.status || "") ? "Pending Review" : "Active");
+const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
+const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
+const bad = (e) => toast(fe(e), { tone: "bad" });
+const meName = (ctx) => ctx.S.profile?.name || ctx.S.user.displayName || ctx.S.user.email || "Admin";
+const DEF = { archived: false, changeNote: "", status: "pending" };
+const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean);
+const naira = fmt.naira;
 
-// ---------- Listings ----------
-export function listings(ctx, ls) {
-  const tabs = [["all", "All"], ["Pending Review", "Pending"], ["Active", "Active"], ["Archived", "Archived"]];
-  const count = (k) => (k === "all" ? ls.length : ls.filter((l) => listingState(l) === k).length);
-  const html = `<div class="page-head"><div><h1>Manage listings</h1><p>Review, approve and manage all listings on Faxton Rentals.</p></div><button class="btn primary" id="addl">${icon("plus", 18)} Add listing</button></div>
-  <div class="a2-bar">${searchBox("lq", "Search listings, areas or agents...")}${sel("lc", "City", [["", "All cities"], ...[...new Set(ls.map((l) => l.city).filter(Boolean))].map((c) => [c, c])])}${sel("lt", "Type", [["", "All types"], ["Apartment", "Apartment"], ["House", "House"], ["Studio", "Studio"]])}</div>
-  <div class="a2-tabs" role="tablist">${tabs.map(([k, l], i) => `<button role="tab" class="${i ? "" : "on"}" data-tab="${esc(k)}">${l} <b>${count(k)}</b></button>`).join("")}</div>
-  <div class="a2-split"><div class="panel a2-list"><div class="tbl-wrap"><table><thead><tr><th>Property</th><th>Agent</th><th>Price</th><th>Status</th><th>Submitted</th></tr></thead><tbody id="lrows"></tbody></table></div></div><aside class="panel a2-side" id="lside"></aside></div>`;
-  return { html, mount(root) {
-    let tab = "all", cur = ls.find((l) => listingState(l) === "Pending Review")?.id || ls[0]?.id;
-    const filtered = () => { const q = $("#lq", root).value.trim().toLowerCase(), c = $("#lc", root).value, t = $("#lt", root).value;
-      return ls.filter((l) => (tab === "all" || listingState(l) === tab) && (!c || l.city === c) && (!t || l.type === t) && (!q || `${l.title} ${l.area} ${l.city} ${l.agent?.name || ""}`.toLowerCase().includes(q))); };
-    const paint = () => { const rows = filtered(); if (rows.length && !rows.some((l) => l.id === cur)) cur = rows[0].id;
-      $("#lrows", root).innerHTML = rows.map((l) => `<tr class="${l.id === cur ? "sel" : ""}" data-l="${esc(l.id)}" tabindex="0"><td><div class="cell"><img class="th" src="${esc(l.thumb || l.images?.[0] || "img/palm-court.webp")}" alt=""><div><b>${esc(l.title)}</b><small>${esc(l.area)}, ${esc(l.city)}</small></div></div></td><td>${esc(l.agent?.name || "—")}</td><td>${naira(l.price)}<small class="muted" style="display:block">/ year</small></td><td>${pillFor(listingState(l))}</td><td>${rel(l.createdAt)}</td></tr>`).join("") || `<tr><td colspan="5" class="muted">No listings match.</td></tr>`;
-      $$("tr[data-l]", root).forEach((r) => { const go = () => { cur = r.dataset.l; paint(); }; r.onclick = go; r.onkeydown = (e) => { if (e.key === "Enter") go(); }; });
-      side(); };
-    const side = () => { const l = ls.find((x) => x.id === cur), el = $("#lside", root);
-      if (!l) { el.innerHTML = `<div class="empty"><h3>No listing selected</h3><p>Select a listing to review it here.</p></div>`; return; }
-      const st0 = listingState(l);
-      el.innerHTML = `<h3>Review listing</h3><img class="a2-hero" src="${esc(l.images?.[0] || l.thumb || "img/palm-court.webp")}" alt=""><h4>${esc(l.title)}</h4><p class="muted">${esc(l.area)}, ${esc(l.city)}</p>${pillFor(st0)}
-      <dl class="a2-dl"><div><dt>Agent</dt><dd>${esc(l.agent?.name || "—")}</dd></div><div><dt>Type</dt><dd>${esc(l.type || "—")}</dd></div><div><dt>Rent</dt><dd>${naira(l.price)} / year</dd></div><div><dt>Bedrooms</dt><dd>${l.beds === 0 ? "Studio" : l.beds ?? "—"}</dd></div><div><dt>Size</dt><dd>${l.sqm ? l.sqm + " sqm" : "—"}</dd></div></dl>
-      <p class="a2-desc">${esc(l.desc || "")}</p>
-      <div class="a2-act"><button class="btn" id="media">${icon("img", 18)} Photos &amp; videos</button></div>
-      <div class="a2-act">${st0 === "Active" ? `<button class="btn" data-do="archive">Archive listing</button>` : st0 === "Archived" ? `<button class="btn primary" data-do="restore">Restore listing</button>` : `<button class="btn primary" data-do="approve">Approve listing</button><button class="btn" data-do="changes">Request changes</button>`}</div>`;
-      $("#media", el).onclick = () => { const m = modal(`<h2>Photos &amp; videos</h2><form id="mf" class="a2-form"><div class="field"><label>Photo links (one per line, first is the cover)</label><textarea name="im" rows="5" placeholder="https://…">${esc((l.images || []).join("\n"))}</textarea></div><div class="field"><label>Video links (one per line: YouTube, Vimeo or a direct .mp4)</label><textarea name="vd" rows="3" placeholder="https://www.youtube.com/watch?v=…">${esc((l.videos || []).join("\n"))}</textarea></div><p class="err" id="me" role="alert"></p><div class="a2-act"><button class="btn primary" type="submit">Save</button></div></form>`);
-        $("#mf", m.el).onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)), lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean);
-          const im = lines(f.im), vd = lines(f.vd);
-          if (!im.length) return ($("#me", m.el).textContent = "Add at least one photo.");
-          if (im.some((u) => !/^(https:\/\/|img\/)/.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return ($("#me", m.el).textContent = "Links must start with https://");
-          try { await st.patch("listings", l.id, { images: im.slice(0, 20), thumb: im[0], videos: vd.slice(0, 6) }); l.images = im; l.thumb = im[0]; l.videos = vd; m.close(); toast("Media saved."); paint(); } catch (er) { toast(friendlyErr(er)); } }; };
-      $$("[data-do]", el).forEach((b) => (b.onclick = async () => { b.disabled = true; const a = b.dataset.do;
-        try { if (a === "approve" || a === "restore") await st.patch("listings", l.id, { status: "active", archived: false }); else if (a === "archive") await st.patch("listings", l.id, { archived: true }); else await st.patch("listings", l.id, { status: "flagged" });
-          toast(a === "approve" ? "Listing approved." : a === "changes" ? "Changes requested." : "Listing updated."); ctx.render(); } catch (e) { toast(friendlyErr(e)); b.disabled = false; } })); };
-    $$("[data-tab]", root).forEach((b) => (b.onclick = () => { tab = b.dataset.tab; $$("[data-tab]", root).forEach((x) => x.classList.toggle("on", x === b)); paint(); }));
-    ["lq", "lc", "lt"].forEach((id) => ($("#" + id, root).oninput = paint));
-    $("#addl", root).onclick = () => { const m = modal(`<h2>Add listing</h2><form id="nl" class="a2-form"><div class="field"><label>Title</label><input name="title" required maxlength="80"></div><div class="f2"><div class="field"><label>Area</label><input name="area" required maxlength="60"></div><div class="field"><label>City</label><input name="city" value="Lagos" required maxlength="40"></div><div class="field"><label>Yearly rent (₦)</label><input name="price" type="number" min="0" required></div><div class="field"><label>Bedrooms</label><input name="beds" type="number" min="0" max="20" value="2" required></div></div><div class="field"><label>Description</label><textarea name="desc" rows="3" maxlength="800"></textarea></div><div class="field"><label>Photo links (optional, one per line)</label><textarea name="im" rows="2" placeholder="https://…"></textarea></div><div class="field"><label>Video links (optional: YouTube, Vimeo or .mp4)</label><textarea name="vd" rows="2" placeholder="https://…"></textarea></div><div class="a2-act"><button class="btn primary" type="submit">Create listing</button></div></form>`);
-      $("#nl", m.el).onsubmit = async (e) => { e.preventDefault(); const f = Object.fromEntries(new FormData(e.target)); const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter((x) => /^https:\/\//.test(x)), imgs = lines(f.im).slice(0, 20), vids = lines(f.vd).slice(0, 6); if (!imgs.length) imgs.push("img/palm-court.webp"); const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
-        try { await st.createListing({ id, title: f.title.trim(), area: f.area.trim(), city: f.city.trim(), price: +f.price, beds: +f.beds, baths: Math.max(1, +f.beds), sqm: 0, type: +f.beds === 0 ? "Studio" : "Apartment", desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images: imgs, thumb: imgs[0], videos: vids, amenities: [], agent: { id: "daniel", name: "Daniel Okafor", avatar: "img/av-daniel.webp", photo: "img/agent-daniel.webp" } }); m.close(); toast("Listing created."); ctx.render(); } catch (er) { toast(friendlyErr(er)); } }; };
-    paint(); } };
+// Write a change, keep the previous values in memory and offer Undo.
+async function write(col, row, patch, { msg, after, undo = true }) {
+  const prev = Object.fromEntries(Object.keys(patch).map((k) => [k, row[k] ?? DEF[k] ?? null]));
+  await st.patch(col, row.id, patch); Object.assign(row, patch); changed(); after?.();
+  toast(msg, undo ? { action: "Undo", onAction: async () => { try { await st.patch(col, row.id, prev); Object.assign(row, prev); changed(); after?.(); } catch (e) { bad(e); } } } : {});
+}
+const notify = (uid, n) => (uid ? st.notify(uid, n).catch(() => {}) : null);
+const busy = (b, on) => { if (!b) return; b.classList.toggle("is-busy", on); b.disabled = on; };
+
+export function notFound(ctx) {
+  return { title: "Page not found", ...AX.staffFlags(ctx), html: `<div class="ax-card" style="margin-top:8px">${empty({ icon: "search", title: "Page not found", hint: "That page does not exist or moved.", action: btn("Go to Overview", { v: "primary", href: "#/admin" }) })}</div>` };
+}
+export async function route(ctx, sub) {
+  const D = () => import("./dash.js");
+  switch (sub) {
+    case "": return (await D()).overview(ctx);
+    case "queue": return queue(ctx);
+    case "listings": return listings(ctx);
+    case "users": return users(ctx);
+    case "verifications": return verifications(ctx);
+    case "applications": return applications(ctx);
+    case "viewings": return viewings(ctx);
+    case "payments": return (await D()).payments(ctx);
+    case "support": return (await D()).supportInbox(ctx);
+    case "suggestions": return (await D()).suggestions(ctx);
+    case "user-reports": return (await D()).userReports(ctx);
+    case "reports": return (await D()).reports(ctx);
+    case "calls": return (await D()).callSetup(ctx);
+    default: return notFound(ctx);
+  }
 }
 
-// ---------- Users & agents ----------
-export function users(ctx, us) {
-  try { st.syncVerified(us); } catch {}
-  const me = ctx.S.user.uid, owner = ctx.S.ownerUid, canManage = ctx.S.isOwner;
-  const ROLES = [["renter", "Renter"], ["agent", "Agent"], ["landlord", "Property owner"], ["agency", "Agency"], ["support", "Support"], ["admin", "Admin"]];
-  const roleOf = (u) => (u.id === owner ? "Owner" : u.role === "owner" || u.role === "admin" ? "Admin" : ROLES.find(([v]) => v === u.role)?.[1] || "Renter");
-  const html = `<div class="page-head"><div><h1>Users &amp; agents</h1><p>${canManage ? "As the owner you can set each person’s role (renter, agent, property owner, agency, support or admin) and transfer ownership." : "Only the owner can change roles."}</p></div><button class="btn primary" id="inv">${icon("plus", 18)} Invite user</button></div>
-  <div class="a2-chips" id="uchips">${[["", "All"], ["Agency", "Agencies"], ["Agent", "Agents"], ["Property owner", "Property owners"], ["Support", "Support"], ["Renter", "Renters"]].map(([v, l], i) => `<button type="button" class="${i ? "" : "on"}" data-r="${v}">${l} <b>${us.filter((u) => !v || roleOf(u) === v).length}</b></button>`).join("")}</div>
-  <div class="a2-bar">${searchBox("uq", "Search users by name or email...")}${sel("ur", "Role", [["", "All roles"], ["Owner", "Owner"], ["Admin", "Admin"], ["Support", "Support"], ["Property owner", "Property owner"], ["Agency", "Agency"], ["Agent", "Agent"], ["Renter", "Renter"]])}</div>
-  <div class="a2-split"><div class="panel a2-list u"><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Joined</th></tr></thead><tbody id="urows"></tbody></table></div></div><aside class="panel a2-side" id="uside"></aside></div>`;
-  return { html, mount(root) {
-    let cur = us.find((u) => u.id === me)?.id || us[0]?.id;
-    const filtered = () => { const q = $("#uq", root).value.trim().toLowerCase(), r = $("#ur", root).value; return us.filter((u) => (!r || roleOf(u) === r) && (!q || `${u.name || ""} ${u.email || ""}`.toLowerCase().includes(q))); };
-    const paint = () => { const rows = filtered(); if (rows.length && !rows.some((u) => u.id === cur)) cur = rows[0].id;
-      $("#urows", root).innerHTML = rows.map((u) => `<tr class="${u.id === cur ? "sel" : ""}" data-u="${esc(u.id)}" tabindex="0"><td><div class="cell"><span class="avatar a2-av">${esc(initials(u.name || u.email))}</span><div><b>${esc(u.name || "—")}${u.id === me ? " (you)" : ""}</b><small>${esc(u.email)}</small></div></div></td><td>${pillFor(roleOf(u))}</td><td>${pillFor(u.banned ? "Banned" : u.verification?.status === "pending" ? "Pending" : "Active")}</td><td>${u.createdAt?.seconds ? new Date(u.createdAt.seconds * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">No users match.</td></tr>`;
-      $$("tr[data-u]", root).forEach((r) => { const go = () => { cur = r.dataset.u; paint(); }; r.onclick = go; r.onkeydown = (e) => { if (e.key === "Enter") go(); }; }); side(); };
-    const side = () => { const u = us.find((x) => x.id === cur), el = $("#uside", root); if (!u) { el.innerHTML = `<div class="empty"><h3>No user selected</h3></div>`; return; }
-      const r = roleOf(u), mine = u.id === me;
-      el.innerHTML = `<h3>Profile</h3><div class="a2-prof"><span class="avatar a2-av big">${esc(initials(u.name || u.email))}</span><h4>${esc(u.name || "—")}</h4><p class="muted">${esc(u.email)}</p>${pillFor(r)}</div>
-      ${mine ? "" : `<div class="a2-act a2-contact"><button class="btn primary" data-text>${icon("msg", 18)} Text</button><button class="btn" data-ucall="voice">${icon("phone", 18)} Call</button><button class="btn" data-ucall="video">${icon("video", 18)} Video</button></div>`}
-      <dl class="a2-dl"><div><dt>Phone</dt><dd>${esc(u.phone || u.agency?.phone || u.agentInfo?.phone || "—")}</dd></div><div><dt>Residence</dt><dd>${esc(u.location || [u.city, u.country].filter(Boolean).join(", ") || "—")}</dd></div><div><dt>Saved homes</dt><dd>${(u.saved || []).length}</dd></div>${u.agency ? `<div><dt>Business</dt><dd>${esc(u.agency.business)}</dd></div><div><dt>Registrar</dt><dd>${esc(u.agency.registrar)} · ${esc(u.agency.position)}</dd></div><div><dt>CAC no.</dt><dd>${esc(u.agency.cac)}</dd></div><div><dt>Opened</dt><dd>${esc(u.agency.opened)}</dd></div><div><dt>Support email</dt><dd>${esc(u.agency.supportEmail)}</dd></div>` : ""}${u.agentInfo ? `<div><dt>Agency</dt><dd>${esc(u.agentInfo.company || "—")}</dd></div><div><dt>Areas</dt><dd>${esc(u.agentInfo.areas)}</dd></div>` : ""}${u.verification ? `<div><dt>Verification</dt><dd>${esc(u.verification.status)}</dd></div>` : ""}</dl>
-      ${canManage && r !== "Owner" ? `<div class="field"><label for="rsel">Role</label><select id="rsel">${ROLES.map(([v, l]) => `<option value="${v}" ${l === r ? "selected" : ""}>${l}</option>`).join("")}</select></div><div class="a2-act"><button class="btn" id="xfer">Transfer ownership</button></div>` : `<p class="muted">${r === "Owner" ? "The owner account can’t be changed here." : "Only the owner can change roles."}</p>`}
-      ${ctx.S.isAdmin && r !== "Owner" && !mine && (canManage || r !== "Admin") ? `<div class="a2-act"><button class="btn ${u.banned ? "" : "danger"}" id="banBtn">${u.banned ? "Unban this user" : "Ban this user"}</button></div>${u.banned ? `<p class="muted">Banned users are signed out and can’t sign back in.</p>` : ""}` : ""}`;
-      const tx = $("[data-text]", el); if (tx) tx.onclick = () => openChat(ctx, u);
-      $$("[data-ucall]", el).forEach((b) => (b.onclick = () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: b.dataset.ucall, title: "Faxton team" })));
-      const bb = $("#banBtn", el); if (bb) bb.onclick = async () => { const on = !u.banned; if (on && !confirm(`Ban ${u.name || u.email}? They will be signed out and can’t sign back in until you unban them.`)) return; try { await st.setBanned(u.id, on); u.banned = on; toast(on ? "User banned." : "User unbanned."); paint(); } catch (e) { toast(friendlyErr(e)); } };
-      const rs = $("#rsel", el); if (rs) rs.onchange = async () => { try { await st.setRole(u.id, rs.value); u.role = rs.value; toast("Role updated."); paint(); } catch (e) { toast(friendlyErr(e)); } };
-      const xf = $("#xfer", el); if (xf) xf.onclick = () => { const m = modal(`<h2>Transfer ownership</h2><p class="muted" style="margin-bottom:14px">${esc(u.name || u.email)} will become the owner of Faxton Rentals and you will become an admin. Only they will be able to change roles or transfer ownership again.</p><form id="tf"><div class="field"><label for="tc">Type <b>${esc(u.email)}</b> to confirm</label><input id="tc" autocomplete="off"><p class="err" id="te"></p></div><div class="a2-act"><button class="btn primary" type="submit">Transfer ownership</button></div></form>`);
-        $("#tf", m.el).onsubmit = async (e) => { e.preventDefault(); if ($("#tc", m.el).value.trim().toLowerCase() !== String(u.email).toLowerCase()) return ($("#te", m.el).textContent = "Email doesn’t match."); try { await st.transferOwnership(me, u.id); m.close(); toast("Ownership transferred."); await ctx.refreshUser?.(); ctx.render(); } catch (er) { toast(friendlyErr(er)); } }; }; };
-    ["uq", "ur"].forEach((id) => ($("#" + id, root).oninput = paint));
-    $$("#uchips [data-r]", root).forEach((b) => (b.onclick = () => { $("#ur", root).value = b.dataset.r; $$("#uchips button", root).forEach((x) => x.classList.toggle("on", x === b)); paint(); }));
-    $("#inv", root).onclick = () => { const link = location.origin + "/#/signup"; const m = modal(`<h2>Invite user</h2><p class="muted" style="margin-bottom:14px">Share this link. Once they sign up you can promote them to agent or admin from this page.</p><div class="field"><input readonly value="${esc(link)}" id="il"></div><div class="a2-act"><button class="btn primary" id="cp">Copy link</button></div>`);
-      $("#cp", m.el).onclick = async () => { try { await navigator.clipboard.writeText(link); toast("Link copied."); } catch { $("#il", m.el).select(); } }; };
-    paint(); } };
+// ---------- shared status helpers ----------
+export const listingState = (l) => (l.archived ? "archived" : l.status === "rejected" ? "rejected" : /flag/i.test(l.status || "") ? "flagged" : /pending/i.test(l.status || "") ? "pending" : "active");
+export const isPendingL = (l) => ["pending", "flagged"].includes(listingState(l));
+const thumbOf = (l) => l.thumb || l.images?.[0] || "";
+const where = (l) => [l.area, l.city].filter(Boolean).join(", ");
+export const roleOf = (ctx, u) => (u.id === ctx.S.ownerUid ? "owner" : u.role === "owner" ? "admin" : u.role || "renter");
+const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Agency", agent: "Agent", landlord: "Property owner", renter: "Renter" };
+const userVerified = (u) => u.verified === true || u.verification?.status === "verified";
+
+// ---------- listings ----------
+const REJ_PRESETS = ["Photos too dark", "Missing details", "Price looks wrong"];
+function mediaDialog(l, done) {
+  const d = dialog({ title: "Photos and videos", size: "md", icon: "img", body: `<form id="mf"><label class="ax-lbl" for="mfi">Photo links (one per line, the first is the cover)</label><textarea id="mfi" class="ax-input" rows="5" placeholder="https://…">${esc((l.images || []).join("\n"))}</textarea><label class="ax-lbl" for="mfv" style="margin-top:12px">Video links (YouTube, Vimeo or a direct .mp4)</label><textarea id="mfv" class="ax-input" rows="3" placeholder="https://www.youtube.com/watch?v=…">${esc((l.videos || []).join("\n"))}</textarea><p class="ax-err" id="mfe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Save", { v: "primary", attrs: "data-ok" })}` });
+  $("[data-ok]", d.el).onclick = async (e) => {
+    const im = lines($("#mfi", d.el).value), vd = lines($("#mfv", d.el).value), err = $("#mfe", d.el); err.textContent = "";
+    if (!im.length) return (err.textContent = "Add at least one photo link.");
+    if (im.length > 20 || vd.length > 6) return (err.textContent = "Use up to 20 photos and 6 videos.");
+    if (im.some((u) => !/^(https:\/\/|img\/)/.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Links must start with https://");
+    busy(e.currentTarget, true);
+    try { await st.patch("listings", l.id, { images: im, thumb: im[0], videos: vd }); Object.assign(l, { images: im, thumb: im[0], videos: vd }); d.close(); toast("Photos and videos saved."); done?.(); } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
+  };
+}
+async function loadUsers() { return data.safe("users"); }
+async function addListingDialog(ctx, ls, list) {
+  const users = await loadUsers(), me = ctx.S.user.uid;
+  const agents = users.filter((u) => ["agent", "agency", "landlord"].includes(u.role) || u.id === me).sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : String(a.name).localeCompare(String(b.name))));
+  const d = dialog({ title: "Add listing", size: "md", icon: "clipList", body: `<form id="nl" class="ax-form" novalidate>
+    <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
+    <label class="ax-field"><span>Area</span><input class="ax-input" name="area" required maxlength="60" placeholder="Lekki Phase 1"></label>
+    <label class="ax-field"><span>City</span><input class="ax-input" name="city" value="Lagos" required maxlength="40"></label>
+    <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
+    <label class="ax-field"><span>Type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
+    <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="20" value="2" required></label>
+    <label class="ax-field"><span>Bathrooms</span><input class="ax-input" name="baths" type="number" min="1" max="20" value="2" required></label>
+    <label class="ax-field full"><span>Listed by</span><select class="ax-input" name="agent">${agents.map((u) => `<option value="${esc(u.id)}" ${u.id === me ? "selected" : ""}>${esc(u.name || u.email)}${u.id === me ? " (me)" : ""} · ${esc(ROLE_LABEL[roleOf(ctx, u)] || "")}</option>`).join("") || `<option value="${esc(me)}">${esc(meName(ctx))} (me)</option>`}</select></label>
+    <label class="ax-field full"><span>Description</span><textarea class="ax-input" name="desc" rows="3" maxlength="800"></textarea></label>
+    <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label>
+    <label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
+    <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
+  $("[data-ok]", d.el).onclick = async (e) => {
+    const f = Object.fromEntries(new FormData($("#nl", d.el))), err = $("#nle", d.el); err.textContent = "";
+    const im = lines(f.im), vd = lines(f.vd);
+    if (!f.title.trim() || !f.area.trim() || !f.city.trim()) return (err.textContent = "Add a title, area and city.");
+    if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
+    if (im.length > 20 || vd.length > 6) return (err.textContent = "Use up to 20 photos and 6 videos.");
+    if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
+    const u = users.find((x) => x.id === f.agent), self = !u || u.id === me, name = (u?.name || u?.email || meName(ctx)), photo = u?.photo || (self ? ctx.S.profile?.photo : "") || "";
+    const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
+    const doc = { id, title: f.title.trim(), area: f.area.trim(), city: f.city.trim(), price: +f.price, beds: +f.beds, baths: Math.max(1, +f.baths), sqm: 0, type: f.type, desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images: im, thumb: im[0] || "", videos: vd, amenities: [], ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
+    busy(e.currentTarget, true);
+    try { await st.createListing(doc); ls.unshift({ ...doc, createdAt: { seconds: Math.floor(Date.now() / 1000) } }); changed(); list.repaint(); d.close(); toast("Listing created."); } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
+  };
+}
+function listingDrawer(ctx, l, api, { viewOnly } = {}) {
+  const s = listingState(l), imgs = (l.images || []).filter(Boolean);
+  const body = `${imgs[0] ? `<img class="ax-hero" src="${esc(imgs[0])}" alt="" loading="lazy">${imgs.length > 1 ? `<div class="ax-strip">${imgs.slice(1, 5).map((u) => `<img src="${esc(u)}" alt="" loading="lazy">`).join("")}</div>` : ""}` : `<div class="ax-hero" style="display:grid;place-items:center;color:var(--ax-faint)">${I("img", 32)}</div>`}
+    <div style="margin-top:16px">${section("Summary", dl([["Agent", esc(l.agent?.name || "—")], ["Type", esc(l.type || "—")], ["Rent", l.price ? `${naira(l.price)} <span class="ax-muted">/ year</span>` : "—"], ["Bedrooms", l.beds === 0 ? "Studio" : fmt.num(l.beds)], ["Size", l.sqm ? l.sqm + " m²" : ""], ["Deposit", l.deposit ? naira(l.deposit) : ""], ["Service charge", l.service ? naira(l.service) : ""]]))}
+    ${l.changeNote && /flag|reject/.test(s) ? section("Note sent to the owner", `<p class="ax-clamp" style="-webkit-line-clamp:6">${esc(l.changeNote)}</p>`) : ""}
+    ${section("Description", l.desc ? `<p class="ax-clamp" data-clamp>${esc(l.desc)}</p>${l.desc.length > 220 ? `<button type="button" class="ax-link" data-more style="border:0;background:none;padding:4px 0;cursor:pointer">Show more</button>` : ""}` : `<span class="ax-muted">No description yet.</span>`)}
+    ${section("Media", `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${(l.videos || []).length} video${(l.videos || []).length === 1 ? "" : "s"}</span>${btn("Photos and videos", { size: "sm", ic: "img", attrs: "data-media" })}</div>`)}
+    ${section("Owner", `<div class="ax-id" data-owner>${avatar(l.agent?.name, l.ownerUid || l.agent?.id, 36, l.agent?.photo || l.agent?.avatar)}<div><b>${esc(l.agent?.name || "Faxton")}</b><small data-ownersub>${l.ownerUid ? "Property owner account" : "Added by the Faxton team"}</small></div></div>${l.ownerUid ? `<div style="display:flex;gap:8px;margin-top:10px">${btn("Text", { size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}</div>` : ""}`)}
+    ${section("History", timeline([{ title: "Submitted", meta: fmt.dateTime(l.createdAt) }, ...(s === "active" ? [{ title: "Live on Faxton", meta: "Approved" }] : []), ...(s === "flagged" ? [{ title: "Changes requested", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "rejected" ? [{ title: "Rejected", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "archived" ? [{ title: "Archived", tone: "mute" }] : [])]))}</div>`;
+  const footer = viewOnly ? "" : s === "active" ? btn("Archive listing", { v: "outline", attrs: "data-do=archive" }) + (l.status === "active" ? btn("View live page", { v: "ghost", href: "#/home/" + encodeURIComponent(l.id) }) : "") : s === "archived" || s === "rejected" ? btn("Restore listing", { v: "primary", attrs: "data-do=restore" }) : btn("Approve listing", { v: "primary", attrs: "data-do=approve" }) + btn("Request changes", { attrs: "data-do=changes" }) + btn("Reject", { v: "danger", attrs: "data-do=reject" });
+  return { title: l.title, sub: `${chipFor("listing", s)}<span>${esc(where(l))}</span>`, body, footer,
+    mount(el) {
+      $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
+      $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
+      $("[data-text]", el)?.addEventListener("click", () => data.safe("users").then((us) => { const u = us.find((x) => x.id === l.ownerUid); if (u) openChat(ctx, u); else toast("We couldn’t find that owner’s account.", { tone: "bad" }); }));
+      $("[data-call]", el)?.addEventListener("click", () => CALLS.startCall(ctx, { to: l.ownerUid, toName: l.agent?.name || "Owner", kind: "voice", title: "Faxton team" }));
+      el.querySelectorAll("[data-do]").forEach((b) => (b.onclick = () => listingAct(ctx, l, b.dataset.do, api, b)));
+    } };
+}
+async function listingAct(ctx, l, act, api, b) {
+  try {
+    if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
+    else if (act === "restore") await write("listings", l, { status: "active", archived: false }, { msg: "Listing restored.", after: api.refresh });
+    else if (act === "archive") await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
+    else if (act === "changes" || act === "reject") {
+      const rej = act === "reject", why = await reason({ title: rej ? "Reject this listing" : "Request changes", body: `${esc(l.title)}`, presets: REJ_PRESETS, confirmLabel: rej ? "Reject listing" : "Send request", tone: rej ? "bad" : "", helper: "This message is shown to the owner." });
+      if (!why) return;
+      await write("listings", l, { status: rej ? "rejected" : "flagged", changeNote: why }, { msg: rej ? "Listing rejected." : "Changes requested. The owner has been told.", after: api.refresh });
+      notify(l.ownerUid, { kind: rej ? "rejected" : "info", title: rej ? "Listing not approved" : "Changes requested on your listing", body: `${l.title}: ${why}` });
+    }
+  } catch (e) { bad(e); } finally { busy(b, false); }
+}
+export function listings(ctx) {
+  return pageView(ctx, { title: "Listings", eyebrow: "Marketplace", sub: "Review, approve and manage every listing on Faxton Rentals.", cols: ["listings"], what: "listings", actions: btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add" }),
+    async render({ listings: ls }, { root, body }) {
+      return { html: `<div id="lst"></div>`, mount(el) {
+        const list = createList($("#lst", el), { noun: "listings", label: "Listings", rows: ls, placeholder: "Search listings, areas or agents…",
+          tabs: [{ k: "all", label: "All" }, { k: "pending", label: "Pending", test: isPendingL, tone: "" }, { k: "active", label: "Active", test: (l) => listingState(l) === "active" }, { k: "archived", label: "Archived", test: (l) => ["archived", "rejected"].includes(listingState(l)) }],
+          defaultTab: (rows) => (rows.some(isPendingL) ? "pending" : "all"),
+          sort: null, compare: (a, b) => (isPendingL(b) - isPendingL(a)) || (AX.ms(b.createdAt) - AX.ms(a.createdAt)),
+          facets: [{ k: "city", label: "City", options: (r) => [["", "All cities"], ...[...new Set(r.map((l) => l.city).filter(Boolean))].sort().map((c) => [c, c])], test: (l, v) => l.city === v }, { k: "type", label: "Type", options: (r) => [["", "All types"], ...[...new Set(r.map((l) => l.type).filter(Boolean))].sort().map((c) => [c, c])], test: (l, v) => l.type === v }, { k: "agent", label: "Agent", options: (r) => [["", "All agents"], ...[...new Set(r.map((l) => l.agent?.name).filter(Boolean))].sort().map((c) => [c, c])], test: (l, v) => l.agent?.name === v }],
+          search: (l) => `${l.title} ${l.area} ${l.city} ${l.agent?.name || ""} ${l.id}`,
+          cols: [
+            { k: "prop", label: "Property", role: "title", sort: (l) => String(l.title).toLowerCase(), cell: (l) => `<div class="ax-id">${thumb(thumbOf(l), 32)}<div><b>${esc(l.title)}</b><small>${esc(where(l))}</small></div></div>` },
+            { k: "agent", label: "Agent", pri: 2, cell: (l) => `<div class="ax-id">${avatar(l.agent?.name, l.agent?.id, 28, l.agent?.photo || l.agent?.avatar)}<div><b style="font-weight:500;color:var(--ax-text)">${esc(l.agent?.name || "—")}</b></div></div>` },
+            { k: "price", label: "Price", align: "right", sort: (l) => +l.price || 0, cell: (l) => (l.price ? `<span class="ax-money">${naira(l.price)} <small>/yr</small></span>` : "—") },
+            { k: "status", label: "Status", role: "status", cell: (l) => chipFor("listing", listingState(l)) },
+            { k: "created", label: "Submitted", pri: 2, sort: (l) => AX.ms(l.createdAt), cell: (l) => `<span title="${esc(fmt.dateTime(l.createdAt))}">${fmt.rel(l.createdAt)}</span>` },
+          ],
+          bulk: [
+            { label: "Approve", icon: "check", run: (rs, c) => bulkListings(rs, c, "approve", ctx) }, { label: "Request changes", run: (rs, c) => bulkListings(rs, c, "changes", ctx) },
+            { label: "Archive", run: (rs, c) => bulkListings(rs, c, "archive", ctx) }, { label: "Restore", run: (rs, c) => bulkListings(rs, c, "restore", ctx) },
+            { label: "Export CSV", icon: "download", free: true, run: (rs) => csv("faxton-listings-selected", ["Title", "Area", "City", "Rent", "Status", "Agent"], rs.map((l) => [l.title, l.area, l.city, l.price, listingState(l), l.agent?.name || ""])) }],
+          csv: { name: "faxton-listings", head: ["Title", "Area", "City", "Type", "Rent", "Status", "Agent", "Submitted"], row: (l) => [l.title, l.area, l.city, l.type, l.price, listingState(l), l.agent?.name || "", fmt.date(l.createdAt)] },
+          quick: (l) => (isPendingL(l) ? `${btn("Approve", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=approve" })}${btn("Review", { v: "ghost", size: "xs", cls: "ax-qa", attrs: "data-qa=review" })}` : ""),
+          onQuick: (k, l, b, api) => (k === "review" ? api.list.open(l.id) : listingAct(ctx, l, k, { refresh: api.refresh }, b)),
+          menu: (l, api) => { const s = listingState(l); return [{ label: "Review", icon: "eye", act: api.open }, ...(s === "active" && l.status === "active" ? [{ label: "View live page", icon: "ext", act: () => ctx.go("#/home/" + encodeURIComponent(l.id)) }] : []), { label: "Edit photos and videos", icon: "img", act: () => mediaDialog(l, api.refresh) }, { sep: 1 },
+            ...(isPendingL(l) ? [{ label: "Approve", icon: "check", act: () => listingAct(ctx, l, "approve", api) }, { label: "Request changes", icon: "msg", act: () => listingAct(ctx, l, "changes", api) }] : []), s === "archived" || s === "rejected" ? { label: "Restore", icon: "refresh", act: () => listingAct(ctx, l, "restore", api) } : { label: "Archive", icon: "folder", act: () => listingAct(ctx, l, "archive", api) }, { sep: 1 }, { label: "Copy link", icon: "copy", act: () => copy(location.origin + "/#/home/" + l.id, "Link copied.") }]; },
+          drawer: (l, api) => listingDrawer(ctx, l, api),
+          empty: { icon: "clipList", title: "No listings yet", hint: "Add the first listing, or wait for agents to submit.", action: btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add2" }) } });
+        const add = () => addListingDialog(ctx, ls, list);
+        root.querySelector("[data-act=add]")?.addEventListener("click", add); el.addEventListener("click", (e) => e.target.closest("[data-act=add2]") && add());
+        if (hq().q.new) { setQ({ new: "" }); add(); }
+      } };
+    } });
+}
+async function bulkListings(rs, c, act, ctx) {
+  let why = "";
+  if (act === "changes") { why = await reason({ title: `Request changes on ${rs.length} listing${rs.length === 1 ? "" : "s"}`, presets: REJ_PRESETS, confirmLabel: "Send request", helper: "One message goes to every owner." }); if (!why) return; }
+  const label = { approve: "Approving", changes: "Requesting changes on", archive: "Archiving", restore: "Restoring" }[act], prev = new Map(rs.map((l) => [l.id, { status: l.status, archived: !!l.archived, changeNote: l.changeNote || "" }]));
+  const patch = act === "approve" || act === "restore" ? { status: "active", archived: false } : act === "archive" ? { archived: true } : { status: "flagged", changeNote: why };
+  const r = await bulkRun(rs.map((l) => l.id), async (id) => { const l = rs.find((x) => x.id === id); await st.patch("listings", id, patch); Object.assign(l, patch); if (act === "changes") notify(l.ownerUid, { kind: "info", title: "Changes requested on your listing", body: `${l.title}: ${why}` }); if (act === "approve") notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved.` }); }, { label });
+  changed(); c.clear();
+  toast(r.bad ? `${r.ok.length} done, ${r.bad} failed. Try the failed ones again.` : `${r.ok.length} listing${r.ok.length === 1 ? "" : "s"} updated.`, { tone: r.bad ? "bad" : "", action: r.ok.length ? "Undo" : "", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const l = rs.find((x) => x.id === id), p = prev.get(id); await st.patch("listings", id, p); Object.assign(l, p); })); changed(); c.list.repaint(); } });
 }
 
-// ---------- Support inbox ----------
-export function support(ctx, tks) {
-  const by = [...tks].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-  const group = (t) => (/resolved|closed/i.test(t.status) ? "Resolved" : /progress/i.test(t.status) ? "In progress" : "Open");
-  const html = `<div class="page-head"><div><h1>Support inbox</h1><p>Manage and respond to renter and agent support requests.</p></div></div>
-  <div class="a2-tabs" role="tablist">${["Open", "In progress", "Resolved"].map((k, i) => `<button role="tab" class="${i ? "" : "on"}" data-tab="${k}">${k} <b>${by.filter((t) => group(t) === k).length}</b></button>`).join("")}</div>
-  <div class="a2-three"><div class="panel a2-tix" id="tlist"></div><section class="panel a2-thread" id="tthread"></section><aside class="panel a2-side" id="tdet"></aside></div>`;
-  return { html, mount(root) {
-    let tab = "Open", cur = by.find((t) => group(t) === "Open")?.id || by[0]?.id, note = false;
-    const paint = () => { const rows = by.filter((t) => group(t) === tab); if (rows.length && !rows.some((t) => t.id === cur)) cur = rows[0].id;
-      $("#tlist", root).innerHTML = rows.map((t) => `<button class="a2-t ${t.id === cur ? "on" : ""}" data-t="${esc(t.id)}"><span class="avatar a2-av">${esc(initials(t.name || "?"))}</span><span class="tx"><b>${esc(t.subject)}</b><small>${esc(t.name || "")}</small><em>${esc(String(t.message || "").slice(0, 70))}</em></span><span class="tm">${rel(t.createdAt)}</span></button>`).join("") || `<p class="muted pad">No ${tab.toLowerCase()} tickets.</p>`;
-      $$("[data-t]", root).forEach((b) => (b.onclick = () => { cur = b.dataset.t; paint(); })); thread(); };
-    const thread = () => { const t = by.find((x) => x.id === cur), th = $("#tthread", root), dt = $("#tdet", root);
-      if (!t) { th.innerHTML = `<div class="empty"><h3>No ticket selected</h3><p>Select a ticket to read the conversation.</p></div>`; dt.innerHTML = ""; return; }
-      const reps = t.replies || [];
-      th.innerHTML = `<header><h3>${esc(t.subject)}</h3><small class="muted">#${esc(t.ref || "")} · ${rel(t.createdAt)}</small></header><div class="a2-msgs"><div class="m in"><span class="avatar a2-av">${esc(initials(t.name || "?"))}</span><div><b>${esc(t.name || "")}</b><p>${esc(t.message)}</p></div></div>${reps.map((r) => `<div class="m ${r.internal ? "note" : "out"}"><div><b>${esc(r.by || "Support")}${r.internal ? " · internal note" : ""}</b><p>${esc(r.text)}</p></div></div>`).join("")}</div>
-      <form id="rf" class="a2-reply"><div class="a2-rt"><button type="button" class="${note ? "" : "on"}" data-m="reply">Reply</button><button type="button" class="${note ? "on" : ""}" data-m="note">Internal note</button></div><textarea id="rt" rows="3" maxlength="1500" placeholder="${note ? "Add a private note for your team..." : "Write your reply..."}" required></textarea><div class="a2-act"><button class="btn primary" type="submit">${note ? "Add note" : "Send reply"}</button></div></form>`;
-      $$("[data-m]", th).forEach((b) => (b.onclick = () => { note = b.dataset.m === "note"; thread(); }));
-      $("#rf", th).onsubmit = async (e) => { e.preventDefault(); const text = $("#rt", th).value.trim(); if (!text) return; const next = [...reps, { by: ctx.S.user.displayName || "Support", text, internal: note, at: Date.now() }];
-        try { await st.patch("tickets", t.id, { replies: next, ...(note || /progress/i.test(t.status) ? {} : { status: "In progress" }) }); t.replies = next; if (!note && group(t) === "Open") t.status = "In progress"; toast(note ? "Note added." : "Reply saved."); tab = group(t); $$("[data-tab]", root).forEach((x) => x.classList.toggle("on", x.dataset.tab === tab)); paint(); } catch (er) { toast(friendlyErr(er)); } };
-      dt.innerHTML = `<h3>Ticket details</h3><div class="field"><label for="ts">Status</label><select id="ts">${["Open", "In progress", "Resolved"].map((s) => `<option ${group(t) === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label for="tp">Priority</label><select id="tp">${["Low", "Medium", "High"].map((s) => `<option ${(t.priority || "Medium") === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label for="ta">Assignee</label><select id="ta"><option value="">Unassigned</option><option value="${esc(ctx.S.user.displayName || ctx.S.user.email)}" ${t.assignee ? "selected" : ""}>${esc(ctx.S.user.displayName || ctx.S.user.email)} (me)</option></select></div>
-      <dl class="a2-dl"><div><dt>From</dt><dd>${esc(t.name || "—")}</dd></div><div><dt>Reference</dt><dd>#${esc(t.ref || "")}</dd></div></dl><div class="a2-act"><button class="btn primary" id="res">${group(t) === "Resolved" ? "Reopen ticket" : "Mark as resolved"}</button></div>`;
-      const save = async (p, msg) => { try { await st.patch("tickets", t.id, p); Object.assign(t, p); toast(msg); paint(); } catch (er) { toast(friendlyErr(er)); } };
-      $("#ts", dt).onchange = (e) => save({ status: e.target.value }, "Status updated.");
-      $("#tp", dt).onchange = (e) => save({ priority: e.target.value }, "Priority updated.");
-      $("#ta", dt).onchange = (e) => save({ assignee: e.target.value }, "Assignee updated.");
-      $("#res", dt).onclick = () => save({ status: group(t) === "Resolved" ? "Open" : "Resolved" }, group(t) === "Resolved" ? "Ticket reopened." : "Ticket resolved."); };
-    $$("[data-tab]", root).forEach((b) => (b.onclick = () => { tab = b.dataset.tab; $$("[data-tab]", root).forEach((x) => x.classList.toggle("on", x === b)); paint(); }));
-    paint(); } };
-}
-
-// ---------- text a user from the console ----------
-// First ask who the message is from: Faxton support, or the admin as themselves.
+// ---------- users ----------
 function openChat(ctx, u) {
-  const me = ctx.S.profile?.name || ctx.S.user.displayName || ctx.S.user.email, photo = ctx.S.profile?.photo || ctx.S.user.photoURL || "";
-  const m = modal(`<div class="of-dlg"><h2>Message ${esc(u.name || u.email || "this user")}</h2><p class="muted">Who should this message come from?</p>
-    <button class="vs-act" data-as="faxton"><span><img src="assets/mark.svg" alt="" width="26" height="26"></span><div><b>Faxton support</b><small>They see it from the Faxton team</small></div></button>
-    <button class="vs-act" data-as="me"><span>${photo ? `<img src="${esc(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px" referrerpolicy="no-referrer">` : esc((me || "?")[0].toUpperCase())}</span><div><b>${esc(me)}</b><small>They see it from you, by name</small></div></button></div>`);
-  $$("[data-as]", m.el).forEach((b) => (b.onclick = async () => {
-    const faxton = b.dataset.as === "faxton"; b.disabled = true;
-    let cid; try { cid = faxton ? await st.ensureDirectConversation(ctx.S.user, u) : await st.ensureStaffPersonalConversation(ctx.S.user, { name: me, photo: ctx.S.profile?.photo || "" }, u); } catch (e) { b.disabled = false; return toast(friendlyErr(e)); }
+  const me = meName(ctx), photo = ctx.S.profile?.photo || ctx.S.user.photoURL || "";
+  const d = dialog({ title: `Message ${u.name || u.email || "this user"}`, size: "sm", icon: "msg", body: `<p class="ax-p">Who should this message come from?</p><div style="display:grid;gap:10px"><button type="button" class="ax-btn" data-v="outline" data-as="faxton" style="height:56px;justify-content:flex-start;padding:0 14px"><img src="assets/mark.svg" alt="" width="28" height="24"><span style="display:grid;text-align:left;gap:2px"><b>Faxton support</b><small style="font-weight:400;color:var(--ax-muted)">They see it from the Faxton team</small></span></button>
+    <button type="button" class="ax-btn" data-v="outline" data-as="me" style="height:56px;justify-content:flex-start;padding:0 14px">${avatar(me, ctx.S.user.uid, 28, photo)}<span style="display:grid;text-align:left;gap:2px"><b>${esc(me)}</b><small style="font-weight:400;color:var(--ax-muted)">They see it from you, by name</small></span></button></div>` });
+  $$("[data-as]", d.el).forEach((b) => (b.onclick = async () => {
+    const faxton = b.dataset.as === "faxton"; b.disabled = true; let cid;
+    try { cid = faxton ? await st.ensureDirectConversation(ctx.S.user, u) : await st.ensureStaffPersonalConversation(ctx.S.user, { name: me, photo: ctx.S.profile?.photo || "" }, u); } catch (e) { b.disabled = false; return bad(e); }
     try { sessionStorage.setItem("msgMode", faxton ? "faxton" : "personal"); } catch {}
-    m.close(); ctx.go("#/messages/" + cid);
+    d.close(); ctx.go("#/messages/" + cid);
   }));
+}
+function inviteDialog() {
+  const link = location.origin + "/#/signup";
+  const d = dialog({ title: "Invite a user", size: "sm", icon: "users", body: `<p class="ax-p">Share this link. Once they sign up you can set their role from this page.</p><input class="ax-input" readonly value="${esc(link)}" aria-label="Sign-up link">`, footer: `${btn("Close", { attrs: "data-x" })}${btn("Copy link", { v: "primary", ic: "copy", attrs: "data-ok" })}` });
+  $("[data-ok]", d.el).onclick = () => copy(link, "Link copied.");
+}
+const canBan = (ctx, u) => ctx.S.isAdmin && u.id !== ctx.S.user.uid && roleOf(ctx, u) !== "owner" && (ctx.S.isOwner || roleOf(ctx, u) !== "admin");
+async function banAct(ctx, u, api) {
+  const on = !u.banned;
+  if (on && !(await confirm({ title: `Ban ${u.name || u.email}?`, body: "They will be signed out and can’t sign back in until you unban them.", confirmLabel: "Ban user", tone: "danger", icon: "alert" }))) return;
+  try { await st.setBanned(u.id, on); u.banned = on; changed(); api.refresh(); toast(on ? "User banned." : "User unbanned.", { action: "Undo", onAction: async () => { try { await st.setBanned(u.id, !on); u.banned = !on; changed(); api.refresh(); } catch (e) { bad(e); } } }); } catch (e) { bad(e); }
+}
+async function transferAct(ctx, u, api) {
+  if (!(await typed({ title: "Transfer ownership", body: `${esc(u.name || u.email)} will become the owner of Faxton Rentals and you will become an admin. Only they will be able to change roles or transfer ownership again.`, expect: u.email, confirmLabel: "Transfer ownership" }))) return;
+  try { await st.transferOwnership(ctx.S.user.uid, u.id); data.invalidate(); toast("Ownership transferred."); await ctx.refreshUser?.(); } catch (e) { bad(e); }
+}
+function userStatus(ctx, u) {
+  if (u.banned) return chipFor("user", "banned");
+  const r = roleOf(ctx, u);
+  if (["agent", "agency"].includes(r)) { const v = u.verification?.status; return v === "verified" || u.verified ? chip("ok", "Verified") : v === "pending" ? chip("warn", "Pending verification") : v === "rejected" ? chip("bad", "Not verified") : chip("mute", "Unverified"); }
+  return chipFor("user", "active");
+}
+function userDrawer(ctx, u, api) {
+  const r = roleOf(ctx, u), mine = u.id === ctx.S.user.uid, ag = u.agency, gi = u.agentInfo, ban = canBan(ctx, u);
+  const ROLES = [["renter", "Renter"], ["agent", "Agent"], ["landlord", "Property owner"], ["agency", "Agency"], ["support", "Support"], ["admin", "Admin"]];
+  const body = `<div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">${avatar(u.name || u.email, u.id, 56, u.photo)}<div style="min-width:0"><div style="font:700 18px/22px var(--font-display);color:var(--ax-head)">${esc(u.name || "—")}${mine ? ' <span class="ax-muted" style="font:400 13px var(--font-body)">(you)</span>' : ""}</div><div style="font-size:13px;color:var(--ax-muted);overflow-wrap:anywhere">${esc(u.email || "")}</div><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${chipFor("user", r)}${userStatus(ctx, u)}</div></div></div>
+    ${mine ? "" : `<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">${btn("Text", { v: "primary", size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call=voice" })}${btn("Video", { size: "sm", ic: "video", attrs: "data-call=video" })}</div>`}
+    ${section("Details", dl([["Phone", esc(u.phone || ag?.phone || gi?.phone || "")], ["Residence", esc(u.location || [u.city, u.country].filter(Boolean).join(", "))], ["Joined", fmt.date(u.createdAt) === "—" ? "" : fmt.date(u.createdAt)], ["Saved homes", fmt.num((u.saved || []).length)], ...(ag ? [["Business", esc(ag.business)], ["Registrar", esc([ag.registrar, ag.position].filter(Boolean).join(" · "))], ["CAC number", esc(ag.cac)], ["Opened", esc(ag.opened)], ["Support email", esc(ag.supportEmail)], ["Office address", esc(ag.address)], ["Website", ag.website ? esc(ag.website) : ""]] : []), ...(gi ? [["Agency", esc(gi.company)], ["Licence", esc(gi.licence)], ["Experience", esc(gi.experience)], ["Areas", esc(gi.areas)]] : [])]))}
+    ${u.verification ? section("Verification", dl([["Status", chipFor("verification", u.verification.status)], ["Reason", esc(u.verification.reason || "")]])) : ""}
+    ${section("Role", r === "owner" ? `<p class="ax-muted">The owner account can’t be changed here.</p>` : ctx.S.isOwner && !mine ? `<select class="ax-input" data-role aria-label="Role">${ROLES.map(([v, l]) => `<option value="${v}" ${r === v ? "selected" : ""}>${l}</option>`).join("")}</select><p class="ax-help">Takes effect straight away.</p>` : `<p class="ax-muted">${mine ? "You can’t change your own role." : "Only the owner can change roles."}</p>`)}
+    ${ban || (ctx.S.isOwner && !mine && r !== "owner") ? section("Danger zone", `<div style="display:flex;gap:8px;flex-wrap:wrap">${ban ? btn(u.banned ? "Unban this user" : "Ban this user", { v: u.banned ? "outline" : "danger", attrs: "data-ban" }) : ""}${ctx.S.isOwner && !mine && r !== "owner" ? btn("Transfer ownership", { v: "outline", attrs: "data-xfer" }) : ""}</div>${u.banned ? `<p class="ax-help">Banned users are signed out and can’t sign back in.</p>` : ""}`) : ""}`;
+  return { title: u.name || u.email || "User", sub: `<span>${esc(ROLE_LABEL[r] || r)}</span>`, body,
+    mount(el) {
+      $("[data-text]", el)?.addEventListener("click", () => openChat(ctx, u));
+      $$("[data-call]", el).forEach((b) => (b.onclick = () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: b.dataset.call, title: "Faxton team" })));
+      $("[data-ban]", el)?.addEventListener("click", () => banAct(ctx, u, api)); $("[data-xfer]", el)?.addEventListener("click", () => transferAct(ctx, u, api));
+      const rs = $("[data-role]", el); if (rs) rs.onchange = async () => { const prev = u.role; try { await st.setRole(u.id, rs.value); u.role = rs.value; changed(); api.refresh(); toast("Role updated.", { action: "Undo", onAction: async () => { try { await st.setRole(u.id, prev || "renter"); u.role = prev; changed(); api.refresh(); } catch (e) { bad(e); } } }); } catch (e) { rs.value = prev || "renter"; bad(e); } };
+    } };
+}
+export function users(ctx) {
+  return pageView(ctx, { title: "Users", eyebrow: "Marketplace", sub: ctx.S.isOwner ? "Set roles, verify agents, message anyone and transfer ownership." : "Look up people, message them and manage bans. Only the owner can change roles.", cols: ["users"], what: "users", actions: btn("Invite user", { v: "primary", ic: "plus", attrs: "data-act=inv" }),
+    async render({ users: us }, { root }) {
+      try { st.syncVerified(us); } catch {}
+      const R = (u) => roleOf(ctx, u);
+      return { html: `<div id="usr"></div>`, mount(el) {
+        const list = createList($("#usr", el), { noun: "users", label: "Users", rows: us, placeholder: "Search by name, email or phone…",
+          tabs: [{ k: "all", label: "All" }, { k: "renter", label: "Renters", test: (u) => R(u) === "renter" }, { k: "agent", label: "Agents", test: (u) => R(u) === "agent" }, { k: "agency", label: "Agencies", test: (u) => R(u) === "agency" }, { k: "landlord", label: "Property owners", test: (u) => R(u) === "landlord" }, { k: "support", label: "Support", test: (u) => R(u) === "support" }, { k: "admin", label: "Admins", test: (u) => ["admin", "owner"].includes(R(u)) }, { k: "banned", label: "Banned", test: (u) => !!u.banned }],
+          sort: { k: "joined", dir: "desc" },
+          facets: [{ k: "ver", label: "Verification", options: [["", "Any"], ["verified", "Verified"], ["pending", "Pending"], ["none", "Not requested"]], test: (u, v) => (v === "verified" ? userVerified(u) : v === "pending" ? u.verification?.status === "pending" : !u.verification && !u.verified) }, { k: "country", label: "Country", options: (r) => [["", "Anywhere"], ...[...new Set(r.map((u) => u.country).filter(Boolean))].sort().map((c) => [c, c])], test: (u, v) => u.country === v }],
+          search: (u) => `${u.name || ""} ${u.email || ""} ${u.phone || ""} ${u.agency?.business || ""}`,
+          cols: [
+            { k: "name", label: "Name", role: "title", sort: (u) => String(u.name || u.email || "").toLowerCase(), cell: (u) => `<div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}${u.id === ctx.S.user.uid ? ' <span class="ax-muted" style="font-weight:400">(you)</span>' : ""}</b><small title="${esc(u.email || "")}">${esc(u.email || "")}</small></div></div>` },
+            { k: "role", label: "Role", pri: 2, cell: (u) => chipFor("user", R(u)) },
+            { k: "status", label: "Status", role: "status", cell: (u) => userStatus(ctx, u) },
+            { k: "loc", label: "Location", pri: 2, cell: (u) => esc(u.location || [u.city, u.country].filter(Boolean).join(", ") || "—") },
+            { k: "joined", label: "Joined", pri: 2, sort: (u) => AX.ms(u.createdAt), cell: (u) => fmt.date(u.createdAt) },
+          ],
+          bulk: [{ label: "Export CSV", icon: "download", free: true, run: (rs) => csv("faxton-users-selected", ["Name", "Email", "Role", "Country", "City", "Joined"], rs.map((u) => [u.name, u.email, R(u), u.country, u.city, fmt.date(u.createdAt)])) }],
+          csv: { name: "faxton-users", head: ["Name", "Email", "Phone", "Role", "Banned", "Country", "City", "Joined"], row: (u) => [u.name, u.email, u.phone, R(u), u.banned ? "yes" : "no", u.country, u.city, fmt.date(u.createdAt)] },
+          quick: (u) => (u.id === ctx.S.user.uid ? "" : btn("Text", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=text" })), onQuick: (k, u) => openChat(ctx, u),
+          menu: (u, api) => [{ label: "Open profile", icon: "user", act: api.open }, ...(u.id === ctx.S.user.uid ? [] : [{ label: "Message", icon: "msg", act: () => openChat(ctx, u) }, { label: "Call", icon: "phone", act: () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: "voice", title: "Faxton team" }) }, { label: "Video", icon: "video", act: () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: "video", title: "Faxton team" }) }]), ...(canBan(ctx, u) ? [{ sep: 1 }, { label: u.banned ? "Unban" : "Ban user", icon: "alert", tone: u.banned ? "" : "bad", act: () => banAct(ctx, u, api) }] : []), ...(ctx.S.isOwner && u.id !== ctx.S.user.uid && R(u) !== "owner" ? [{ label: "Transfer ownership", icon: "refresh", act: () => transferAct(ctx, u, api) }] : [])],
+          drawer: (u, api) => userDrawer(ctx, u, api), empty: { icon: "users", title: "No users yet", hint: "People appear here as soon as they sign up." } });
+        root.querySelector("[data-act=inv]")?.addEventListener("click", inviteDialog);
+        if (hq().q.invite) { setQ({ invite: "" }); inviteDialog(); }
+      } };
+    } });
+}
+
+// ---------- verifications ----------
+const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
+const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+export function verifications(ctx) {
+  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
+    async render({ users: us }, { body }) {
+      let tab = hq().q.tab || "waiting";
+      const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
+      const dels = () => us.filter((u) => u.deletion?.status === "pending");
+      const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
+      const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : `${Math.floor(m / 1440)} days ago`; };
+      const nameOf = (id) => us.find((x) => x.id === id)?.name || "";
+      const card = (u) => { const a = u.agency, g = u.agentInfo, v = u.verification, isA = v.kind === "agency", pend = v.status === "pending";
+        return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
+          ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Registrar", esc(a?.registrar)], ["Role", esc(a?.position)], ["Opened", esc(a?.opened)], ["Registrar’s DOB", esc(dob(a?.dob))], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]])}
+          ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${VF_CHECK.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
+      const html = () => {
+        const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
+        const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
+        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
+          : tab === "decided" ? (dn.length ? `<div class="ax-vgrid">${dn.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." })}</div>`)
+          : `<div class="ax-card ax-tablecard">${dd.length ? `<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>${dd.map((u) => `<tr><td data-label="Person" data-role="title"><div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}</b><small>${esc(u.email || "")}</small></div></div></td><td data-label="Role">${esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter")}</td><td data-label="Requested">${ago(u.deletion.requestedAt)}</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">${btn("Approve deletion", { v: "danger", size: "sm", attrs: `data-del=approved data-id="${esc(u.id)}"` })}${btn("Keep account", { size: "sm", attrs: `data-del=denied data-id="${esc(u.id)}"` })}</div></td></tr>`).join("")}</tbody></table></div>` : empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })}</div>`;
+        return `${tb}<div style="margin-top:16px" id="vfMain">${main}</div>`;
+      };
+      return { html: `<div id="vfRoot">${html()}</div>`, mount(el) {
+        const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
+        mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
+        root.addEventListener("click", async (e) => {
+          const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
+          if (bv) {
+            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
+            let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
+            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
+              await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
+              toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }
+          } else if (bd) {
+            const u = us.find((x) => x.id === bd.dataset.id), ok = bd.dataset.del === "approved";
+            if (ok && !(await confirm({ title: `Approve deleting ${u.name || u.email}?`, body: "Their account will be removed the next time it’s opened after the one-day review.", confirmLabel: "Approve deletion", tone: "danger", icon: "trash" }))) return;
+            busy(bd, true);
+            try { const nd = { ...u.deletion, status: bd.dataset.del, decidedAt: Date.now() }; await st.decideDeletion(u.id, nd); u.deletion = nd; changed(); await st.notify(u.id, { kind: "info", title: ok ? "Deletion approved" : "Account kept", body: ok ? "Your account will be removed after the one-day review period." : "We’ve kept your account as it is." }).catch(() => {}); toast(ok ? "Deletion approved." : "Account kept."); paint(); } catch (x) { busy(bd, false); bad(x); }
+          }
+        });
+      } };
+    } });
+}
+
+// ---------- applications ----------
+const APP_STATUS = ["Under review", "Awaiting documents", "Approved", "Rejected"];
+const appMonth = (a) => String(a.moveIn || "").slice(0, 7);
+const monthLabel = (m) => (m ? new Date(m + "-01T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "");
+async function setApp(a, status, api) { try { await write("applications", a, { status }, { msg: `Marked ${status.toLowerCase()}.`, after: api.refresh }); } catch (e) { bad(e); } }
+function appDrawer(ctx, a, api) {
+  const idx = APP_STATUS.indexOf(a.status), steps = ["Submitted", "Under review", "Awaiting documents", "Decision"], cur = a.status === "Under review" ? 1 : a.status === "Awaiting documents" ? 2 : 3;
+  const body = `<div class="ax-id" style="margin-bottom:14px">${avatar(a.name, a.uid, 44)}<div><b style="font-size:15px">${esc(a.name || "Applicant")}</b><small>${esc(a.email || "")}</small></div></div>
+    <ol class="ax-steps" aria-label="Progress">${steps.map((s, i) => `<li class="${i < cur ? "done" : ""} ${i === cur ? "cur" : ""} ${i === 3 && a.status === "Rejected" ? "bad" : ""}"><i>${i < cur ? "✓" : i + 1}</i>${s}</li>`).join("")}</ol>
+    <div style="margin-top:16px">${section("Property", `<a class="ax-id" href="#/home/${esc(encodeURIComponent(a.listingId || ""))}" style="padding:8px;border:1px solid var(--ax-border);border-radius:10px">${thumb(a.image, 44)}<div><b>${esc(a.title || "Property")}</b><small>${esc(a.area || "")}</small></div>${I("chevR", 16)}</a>`)}
+    ${section("Amounts", dl([["Yearly rent", naira(a.rent)], ["Move-in total", naira(a.amount)], ["Move-in date", a.moveIn ? esc(fmt.date(a.moveIn)) : ""], ["Phone", esc(a.details?.phone || a.phone || "")]]))}
+    ${section("Activity", timeline([{ title: "Application submitted", meta: fmt.dateTime(a.createdAt) }, { title: `Now: ${a.status}`, meta: "Current status", tone: a.status === "Rejected" ? "bad" : "" }]))}</div>`;
+  const footer = `${btn("Approve", { v: "primary", ic: "check", attrs: "data-st=Approved" })}${btn("Request documents", { attrs: "data-st=Awaiting\\ documents" })}${btn("Reject", { v: "danger", attrs: "data-st=Rejected" })}`;
+  return { title: a.name || "Application", sub: chipFor("application", a.status), body, footer,
+    mount(el, b, f) { $$("[data-st]", f).forEach((x) => (x.onclick = async () => { const s = x.dataset.st.replace("\\ ", " "); if (s === a.status) return toast("Already " + s.toLowerCase() + "."); if (s === "Rejected" && !(await confirm({ title: `Reject ${a.name || "this application"}?`, body: "The renter will see the application as rejected.", confirmLabel: "Reject", tone: "danger" }))) return; setApp(a, s, api); })); } };
+}
+export function applications(ctx) {
+  return pageView(ctx, { title: "Applications", eyebrow: "Activity", sub: "Every rental application, from first look to decision.", cols: ["applications"], what: "applications",
+    async render({ applications: ap }) {
+      const stOf = (a) => a.status || "Under review";
+      return { html: `<div id="app"></div>`, mount(el) {
+        createList($("#app", el), { noun: "applications", label: "Applications", rows: ap, placeholder: "Search applicant, email or property…",
+          tabs: [{ k: "all", label: "All" }, ...APP_STATUS.map((s) => ({ k: s, label: s, test: (a) => stOf(a) === s }))], defaultTab: (r) => (r.some((a) => stOf(a) === "Under review") ? "Under review" : "all"), sort: { k: "created", dir: "desc" },
+          facets: [{ k: "prop", label: "Property", options: (r) => [["", "All properties"], ...[...new Set(r.map((a) => a.title).filter(Boolean))].sort().map((c) => [c, c])], test: (a, v) => a.title === v }, { k: "month", label: "Move-in", options: (r) => [["", "Any month"], ...[...new Set(r.map(appMonth).filter(Boolean))].sort().map((m) => [m, monthLabel(m)])], test: (a, v) => appMonth(a) === v }],
+          search: (a) => `${a.name || ""} ${a.email || ""} ${a.title || ""} ${a.area || ""}`,
+          cols: [
+            { k: "who", label: "Applicant", role: "title", sort: (a) => String(a.name || "").toLowerCase(), cell: (a) => `<div class="ax-id">${avatar(a.name, a.uid, 32)}<div><b>${esc(a.name || "Applicant")}</b><small>${esc(a.email || "")}</small></div></div>` },
+            { k: "prop", label: "Property", pri: 2, cell: (a) => `<div class="ax-id">${thumb(a.image, 32)}<div><b style="font-weight:500;color:var(--ax-text)">${esc(a.title || "—")}</b><small>${esc(a.area || "")}</small></div></div>` },
+            { k: "move", label: "Move-in", pri: 2, sort: (a) => a.moveIn || "", cell: (a) => (a.moveIn ? esc(fmt.date(a.moveIn)) : "—") },
+            { k: "amount", label: "Move-in total", align: "right", sort: (a) => +a.amount || 0, cell: (a) => `<span class="ax-money">${naira(a.amount)}</span>` },
+            { k: "status", label: "Status", role: "status", cell: (a) => `<button type="button" class="ax-chipbtn" data-cell="status" aria-haspopup="menu" aria-label="Change status, now ${esc(stOf(a))}">${chipFor("application", stOf(a))}${I("chevD", 14)}</button>` },
+            { k: "created", label: "Submitted", pri: 2, sort: (a) => AX.ms(a.createdAt), cell: (a) => fmt.rel(a.createdAt) },
+          ],
+          onCell: (k, a, b, api) => menu(b, APP_STATUS.map((s) => ({ label: s, checked: s === stOf(a), act: () => s !== stOf(a) && setApp(a, s, api) })), { label: "Application status", align: "left" }),
+          bulk: [{ label: "Set status", icon: "refresh", run: (rs, c) => menu($("[data-bulk=0]"), APP_STATUS.map((s) => ({ label: s, act: async () => { const prev = new Map(rs.map((a) => [a.id, a.status])); const r = await bulkRun(rs.map((a) => a.id), async (id) => { const a = rs.find((x) => x.id === id); await st.patch("applications", id, { status: s }); a.status = s; }, { label: "Updating" }); changed(); c.clear(); toast(r.bad ? `${r.ok.length} updated, ${r.bad} failed.` : `${r.ok.length} marked ${s.toLowerCase()}.`, { tone: r.bad ? "bad" : "", action: "Undo", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const a = rs.find((x) => x.id === id); await st.patch("applications", id, { status: prev.get(id) }); a.status = prev.get(id); })); changed(); c.list.repaint(); } }); } })), { label: "Set status" }) },
+            { label: "Export CSV", icon: "download", free: true, run: (rs) => csv("faxton-applications-selected", ["Applicant", "Email", "Property", "Move-in", "Status", "Amount"], rs.map((a) => [a.name, a.email, a.title, a.moveIn, a.status, a.amount])) }],
+          csv: { name: "faxton-applications", head: ["Applicant", "Email", "Property", "Area", "Move-in", "Status", "Amount", "Submitted"], row: (a) => [a.name, a.email, a.title, a.area, a.moveIn, a.status, a.amount, fmt.date(a.createdAt)] },
+          menu: (a, api) => [{ label: "Open", icon: "eye", act: api.open }, { sep: 1 }, ...APP_STATUS.map((s) => ({ label: `Mark ${s.toLowerCase()}`, icon: s === "Approved" ? "check" : s === "Rejected" ? "x" : "clock", checked: undefined, disabled: s === stOf(a), act: () => setApp(a, s, api) }))],
+          drawer: (a, api) => appDrawer(ctx, a, api), empty: { icon: "doc", title: "No applications yet", hint: "Rental applications from renters appear here." } });
+      } };
+    } });
+}
+
+// ---------- viewings ----------
+const VW_STATUS = ["Requested", "Confirmed", "Completed", "Cancelled"];
+const sosOpen = (v) => !!(v.sos && !v.sos.resolved);
+const whenOf = (v) => { try { return VS.startOf(v); } catch { return new Date(String(v.when).slice(0, 10) + "T00:00:00"); } };
+async function setView(v, status, api) { try { await write("viewings", v, { status }, { msg: `Viewing ${status.toLowerCase()}.`, after: api.refresh }); } catch (e) { bad(e); } }
+async function resolveSos(ctx, v, api) {
+  try { v.sos = { ...v.sos, resolvedBy: meName(ctx), resolvedAt: Date.now() }; await VS.resolveSos(v); changed(); toast("Marked as resolved."); api.refresh(); } catch (e) { bad(e); }
+}
+function callTo(ctx, uid, name, title) { if (!uid) return toast("We don’t have an account to call for this person.", { tone: "bad" }); CALLS.startCall(ctx, { to: uid, toName: name || "User", kind: "voice", title: title || "Faxton team" }); }
+function viewingDrawer(ctx, v, api) {
+  const s = v.sos, open = sosOpen(v), t = v.trusted, when = whenOf(v), loc = s?.lat != null && s?.lng != null ? `https://www.google.com/maps?q=${s.lat},${s.lng}` : "";
+  const body = `${s ? `<div class="ax-safety" ${open ? 'role="alert"' : 'style="background:var(--ax-surface-2);color:var(--ax-text);border:1px solid var(--ax-border)"'}><b>${I("alert", 18)} ${open ? "Safety alert raised" : "Safety alert resolved"}</b><p>Raised ${esc(fmt.dateTime(s.at))}${s.kind ? ` · ${esc(s.kind)}` : ""}${s.resolvedAt ? ` · Resolved by ${esc(s.resolvedBy || "the team")} on ${esc(fmt.dateTime(s.resolvedAt))}` : ""}</p>
+      ${t ? `<p>Trusted contact: <b>${esc(t.name)}</b> ${esc(t.phone || "")}</p>` : ""}${loc ? `<p><a class="ax-ext" href="${esc(loc)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">Open location on the map ${I("ext", 14)}</a></p>` : ""}
+      ${open ? `<div class="ax-row">${btn("Call renter", { size: "sm", ic: "phone", attrs: "data-callr" })}${btn("Call agent", { size: "sm", ic: "phone", attrs: "data-calla" })}${btn("Mark resolved", { v: "primary", size: "sm", ic: "check", attrs: "data-resolve" })}</div><p style="font-size:12px">In an emergency call ${esc(VS.EMERGENCY_NUMBER)}, Nigeria’s emergency number.</p>` : ""}</div>` : ""}
+    ${section("Viewing", dl([["Property", esc(v.title)], ["Area", esc(v.area)], ["When", `${esc(isNaN(when) ? String(v.when) : when.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }))}, ${esc(v.slot || "")}`], ["Tour", esc(v.tour || "In-person tour")], ["Status", `<button type="button" class="ax-chipbtn" data-status>${chipFor("viewing", v.status)}${I("chevD", 14)}</button>`]]))}
+    ${section("People", `<div class="ax-id" style="margin-bottom:10px">${avatar(v.name, v.uid, 36)}<div><b>${esc(v.name || "Renter")}</b><small>Renter</small></div></div><div class="ax-id">${avatar(v.agentName, v.agentUid || v.ownerUid, 36, v.agentPhoto)}<div><b>${esc(v.agentName || "Faxton agent")} ${v.agentVerified ? chip("ok", "Verified") : ""}</b><small>Agent</small></div></div>`)}
+    ${section("Timeline", timeline([{ title: "Viewing requested", meta: fmt.dateTime(v.createdAt) }, ...(v.sharedWith ? [{ title: `Details shared with ${v.sharedWith}`, tone: "mute" }] : []), ...(v.checkIn ? [{ title: "Checked in", meta: fmt.dateTime(v.checkIn.at) }] : []), ...(s ? [{ title: "Safety alert raised", meta: fmt.dateTime(s.at), tone: "bad" }] : []), ...(v.checkOut ? [{ title: "Checked out", meta: fmt.dateTime(v.checkOut.at) }] : [])]))}`;
+  return { title: v.name || "Viewing", sub: `${open ? chipFor("sos", "open") : chipFor("viewing", v.status)}<span>${esc(v.title || "")}</span>`, body,
+    mount(el) {
+      $("[data-callr]", el)?.addEventListener("click", () => callTo(ctx, v.uid, v.name, v.title)); $("[data-calla]", el)?.addEventListener("click", () => callTo(ctx, v.agentUid || v.ownerUid, v.agentName, v.title));
+      $("[data-resolve]", el)?.addEventListener("click", () => resolveSos(ctx, v, api));
+      $("[data-status]", el)?.addEventListener("click", (e) => menu(e.currentTarget, VW_STATUS.map((x) => ({ label: x, checked: x === v.status, act: () => x !== v.status && setView(v, x, api) })), { align: "left" }));
+    } };
+}
+export function viewings(ctx) {
+  return pageView(ctx, { title: "Viewings", eyebrow: "Activity", sub: "Every viewing request, with safety alerts raised to the top.", cols: ["viewings"], what: "viewings",
+    async render({ viewings: vw }) {
+      return { html: `<div id="vw"></div>`, mount(el) {
+        const day0 = new Date(); day0.setHours(0, 0, 0, 0);
+        createList($("#vw", el), { noun: "viewings", label: "Viewings", rows: vw, placeholder: "Search renter, property or agent…",
+          tabs: [{ k: "all", label: "All" }, { k: "safety", label: "Safety", test: sosOpen, tone: "alert" }, ...VW_STATUS.map((s) => ({ k: s, label: s, test: (v) => v.status === s }))], defaultTab: (r) => (r.some(sosOpen) ? "safety" : "all"), sort: null,
+          compare: (a, b) => whenOf(b) - whenOf(a), pin: sosOpen, rowTone: (v) => (sosOpen(v) ? "alert" : ""),
+          facets: [{ k: "when", label: "Date", options: [["", "Any date"], ["today", "Today"], ["week", "Next 7 days"], ["past", "Past"]], test: (v, f) => { const d = whenOf(v); return f === "today" ? d.toDateString() === new Date().toDateString() : f === "week" ? d >= day0 && d < new Date(day0.getTime() + 7 * 864e5) : d < day0; } }],
+          search: (v) => `${v.name || ""} ${v.title || ""} ${v.agentName || ""} ${v.area || ""}`,
+          cols: [
+            { k: "who", label: "Renter", role: "title", sort: (v) => String(v.name || "").toLowerCase(), cell: (v) => `<div class="ax-id">${avatar(v.name, v.uid, 32)}<div><b>${esc(v.name || "Renter")}</b><small>${esc(v.tour || "In-person tour")}</small></div></div>` },
+            { k: "prop", label: "Property", pri: 2, cell: (v) => `<div class="ax-id">${thumb(v.image, 32)}<div><b style="font-weight:500;color:var(--ax-text)">${esc(v.title || "—")}</b><small>${esc(v.area || "")}</small></div></div>` },
+            { k: "when", label: "When", sort: (v) => +whenOf(v), cell: (v) => `${esc(fmt.day(v.when))}<small class="ax-muted" style="display:block">${esc(v.slot || "")}</small>` },
+            { k: "agent", label: "Agent", pri: 2, cell: (v) => `${esc(v.agentName || "—")} ${v.agentVerified ? `<span title="Verified agent" style="color:var(--ax-accent)">${I("checkc", 14)}</span>` : ""}` },
+            { k: "status", label: "Status", role: "status", cell: (v) => `<button type="button" class="ax-chipbtn" data-cell="status" aria-haspopup="menu" aria-label="Change status, now ${esc(v.status)}">${chipFor("viewing", v.status)}${I("chevD", 14)}</button>` },
+            { k: "alert", label: "Alert", pri: 2, cell: (v) => (v.sos ? chipFor("sos", sosOpen(v) ? "open" : "resolved") : "") },
+          ],
+          onCell: (k, v, b, api) => menu(b, VW_STATUS.map((s) => ({ label: s, checked: s === v.status, act: () => s !== v.status && setView(v, s, api) })), { label: "Viewing status", align: "left" }),
+          bulk: [{ label: "Set status", icon: "refresh", run: (rs, c) => { const ok = rs.filter((v) => !sosOpen(v)); if (!ok.length) return toast("Resolve safety alerts one by one.", { tone: "bad" }); menu($("[data-bulk=0]"), VW_STATUS.map((s) => ({ label: s, act: async () => { const prev = new Map(ok.map((v) => [v.id, v.status])); const r = await bulkRun(ok.map((v) => v.id), async (id) => { const v = ok.find((x) => x.id === id); await st.patch("viewings", id, { status: s }); v.status = s; }, { label: "Updating" }); changed(); c.clear(); toast(`${r.ok.length} marked ${s.toLowerCase()}.`, { action: "Undo", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const v = ok.find((x) => x.id === id); await st.patch("viewings", id, { status: prev.get(id) }); v.status = prev.get(id); })); changed(); c.list.repaint(); } }); } })), { label: "Set status" }); } }],
+          csv: { name: "faxton-viewings", head: ["Renter", "Property", "Date", "Time", "Status", "Agent", "Safety alert"], row: (v) => [v.name, v.title, v.when, v.slot, v.status, v.agentName || "", v.sos ? (sosOpen(v) ? "open" : "resolved") : ""] },
+          quick: (v) => (sosOpen(v) ? btn("Resolve", { v: "primary", size: "xs", cls: "ax-qa", attrs: "data-qa=resolve" }) : v.status === "Requested" ? btn("Confirm", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=confirm" }) : ""),
+          onQuick: (k, v, b, api) => (k === "resolve" ? resolveSos(ctx, v, api) : setView(v, "Confirmed", api)),
+          menu: (v, api) => [{ label: "Open", icon: "eye", act: api.open }, { sep: 1 }, ...VW_STATUS.map((s) => ({ label: `Mark ${s.toLowerCase()}`, icon: "clock", disabled: s === v.status, act: () => setView(v, s, api) })), ...(sosOpen(v) ? [{ sep: 1 }, { label: "Mark safety alert resolved", icon: "check", act: () => resolveSos(ctx, v, api) }] : [])],
+          drawer: (v, api) => viewingDrawer(ctx, v, api),
+          empty: { icon: "calDots", title: "No viewings yet", hint: "Viewing requests from renters appear here. A safety alert shows up the moment someone raises one." } });
+      } };
+    } });
+}
+
+// ---------- review queue ----------
+export function queue(ctx) {
+  return pageView(ctx, { title: "Review queue", eyebrow: "Overview", sub: "Everything waiting on a person. Safety alerts always come first.", cols: ["listings", "users", "viewings"], what: "the review queue",
+    async render({ listings: ls, users: us, viewings: vw }) {
+      let tab = hq().q.tab || ""; const apiFor = (row, again) => ({ row, refresh: again, update: (p) => { Object.assign(row, p); changed(); again(); }, close: () => drawer.close(), list: null });
+      const items = () => [
+        ...vw.filter(sosOpen).map((v) => ({ type: "sos", id: v.id, t: AX.ms(v.sos.at) || AX.ms(v.createdAt), row: v })),
+        ...ls.filter(isPendingL).map((l) => ({ type: "listing", id: l.id, t: AX.ms(l.createdAt), row: l })),
+        ...us.filter((u) => u.verification?.status === "pending").map((u) => ({ type: "verif", id: u.id, t: u.verification.requestedAt || 0, row: u })),
+        ...us.filter((u) => u.deletion?.status === "pending").map((u) => ({ type: "del", id: u.id, t: u.deletion.requestedAt || 0, row: u }))].sort((a, b) => (b.type === "sos") - (a.type === "sos") || a.t - b.t);
+      const TYPES = { sos: ["alert", "Safety alert", "bad"], listing: ["clipList", "Listing", ""], verif: ["shield", "Verification", "info"], del: ["trash", "Deletion request", "warn"] };
+      const card = (it) => { const [ic, lab, tone] = TYPES[it.type], r = it.row, h = (Date.now() - it.t) / 36e5, age = it.t ? `Waiting ${fmt.age(it.t)}` : ""; let title, sub, acts;
+        if (it.type === "sos") { title = `${r.name || "A renter"} raised an alert`; sub = `${r.title || ""} · ${fmt.day(r.when)}, ${r.slot || ""}`; acts = btn("Call person", { size: "sm", ic: "phone", attrs: "data-q=call" }) + btn("Mark resolved", { v: "primary", size: "sm", ic: "check", attrs: "data-q=resolve" }) + btn("Details", { v: "ghost", size: "sm", href: "#/admin/viewings?id=" + encodeURIComponent(r.id) }); }
+        else if (it.type === "listing") { title = r.title; sub = `${where(r)} · ${r.agent?.name || "Faxton"} · ${naira(r.price)}/yr`; acts = btn("Approve", { v: "primary", size: "sm", ic: "check", attrs: "data-q=approve" }) + btn("Review", { size: "sm", attrs: "data-q=review" }); }
+        else if (it.type === "verif") { title = r.verification.kind === "agency" ? r.agency?.business || r.name : r.name || r.email; sub = `${r.verification.kind === "agency" ? "Agency" : "Agent"} · ${r.email || ""}`; acts = btn("Verify", { v: "primary", size: "sm", ic: "check", attrs: "data-q=verify" }) + btn("Reject", { v: "danger", size: "sm", attrs: "data-q=reject" }) + btn("Details", { v: "ghost", size: "sm", href: "#/admin/verifications" }); }
+        else { title = r.name || r.email; sub = `Wants to delete their account · ${r.email || ""}`; acts = btn("Approve deletion", { v: "danger", size: "sm", attrs: "data-q=deldo" }) + btn("Keep account", { size: "sm", attrs: "data-q=delkeep" }); }
+        return `<article class="ax-card ax-qc" data-k="${it.type}:${esc(it.id)}" ${it.type === "sos" ? 'data-t="alert"' : ""}><span class="ax-tile" data-t="${tone}">${I(ic, 20)}</span><div style="min-width:0"><h3>${esc(title || "Untitled")}</h3><div class="ax-sub">${esc(lab)} · ${esc(sub)}</div></div><span class="ax-qage" data-t="${h > 72 ? "bad" : h > 24 ? "warn" : ""}">${esc(age)}</span><div class="ax-qa-row">${acts}</div></article>`; };
+      const html = () => { const all = items(), cnt = (t) => all.filter((i) => i.type === t).length, tabs0 = [{ k: "all", label: "All", count: all.length }, { k: "sos", label: "Safety alerts", count: cnt("sos"), tone: cnt("sos") ? "alert" : "" }, { k: "listing", label: "Listings", count: cnt("listing") }, { k: "verif", label: "Verifications", count: cnt("verif") }, { k: "del", label: "Deletions", count: cnt("del") }];
+        if (!tab) tab = cnt("sos") ? "sos" : "all"; const shown = tab === "all" ? all : all.filter((i) => i.type === tab);
+        return `${tabs(tabs0, tab, { label: "Queue" })}<div class="ax-queue" style="margin-top:16px">${shown.length ? shown.map(card).join("") : `<div class="ax-card">${empty({ icon: "checkc", title: "Nothing is waiting for you.", hint: "New submissions appear here.", action: btn("Go to Overview", { v: "primary", href: "#/admin" }) })}</div>`}</div>`; };
+      return { html: `<div id="qRoot">${html()}</div>`, mount(el) {
+        const root = $("#qRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k }); paint(); }); }; mountTabs(root, (k) => { tab = k; setQ({ tab: k }); paint(); });
+        const leave = (c) => { c.classList.add("out"); setTimeout(paint, 170); };
+        root.addEventListener("click", async (e) => {
+          const b = e.target.closest("[data-q]"); if (!b) return; const c = b.closest("[data-k]"), [type, id] = c.dataset.k.split(":"), q = b.dataset.q;
+          try {
+            if (type === "sos") { const v = vw.find((x) => x.id === id); if (q === "call") callTo(ctx, v.uid, v.name, v.title); else if (q === "resolve") { busy(b, true); await resolveSos(ctx, v, { refresh() {} }); leave(c); } }
+            else if (type === "listing") { const l = ls.find((x) => x.id === id); if (q === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: () => {} }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved.` }); leave(c); } else if (q === "review") { const api = apiFor(l, () => { drawer.set(listingDrawer(ctx, l, api)); paint(); }); drawer.open(listingDrawer(ctx, l, api)); } }
+            else if (type === "verif") { const u = us.find((x) => x.id === id); if (q === "verify") { busy(b, true); const nv = { ...u.verification, status: "verified", decidedAt: Date.now(), decidedBy: ctx.S.user.uid }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = true; changed(); st.notify(u.id, { kind: "verified", title: "You’re verified!", body: `Your ${u.verification.kind === "agency" ? "agency" : "agent account"} has been verified. You can now start listing properties.` }).catch(() => {}); toast("Verified. They’ve been told."); leave(c); } else if (q === "reject") { const why = await reason({ title: `Reject ${u.agency?.business || u.name}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad" }); if (!why) return; const nv = { ...u.verification, status: "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, reason: why }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = false; changed(); st.notify(u.id, { kind: "rejected", title: "Verification not approved", body: why }).catch(() => {}); toast("Rejected. They’ve been told."); leave(c); } }
+            else if (type === "del") { const u = us.find((x) => x.id === id), ok = q === "deldo"; if (ok && !(await confirm({ title: `Approve deleting ${u.name || u.email}?`, body: "Their account will be removed the next time it’s opened after the one-day review.", confirmLabel: "Approve deletion", tone: "danger", icon: "trash" }))) return; busy(b, true); const nd = { ...u.deletion, status: ok ? "approved" : "denied", decidedAt: Date.now() }; await st.decideDeletion(u.id, nd); u.deletion = nd; changed(); st.notify(u.id, { kind: "info", title: ok ? "Deletion approved" : "Account kept", body: ok ? "Your account will be removed after the one-day review period." : "We’ve kept your account as it is." }).catch(() => {}); toast(ok ? "Deletion approved." : "Account kept."); leave(c); }
+          } catch (x) { busy(b, false); bad(x); }
+        });
+      } };
+    } });
 }
