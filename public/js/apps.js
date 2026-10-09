@@ -4,7 +4,7 @@ import { $, $$, esc, icon, toast, modal, friendlyErr } from "./ui.js";
 import * as st from "./store.js";
 import { app } from "./firebase.js";
 
-const REPO = "musazaneerah4-crypto/Faxton-Rentals";
+const REPO = "musazaneerah4-crypto/Faxton-Rentals-Downloads";
 export const PLATFORMS = [
   ["android", "Android · APK", "phone", "Faxton-Rentals-Android.apk", "Open the file on your phone and allow “install unknown apps” when asked."],
   ["android_x64", "Android · APK x64", "phone", "Faxton-Rentals-Android-x64.apk", "For Intel/x86 Android devices, Chromebooks and emulators."],

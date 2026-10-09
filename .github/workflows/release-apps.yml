@@ -264,11 +264,15 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { path: out, merge-multiple: true }
       - run: ls -la out
+      # Installers are published to the public downloads repo when the RELEASES_TOKEN secret exists
+      # (the app itself stays private); without it they go to this repo's own Releases page.
       - uses: softprops/action-gh-release@v2
         with:
+          repository: ${{ secrets.RELEASES_TOKEN && 'musazaneerah4-crypto/Faxton-Rentals-Downloads' || github.repository }}
+          token: ${{ secrets.RELEASES_TOKEN || github.token }}
           tag_name: v${{ needs.version.outputs.v }}
           name: Faxton Rentals ${{ needs.version.outputs.v }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ secrets.RELEASES_TOKEN && 'main' || github.sha }}
           make_latest: true
           fail_on_unmatched_files: false
           files: out/*
