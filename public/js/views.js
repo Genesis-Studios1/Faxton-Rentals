@@ -5,7 +5,10 @@ import * as st from "./store.js";
 import * as PG from "./pages.js";
 import * as A2 from "./admin2.js";
 import * as DASH from "./dash.js";
-import { collectDetails, verifyPopup } from "./onboard.js";
+import { loadLeaflet, ctrlZoom, tiles } from "./maps.js";
+import * as CALLS from "./calls.js";
+import { collectDetails, verifyPopup, resizePhoto, askResidence } from "./onboard.js";
+import { countryOptions } from "./countries.js";
 import * as APPS from "./apps.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
@@ -68,7 +71,8 @@ export async function route(ctx) {
   if ((m = path.match(/^\/agent\/([^/]+)$/))) return PG.agentPage(ctx, decodeURIComponent(m[1]));
   if ((m = path.match(/^\/book\/([^/]+)$/))) return PG.bookPage(ctx, decodeURIComponent(m[1]));
   if ((m = path.match(/^\/apply\/([^/]+)$/))) return PG.applyPage(ctx, decodeURIComponent(m[1]));
-  if ((m = path.match(/^\/call\/([^/]+)$/))) return PG.callPage(ctx, decodeURIComponent(m[1]));
+  if ((m = path.match(/^\/accept-call\/([^/]+)$/))) { const id = decodeURIComponent(m[1]); setTimeout(() => { ctx.go("#/"); CALLS.answerById(ctx, id, true); }); return { title: "Call", html: `<div class="empty"><h2>Connecting your call…</h2></div>` }; }
+  if ((m = path.match(/^\/call\/([^/]+)$/))) { const cid = decodeURIComponent(m[1]); setTimeout(() => ctx.go("#/messages/" + cid)); return { title: "Calls", html: `<div class="empty"><h2>Opening your conversation…</h2></div>` }; }
   if (path === "/settings" || path.startsWith("/settings/")) return settings(ctx, path.split("/")[2] || "profile");
   if (path === "/support" || path === "/support/tickets" || path === "/support/suggestions") return DASH.supportPage(ctx, path.split("/")[2] || "");
   if (path === "/portfolio") return DASH.ownerPage(ctx, "landlord");
@@ -126,7 +130,7 @@ function authPage(ctx, mode) {
     <main class="m-card"><h1>${login ? "Welcome back" : "Create your account"}</h1><p class="m-sub">${login ? "Sign in to find your next home." : "Find your place with Faxton."}</p>
     <p class="m-as">${login ? "Sign in as" : "I am…"}</p><div class="dz-role four m-role" role="tablist" aria-label="Account type">${login ? `<button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button>` : `<button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button>`}</div>
     <form id="f" novalidate>${login ? mf("email", "Email address", "mail", "Enter your email address", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Enter your password", "password", 'autocomplete="current-password"') + `<div class="m-row"><label class="m-chk"><input type="checkbox" id="remember"> Remember me</label><a href="#" id="forgot" class="dz-link">Forgot password?</a></div>`
-      : mf("name", "Full name", "user", "Your full name", "text", 'autocomplete="name"') + mf("email", "Email address", "mail", "you@example.com", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Create a password", "password", 'autocomplete="new-password"') + `<label class="m-chk terms"><input type="checkbox" id="terms"> <span>I agree to the <a class="dz-link" href="#/signup">Terms</a> and <a class="dz-link" href="#/signup">Privacy Policy</a></span></label>`}
+      : `<div class="m-avrow"><button type="button" id="avBtn" class="av-pick" aria-label="Add a profile photo">${icon("camera", 22)}</button><input type="file" id="avFile" accept="image/*" hidden><span><b>Profile photo</b><small>Optional. You can change it later in Settings.</small></span></div>` + mf("name", "Full name", "user", "Your full name", "text", 'autocomplete="name"') + mf("email", "Email address", "mail", "you@example.com", "email", 'autocomplete="email" inputmode="email"') + mf("password", "Password", "lock", "Create a password", "password", 'autocomplete="new-password"') + `<label class="m-chk terms"><input type="checkbox" id="terms"> <span>I agree to the <a class="dz-link" href="#/signup">Terms</a> and <a class="dz-link" href="#/signup">Privacy Policy</a></span></label>`}
       <div class="m-hint dz-hint" id="err" role="alert" data-default="${login ? "" : "At least 8 characters"}">${login ? "" : "At least 8 characters"}</div>
       <button class="m-btn primary" type="submit">${login ? "Sign in" : "Create account"} ${icon("arrow", 22)}</button>
       <div class="m-or"><span>or</span></div>${mGoogle}</form>
@@ -141,7 +145,7 @@ function authPage(ctx, mode) {
     <h1 class="at rise" ${P(916, 134, 756, null, `text-align:center;${FS(41, 56)}letter-spacing:-.036em;${D(.25)}`)}>Find your place with Faxton</h1>
     <p class="at rise" ${P(916, 193, 756, null, `text-align:center;${FS(22)}color:#68746f;${D(.3)}`)}>Create an account to get started.</p>
     <div class="at dz-role four rise" role="tablist" aria-label="Account type" ${P(1021, 257, 546, 49, D(.35))}><button type="button" class="on" data-role="renter">Renter</button><button type="button" data-role="landlord">Home owner</button><button type="button" data-role="agency">Agency</button><button type="button" data-role="agent">Agent</button></div>
-    <div class="at dz-label rise" ${P(1021, 328, null, null, `${FS(16)}${D(.4)}`)}>Full name</div>${field("name", 1021, 358, 546, 49, 17, "user", "Your full name", "text", 'autocomplete="name"', .4)}
+    <div class="at dz-label rise" ${P(1021, 328, null, null, `${FS(16)}${D(.4)}`)}>Full name</div><button type="button" id="avBtn" class="at av-pick rise" aria-label="Add a profile photo (optional)" title="Add a profile photo (optional)" ${P(1021, 358, 49, 49, D(.4))}>${icon("camera", 22)}</button><input type="file" id="avFile" accept="image/*" hidden>${field("name", 1080, 358, 487, 49, 17, "user", "Your full name", "text", 'autocomplete="name"', .4)}
     <div class="at dz-label rise" ${P(1021, 426, null, null, `${FS(16)}${D(.45)}`)}>Email address</div>${field("email", 1021, 456, 546, 49, 17, "mail", "you@example.com", "email", 'autocomplete="email"', .45)}
     <div class="at dz-label rise" ${P(1021, 524, null, null, `${FS(16)}${D(.5)}`)}>Password</div>${field("password", 1021, 554, 546, 49, 17, "lock", "Create a password", "password", 'autocomplete="new-password"', .5)}
     <div class="at dz-hint" id="err" role="alert" data-default="At least 8 characters" ${P(1021, 608, 546, null, FS(15))}>At least 8 characters</div>
@@ -177,9 +181,12 @@ function authPage(ctx, mode) {
     mount() {
       const err = $("#err"), form = $("#f"); let role = ["agent", "landlord", "agency"].includes(ctx.q.role) ? ctx.q.role : "renter";
       const say = (m) => { err.textContent = m || err.dataset.default; err.classList.toggle("bad", !!m); };
-      if (ctx.S.bannedNote) say(friendlyErr({ code: "app/banned" }));
+      if (ctx.S.deleteNote) { err.dataset.default = "For your security, sign in again to finish deleting your account."; err.textContent = err.dataset.default; }
+      else if (ctx.S.bannedNote) say(friendlyErr({ code: "app/banned" }));
       else if (login && ctx.q.next) { err.dataset.default = "Please log in to access this feature."; err.textContent = err.dataset.default; }
       $$("[data-role]").forEach((b) => { b.classList.toggle("on", b.dataset.role === role); b.onclick = () => { role = b.dataset.role; $$("[data-role]").forEach((x) => x.classList.toggle("on", x === b)); }; });
+      let photo = null; const av = $("#avBtn");
+      if (av) { av.onclick = () => $("#avFile").click(); $("#avFile").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { photo = await resizePhoto(f); av.innerHTML = `<img src="${photo}" alt="">`; av.classList.add("has"); } catch (x) { say(friendlyErr(x)); } }; }
       $$(".eye").forEach((b) => (b.onclick = () => { const i = b.parentElement.querySelector("input"); i.type = i.type === "password" ? "text" : "password"; }));
       $$("input", form).forEach((i) => i.addEventListener("input", () => say("")));
       const STAFF = ["admin", "owner", "support"], WHO = { landlord: "a home owner", agency: "an agency", agent: "an agent" };
@@ -204,14 +211,16 @@ function authPage(ctx, mode) {
         (async () => {
           const details = role === "agency" || role === "agent" ? await collectDetails(role, v.name.trim()) : undefined;
           if (details === null) return;
-          run(() => ctx.signUp(v.name.trim(), v.email, v.password, role, details), btn);
+          const residence = details ? { country: details.country, city: details.city } : await askResidence();
+          if (!residence) return;
+          run(() => ctx.signUp(v.name.trim(), v.email, v.password, role, details, photo, residence), btn);
         })();
       };
       $("#google").onclick = async (e) => {
         const btn = e.currentTarget;
         // New agencies and agents give their business details first. On the sign-in page a brand-new Google account starts as a renter.
-        let details; if (!login && (role === "agency" || role === "agent")) { details = await collectDetails(role, ""); if (details === null) return; }
-        run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, details), btn);
+        let details, residence; if (!login) { if (role === "agency" || role === "agent") { details = await collectDetails(role, ""); if (details === null) return; residence = { country: details.country, city: details.city }; } else { residence = await askResidence(); if (!residence) return; } }
+        run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, details, residence), btn);
       };
       const f = $("#forgot"); if (f) f.onclick = (e) => { e.preventDefault(); const em = ($("#email")?.value || "").trim(); ctx.go("#/forgot" + (em ? "?email=" + encodeURIComponent(em) : "")); };
     } };
@@ -257,9 +266,6 @@ async function discover(ctx) {
 }
 
 // ---------- search ----------
-function loadLeaflet() {
-  return window.L ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; s.onload = res; s.onerror = rej; document.head.append(s); });
-}
 async function search(ctx) {
   const q = ctx.q, all = await st.getListings(), view = q.view === "grid" ? "grid" : "map";
   const area = q.area || "", max = +q.max || 0, beds = +q.beds || 0, type = q.type || "", sort = q.sort || "recommended";
@@ -267,7 +273,7 @@ async function search(ctx) {
   let list = all.filter((l) => (!area || (l.area + " " + l.city).toLowerCase().includes(area)) && (!max || l.price <= max) && l.beds >= beds && (!type || l.type === type) && (!avail || l.available !== false) && am.every((x) => l.amenities.includes(x)));
   if (sort === "low") list = [...list].sort((a, b) => a.price - b.price); if (sort === "high") list = [...list].sort((a, b) => b.price - a.price);
   const areaName = area ? AREAS.find((a) => a[0] === area)?.[1].replace(/, Lagos/, "") || "Lagos" : "Lagos";
-  const chip = (k, label) => `<button class="chip" data-clear="${k}">${esc(label)} ${icon("x", 14)}</button>`;
+  const chip = (k, label) => `<span class="chip static">${esc(label)}</span>`;
   const chips = [chip("area", area ? areaName : "Lagos"), avail && chip("avail", "Available now"), max && chip("max", BUDGETS.find((b) => b[0] === max)?.[1] || naira(max)), beds && chip("beds", beds + "+ beds"), type && chip("type", type), ...am.map((x) => chip("am:" + x, x))].filter(Boolean).join("");
   const AMEN = ["Parking", "Water supply", "Security", "Generator", "Balcony", "Garden", "Pool", "Gym", "Wi-Fi"];
   return { title: "Search", html: `<div class="wrap"><div class="page-head rise"><div><h1 style="font-size:clamp(1.9rem,3.4vw,2.9rem)">Homes for rent in ${esc(areaName === "Lagos" ? "Lagos" : areaName)}</h1><p>${list.length} home${list.length === 1 ? "" : "s"} match your search</p></div>
@@ -286,13 +292,12 @@ async function search(ctx) {
       const nav = (patch) => { const p = new URLSearchParams(q); Object.entries(patch).forEach(([k, v]) => (v && v !== "0" ? p.set(k, v) : p.delete(k))); ctx.go("#/search?" + p); };
       $$("select", $("#ff")).forEach((s) => (s.onchange = () => nav({ [s.name]: s.value })));
       $$("[data-view]").forEach((b) => (b.onclick = () => nav({ view: b.dataset.view })));
-      $$("[data-clear]").forEach((b) => (b.onclick = () => { const k = b.dataset.clear; if (k === "avail") return nav({ avail: "0" }); if (k.startsWith("am:")) return nav({ am: am.filter((x) => x !== k.slice(3)).join(",") }); nav({ [k]: "" }); }));
       const mb = $("#moreBtn"), mp = $("#morePanel");
       mb.onclick = (e) => { e.stopPropagation(); mp.hidden = !mp.hidden; mb.setAttribute("aria-expanded", String(!mp.hidden)); };
       mp.onclick = (e) => e.stopPropagation(); document.addEventListener("click", () => { mp.hidden = true; }, { once: true });
       $("#applyMore").onclick = () => nav({ am: $$("input:checked", mp).map((i) => i.value).join(",") });
       if (view === "map" && list.length) try {
-        await loadLeaflet(); if (!$("#map")) return; const map = L.map("map", { scrollWheelZoom: false }).setView([list[0].lat, list[0].lng], 12);
+        await loadLeaflet(); if (!$("#map")) return; const map = L.map("map", { scrollWheelZoom: false }).setView([list[0].lat, list[0].lng], 12); ctrlZoom(map);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors", maxZoom: 18 }).addTo(map);
         const pts = list.map((l) => { const m = L.marker([l.lat, l.lng], { icon: L.divIcon({ className: "", html: `<div class="pin"><b>${short(l.price)}</b><i></i></div>`, iconSize: [0, 0] }), title: l.title }).addTo(map); m.on("click", () => ctx.go("#/home/" + l.id)); return [l.lat, l.lng]; });
         if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40] }); ctx.S.cleanups.push(() => map.remove());
@@ -344,7 +349,7 @@ async function detail(ctx, id) {
       <div style="display:flex;gap:10px"><button class="btn sm" id="save" style="border-color:var(--border);color:var(--text)">${icon("heart", 18)} <span>${on ? "Saved" : "Save"}</span></button><button class="btn sm" id="share" style="border-color:var(--border);color:var(--text)">${icon("share", 18)} Share</button></div></div>
       ${gal}${vids.length ? `<div class="vid-row"><button type="button" class="vid-btn" data-vid="${im.length}"><span class="vid-ic">${icon("video", 20)}</span><span><b>Watch ${vids.length > 1 ? vids.length + " videos" : "the video tour"}</b><small>${im.length} photo${im.length === 1 ? "" : "s"} · ${vids.length} video${vids.length === 1 ? "" : "s"}</small></span></button></div>` : ""}<div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div><div class="fact">${icon("area", 22)}${l.sqm} m²</div></div>
       <h2 style="margin:28px 0 8px">About this home</h2><p class="muted" style="max-width:720px;font-size:1.05rem">${esc(l.desc)}</p><hr class="divider">
-      <div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap"><h2>Amenities</h2><div class="amen" style="margin:0">${l.amenities.map((a) => `<span>${icon(A[a] || "check", 22)}${esc(a)}</span>`).join("")}</div></div></div>
+      ${l.lat != null && l.lng != null && l.hasPin !== false ? `<hr class="divider"><h2 style="margin-bottom:10px">Location</h2><p class="muted" style="margin:0 0 10px">${icon("pin", 16)} ${esc(l.area)}, ${esc(l.city)}</p><div id="dmap" class="dmap"></div>` : ""}<div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap"><h2>Amenities</h2><div class="amen" style="margin:0">${l.amenities.map((a) => `<span>${icon(A[a] || "check", 22)}${esc(a)}</span>`).join("")}</div></div></div>
     <aside class="side-card"><div class="big-price">${naira(l.price)} <small>/ year</small></div><p class="muted">Annual payment</p>
       <div class="rows"><div><span>Rent</span><span>${naira(l.price)}</span></div><div><span>Service charge</span><span>${naira(l.service)}</span></div><div><span>Refundable deposit</span><span>${naira(l.deposit)}</span></div><div class="total"><span>Move-in total</span><span>${naira(total)}</span></div></div>
       <button class="btn primary block" id="apply" style="padding:15px">Apply to rent ${icon("arrow", 20)}</button><button class="btn block" id="view" style="padding:15px">${icon("cal", 20)} Book a viewing</button>
@@ -357,6 +362,7 @@ async function detail(ctx, id) {
       const all = $("#all"); if (all) all.onclick = () => openViewer(media, 0);
       $$(".gallery img").forEach((g, k) => { g.style.cursor = "zoom-in"; g.onclick = () => openViewer(media, k); });
       $$("[data-vid]").forEach((b) => (b.onclick = () => openViewer(media, +b.dataset.vid)));
+      if (l.lat != null && l.lng != null && l.hasPin !== false && $("#dmap")) loadLeaflet().then(() => { const el = $("#dmap"); if (!el) return; const map = L.map(el, { scrollWheelZoom: false }).setView([l.lat, l.lng], 15); tiles().addTo(map); L.marker([l.lat, l.lng]).addTo(map); ctrlZoom(map); ctx.S.cleanups.push(() => map.remove()); }).catch(() => {});
       $("#msg").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } });
       $("#view").onclick = authed(() => ctx.go("#/book/" + l.id));
       $("#apply").onclick = authed(() => ctx.go("#/apply/" + l.id));
@@ -382,13 +388,20 @@ const EMOJI = ["😀", "😊", "😍", "👍", "🙏", "🎉", "🏠", "🔑", "
 async function messages(ctx, cid) {
   const html = `<div class="msg-shell ${cid ? "has-chat" : ""}"><section class="msg-list"><div class="msg-list-head"><h1>Messages</h1><a class="btn primary" href="#/search" aria-label="New conversation" style="width:48px;height:48px;padding:0">${icon("edit", 22)}</a></div>
     <label class="input msg-search">${icon("search", 20)}<input id="cs" type="search" placeholder="Search conversations…" aria-label="Search conversations"></label>
-    <div class="tabs" role="tablist"><button class="on" data-tab="all" role="tab">All (<span id="cnt">0</span>)</button><button data-tab="unread" role="tab">Unread (<span id="ucnt">0</span>)</button></div><div id="convs"></div></section><section class="chat" id="chat"></section></div>`;
+    <div class="tabs" role="tablist"><button class="on" data-tab="all" role="tab">All (<span id="cnt">0</span>)</button><button data-tab="unread" role="tab">Unread (<span id="ucnt">0</span>)</button><button data-tab="calls" role="tab">${icon("phone", 15)} Calls (<span id="ccnt">0</span>)</button></div><div id="convs"></div></section><section class="chat" id="chat"></section></div>`;
   return { title: "Messages", bare: true, html,
     mount() {
-      let convs = [], unsubM = null, tab = "all", term = "";
+      let convs = [], calls = [], unsubM = null, tab = "all", term = "";
+      const me = ctx.S.user.uid;
+      const beginCall = async (c, kind) => { const l = await st.getListing(c.listingId).catch(() => null); const to = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : "staff"; CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, kind, title: c.listingTitle, image: c.image, area: c.area }); };
       const vis = () => convs.filter((c) => (tab === "all" || c.unread) && (!term || (c.agent.name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
       const drawList = () => {
-        $("#cnt").textContent = convs.length; $("#ucnt").textContent = convs.filter((c) => c.unread).length;
+        $("#cnt").textContent = convs.length; $("#ucnt").textContent = convs.filter((c) => c.unread).length; $("#ccnt").textContent = calls.length;
+        if (tab === "calls") {
+          $("#convs").innerHTML = calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") : `<p class="muted" style="padding:14px">No calls yet. Open a conversation and tap the phone or video button to call.</p>`;
+          $$("[data-cb]", $("#convs")).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
+          return;
+        }
         const list = vis();
         $("#convs").innerHTML = list.length ? list.map((c) => `<a class="conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}" style="--i:${0}"><img class="avatar" src="${esc(c.agent.avatar)}" alt=""><div class="conv-main"><div class="conv-top"><b>${esc(c.agent.name)}</b><span>${c.lastAt ? fmtTime(c.lastAt) : ""}</span></div><p>${esc(c.last || c.listingTitle)}</p></div>${c.unread ? '<i class="udot" aria-label="Unread"></i>' : ""}</a>`).join("")
           : `<p class="muted" style="padding:14px">${convs.length ? "No conversations match." : "No conversations yet. Open a home and tap “Message agent”."}</p>`;
@@ -402,11 +415,12 @@ async function messages(ctx, cid) {
         if (!c) { unsubM?.(); chat.innerHTML = `<div class="chat-empty"><h2>${convs.length ? "Select a conversation" : "No messages yet"}</h2><p style="margin-top:8px">Message a listing agent to start chatting.</p></div>`; return; }
         if (chat.dataset.cid === cid) return; chat.dataset.cid = cid;
         if (c.unread && c.uid === ctx.S.user.uid) st.markRead(cid).catch(() => {});
-        chat.innerHTML = `<div class="chat-head"><a class="icon-btn back" href="#/messages" aria-label="Back" style="display:none">${icon("left", 20)}</a><a href="#/agent/${esc(c.agent.id)}" class="ch-av"><img class="avatar" src="${esc(c.agent.avatar)}" alt=""></a><div class="grow"><a href="#/agent/${esc(c.agent.id)}" class="ch-name">${esc(c.agent.name)}</a><span>Property Agent</span></div><div class="acts"><a class="icon-btn" href="#/call/${esc(cid)}" aria-label="Video call">${icon("video", 22)}</a><a class="icon-btn" href="#/call/${esc(cid)}" aria-label="Voice call">${icon("phone", 22)}</a><a class="icon-btn" href="#/home/${esc(c.listingId)}" aria-label="View home">${icon("home", 22)}</a></div></div>
-          <a class="listing-strip" href="#/home/${esc(c.listingId)}"><img src="${esc(c.image)}" alt=""><div><b>${esc(c.listingTitle)}</b><span class="muted">${icon("bed", 16)} ${c.beds === 0 ? "Studio" : c.beds + " bedrooms"} <i>•</i> ${icon("bath", 16)} ${c.baths} bathrooms</span><span class="muted">${icon("pin", 16)} ${esc(c.area)}, Lagos</span></div><b class="ls-price">${naira(c.price)} / year</b>${icon("chev", 22).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</a>
+        chat.innerHTML = `<div class="chat-head"><a class="icon-btn back" href="#/messages" aria-label="Back" style="display:none">${icon("left", 20)}</a><a href="#/agent/${esc(c.agent.id)}" class="ch-av"><img class="avatar" src="${esc(c.agent.avatar)}" alt=""></a><div class="grow"><a href="#/agent/${esc(c.agent.id)}" class="ch-name">${esc(c.agent.name)}</a><span>Property Agent</span></div><div class="acts"><button type="button" class="icon-btn" data-call="video" aria-label="Video call" title="Video call">${icon("video", 22)}</button><button type="button" class="icon-btn" data-call="voice" aria-label="Voice call" title="Voice call">${icon("phone", 22)}</button><a class="icon-btn" href="#/home/${esc(c.listingId)}" aria-label="View home">${icon("home", 22)}</a></div></div>
+          ${c.listingId === "direct" ? "" : `<a class="listing-strip" href="#/home/${esc(c.listingId)}"><img src="${esc(c.image)}" alt=""><div><b>${esc(c.listingTitle)}</b><span class="muted">${icon("bed", 16)} ${c.beds === 0 ? "Studio" : c.beds + " bedrooms"} <i>•</i> ${icon("bath", 16)} ${c.baths} bathrooms</span><span class="muted">${icon("pin", 16)} ${esc(c.area)}, Lagos</span></div><b class="ls-price">${naira(c.price)} / year</b>${icon("chev", 22).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</a>`}
           <div class="thread" id="thread"></div><div class="emoji" id="emoji" hidden>${EMOJI.map((e) => `<button type="button">${e}</button>`).join("")}</div>
           <form class="composer" id="cf"><button type="button" class="icon-btn flat" data-soon aria-label="Attach">${icon("clip", 22)}</button><button type="button" class="icon-btn flat" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><input id="ci" placeholder="Type a message…" autocomplete="off" maxlength="2000" aria-label="Message"><button type="button" class="icon-btn flat" data-soon aria-label="Voice message">${icon("mic", 22)}</button><button class="send" aria-label="Send">${icon("send", 22)}</button></form>`;
         $$("[data-soon]", chat).forEach((b) => (b.onclick = () => toast("Coming soon.")));
+        $$("[data-call]", chat).forEach((b) => (b.onclick = () => beginCall(c, b.dataset.call)));
         const em = $("#emoji"); $("#emojiBtn").onclick = () => (em.hidden = !em.hidden); em.onclick = (e) => { const b = e.target.closest("button"); if (b) { $("#ci").value += b.textContent; $("#ci").focus(); } };
         $("#cf").onsubmit = async (e) => { e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return; i.value = ""; em.hidden = true; try { await st.sendMessage(ctx.S.user, cid, t, {}, c.uid !== ctx.S.user.uid); } catch (x) { toast(friendlyErr(x)); i.value = t; } };
         unsubM?.(); unsubM = st.watchMessages(cid, (ms) => {
@@ -418,7 +432,8 @@ async function messages(ctx, cid) {
       $$("[data-tab]").forEach((b) => (b.onclick = () => { tab = b.dataset.tab; $$("[data-tab]").forEach((x) => x.classList.toggle("on", x === b)); drawList(); }));
       $("#cs").oninput = (e) => { term = e.target.value.trim().toLowerCase(); drawList(); };
       const unsubC = st.watchConversations(ctx.S.user, (c) => { convs = c; drawList(); drawChat(); });
-      ctx.S.cleanups.push(() => { unsubC(); unsubM?.(); });
+      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; drawList(); });
+      ctx.S.cleanups.push(() => { unsubC(); unsubL(); unsubM?.(); });
       if (matchMedia("(max-width:860px)").matches) setTimeout(() => { const b = $(".back"); if (b) b.style.display = "grid"; });
     } };
 }
@@ -453,7 +468,7 @@ function settings(ctx, section) {
         <div class="f2"><label class="fl">Full name<input id="nm" value="${esc(name)}" autocomplete="name" maxlength="120"></label>
           <label class="fl">Email address<span class="in-wrap"><input value="${esc(u.email)}" disabled><span class="vbadge ${u.emailVerified ? "" : "no"}">${u.emailVerified ? `${icon("check", 14, 2.4)} Verified` : "Not verified"}</span></span></label>
           <label class="fl">Phone number<input id="ph" type="tel" placeholder="Add phone number" value="${esc(p.phone || "")}" autocomplete="tel" maxlength="30"></label>
-          <label class="fl">Location<select id="lc">${LOCS.map((x) => `<option ${x === (p.location || "Lagos, Nigeria") ? "selected" : ""}>${x}</option>`).join("")}</select></label></div>
+          <label class="fl">Country<select id="lcc">${countryOptions(p.country || "Nigeria")}</select></label><label class="fl">City<input id="lct" maxlength="60" value="${esc(p.city || "")}" placeholder="e.g. Lagos"></label></div>
         <p class="note">Your contact details are only shared when you choose.</p>`)}
       ${card("Rental preferences", "Help us show you more relevant homes.", `<div class="f3"><label class="fl">Preferred location<select id="pl">${AREAS.filter((a) => a[0]).map(([c, l]) => `<option value="${c}" ${c === (pr.area || "lekki") ? "selected" : ""}>${l.replace(", Lagos", ", Lagos")}</option>`).join("")}</select></label>
         <label class="fl">Property type<select id="pt"><option value="">Any type</option>${TYPES.map((t) => `<option ${t === pr.type ? "selected" : ""}>${t}</option>`).join("")}</select></label>
@@ -465,6 +480,7 @@ function settings(ctx, section) {
       <div class="kv"><span>Account type</span><b style="text-transform:capitalize">${esc(role)}</b></div><div class="kv"><span>Sign-in method</span><b>${u.providerData.map((x) => (x.providerId === "google.com" ? "Google" : "Email & password")).join(", ")}</b></div>
       ${!u.emailVerified && pwd ? `<div class="set-actions"><button class="btn" id="resendV">Resend verification email</button></div>` : ""}`)}
       ${pwd ? card("Password", "We'll email you a secure link to choose a new password.", `<div class="set-actions"><button class="btn" id="resetPw">Send password reset email</button></div>`) : ""}
+      ${(() => { const d = ctx.S.profile?.deletion; return d?.status === "pending" ? card("Account deletion requested", "", `<p class="note" style="margin:0 0 10px">You asked to delete your account on ${new Date(d.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. Our team reviews every request, which takes about a day. Nothing is deleted until then, and you can cancel now.</p><div class="set-actions"><button class="btn" id="cancelDel">Cancel deletion</button></div>`) : d?.status === "approved" ? card("Account scheduled for deletion", "", `<p class="note" style="margin:0">Your request was approved. Your account will be removed the next time it’s opened after the one-day review period ends.</p>`) : card("Delete account", "Permanently remove your account and its data.", `<p class="note" style="margin:0 0 10px">Deletion is reviewed by our team first and takes about a day. You can cancel any time before it’s approved.</p><div class="set-actions"><button class="btn red-o" id="delAcct">${icon("trash", 18)} Delete my account</button></div>`); })()}
       ${ctx.S.isAdmin ? card("Admin console", "Manage listings, users, applications and viewings.", `<div class="set-actions"><a class="btn" href="#/admin">Open admin console</a></div>`) : ""}</div>`;
   else if (section === "notifications") body = `<div class="set-one">${ntCard(true)}<p class="note">These are your preferences. They are saved to your account and used as notifications roll out.</p></div>`;
   else if (section === "appearance") body = `<div class="set-one">${apCard}</div>`;
@@ -478,7 +494,11 @@ function settings(ctx, section) {
   return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><div class="set-head"><div><h1>${h1}</h1><p class="lead-s">${sub}</p></div><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>${body}</div></div>`,
     mount() {
       const save = async (patch, msg = "Saved.") => { try { await st.saveProfile(u.uid, patch); ctx.S.profile = { ...(ctx.S.profile || {}), ...patch }; toast(msg); } catch (x) { toast(friendlyErr(x)); throw x; } };
-      $("#out").onclick = async () => { await ctx.logout(); ctx.go("#/login"); };
+      const del = $("#delAcct"); if (del) del.onclick = () => { const m = modal(`<h2>Delete your account?</h2><p class="muted" style="margin:6px 0 12px">Our team reviews deletion requests, which takes about a day. Your saved homes, messages and details will be removed once it’s approved. You can cancel before then.</p><label class="fl">Type <b>DELETE</b> to confirm<input id="dc" autocomplete="off"></label><div class="so-act"><button class="btn" id="dcNo">Keep my account</button><button class="btn red" id="dcYes" disabled>Request deletion</button></div>`);
+        $("#dc", m.el).oninput = (e) => ($("#dcYes", m.el).disabled = e.target.value.trim() !== "DELETE"); $("#dcNo", m.el).onclick = () => m.close();
+        $("#dcYes", m.el).onclick = async () => { try { const d = { status: "pending", requestedAt: Date.now() }; await st.setDeletion(u.uid, d); ctx.S.profile = { ...(ctx.S.profile || {}), deletion: d }; m.close(); toast("Request sent. We’ll review it within about a day."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } }; };
+      const cd = $("#cancelDel"); if (cd) cd.onclick = async () => { try { await st.setDeletion(u.uid, null); const p = { ...(ctx.S.profile || {}) }; delete p.deletion; ctx.S.profile = p; toast("Deletion cancelled."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } };
+      $("#out").onclick = async () => { if (await ctx.confirmSignOut()) { await ctx.logout(); ctx.go("#/login"); } };
       $$("[data-theme-pref]").forEach((b) => (b.onclick = () => { ctx.setThemePref(b.dataset.themePref); $$("[data-theme-pref]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on); }); }));
       $$("[data-sw]").forEach((b) => (b.onclick = async () => {
         const [g, k] = b.dataset.sw.split("."), cur = ctx.S.profile?.[g] || {}, base = g === "notify" ? notify : privacy, next = !(cur[k] ?? base[k]);
@@ -494,7 +514,7 @@ function settings(ctx, section) {
           e.preventDefault(); const err = $("#perr"), nm = $("#nm").value.trim(); err.textContent = "";
           if (!nm) return (err.textContent = "Enter your full name.");
           const btn = pf.querySelector("button[type=submit]"); btn.disabled = true;
-          try { await updateProfile(auth.currentUser, { displayName: nm }); await save({ name: nm, phone: $("#ph").value.trim(), location: $("#lc").value, prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile updated."); ctx.render(); } catch {} finally { btn.disabled = false; }
+          try { await updateProfile(auth.currentUser, { displayName: nm }); await save({ name: nm, phone: $("#ph").value.trim(), country: $("#lcc").value, city: $("#lct").value.trim(), location: `${$("#lct").value.trim()}, ${$("#lcc").value}`, prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile updated."); ctx.render(); } catch {} finally { btn.disabled = false; }
         };
         $("#photoBtn").onclick = () => $("#photo").click();
         $("#photo").onchange = (e) => {

@@ -1,6 +1,6 @@
 import { db } from "./firebase.js";
 import { SEED } from "./data.js";
-import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc }
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
@@ -114,3 +114,13 @@ export const watchNotifications = (uid, cb) => onSnapshot(query(collection(db, "
 export const markNotificationRead = (id) => updateDoc(doc(db, "notifications", id), { read: true }).catch(() => {});
 export const watchPendingVerifications = (cb) => onSnapshot(query(collection(db, "users"), where("verification.status", "==", "pending")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
 export const addSuggestion = (u, s) => addDoc(collection(db, "suggestions"), { ...s, uid: u.uid, name: u.displayName || u.email, email: u.email, status: "New", createdAt: serverTimestamp() });
+export const setDeletion = (uid, d) => updateDoc(doc(db, "users", uid), { deletion: d ? d : deleteField() });
+export const decideDeletion = (uid, d) => updateDoc(doc(db, "users", uid), { deletion: d });
+export async function deleteProfile(uid) { await deleteDoc(doc(db, "users", uid)); }
+
+// A direct conversation started by the Faxton team (admin or support) with any user.
+export async function ensureDirectConversation(staff, u) {
+  const id = `${u.id}__direct`, ref = doc(db, "conversations", id);
+  if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: u.id, userName: u.name || u.email, listingId: "direct", listingTitle: "Faxton team", area: "", price: 0, beds: 0, baths: 0, image: "assets/mark.svg", agent: { id: "faxton", name: "Faxton team", avatar: "assets/mark.svg", photo: "assets/mark.svg" }, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
+  return id;
+}

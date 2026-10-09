@@ -47,9 +47,13 @@ app.on("web-contents-created", (_e, contents) => {
 
 app.whenReady().then(() => {
   UA = makeUA();
-  // No device permissions are ever granted.
-  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  // Only the camera, microphone, screen sharing, notifications and location are allowed, and only for the Faxton site itself.
+  const OK = new Set(["media", "mediaKeySystem", "display-capture", "notifications", "geolocation", "clipboard-sanitized-write"]);
+  const mine = (url) => { try { return new URL(url).hostname === "faxton-rentals.web.app" || new URL(url).hostname === "faxton-rentals.firebaseapp.com"; } catch { return false; } };
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(OK.has(perm) && mine(wc.getURL())));
+  session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => OK.has(perm) && mine(origin || (wc && wc.getURL())));
+  // Screen sharing in a call: share the first screen (the browser picker isn't available in Electron).
+  session.defaultSession.setDisplayMediaRequestHandler((_req, cb) => { require("electron").desktopCapturer.getSources({ types: ["screen", "window"] }).then((src) => cb(src[0] ? { video: src[0] } : {})).catch(() => cb({})); });
   Menu.setApplicationMenu(process.platform === "darwin" ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]) : null);
   create();
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) create(); });
