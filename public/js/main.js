@@ -39,7 +39,7 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
 const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "clipList", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "calDots", "Viewings"], ["/admin/payments", "card", "Payments"], ["/admin/verifications", "shield", "Verifications"], ["/admin/support", "chatdots", "Support"], ["/admin/suggestions", "chatlines", "Suggestions"], ["/admin/reports", "bars3", "Reports"], ["/admin/get-app", "download", "Installations"]];
-export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
+export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="" referrerpolicy="no-referrer">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
 const WRAPPED = ["/bookings"];
@@ -148,9 +148,12 @@ function wire() {
 }
 
 // ---------- auth ----------
+// Google (and other) sign-in pictures come as small links; ask for a sharper copy.
+const bigPhoto = (url) => String(url || "").replace(/=s\d+-c$/, "=s256-c");
 async function ensureProfile(u, extra = {}) {
   const ref = doc(db, "users", u.uid);
   const snap = await getDoc(ref);
+  if (snap.exists() && !snap.data().photo && u.photoURL) { try { await setDoc(ref, { photo: bigPhoto(u.photoURL) }, { merge: true }); } catch {} }
   if (!snap.exists()) {
     let role = extra.role || "renter";
     const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp() };
@@ -158,7 +161,7 @@ async function ensureProfile(u, extra = {}) {
     if (role === "agency" && extra.details) { d.agency = extra.details; d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() }; }
     else if (role === "agent" && extra.details) { d.agentInfo = extra.details; d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() }; }
     else if (role === "agency" || role === "agent") role = "renter";
-    d.role = role; if (extra.photo) d.photo = extra.photo;
+    d.role = role; if (extra.photo) d.photo = extra.photo; else if (u.photoURL) d.photo = bigPhoto(u.photoURL);
     const res = extra.residence || (extra.details?.country ? { country: extra.details.country, city: extra.details.city } : null);
     if (res?.country) { d.country = res.country; d.city = res.city; d.location = `${res.city}, ${res.country}`; }
     await setDoc(ref, d); S.justCreated = role;

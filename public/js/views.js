@@ -447,55 +447,102 @@ async function payments(ctx) {
 // ---------- messages ----------
 const EMOJI = ["😀", "😊", "😍", "👍", "🙏", "🎉", "🏠", "🔑", "📅", "📍", "💬", "✅", "❤️", "😅", "🤝", "👋"];
 async function messages(ctx, cid) {
-  const html = `<div class="msg-shell ${cid ? "has-chat" : ""}"><section class="msg-list"><div class="msg-list-head"><h1>Messages</h1><a class="btn primary" href="#/search" aria-label="New conversation" style="width:48px;height:48px;padding:0">${icon("edit", 22)}</a></div>
-    <label class="input msg-search">${icon("search", 20)}<input id="cs" type="search" placeholder="Search conversations…" aria-label="Search conversations"></label>
-    <div class="tabs" role="tablist"><button class="on" data-tab="all" role="tab">All (<span id="cnt">0</span>)</button><button data-tab="unread" role="tab">Unread (<span id="ucnt">0</span>)</button><button data-tab="calls" role="tab">${icon("phone", 15)} Calls (<span id="ccnt">0</span>)</button></div><div id="convs"></div></section><section class="chat" id="chat"></section></div>`;
+  const me = ctx.S.user.uid, staff = !!(ctx.S.isAdmin || ctx.S.isOwner || ctx.S.role === "support");
+  const getMode = () => { try { return staff && sessionStorage.getItem("msgMode") === "faxton" ? "faxton" : "personal"; } catch { return "personal"; } };
+  const html = `<div class="mx-shell ${cid ? "has-chat" : ""}"><aside class="mx-side" id="mxSide"></aside><section class="mx-chat" id="chat"></section></div>`;
   return { title: "Messages", bare: true, html,
     mount() {
-      let convs = [], calls = [], unsubM = null, tab = "all", term = "";
-      const me = ctx.S.user.uid;
-      const beginCall = async (c, kind) => { const l = await st.getListing(c.listingId).catch(() => null); const to = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : "staff"; CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, kind, title: c.listingTitle, image: c.image, area: c.area }); };
-      const vis = () => convs.filter((c) => (tab === "all" || c.unread) && (!term || (c.agent.name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
-      const drawList = () => {
-        $("#cnt").textContent = convs.length; $("#ucnt").textContent = convs.filter((c) => c.unread).length; $("#ccnt").textContent = calls.length;
-        if (tab === "calls") {
-          $("#convs").innerHTML = calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") : `<p class="muted" style="padding:14px">No calls yet. Open a conversation and tap the phone or video button to call.</p>`;
-          $$("[data-cb]", $("#convs")).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
-          return;
-        }
-        const list = vis();
-        $("#convs").innerHTML = list.length ? list.map((c) => `<a class="conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}" style="--i:${0}"><img class="avatar" src="${esc(c.agent.avatar)}" alt=""><div class="conv-main"><div class="conv-top"><b>${esc(c.agent.name)}</b><span>${c.lastAt ? fmtTime(c.lastAt) : ""}</span></div><p>${esc(c.last || c.listingTitle)}</p></div>${c.unread ? '<i class="udot" aria-label="Unread"></i>' : ""}</a>`).join("")
-          : `<p class="muted" style="padding:14px">${convs.length ? "No conversations match." : "No conversations yet. Open a home and tap “Message agent”."}</p>`;
+      let mine = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), counts = { v: 0, a: 0 }, showSearch = false;
+      const faxton = () => mode === "faxton", convs = () => (faxton() ? team : mine);
+      const iniAv = (name) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0f7a5a"/><text x="32" y="42" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${esc((String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase())}</text></svg>`);
+      // Who the person on the other side is, from the point of view of the current mode.
+      const other = (c) => faxton() ? { name: c.userName || "User", avatar: c.userPhoto || iniAv(c.userName), role: "User", id: c.uid } : { name: c.agent.name, avatar: c.agent.avatar, role: c.listingId === "direct" ? "Faxton team" : "Property Agent", id: c.agent.id };
+      const myAv = () => faxton() ? "assets/mark.svg" : ctx.S.profile?.photo || ctx.S.user.photoURL || iniAv(ctx.S.user.displayName || ctx.S.profile?.name || ctx.S.user.email);
+      const isMine = (m, c) => (faxton() ? m.from !== c.uid : m.from === me);
+      const unreadOf = (c) => (faxton() ? !!c.staffUnread : !!c.unread);
+      const FILTERS = () => faxton()
+        ? [["all", "chatdots", "All conversations", convs().length], ["unread", "bell", "Unread", team.filter((c) => c.staffUnread).length], ["calls", "phone", "Calls", calls.length]]
+        : [["all", "chatdots", "All conversations", mine.length], ["enq", "home", "Property enquiries", mine.filter((c) => c.listingId !== "direct").length], ["#/bookings", "cal", "Viewings", counts.v], ["#/applications", "doc", "Applications", counts.a], ["sys", "bell", "System updates", mine.filter((c) => c.listingId === "direct").length], ["calls", "phone", "Calls", calls.length]];
+      const vis = () => convs().filter((c) => (tab === "all" || (tab === "unread" ? unreadOf(c) : tab === "enq" ? c.listingId !== "direct" : tab === "sys" ? c.listingId === "direct" : true)) && (!term || (other(c).name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
+      const beginCall = async (c, kind) => {
+        if (faxton()) return CALLS.startCall(ctx, { convId: c.id, to: c.uid, toName: c.userName || "User", kind, title: "Faxton team" });
+        if (c.listingId === "direct") return CALLS.startCall(ctx, { convId: c.id, to: "staff", toName: "Faxton team", kind, title: "Faxton team" });
+        const l = await st.getListing(c.listingId).catch(() => null); const to = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : "staff";
+        CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, kind, title: c.listingTitle, image: c.image, area: c.area });
       };
-      const AV = () => convs.find((x) => x.id === cid)?.agent.avatar || "";
-      const bubble = (m, me) => m.type === "booking"
-        ? `<div class="bubble card-b"><img src="${esc(m.image || "")}" alt=""><div><b class="bk-when">${icon("cal", 20)} ${esc(fmtDate(m.when))}, ${esc(m.slot)}</b><b>${esc(m.title)}</b><span class="muted">${esc(m.area)}</span><a class="btn sm block" href="#/bookings">View booking ${icon("chev", 14)}</a></div><time>${m.at ? fmtTime(m.at) : ""}</time></div>`
-        : `<div class="brow ${me ? "me" : ""}">${me ? "" : `<img class="b-av" src="${esc(AV())}" alt="">`}<div class="bubble ${me ? "me" : ""}">${esc(m.text)}<time>${m.at ? fmtTime(m.at) : ""}${me ? `<span class="ticks">${icon("check", 14, 2.4)}${icon("check", 14, 2.4)}</span>` : ""}</time></div></div>`;
+      const drawSide = () => {
+        const side = $("#mxSide"); if (!side) return; const f = FILTERS(), list = vis();
+        side.innerHTML = `<div class="mx-sidehead"><h1>Messages</h1><p>${faxton() ? "Messages from people who contacted Faxton Rentals." : "Chat with landlords, agents and get updates on your enquiries."}</p>
+          ${staff ? `<div class="mx-mode" role="tablist" aria-label="Message as"><button type="button" class="${faxton() ? "" : "on"}" data-mode="personal">Me</button><button type="button" class="${faxton() ? "on" : ""}" data-mode="faxton">Faxton Rentals</button></div><p class="mx-hint">Type <b>/switch</b> in a message to change.</p>` : ""}
+          <a class="mx-new" href="${faxton() ? "#/admin/users" : "#/search"}">${icon("edit", 20)} New message</a></div>
+          <nav class="mx-filters" aria-label="Filters">${f.map(([k, ic, l, n]) => { const link = k.startsWith("#"); return `<${link ? `a href="${k}"` : `button type="button" data-tab="${k}"`} class="${!link && k === tab ? "on" : ""}">${icon(ic, 20)}<span>${l}</span><b>${n}</b></${link ? "a" : "button"}>`; }).join("")}</nav>
+          <div class="mx-recent"><div class="mx-rh"><h2>Recent conversations</h2><button type="button" id="mxS" aria-label="Search conversations">${icon("search", 18)}</button></div>
+          <label class="mx-search" ${showSearch || term ? "" : "hidden"}>${icon("search", 16)}<input id="cs" type="search" placeholder="Search conversations…" value="${esc(term)}" aria-label="Search conversations"></label>
+          <div class="mx-convs" id="convs">${tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") : `<p class="muted mx-none">No calls yet. Open a conversation and tap Call or Video call.</p>`)
+            : list.length ? list.map((c) => { const o = other(c); return `<a class="mx-conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${esc(c.last || (c.listingId === "direct" ? "Say hello" : c.listingTitle))}</p>${c.listingId !== "direct" && c.last ? `<small>${esc(c.listingTitle)}</small>` : ""}</div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
+            : `<p class="muted mx-none">${convs().length ? "No conversations match." : faxton() ? "No one has messaged Faxton Rentals yet." : "No conversations yet. Open a home and tap “Message agent”."}</p>`}</div></div>`;
+        $$("[data-tab]", side).forEach((b) => (b.onclick = () => { tab = b.dataset.tab; drawSide(); }));
+        $$("[data-mode]", side).forEach((b) => (b.onclick = () => switchMode(b.dataset.mode)));
+        $("#mxS", side).onclick = () => { showSearch = !showSearch; drawSide(); if (showSearch) $("#cs")?.focus(); };
+        const cs = $("#cs", side); if (cs) { cs.oninput = (e) => { term = e.target.value.trim().toLowerCase(); const at = e.target.selectionStart; drawSide(); const n = $("#cs"); n?.focus(); try { n.setSelectionRange(at, at); } catch {} }; cs.onkeydown = (e) => { if (e.key === "Enter" && cs.value.trim().toLowerCase() === "/switch") { e.preventDefault(); term = ""; switchMode(); } }; }
+        $$("[data-cb]", side).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
+      };
+      const switchMode = (to) => {
+        if (!staff) return; const next = to || (faxton() ? "personal" : "faxton"); if (next === mode) return;
+        mode = next; try { sessionStorage.setItem("msgMode", mode); } catch {} tab = "all"; term = "";
+        toast(faxton() ? "Now messaging as Faxton Rentals." : "Now messaging as yourself.");
+        const chat = $("#chat"); if (chat) chat.dataset.cid = ""; drawSide(); if (cid && !convs().some((x) => x.id === cid)) { ctx.go("#/messages"); } else drawChat();
+      };
+      const bubble = (m, c) => {
+        const mineB = isMine(m, c), av = mineB ? myAv() : other(c).avatar;
+        if (m.type === "booking") return `<div class="mx-row"><div class="mx-bk"><img src="${esc(m.image || "")}" alt=""><div><b class="bk-when">${icon("cal", 18)} ${esc(fmtDate(m.when))}, ${esc(m.slot)}</b><b>${esc(m.title)}</b><span class="muted">${esc(m.area)}</span><a class="btn sm" href="#/bookings">View booking</a></div></div></div>`;
+        return `<div class="mx-row ${mineB ? "me" : ""}"><img class="mx-bav" src="${esc(av)}" alt="" referrerpolicy="no-referrer"><div class="mx-b">${esc(m.text)}<time>${m.at ? fmtTime(m.at) : ""}${mineB ? `<span class="ticks">${icon("check", 14, 2.4)}${icon("check", 14, 2.4)}</span>` : ""}</time></div></div>`;
+      };
+      const listingCard = (c) => c.listingId === "direct" ? "" : `<div class="mx-lcard"><div class="mx-limg"><img src="${esc(c.image)}" alt=""><span class="mx-badge">Available</span></div><div class="mx-lb"><div class="mx-lt"><h3>${esc(c.listingTitle)}</h3><span class="mx-lp">${naira(c.price)} <small>per year</small></span></div><p class="mx-lloc">${icon("pin", 16)} ${esc(c.area)}${/,/.test(c.area || "") ? "" : ", Lagos"}</p><div class="mx-lf"><span>${icon("bed", 18)} ${c.beds === 0 ? "Studio" : c.beds + " Beds"}</span><span>${icon("bath", 18)} ${c.baths} Baths</span></div></div><div class="mx-lact"><a class="btn mx-vl" href="#/home/${esc(c.listingId)}">View listing</a><a class="mx-ext" href="#/home/${esc(c.listingId)}" aria-label="Open listing">${icon("share", 18)}</a></div></div>`;
       const drawChat = () => {
-        const c = convs.find((x) => x.id === cid); const chat = $("#chat");
-        if (!c) { unsubM?.(); chat.innerHTML = `<div class="chat-empty"><h2>${convs.length ? "Select a conversation" : "No messages yet"}</h2><p style="margin-top:8px">Message a listing agent to start chatting.</p></div>`; return; }
-        if (chat.dataset.cid === cid) return; chat.dataset.cid = cid;
-        if (c.unread && c.uid === ctx.S.user.uid) st.markRead(cid).catch(() => {});
-        chat.innerHTML = `<div class="chat-head"><a class="icon-btn back" href="#/messages" aria-label="Back" style="display:none">${icon("left", 20)}</a><a href="#/agent/${esc(c.agent.id)}" class="ch-av"><img class="avatar" src="${esc(c.agent.avatar)}" alt=""></a><div class="grow"><a href="#/agent/${esc(c.agent.id)}" class="ch-name">${esc(c.agent.name)}</a><span>Property Agent</span></div><div class="acts"><button type="button" class="icon-btn" data-call="video" aria-label="Video call" title="Video call">${icon("video", 22)}</button><button type="button" class="icon-btn" data-call="voice" aria-label="Voice call" title="Voice call">${icon("phone", 22)}</button><a class="icon-btn" href="#/home/${esc(c.listingId)}" aria-label="View home">${icon("home", 22)}</a></div></div>
-          ${c.listingId === "direct" ? "" : `<a class="listing-strip" href="#/home/${esc(c.listingId)}"><img src="${esc(c.image)}" alt=""><div><b>${esc(c.listingTitle)}</b><span class="muted">${icon("bed", 16)} ${c.beds === 0 ? "Studio" : c.beds + " bedrooms"} <i>•</i> ${icon("bath", 16)} ${c.baths} bathrooms</span><span class="muted">${icon("pin", 16)} ${esc(c.area)}, Lagos</span></div><b class="ls-price">${naira(c.price)} / year</b>${icon("chev", 22).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</a>`}
-          <div class="thread" id="thread"></div><div class="emoji" id="emoji" hidden>${EMOJI.map((e) => `<button type="button">${e}</button>`).join("")}</div>
-          <form class="composer" id="cf"><button type="button" class="icon-btn flat" data-soon aria-label="Attach">${icon("clip", 22)}</button><button type="button" class="icon-btn flat" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><input id="ci" placeholder="Type a message…" autocomplete="off" maxlength="2000" aria-label="Message"><button type="button" class="icon-btn flat" data-soon aria-label="Voice message">${icon("mic", 22)}</button><button class="send" aria-label="Send">${icon("send", 22)}</button></form>`;
+        const c = convs().find((x) => x.id === cid); const chat = $("#chat");
+        if (!c) { unsubM?.(); chat.dataset.cid = ""; chat.innerHTML = `<div class="mx-empty"><span>${icon("chatdots", 34)}</span><h2>${convs().length ? "Select a conversation" : "No messages yet"}</h2><p>${faxton() ? "Choose a person to reply as Faxton Rentals." : "Message a listing agent to start chatting."}</p></div>`; return; }
+        if (chat.dataset.cid === cid + mode) return; chat.dataset.cid = cid + mode;
+        if (faxton() ? c.staffUnread : c.unread && c.uid === me) (faxton() ? st.setStaffUnread(cid, false) : st.markRead(cid)).catch(() => {});
+        const o = other(c), direct = c.listingId === "direct", agentView = !faxton() && !direct;
+        chat.innerHTML = `<header class="mx-head"><a class="mx-back" href="#/messages" aria-label="Back">${icon("left", 22)}</a><span class="mx-hav"><img src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"></span><div class="mx-hn"><b>${esc(o.name)}</b><span>${faxton() ? "Replying as Faxton Rentals" : esc(o.role)}</span></div>
+          <div class="mx-acts"><button type="button" class="mx-ab" data-call="voice">${icon("phone", 18)}<span>Call</span></button><button type="button" class="mx-ab" data-call="video">${icon("video", 18)}<span>Video call</span></button>${agentView ? `<a class="mx-ab mx-d" href="#/book/${esc(c.listingId)}">${icon("cal", 18)}<span>Schedule viewing</span></a><a class="mx-ab mx-d" href="#/agent/${esc(c.agent.id)}">${icon("user", 18)}<span>View profile</span></a>` : ""}${faxton() ? `<a class="mx-ab mx-d" href="#/admin/users">${icon("users", 18)}<span>All users</span></a>` : ""}
+          <span class="mx-more"><button type="button" class="mx-dots" id="mxMore" aria-label="More options" aria-haspopup="menu">${icon("dots", 20)}</button><div class="menu mx-menu" id="mxMenu" role="menu" hidden>${agentView ? `<a role="menuitem" href="#/home/${esc(c.listingId)}">${icon("home", 18)} View listing</a>` : ""}<a role="menuitem" href="#/messages" data-calls>${icon("phone", 18)} Call history</a>${staff ? `<button role="menuitem" type="button" data-sw>${icon("share", 18)} Switch to ${faxton() ? "me" : "Faxton Rentals"}</button>` : ""}</div></span></div></header>
+          <div class="mx-thread" id="thread"></div><div class="mx-emoji" id="emoji" hidden>${EMOJI.map((e) => `<button type="button">${e}</button>`).join("")}</div>
+          <form class="mx-comp" id="cf" autocomplete="off"><button type="button" class="mx-ib" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><input id="ci" placeholder="${staff ? "Type a message… or /switch" : "Type a message…"}" maxlength="2000" aria-label="Message"><button type="button" class="mx-ib" data-soon aria-label="Attach">${icon("clip", 22)}</button><button type="button" class="mx-ib mx-micb" data-soon aria-label="Voice message">${icon("mic", 22)}</button><button class="mx-send" aria-label="Send">${icon("send", 22)}</button></form>`;
         $$("[data-soon]", chat).forEach((b) => (b.onclick = () => toast("Coming soon.")));
         $$("[data-call]", chat).forEach((b) => (b.onclick = () => beginCall(c, b.dataset.call)));
+        const menu = $("#mxMenu"); $("#mxMore").onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; };
+        const closeMenu = () => { menu.hidden = true; }; document.addEventListener("click", closeMenu); ctx.S.cleanups.push(() => document.removeEventListener("click", closeMenu));
+        const cl = $("[data-calls]", menu); if (cl) cl.onclick = (e) => { e.preventDefault(); tab = "calls"; drawSide(); closeMenu(); };
+        const sw = $("[data-sw]", menu); if (sw) sw.onclick = () => { closeMenu(); switchMode(); };
         const em = $("#emoji"); $("#emojiBtn").onclick = () => (em.hidden = !em.hidden); em.onclick = (e) => { const b = e.target.closest("button"); if (b) { $("#ci").value += b.textContent; $("#ci").focus(); } };
-        $("#cf").onsubmit = async (e) => { e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return; i.value = ""; em.hidden = true; try { await st.sendMessage(ctx.S.user, cid, t, {}, c.uid !== ctx.S.user.uid); } catch (x) { toast(friendlyErr(x)); i.value = t; } };
+        $("#cf").onsubmit = async (e) => {
+          e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return;
+          if (staff && t.toLowerCase() === "/switch") { i.value = ""; return switchMode(); }
+          i.value = ""; em.hidden = true;
+          try { faxton() ? await st.sendMessage(ctx.S.user, cid, t, {}, true, { staffUnread: false }) : await st.sendMessage(ctx.S.user, cid, t, {}, c.uid !== me, c.listingId === "direct" && c.uid === me ? { staffUnread: true } : {}); } catch (x) { toast(friendlyErr(x)); i.value = t; }
+        };
         unsubM?.(); unsubM = st.watchMessages(cid, (ms) => {
           const th = $("#thread"); if (!th) return; const near = th.scrollHeight - th.scrollTop - th.clientHeight < 80;
-          th.innerHTML = ms.length ? `<span class="day">Today</span>` + ms.map((m) => bubble(m, m.from === ctx.S.user.uid)).join("") : `<div class="chat-empty">Say hello to ${esc(c.agent.name.split(" ")[0])} 👋</div>`;
+          const rows = ms.map((m) => bubble(m, c)); rows.splice(Math.min(1, rows.length), 0, listingCard(c));
+          th.innerHTML = `<span class="mx-day">Today</span>${ms.length ? rows.join("") : `${listingCard(c)}<div class="mx-hello">Say hello to ${esc(o.name.split(" ")[0])} 👋</div>`}${agentView ? `<div class="mx-quick"><a href="#/book/${esc(c.listingId)}">${icon("cal", 20)}<span>Schedule Viewing</span></a><a href="#/documents">${icon("doc", 20)}<span>Send Documents</span></a><button type="button" data-qcall>${icon("phone", 20)}<span>Call Agent</span></button></div>` : ""}`;
+          const q = $("[data-qcall]", th); if (q) q.onclick = () => beginCall(c, "voice");
           if (near || ms.length < 2) th.scrollTop = th.scrollHeight;
         });
       };
-      $$("[data-tab]").forEach((b) => (b.onclick = () => { tab = b.dataset.tab; $$("[data-tab]").forEach((x) => x.classList.toggle("on", x === b)); drawList(); }));
-      $("#cs").oninput = (e) => { term = e.target.value.trim().toLowerCase(); drawList(); };
-      const unsubC = st.watchConversations(ctx.S.user, (c) => { convs = c; drawList(); drawChat(); });
-      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; drawList(); });
-      ctx.S.cleanups.push(() => { unsubC(); unsubL(); unsubM?.(); });
-      if (matchMedia("(max-width:860px)").matches) setTimeout(() => { const b = $(".back"); if (b) b.style.display = "grid"; });
+      const refresh = () => {
+        // A conversation opened from the admin console belongs to the Faxton Rentals inbox.
+        if (staff && cid && mode === "personal" && !mine.some((x) => x.id === cid) && team.some((x) => x.id === cid)) { mode = "faxton"; try { sessionStorage.setItem("msgMode", mode); } catch {} }
+        drawSide(); drawChat();
+      };
+      const unsubC = st.watchConversations(ctx.S.user, (c) => { mine = c; refresh(); });
+      const unsubT = staff ? st.watchStaffConversations((c) => { team = c; refresh(); }) : null;
+      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; drawSide(); });
+      st.myViewings(ctx.S.user).then((v) => { counts.v = (v || []).length; drawSide(); }).catch(() => {});
+      st.myApplications(ctx.S.user).then((a) => { counts.a = (a || []).length; drawSide(); }).catch(() => {});
+      drawSide(); drawChat();
+      ctx.S.cleanups.push(() => { unsubC(); unsubT?.(); unsubL(); unsubM?.(); });
     } };
 }
 
