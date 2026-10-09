@@ -1575,3 +1575,12 @@ dialog.nodismiss .close{display:none!important}
   .mx-sidehead h1{font-size:1.5rem}.mx-filters>*{height:40px}
 }
 .sf-mark .logo-svg{height:60px;width:auto;display:block}
+
+/* ---- messages: the list column like before (title, new message button, search, tabs, list) ---- */
+.mx-side{padding:18px 12px 8px}.mx-sidehead{padding:0 6px}.mx-hrow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}.mx-hrow h1{font-size:1.7rem;margin:0}
+.mx-newi{width:44px;height:44px;border-radius:12px;background:var(--mx-me);color:#fff;display:grid;place-items:center;flex:none}.mx-newi:hover{filter:brightness(1.15)}
+.mx-mode{margin:0 0 6px}.mx-mode button{padding:7px 6px;font-size:.92rem;white-space:nowrap}.mx-hint{margin:0 0 10px!important}
+.mx-sidehead .mx-search{margin:0 0 10px}.mx-search[hidden]{display:none}
+.mx-tabs{display:flex;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}.mx-tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-size:.86rem;font-weight:600;padding:8px 4px;border-radius:10px;white-space:nowrap;cursor:pointer}.mx-tabs button:hover{background:var(--surface)}.mx-tabs button.on{background:var(--soft);color:var(--head)}
+.mx-convs{padding:0 2px 6px}
+.mx-search input{font-size:.9rem}

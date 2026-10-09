@@ -453,7 +453,7 @@ async function messages(ctx, cid) {
   const html = `<div class="mx-shell ${cid ? "has-chat" : ""}"><aside class="mx-side" id="mxSide"></aside><section class="mx-chat" id="chat"></section></div>`;
   return { title: "Messages", bare: true, html,
     mount() {
-      let mine = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), counts = { v: 0, a: 0 }, showSearch = false;
+      let mine = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set();
       const faxton = () => mode === "faxton", convs = () => (faxton() ? team : mine);
       const iniAv = (name) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0f7a5a"/><text x="32" y="42" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${esc((String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase())}</text></svg>`);
       // Who the person on the other side is, from the point of view of the current mode.
@@ -461,32 +461,35 @@ async function messages(ctx, cid) {
       const myAv = () => faxton() ? "assets/mark.svg" : ctx.S.profile?.photo || ctx.S.user.photoURL || iniAv(ctx.S.user.displayName || ctx.S.profile?.name || ctx.S.user.email);
       const isMine = (m, c) => (faxton() ? m.from !== c.uid : m.from === me);
       const unreadOf = (c) => (faxton() ? !!c.staffUnread : !!c.unread);
-      const FILTERS = () => faxton()
-        ? [["all", "chatdots", "All conversations", convs().length], ["unread", "bell", "Unread", team.filter((c) => c.staffUnread).length], ["calls", "phone", "Calls", calls.length]]
-        : [["all", "chatdots", "All conversations", mine.length], ["enq", "home", "Property enquiries", mine.filter((c) => c.listingId !== "direct").length], ["#/bookings", "cal", "Viewings", counts.v], ["#/applications", "doc", "Applications", counts.a], ["sys", "bell", "System updates", mine.filter((c) => c.listingId === "direct").length], ["calls", "phone", "Calls", calls.length]];
-      const vis = () => convs().filter((c) => (tab === "all" || (tab === "unread" ? unreadOf(c) : tab === "enq" ? c.listingId !== "direct" : tab === "sys" ? c.listingId === "direct" : true)) && (!term || (other(c).name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
+      const FILTERS = () => [["all", "chatdots", "All", convs().length], ["unread", "bell", "Unread", convs().filter(unreadOf).length], ["calls", "phone", "Calls", calls.length]];
+      const vis = () => convs().filter((c) => (tab === "all" || (tab === "unread" ? unreadOf(c) : true)) && (!term || (other(c).name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
       const beginCall = async (c, kind) => {
         if (faxton()) return CALLS.startCall(ctx, { convId: c.id, to: c.uid, toName: c.userName || "User", toPhoto: c.userPhoto || "", kind, title: "Faxton team" });
         if (c.listingId === "direct") return CALLS.startCall(ctx, { convId: c.id, to: "staff", toName: "Faxton team", kind, title: "Faxton team" });
         const l = await st.getListing(c.listingId).catch(() => null); const to = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : "staff";
         CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, toPhoto: c.agent.avatar, kind, title: c.listingTitle, image: c.image, area: c.area });
       };
+      // The left column: title and new-message button, the Me / Faxton switch for staff, search, tabs and the list.
+      const drawList = () => {
+        const f = FILTERS(), list = vis();
+        f.forEach(([k, , , n]) => { const c = $(`[data-cnt="${k}"]`); if (c) c.textContent = n; });
+        const box = $("#convs"); if (!box) return;
+        box.innerHTML = tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") : `<p class="muted mx-none">No calls yet. Open a conversation and tap Call or Video call.</p>`)
+          : list.length ? list.map((c) => { const o = other(c); return `<a class="mx-conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${esc(c.last || (c.listingId === "direct" ? "Say hello" : c.listingTitle))}</p></div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
+          : `<p class="muted mx-none">${faxton() && teamErr ? "Couldn’t load the Faxton Rentals inbox. The database rules may not be published yet." : convs().length ? "No conversations match." : faxton() ? "No one has messaged Faxton Rentals yet." : "No conversations yet. Open a home and tap “Message agent”."}</p>`;
+        $$("[data-cb]", box).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
+      };
       const drawSide = () => {
-        const side = $("#mxSide"); if (!side) return; const f = FILTERS(), list = vis();
-        side.innerHTML = `<div class="mx-sidehead"><h1>Messages</h1><p>${faxton() ? "Messages from people who contacted Faxton Rentals." : "Chat with landlords, agents and get updates on your enquiries."}</p>
-          ${staff ? `<div class="mx-mode" role="tablist" aria-label="Message as"><button type="button" class="${faxton() ? "" : "on"}" data-mode="personal">Me</button><button type="button" class="${faxton() ? "on" : ""}" data-mode="faxton">Faxton Rentals</button></div><p class="mx-hint">Type <b>/switch</b> in a message to change.</p>` : ""}
-          <a class="mx-new" href="${faxton() ? "#/admin/users" : "#/search"}">${icon("edit", 20)} New message</a></div>
-          <nav class="mx-filters" aria-label="Filters">${f.map(([k, ic, l, n]) => { const link = k.startsWith("#"); return `<${link ? `a href="${k}"` : `button type="button" data-tab="${k}"`} class="${!link && k === tab ? "on" : ""}">${icon(ic, 20)}<span>${l}</span><b>${n}</b></${link ? "a" : "button"}>`; }).join("")}</nav>
-          <div class="mx-recent"><div class="mx-rh"><h2>Recent conversations</h2><button type="button" id="mxS" aria-label="Search conversations">${icon("search", 18)}</button></div>
-          <label class="mx-search" ${showSearch || term ? "" : "hidden"}>${icon("search", 16)}<input id="cs" type="search" placeholder="Search conversations…" value="${esc(term)}" aria-label="Search conversations"></label>
-          <div class="mx-convs" id="convs">${tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") : `<p class="muted mx-none">No calls yet. Open a conversation and tap Call or Video call.</p>`)
-            : list.length ? list.map((c) => { const o = other(c); return `<a class="mx-conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${esc(c.last || (c.listingId === "direct" ? "Say hello" : c.listingTitle))}</p>${c.listingId !== "direct" && c.last ? `<small>${esc(c.listingTitle)}</small>` : ""}</div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
-            : `<p class="muted mx-none">${convs().length ? "No conversations match." : faxton() ? "No one has messaged Faxton Rentals yet." : "No conversations yet. Open a home and tap “Message agent”."}</p>`}</div></div>`;
-        $$("[data-tab]", side).forEach((b) => (b.onclick = () => { tab = b.dataset.tab; drawSide(); }));
+        const side = $("#mxSide"); if (!side) return; const f = FILTERS();
+        side.innerHTML = `<div class="mx-sidehead"><div class="mx-hrow"><h1>Messages</h1><a class="mx-newi" href="${faxton() ? "#/admin/users" : "#/search"}" aria-label="New conversation" title="New conversation">${icon("edit", 22)}</a></div>
+          ${staff ? `<div class="mx-mode" role="tablist" aria-label="Message as"><button type="button" class="${faxton() ? "" : "on"}" data-mode="personal">Me</button><button type="button" class="${faxton() ? "on" : ""}" data-mode="faxton">Faxton</button></div><p class="mx-hint">Type <b>/switch</b> in a message to change.</p>` : ""}
+          <label class="mx-search">${icon("search", 18)}<input id="cs" type="search" placeholder="Search conversations…" value="${esc(term)}" aria-label="Search conversations"></label>
+          <div class="mx-tabs" role="tablist">${f.map(([k, , l]) => `<button type="button" role="tab" data-tab="${k}" class="${k === tab ? "on" : ""}">${l} (<span data-cnt="${k}">0</span>)</button>`).join("")}</div></div>
+          <div class="mx-convs" id="convs"></div>`;
+        $$("[data-tab]", side).forEach((b) => (b.onclick = () => { tab = b.dataset.tab; $$("[data-tab]", side).forEach((x) => x.classList.toggle("on", x === b)); drawList(); }));
         $$("[data-mode]", side).forEach((b) => (b.onclick = () => switchMode(b.dataset.mode)));
-        $("#mxS", side).onclick = () => { showSearch = !showSearch; drawSide(); if (showSearch) $("#cs")?.focus(); };
-        const cs = $("#cs", side); if (cs) { cs.oninput = (e) => { term = e.target.value.trim().toLowerCase(); const at = e.target.selectionStart; drawSide(); const n = $("#cs"); n?.focus(); try { n.setSelectionRange(at, at); } catch {} }; cs.onkeydown = (e) => { if (e.key === "Enter" && cs.value.trim().toLowerCase() === "/switch") { e.preventDefault(); term = ""; switchMode(); } }; }
-        $$("[data-cb]", side).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
+        const cs = $("#cs", side); cs.oninput = (e) => { term = e.target.value.trim().toLowerCase(); drawList(); }; cs.onkeydown = (e) => { if (e.key === "Enter" && cs.value.trim().toLowerCase() === "/switch") { e.preventDefault(); term = ""; cs.value = ""; switchMode(); } };
+        drawList();
       };
       const switchMode = (to) => {
         if (!staff) return; const next = to || (faxton() ? "personal" : "faxton"); if (next === mode) return;
@@ -547,15 +550,14 @@ async function messages(ctx, cid) {
         });
       };
       const refresh = () => {
-        // A conversation opened from the admin console belongs to the Faxton Rentals inbox.
-        if (staff && cid && mode === "personal" && !mine.some((x) => x.id === cid) && team.some((x) => x.id === cid)) { mode = "faxton"; try { sessionStorage.setItem("msgMode", mode); } catch {} }
-        drawSide(); drawChat();
+        // A conversation opened from the admin console belongs to the Faxton inbox. If the list hasn't brought it yet, fetch it directly.
+        if (staff && cid && !mine.some((x) => x.id === cid) && !team.some((x) => x.id === cid) && !fetched.has(cid)) { fetched.add(cid); st.getConversation(cid).then((c) => { if (c && c.listingId === "direct") { team = [c, ...team.filter((x) => x.id !== c.id)]; refresh(); } }); }
+        if (staff && cid && mode === "personal" && !mine.some((x) => x.id === cid) && team.some((x) => x.id === cid)) { mode = "faxton"; try { sessionStorage.setItem("msgMode", mode); } catch {} drawSide(); } else if ($("#convs")) { drawList(); } else drawSide();
+        drawChat();
       };
       const unsubC = st.watchConversations(ctx.S.user, (c) => { mine = c; refresh(); });
-      const unsubT = staff ? st.watchStaffConversations((c) => { team = c; refresh(); }) : null;
-      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; drawSide(); });
-      st.myViewings(ctx.S.user).then((v) => { counts.v = (v || []).length; drawSide(); }).catch(() => {});
-      st.myApplications(ctx.S.user).then((a) => { counts.a = (a || []).length; drawSide(); }).catch(() => {});
+      const unsubT = staff ? st.watchStaffConversations((c) => { team = c.length || !team.length ? c : team; teamErr = false; refresh(); }, () => { teamErr = true; refresh(); }) : null;
+      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; if ($("#convs")) drawList(); else drawSide(); });
       drawSide(); drawChat();
       ctx.S.cleanups.push(() => { unsubC(); unsubT?.(); unsubL(); unsubM?.(); });
     } };
