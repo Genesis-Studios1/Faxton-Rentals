@@ -34,8 +34,8 @@ export async function toggleSaved(user, id, on) {
 }
 
 // ---- viewings, applications ----
-export const addViewing = (user, l, when, slot, extra = {}) => addDoc(collection(db, "viewings"), { ...extra, uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
-export const addApplication = (user, l, moveIn, details = {}) => addDoc(collection(db, "applications"), { details, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: l.price + l.service + l.deposit, moveIn, status: "Under review", createdAt: serverTimestamp() });
+export const addViewing = (user, l, when, slot, extra = {}) => addDoc(collection(db, "viewings"), { ...extra, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
+export const addApplication = (user, l, moveIn, details = {}) => addDoc(collection(db, "applications"), { details, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: l.price + l.service + l.deposit, moveIn, status: "Under review", createdAt: serverTimestamp() });
 const mine = async (col, user) => { try { return (await getDocs(query(collection(db, col), where("uid", "==", user.uid)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); } catch { return []; } };
 export const myViewings = (u) => mine("viewings", u);
 export const myApplications = (u) => mine("applications", u);
@@ -103,3 +103,6 @@ export async function seedListings() {
   b.set(doc(db, "listings", "cedar-house"), { ...SEED[1], id: "cedar-house", title: "Cedar House", area: "Wuse 2", city: "Abuja", status: "pending", price: 2800000, lat: 9.0765, lng: 7.4719 });
   await b.commit(); cache = null;
 }
+
+// Documents (listings, viewings, applications) that belong to a landlord or agency account.
+export async function ownedDocs(col, uid) { try { return (await getDocs(query(collection(db, col), where("ownerUid", "==", uid)))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; } }

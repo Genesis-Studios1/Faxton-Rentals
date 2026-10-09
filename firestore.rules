@@ -11,6 +11,12 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
+    function myRole() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'renter') : '';
+    }
+    function isSupport() { return myRole() == 'support'; }
+    function ownsListing() { return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
     function short(v, n) { return v is string && v.size() <= n; }
     // Optional profile fields must have the right type and size.
@@ -78,8 +84,14 @@ service cloud.firestore {
 
 
     match /listings/{id} {
-      allow read: if resource.data.status == 'active' || isAdmin();
-      allow write: if isAdmin();
+      allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
+      // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
+      allow create: if isAdmin() || (signedIn() && myRole() in ['landlord', 'agency']
+        && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
+        && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
+      allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.status == resource.data.status);
+      allow delete: if isAdmin();
     }
 
     match /viewings/{id} {
@@ -87,24 +99,24 @@ service cloud.firestore {
         && request.resource.data.status == 'Requested'
         && request.resource.data.keys().size() <= 30
         && short(request.resource.data.title, 200) && short(request.resource.data.name, 200);
-      allow read: if owns() || isAdmin();
-      allow update: if isAdmin();
+      allow read: if owns() || isAdmin() || ownsListing();
+      allow update: if isAdmin() || (ownsListing() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
     }
     match /applications/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'Under review'
         && request.resource.data.keys().size() <= 30
         && short(request.resource.data.title, 200) && short(request.resource.data.name, 200);
-      allow read: if owns() || isAdmin();
-      allow update: if isAdmin();
+      allow read: if owns() || isAdmin() || ownsListing();
+      allow update: if isAdmin() || (ownsListing() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
     }
 
     match /tickets/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Open'
         && short(request.resource.data.subject, 160) && short(request.resource.data.message, 2000)
         && request.resource.data.keys().size() <= 12;
-      allow read: if owns() || isAdmin();
-      allow update: if isAdmin();
+      allow read: if owns() || isAdmin() || isSupport();
+      allow update: if isAdmin() || isSupport();
     }
     // App releases managed from Admin > Installations. Signed-in users can read published ones; only admins write.
     match /appReleases/{id} {
@@ -114,7 +126,7 @@ service cloud.firestore {
         && short(request.resource.data.version, 20) && short(request.resource.data.name, 120)
         && short(request.resource.data.notes, 4000)
         && request.resource.data.published is bool && request.resource.data.mandatory is bool
-        && request.resource.data.files is map && request.resource.data.files.size() <= 6;
+        && request.resource.data.files is map && request.resource.data.files.size() <= 20;
       allow delete: if isAdmin();
     }
     match /documents/{id} {
@@ -127,7 +139,7 @@ service cloud.firestore {
     }
     match /conversations/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.keys().size() <= 20;
-      allow read: if owns() || isAdmin();
+      allow read: if owns() || isAdmin() || isSupport();
       allow update: if (owns() && request.resource.data.uid == resource.data.uid) || isAdmin();
       match /messages/{mid} {
         allow read: if signedIn() && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin());

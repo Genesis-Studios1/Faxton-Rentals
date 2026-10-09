@@ -42,14 +42,22 @@ const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; }
 const WRAPPED = ["/bookings"];
 const isSettings = (p) => p === "/settings" || p.startsWith("/settings/");
 
-function shell(path, inner, { admin = false, pending = 0 } = {}) {
-  return admin ? adminShell(path, inner, pending) : appShell(path, inner);
+function shell(path, inner, { admin = false, pending = 0, role = "" } = {}) {
+  return role ? adminShell(path, inner, 0, role) : admin ? adminShell(path, inner, pending) : appShell(path, inner);
 }
+// Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
+const ROLE_UI = {
+  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
+  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+};
+const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console: its own header + labelled sidebar, with a way back to the site.
-function adminShell(path, inner, pending) {
-  const on = (p) => (p === "/admin" ? path === p : path === p || path.startsWith(p + "/"));
-  const items = ANAV.map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
-  return `<div class="adm"><header class="adm-top"><a class="logo" href="#/admin" aria-label="Admin overview">${logo().match(/<svg.*<\/svg>/s)[0]}<span class="logo-word"><b>Faxton</b> Rentals</span></a><span class="vr"></span><span class="adm-title">Admin console</span><span style="flex:1"></span>
+function adminShell(path, inner, pending, role = "") {
+  const R = ROLE_UI[role];
+  const on = (p) => (p === "/admin" || (R && p === R.home) ? path === p : path === p || path.startsWith(p + "/"));
+  const items = (R ? R.nav : ANAV).map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
+  return `<div class="adm"><header class="adm-top"><a class="logo" href="#${R ? R.home : "/admin"}" aria-label="Dashboard">${logo().match(/<svg.*<\/svg>/s)[0]}<span class="logo-word"><b>Faxton</b> Rentals</span></a><span class="vr"></span><span class="adm-title">${R ? R.title : "Admin console"}</span><span style="flex:1"></span>
       <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label>${themeBtn()}<a class="icon-btn bell ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 22)}</a>
       <a class="me-btn" href="#/settings" aria-label="Account">${avatarHtml()}${icon("chev", 18)}</a></header>
     <div class="adm-body"><aside class="adm-side" aria-label="Admin navigation"><nav>${items}</nav><a class="adm-back" href="#/">${icon("left", 20)} Go back to Faxton Rentals</a></aside>
@@ -62,7 +70,7 @@ function appShell(path, inner) {
   const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
       <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
       <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/rentals">${icon("cal", 18)} My rentals</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a><a role="menuitem" href="#/download">${icon("download", 18)} Get the app</a>
-      ${S.isAdmin ? `<a role="menuitem" href="#/admin">${icon("building", 18)} Admin console</a>` : ""}<button role="menuitem" id="logoutBtn">${icon("logout", 18)} Sign out</button></div></div>`;
+      ${S.isAdmin ? `<a role="menuitem" href="#/admin">${icon("building", 18)} Admin console</a>` : ROLE_UI[S.role] ? `<a role="menuitem" href="#${ROLE_UI[S.role].home}">${icon("building", 18)} My dashboard</a>` : ""}<button role="menuitem" id="logoutBtn">${icon("logout", 18)} Sign out</button></div></div>`;
   const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
   const back = !(path === "/search" || path.startsWith("/home/")) ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
   return `<header class="topnav"><div class="tn-in">${logo()}<nav class="tn-links" aria-label="Main">${links}</nav>
@@ -88,6 +96,8 @@ export async function render() {
   const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup" || path === "/forgot" || path === "/download";
   if (!S.user && !open) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (S.user && open) return go("#" + (q.next || "/"));
+  // Staff accounts open their own dashboard first, once per visit.
+  if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
 
   const ctx = { path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   bar(true);
