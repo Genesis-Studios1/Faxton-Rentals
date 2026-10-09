@@ -345,7 +345,7 @@ export async function helpPage(ctx) {
       const draw = () => {
         const L = FAQ.filter((f) => (!cat || f[2] === cat) && (!q || (f[0] + f[1]).toLowerCase().includes(q)));
         $("#faq", root).innerHTML = L.length ? L.map((f, i) => `<div class="fq ${open === i ? "on" : ""}"><button type="button" data-i="${i}" aria-expanded="${open === i}"><span>${esc(f[0])}</span>${icon("chev", 22)}</button><div class="fa"><p>${esc(f[1])}</p></div></div>`).join("") : `<p class="muted" style="padding:14px">No answers match. Try the support request button.</p>`;
-        $$("[data-i]", root).forEach((b) => (b.onclick = () => { open = open === +b.dataset.i ? -1 : +b.dataset.i; draw(); }));
+        $$("[data-i]", root).forEach((b) => (b.onclick = () => { const i = +b.dataset.i; open = open === i ? -1 : i; $$(".fq", root).forEach((el, k) => { el.classList.toggle("on", k === open); el.querySelector("button").setAttribute("aria-expanded", String(k === open)); }); }));
         $$("[data-cat]", root).forEach((b) => b.classList.toggle("on", b.dataset.cat === cat));
       };
       $("#hq", root).oninput = (e) => { q = e.target.value.trim().toLowerCase(); open = 0; draw(); };
