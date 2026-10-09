@@ -1715,3 +1715,9 @@ dialog.nodismiss .close{display:none!important}
 .pf-body{margin-top:-30px;position:relative;padding-top:0}.pf-av{margin-top:0}
 .pf-t span{white-space:nowrap}
 .pf-body{margin-top:0}.pf-av{margin-top:-66px}
+
+/* ---- Admin > Call setup ---- */
+.cr-card{padding:22px;max-width:860px}.cr-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.cr-head h3{font-size:1.35rem}
+.cr-chip{background:rgba(52,211,153,.14);color:var(--brand);border-radius:10px;padding:7px 14px;font-weight:600;font-size:.9rem}.cr-chip.off{background:var(--surface);color:var(--muted)}
+.cr-card .field{display:block;margin:12px 0}.cr-l{display:block;font-weight:600;color:var(--head);margin-bottom:6px}.cr-card input{width:100%}
+.cr-ok{color:var(--brand);font-weight:600;margin:8px 0}.cr-ok[hidden]{display:none}

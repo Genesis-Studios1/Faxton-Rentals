@@ -2,6 +2,7 @@
 // Every number comes from the live database; charts that have no data yet simply show zeros.
 import { $, $$, esc, icon, naira, toast, modal, friendlyErr, initials } from "./ui.js";
 import * as st from "./store.js";
+import * as CALLS from "./calls.js";
 import { pickLocation } from "./maps.js";
 
 // ---------- data helpers ----------
@@ -252,22 +253,43 @@ export function verifications(ctx, users) {
 }
 
 // ---------- suggestion box (admin and support) ----------
-export function callSetup(ctx, servers) {
-  const sample = JSON.stringify([{ urls: ["turn:YOUR-SERVER:80", "turn:YOUR-SERVER:443?transport=tcp"], username: "YOUR-USERNAME", credential: "YOUR-PASSWORD" }], null, 2);
-  const html = `<div class="page-head"><div><h1>Call setup</h1><p>Make calls work between any two networks.</p></div></div>
-    <section class="panel" style="padding:20px;max-width:760px"><h3>Relay server (TURN)</h3>
-      <p class="muted" style="margin:6px 0 12px">Calls go straight between two devices. Some networks (mobile data, offices, some home routers) block that and the call stays on “Connecting…”. A relay server fixes it. Create a free account with a TURN provider such as <b>metered.ca</b> or <b>Cloudflare Realtime</b>, copy the ICE servers list they give you, and paste it here. Nothing is stored in the app’s code.</p>
-      <p class="muted" style="margin-bottom:10px">Status: <b>${servers.length ? servers.length + " server" + (servers.length > 1 ? "s" : "") + " saved. Calls can use the relay." : "no relay set. Calls use direct connections only."}</b></p>
-      <textarea id="iceT" rows="10" spellcheck="false" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:.85rem" placeholder='${esc(sample)}'>${servers.length ? esc(JSON.stringify(servers, null, 2)) : ""}</textarea>
-      <p class="err" id="iceE" role="alert"></p><div class="a2-act"><button class="btn" id="iceX" ${servers.length ? "" : "disabled"}>Remove relay</button><button class="btn primary" id="iceS">Save</button></div></section>`;
+export function callSetup(ctx, cfg) {
+  const servers = cfg.servers || [], on = servers.length || cfg.credsUrl;
+  const first = servers[0] || {}, urls = [].concat(first.urls || []).join(", ");
+  const html = `<div class="page-head"><div><h1>Call setup</h1><p>Make calls connect between any two networks.</p></div></div>
+    <section class="panel cr-card"><div class="cr-head"><h3>Call relay</h3>${on ? `<span class="cr-chip">Relay on</span>` : `<span class="cr-chip off">Not set</span>`}</div>
+      <p class="muted">If calls often stay on “Connecting…”, the phone or Wi-Fi is blocking direct connections and needs a relay (WhatsApp runs its own). Create a free account at <b>metered.ca</b> (or Twilio, Cloudflare, Xirsys), then paste either its <b>credentials URL</b> (easiest) or the server address, user name and password.</p>
+      <label class="field"><span class="cr-l">Credentials URL (recommended)</span><input id="crUrl" type="url" placeholder="https://yourapp.metered.live/api/v1/turn/credentials?apiKey=…" value="${esc(cfg.credsUrl || "")}" autocomplete="off"></label>
+      <p class="muted" style="margin:2px 0 10px">or enter the relay by hand:</p>
+      <label class="field"><span class="cr-l">Relay address(es), comma separated</span><input id="crAddr" placeholder="turn:global.relay.metered.ca:80, turn:global.relay.metered.ca:443, turns:global.relay.metered.ca:443?transport=tcp" value="${esc(urls)}" autocomplete="off"></label>
+      <div class="f2"><label class="field"><span class="cr-l">User name</span><input id="crUser" value="${esc(first.username || "")}" autocomplete="off"></label><label class="field"><span class="cr-l">Password</span><input id="crPass" type="password" value="${esc(first.credential || "")}" autocomplete="new-password"></label></div>
+      <p class="err" id="crE" role="alert"></p><p class="cr-ok" id="crOk" hidden></p>
+      <div class="a2-act" style="justify-content:flex-start;gap:10px"><button class="btn primary" id="crSave">Save</button><button class="btn" id="crTest">Save and test</button><button class="btn" id="crX" ${on ? "" : "disabled"}>Remove relay</button></div>
+      <p class="muted" style="margin-top:12px;font-size:.85rem">Signed-in users’ apps read these details when they place a call, so use a relay account made for this and keep its usage limit low.</p></section>`;
   return { html, mount(root) {
-    const err = $("#iceE", root);
-    $("#iceS", root).onclick = async () => {
-      err.textContent = ""; let v; try { v = JSON.parse($("#iceT", root).value || "[]"); } catch { return (err.textContent = "That isn’t valid JSON. Paste the list exactly as the provider shows it."); }
-      if (!Array.isArray(v) || !v.length || !v.every((x) => x && x.urls && (!String(JSON.stringify(x.urls)).includes("turn") || (x.username && x.credential)))) return (err.textContent = "Each server needs urls, and TURN servers also need a username and credential.");
-      try { await st.saveIce(v); toast("Saved. New calls will use the relay."); } catch (e) { err.textContent = friendlyErr(e); }
+    const err = $("#crE", root), ok = $("#crOk", root), g = (i) => $("#" + i, root).value.trim();
+    const chip = (on) => { const c = $(".cr-chip", root); c.textContent = on ? "Relay on" : "Not set"; c.classList.toggle("off", !on); };
+    const build = () => {
+      err.textContent = ""; ok.hidden = true; const url = g("crUrl"), addr = g("crAddr");
+      if (url && !/^https:\/\//i.test(url)) { err.textContent = "The credentials URL must start with https://"; return null; }
+      if (!url && !addr) { err.textContent = "Enter a credentials URL, or the relay address with user name and password."; return null; }
+      const list = addr.split(",").map((x) => x.trim()).filter(Boolean);
+      if (addr && !list.every((x) => /^turns?:/i.test(x) || /^stuns?:/i.test(x))) { err.textContent = "Each relay address must start with turn: or turns:"; return null; }
+      if (addr && list.some((x) => /^turns?:/i.test(x)) && (!g("crUser") || !g("crPass"))) { err.textContent = "Enter the user name and password."; return null; }
+      return { servers: addr ? [{ urls: list, username: g("crUser"), credential: $("#crPass", root).value }] : [], credsUrl: url };
     };
-    $("#iceX", root).onclick = async () => { try { await st.saveIce([]); $("#iceT", root).value = ""; toast("Relay removed."); } catch (e) { toast(friendlyErr(e)); } };
+    const save = async (test) => {
+      const v = build(); if (!v) return; $$("button", root).forEach((b) => (b.disabled = true));
+      try {
+        await st.saveIce(v.servers, v.credsUrl); chip(true); $("#crX", root).disabled = false; toast("Saved. New calls will use the relay.");
+        if (test) { ok.hidden = false; ok.textContent = "Testing the relay…"; let servers = v.servers;
+          if (v.credsUrl) { try { const r = await fetch(v.credsUrl, { cache: "no-store" }); const j = await r.json(); if (Array.isArray(j) && j.length) servers = j; } catch { servers = []; err.textContent = "Couldn’t read the credentials URL. Check it and try again."; } }
+          if (servers.length) { const r = await CALLS.testRelay(servers); ok.hidden = !r.ok; if (r.ok) { ok.hidden = false; ok.textContent = "The relay works. Calls will connect through it when needed."; } else { ok.hidden = true; err.textContent = r.why; } } else ok.hidden = true; }
+      } catch (e) { err.textContent = friendlyErr(e); }
+      $$("button", root).forEach((b) => (b.disabled = false));
+    };
+    $("#crSave", root).onclick = () => save(false); $("#crTest", root).onclick = () => save(true);
+    $("#crX", root).onclick = async () => { try { await st.saveIce([], ""); ["crUrl", "crAddr", "crUser", "crPass"].forEach((i) => ($("#" + i, root).value = "")); chip(false); $("#crX", root).disabled = true; toast("Relay removed."); } catch (e) { toast(friendlyErr(e)); } };
   } };
 }
 export function userReports(ctx, items) {

@@ -19,7 +19,18 @@ function ringback() {
 const STUN = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
 let ICE = { iceServers: STUN }, iceP = null;
 // A TURN relay (needed when two people are on networks that block direct calls) is set by an admin under Admin > Call setup.
-const ensureIce = () => (iceP ||= getDoc(doc(db, "config", "ice")).then((s) => { const v = s.exists() ? s.data().servers : null; if (Array.isArray(v) && v.length) ICE = { iceServers: [...v, ...STUN] }; }).catch(() => {}));
+const ensureIce = () => (iceP ||= getDoc(doc(db, "config", "ice")).then(async (s) => {
+  const d = s.exists() ? s.data() : {}; let v = Array.isArray(d.servers) && d.servers.length ? d.servers : null;
+  if (d.credsUrl) { try { const r = await fetch(d.credsUrl, { cache: "no-store", signal: AbortSignal.timeout(4000) }); const j = await r.json(); if (Array.isArray(j) && j.length) v = j; } catch {} }
+  if (v) ICE = { iceServers: [...v, ...STUN] };
+}).catch(() => {}));
+// Used by the Call setup page to check that a relay really works: gather candidates through it alone.
+export async function testRelay(servers) {
+  return new Promise((res) => { let pc; try { pc = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: "relay" }); } catch (e) { return res({ ok: false, why: "That relay isn’t valid." }); }
+    const done = (r) => { try { pc.close(); } catch {} res(r); }; const t = setTimeout(() => done({ ok: false, why: "No answer from the relay. Check the address, user name and password." }), 9000);
+    pc.onicecandidate = (e) => { if (e.candidate && / typ relay /.test(e.candidate.candidate)) { clearTimeout(t); done({ ok: true }); } };
+    pc.createDataChannel("t"); pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => done({ ok: false, why: "The browser couldn’t test the relay." })); });
+}
 export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
 
 // ---------- Firestore signalling ----------
