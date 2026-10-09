@@ -116,4 +116,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-09.69";
+export const BUILD = "2026-10-09.70";

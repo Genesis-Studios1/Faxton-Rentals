@@ -1544,3 +1544,33 @@ dialog.nodismiss .close{display:none!important}
   .cs-bar{justify-self:stretch;width:auto}.cs-ic{width:50px;height:50px}.cs-b{gap:6px}.cs-b em{font-size:.72rem;white-space:normal;text-align:center;line-height:1.15}.cs-b svg{width:22px;height:22px}
   .cl-incoming .cl-mini b{font-size:1.02rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cl-incoming .cl-mini .cl-ph.sm,.cl-incoming .cl-mini .cl-av.sm{width:54px;height:54px}.cl-incoming .cl-round{width:50px;height:50px}.cl-incoming .cl-mini{gap:10px}
 }
+
+/* ---- call screen: no animated rings; phone screen like the reference ---- */
+.cs-ring>i{display:none}.cs-ring{width:min(300px,52vw);margin-bottom:10px}.cs-pic{width:100%;border:3px solid rgba(110,231,183,.75);box-shadow:0 0 0 10px rgba(52,211,153,.06),0 0 50px rgba(52,211,153,.25)}
+.cs-tn{display:none}
+@media (max-width:700px){
+  .cs-ov{background:#031a13 url(../img/call-bg.webp) center/cover no-repeat}.cs-ov:before,.cs-ov:after{display:none}
+  .cs-top{position:relative;justify-content:center;padding:calc(22px + env(safe-area-inset-top)) 18px 8px;min-height:84px}.cs-logo,.cs-top>.cs-sep,.cs-state{display:none}
+  .cs-tn{display:grid;justify-items:center;gap:4px;text-align:center}.cs-tn b{font-size:1.5rem;font-weight:500;color:#fff}.cs-tn span{font-size:1.1rem;color:rgba(255,255,255,.62)}
+  .cs-minb{position:absolute;left:16px;top:calc(18px + env(safe-area-inset-top));margin:0;width:54px;height:54px;background:rgba(255,255,255,.06)}.cs-top .cl-rec{position:absolute;right:16px;top:calc(30px + env(safe-area-inset-top));margin:0}
+  .cs-voice h2,.cs-voice p{display:none}.cs-ring{width:min(240px,64vw);margin:0}
+  .cs-bar{margin:0 14px calc(26px + env(safe-area-inset-bottom));padding:16px 14px;border-radius:44px;justify-content:space-between;gap:6px;background:rgba(255,255,255,.04)}
+  .cs-b em,.cs-bsep,#clShare.cs-b{display:none}.cs-b{flex:0 0 auto;min-width:0}.cs-ic{width:66px;height:66px;background:rgba(255,255,255,.07)}.cs-ic svg{width:26px;height:26px}
+  #clRecB{order:1}#clCam{order:2}#clMute{order:3}#clEnd{order:4}.cs-b.end .cs-ic{width:68px;height:68px}
+}
+/* ---- messages: sizes of the reference designs ---- */
+@media (min-width:861px){.mx-shell{grid-template-columns:minmax(290px,clamp(290px,24vw,380px)) minmax(0,1fr)}}
+.mx-sidehead h1{font-size:1.75rem}.mx-sidehead>p{font-size:.92rem;margin:4px 0 14px}.mx-new{padding:11px 20px;font-size:.95rem}.mx-filters>*{height:42px;font-size:.93rem}.mx-av{width:48px;height:48px}.mx-conv{padding:9px}
+.mx-head{padding:14px 20px}.mx-hav img{width:54px;height:54px}.mx-hn b{font-size:1.1rem}.mx-hn span{font-size:.85rem}.mx-ab{height:40px;font-size:.9rem}
+.mx-b{font-size:.93rem;padding:12px 16px 8px}.mx-bav{width:42px;height:42px}.mx-b time{font-size:.74rem}.mx-bw{display:grid;max-width:min(640px,72%)}.mx-bw .mx-b{max-width:none}.mx-bw time.out{display:none}
+.mx-comp{margin:8px 20px 16px}.mx-comp input{font-size:.95rem}.mx-send{width:50px;height:50px}.mx-ib{width:38px;height:38px}
+@media (max-width:860px){
+  .mx-head{padding:8px 12px;gap:8px}.mx-hav img{width:42px;height:42px}.mx-hn b{font-size:1rem}.mx-hn span{font-size:.78rem}.mx-ab{width:38px;height:38px;border-radius:12px}.mx-ab svg{width:18px;height:18px}.mx-dots{width:26px}
+  .mx-thread{padding:12px;gap:10px}.mx-bav{width:34px;height:34px}.mx-bw{max-width:80%}.mx-b{max-width:none;font-size:.88rem;padding:10px 14px;line-height:1.45}.mx-b time.in{display:none}
+  .mx-bw time.out{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;color:var(--muted);margin:3px 4px 0}.mx-row.me .mx-bw time.out{justify-self:end}.mx-row.me .ticks{color:var(--brand)}
+  .mx-day{font-size:.78rem;padding:3px 16px}
+  .mx-limg img{height:148px}.mx-lb{padding:10px 12px 2px}.mx-lt h3{font-size:.98rem}.mx-lp{font-size:.95rem}.mx-lloc{font-size:.82rem;margin:2px 0 6px}.mx-lf{font-size:.85rem;gap:14px}.mx-lact{padding:4px 12px 12px}.mx-vl{padding:8px;font-size:.88rem;height:38px}.mx-ext{width:38px;height:38px}
+  .mx-quick>*{padding:9px 8px;font-size:.78rem;gap:6px;border-radius:10px}.mx-quick svg{width:18px;height:18px}
+  .mx-comp{margin:6px 10px 10px;padding:4px 4px 4px 8px}.mx-comp input{font-size:.88rem;padding:8px 4px}.mx-ib{width:34px;height:34px}.mx-ib svg{width:20px;height:20px}.mx-send{width:42px;height:42px}
+  .mx-sidehead h1{font-size:1.5rem}.mx-filters>*{height:40px}
+}
