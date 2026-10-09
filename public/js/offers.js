@@ -117,6 +117,7 @@ function card(o, me, isAdmin) {
 
 export function offersPage(ctx, rentalsNav) {
   const me = ctx.S.user.uid, isAdmin = ctx.S.isAdmin, ownerRole = ["landlord", "agency", "agent"].includes(ctx.S.role);
+  if (isAdmin || ownerRole) return staffOffersPage(ctx);
   const staff = isAdmin ? { admin: true, pending: 0 } : ownerRole ? { role: ctx.S.role } : {};
   const html = `<div class="wrap pg of-pg">${staff.admin || staff.role ? "" : rentalsNav("/offers")}<div class="page-head"><div><h1>Rent offers</h1><p>${isAdmin ? "Every negotiation on the platform." : "Offers and counter-offers, with the full history of each."}</p></div></div>
     <div class="pill-tabs" id="ofTabs" role="tablist"></div><div id="ofList" class="of-list"></div></div>`;
@@ -147,5 +148,55 @@ export function offersPage(ctx, rentalsNav) {
     else { un.push(watchSent(me, (l) => { sent = l; draw(); })); un.push(watchReceived(me, (l) => { recv = l; draw(); })); }
     ctx.S.cleanups.push(() => un.forEach((f) => f && f()));
     draw();
+  } };
+}
+
+// ---- the console version of the Offers page (admin, owners, agencies and agents) ----
+async function staffOffersPage(ctx) {
+  const AX = await import("./ax.js"), { createList } = await import("./ax-list.js");
+  const { $, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, dl, section, timeline, mini, empty, changed } = AX;
+  const me = ctx.S.user.uid, isAdmin = ctx.S.isAdmin, staff = AX.staffFlags(ctx), nf = (v) => fmt.naira(v);
+  const off = (o) => (o.listPrice && o.amount ? Math.round(((o.listPrice - o.amount) / o.listPrice) * 100) : 0);
+  const canAct = (o) => isOpen(o) && o.turn === "owner" && (o.ownerUid === me || (!o.ownerUid && isAdmin));
+  const who = (e, o) => (e.uid === me ? "You" : e.by === "owner" ? o.ownerName || "The owner" : o.name || "The renter");
+  const verb = { offer: "offered", counter: "countered at", accept: "accepted", decline: "declined", withdraw: "withdrew the offer" };
+  const html = `<header class="ax-ph"><div class="ax-ph-t"><span class="ax-eyebrow">${isAdmin ? "Activity" : "Rentals"}</span><h1>Offers</h1><p class="ax-sub">${isAdmin ? "Every rent negotiation on the platform, with its full history." : "Offers and counter-offers on your homes, with the full history of each."}</p></div><div class="ax-ph-a"><button type="button" class="ax-ib ax-refresh" data-ax="refresh" aria-label="Refresh">${I("refresh", 18)}</button></div></header><div id="ofl">${AX.skeleton.rows(6)}</div>`;
+  const counter = (o, api) => {
+    const ask = o.listPrice, mid = round10k((o.amount + ask) / 2);
+    const d = dialog({ title: "Counter-offer", size: "sm", icon: "refresh", body: `<p class="ax-p">Current offer ${nf(o.amount)}. Asking rent ${nf(ask)}.</p><label class="ax-lbl" for="coA">Your counter (per year)</label><input class="ax-input" id="coA" inputmode="numeric" autocomplete="off" value="${mid.toLocaleString("en-NG")}"><label class="ax-lbl" for="coN" style="margin-top:12px">Message (optional)</label><textarea class="ax-input" id="coN" rows="2" maxlength="300"></textarea><p class="ax-err" id="coE" role="alert"></p>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Send counter", { v: "primary", attrs: "data-ok" })}` });
+    const a = $("#coA", d.el); a.oninput = () => { const v = digits(a.value); a.value = v ? v.toLocaleString("en-NG") : ""; };
+    $("[data-ok]", d.el).onclick = async (e) => { const v = digits(a.value), err = $("#coE", d.el); if (!v || v < ask * 0.5 || v > ask) return (err.textContent = `Enter an amount between ${nf(Math.round(ask * 0.5))} and ${nf(ask)}.`); if (v === o.amount) return (err.textContent = "That’s the same as the current offer. Choose Accept instead."); e.currentTarget.disabled = true;
+      try { await respond(o, ctx.S.user, "owner", "counter", v, $("#coN", d.el).value.trim()); d.close(); toast("Counter-offer sent."); } catch (x) { err.textContent = friendlyErr(x).replace(/\s*\([^)]*\)\s*$/, ""); e.currentTarget.disabled = false; } };
+  };
+  const act = async (o, a) => {
+    try {
+      if (a === "counter") return counter(o);
+      if (a === "decline" && !(await confirm({ title: "Decline this offer?", body: "The renter will be told you declined.", confirmLabel: "Decline", tone: "danger" }))) return;
+      await respond(o, ctx.S.user, "owner", a, o.amount); toast({ accept: "Offer accepted.", decline: "Offer declined." }[a]);
+    } catch (e) { toast(friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, ""), { tone: "bad" }); }
+  };
+  return { title: "Offers", ...staff, html, mount(root) {
+    let list = null; const host = $("#ofl", root);
+    const build = (rows) => { host.innerHTML = ""; list = createList(host, { noun: "offers", label: "Offers", rows, placeholder: "Search property or renter…", sort: { k: "upd", dir: "desc" },
+      tabs: [{ k: "all", label: "All" }, { k: "open", label: "Open", test: isOpen }, { k: "Accepted", label: "Accepted", test: (o) => o.status === "Accepted" }, { k: "closed", label: "Declined and withdrawn", test: (o) => ["Declined", "Withdrawn"].includes(o.status) }],
+      search: (o) => `${o.title} ${o.area} ${o.name} ${o.ownerName}`,
+      cols: [{ k: "prop", label: "Property", role: "title", cell: (o) => `<div class="ax-id">${thumb(o.image, 32)}<div><b>${esc(o.title || "Home")}</b><small>${esc(o.area || "")}</small></div></div>` },
+        { k: "renter", label: "Renter", pri: 2, cell: (o) => `<div class="ax-id">${avatar(o.name, o.uid, 28)}<b style="font-weight:500;color:var(--ax-text)">${esc(o.name || "Renter")}</b></div>` },
+        ...(isAdmin ? [{ k: "owner", label: "Owner", pri: 2, cell: (o) => esc(o.ownerName || "—") }] : []),
+        { k: "ask", label: "Asking", align: "right", pri: 2, sort: (o) => +o.listPrice || 0, cell: (o) => `<span class="ax-money">${nf(o.listPrice)}</span>` },
+        { k: "latest", label: "Latest offer", align: "right", sort: (o) => +o.amount || 0, cell: (o) => `<span class="ax-money">${nf(o.amount)}</span>${off(o) > 0 ? ` <small class="ax-muted">−${off(o)}% off asking</small>` : ""}` },
+        { k: "turn", label: "Turn", pri: 2, cell: (o) => (isOpen(o) ? (o.turn === "owner" ? "Waiting for owner" : "Waiting for renter") : "—") },
+        { k: "status", label: "Status", role: "status", cell: (o) => chipFor("offer", o.status) },
+        { k: "upd", label: "Updated", pri: 2, sort: (o) => AX.ms(o.updatedAt || o.createdAt), cell: (o) => fmt.rel(o.updatedAt || o.createdAt) }],
+      quick: (o) => (canAct(o) ? btn("Accept", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=accept" }) : ""), onQuick: (k, o) => act(o, "accept"),
+      csv: { name: "faxton-offers", head: ["Property", "Renter", "Owner", "Asking", "Latest offer", "Status", "Updated"], row: (o) => [o.title, o.name, o.ownerName, o.listPrice, o.amount, o.status, fmt.date(o.updatedAt || o.createdAt)] },
+      drawer: (o) => ({ title: o.title || "Offer", sub: `${chipFor("offer", o.status)}<span>${esc(o.area || "")}</span>`,
+        body: `<div class="ax-minis" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px">${["Asking rent|" + nf(o.listPrice), (o.status === "Accepted" ? "Agreed rent" : "Latest offer") + "|" + nf(o.amount), "Move-in cost|" + nf(moveIn({ price: o.listPrice, service: o.service, deposit: o.deposit, agencyFee: o.agencyFee, legalFee: o.legalFee }, o.amount).total)].map((x) => { const [l, v] = x.split("|"); return `<div class="ax-card" style="padding:10px"><span class="ax-eyebrow" style="font-size:10px">${l}</span><b class="num" style="font:700 15px var(--font-display);color:var(--ax-head)">${v}</b></div>`; }).join("")}</div>
+          ${section("People", dl([["Renter", esc(o.name || "—")], ["Owner", esc(o.ownerName || "—")], ["Turn", isOpen(o) ? (o.turn === "owner" ? "Waiting for the owner" : "Waiting for the renter") : "Closed"]]))}${section("History", timeline((o.history || []).map((e) => ({ title: `${who(e, o)} ${verb[e.type] || ""}${["offer", "counter", "accept"].includes(e.type) ? " " + nf(e.amount) : ""}`, text: e.note ? `“${e.note}”` : "", meta: ago(e.at) }))))}`,
+        footer: canAct(o) ? `${btn("Accept " + nf(o.amount), { v: "primary", attrs: "data-a=accept" })}${btn("Counter", { attrs: "data-a=counter" })}${btn("Decline", { v: "danger", attrs: "data-a=decline" })}` : "", mount: (el, b, f) => f.querySelectorAll("[data-a]").forEach((x) => (x.onclick = () => act(o, x.dataset.a))) }),
+      empty: { icon: "tag", title: "No offers yet", hint: isAdmin ? "Offers from renters appear here." : "When a renter makes an offer on one of your homes, it appears here." } }); };
+    const un = isAdmin ? watchAll(upd) : watchReceived(me, upd);
+    function upd(rows) { AX.data.invalidate("offers"); if (!list) build(rows); else list.setRows(rows); AX.changed(); }
+    ctx.S.cleanups.push(() => { un && un(); });
   } };
 }

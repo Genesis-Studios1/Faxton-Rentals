@@ -6,10 +6,13 @@ export const tourSeen = (u, kind = "renter") => { try { return localStorage.getI
 export const resetTour = (u) => { try { Object.keys(localStorage).filter((k) => k.startsWith(`tour_${u.uid}`)).forEach((k) => localStorage.removeItem(k)); } catch {} };
 const done = (u, kind) => { try { localStorage.setItem(key(u, kind), "1"); } catch {} };
 let running = false;
+// First visible match: the desktop links and the phone bar share one step, and whichever is on screen is shown.
+const seen = (e) => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden";
+const find = (sel) => [...document.querySelectorAll(sel)].find(seen) || null;
 
-const MENU = { sel: ".adm-side nav", t: "Your menu", b: "Everything you can do is in this menu. On a phone it sits along the bottom of the screen." };
+const MENU = { sel: ".ax-side nav", t: "Your menu", b: "Everything you can do is in this menu. On a phone it sits along the bottom of the screen." };
 const THEME = { sel: ".toggle-theme", t: "Light or dark", b: "Switch between light and dark mode any time with this button." };
-const ME = { sel: ".me-btn", t: "Your account", b: "Settings and sign out live here." };
+const ME = { sel: ".me-btn, #fxMe", t: "Your account", b: "Settings and sign out live here." };
 const stepsFor = (kind, name) => {
   const hi = (what) => ({ t: `Welcome${name ? ", " + esc(name) : ""}!`, b: `${what} Take a 30-second tour. You can skip it any time.` });
   const bye = (b) => ({ t: "You’re all set", b });
@@ -18,9 +21,10 @@ const stepsFor = (kind, name) => {
       hi("This is Faxton Rentals."),
       { sel: "#sb", t: "Search for homes", b: "Choose a location, property type and budget, then tap <b>Search homes</b>." },
       { sel: ".cards .card", t: "Browse and save", b: "Hover a home for a quick preview. Tap the heart to save it, or open it for photos, videos, prices and to book a viewing." },
-      { sel: ".tn-links", t: "Find your way around", b: "Use <b>Home</b>, <b>Find a home</b>, <b>Saved homes</b>, <b>Messages</b> and <b>My rentals</b> to move between pages." },
+      { sel: ".fx-links", t: "Find your way around", b: "Use <b>Home</b>, <b>Find a home</b>, <b>Saved homes</b>, <b>Messages</b> and <b>My rentals</b> to move between pages." },
+      { sel: ".fx-bar", t: "Four tabs, one thumb", b: "<b>Home</b>, <b>Search</b>, <b>Messages</b> and <b>Me</b> are always at the bottom of the screen. <b>Me</b> holds everything else." },
       { sel: "#bell", t: "Messages and updates", b: "A dot shows when an agent replies. Chat with agents before you visit." },
-      { sel: "#meBtn", t: "Your account", b: "Settings, bookings, payments and sign out live in this menu." },
+      { sel: "#meBtn, #fxMe", t: "Your account", b: "Settings, viewings, payments and sign out live here." },
       bye("Find a home you love, book a viewing and apply to rent, all in one place."),
     ],
     landlord: [
@@ -57,9 +61,9 @@ const stepsFor = (kind, name) => {
       { sel: "[data-t=kpis]", t: "The platform at a glance", b: "Users, signups, listings, applications and open tickets. Cards with a link open the full page." },
       { sel: "[data-t=chart]", t: "Growth", b: "Charts show how signups, listings and requests grow month by month." },
       { sel: "[data-t=att]", t: "Needs attention", b: "Verifications, listings, applications, viewings and tickets that are waiting for you." },
-      { sel: '.adm-side a[href="#/admin/verifications"]', t: "Verify agencies and agents", b: "Review the details they gave and verify them. They’re notified immediately and can start listing." },
-      { sel: '.adm-side a[href="#/admin/users"]', t: "People and roles", b: "Give someone a role (agent, agency, support, admin) or ban an account." },
-      { sel: '.adm-side a[href="#/admin/get-app"]', t: "Installations", b: "Publish new versions of the Android, Windows, Mac and Linux apps." },
+      { sel: '.ax-side a[href="#/admin/verifications"]', t: "Verify agencies and agents", b: "Review the details they gave and verify them. They’re notified immediately and can start listing." },
+      { sel: '.ax-side a[href="#/admin/users"]', t: "People and roles", b: "Give someone a role (agent, agency, support, admin) or ban an account." },
+      { sel: '.ax-side a[href="#/admin/get-app"]', t: "Installations", b: "Publish new versions of the Android, Windows, Mac and Linux apps." },
       THEME, ME, bye("You’re in control. Start with anything marked Needs attention."),
     ],
     support: [
@@ -67,8 +71,8 @@ const stepsFor = (kind, name) => {
       { sel: "[data-t=kpis]", t: "Your queue in numbers", b: "Open, in-progress, resolved and overdue tickets at a glance." },
       { sel: "[data-t=queue]", t: "Ticket queue", b: "The oldest unresolved tickets come first. Click one to reply." },
       { sel: "[data-t=chats]", t: "Live conversations", b: "A red dot shows a customer is waiting for an answer." },
-      { sel: '.adm-side a[href="#/support/tickets"]', t: "Reply to tickets", b: "Send replies or leave internal notes only your team can see." },
-      { sel: '.adm-side a[href="#/support/suggestions"]', t: "Suggestions", b: "Ideas sent by customers from the Contact us page." },
+      { sel: '.ax-side a[href="#/support/tickets"]', t: "Reply to tickets", b: "Send replies or leave internal notes only your team can see." },
+      { sel: '.ax-side a[href="#/support/suggestions"]', t: "Suggestions", b: "Ideas sent by customers from the Contact us page." },
       THEME, ME, bye("Answer the oldest tickets first and keep the overdue count at zero."),
     ],
   })[kind] || [];
@@ -77,7 +81,7 @@ const stepsFor = (kind, name) => {
 export function startTour(user, firstName = "", kind = "renter") {
   if (running) return; running = true;
   const all = stepsFor(kind, firstName);
-  const steps = all.filter((s) => !s.sel || $(s.sel)?.offsetParent);
+  const steps = all.filter((s) => !s.sel || find(s.sel));
   let i = 0;
   const root = document.createElement("div"); root.className = "tour"; root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", "Product tour");
   root.innerHTML = `<div class="tour-spot"></div><div class="tour-card"><div class="tour-step"></div><h3 class="tour-t"></h3><p class="tour-b"></p>
@@ -86,7 +90,7 @@ export function startTour(user, firstName = "", kind = "renter") {
   const spot = $(".tour-spot", root), card = $(".tour-card", root);
 
   const place = () => {
-    const s = steps[i], el = s.sel && $(s.sel), pad = 10;
+    const s = steps[i], el = s.sel && find(s.sel), pad = 10;
     if (el) {
       const r = el.getBoundingClientRect();
       Object.assign(spot.style, { top: r.top - pad + "px", left: r.left - pad + "px", width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px", opacity: 1, borderRadius: "16px" });
@@ -99,7 +103,7 @@ export function startTour(user, firstName = "", kind = "renter") {
     }
   };
   const show = () => {
-    const s = steps[i], el = s.sel && $(s.sel);
+    const s = steps[i], el = s.sel && find(s.sel);
     $(".tour-step", root).textContent = `Step ${i + 1} of ${steps.length}`;
     $(".tour-t", root).innerHTML = s.t; $(".tour-b", root).innerHTML = s.b;
     $(".tour-dots", root).innerHTML = steps.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("");

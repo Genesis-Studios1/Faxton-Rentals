@@ -26,15 +26,15 @@ const resolveTheme = (p) => (p === "dark" || (p === "system" && matchMedia("(pre
 export function setThemePref(p) {
   try { localStorage.setItem("theme", p); } catch {}
   document.documentElement.dataset.theme = resolveTheme(p);
-  $$("[data-theme-btn]").forEach((b) => (b.innerHTML = icon(theme() === "dark" ? "sun" : "moon", 20)));
+  $$("[data-theme-btn]").forEach((b) => (b.innerHTML = icon(theme() === "dark" ? "sun" : "moon", 20))); paintThemeSw();
 }
 matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { if (themePref() === "system") document.documentElement.dataset.theme = resolveTheme("system"); });
 export function toggleTheme() {
   const n = theme() === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = n;
   try { localStorage.setItem("theme", n); } catch {}
-  $$("[data-theme-btn]").forEach((b) => (b.innerHTML = icon(n === "dark" ? "sun" : "moon", 20)));
+  $$("[data-theme-btn]").forEach((b) => (b.innerHTML = icon(n === "dark" ? "sun" : "moon", 20))); paintThemeSw();
 }
-export const themeBtn = () => `<button class="icon-btn toggle-theme" data-theme-btn aria-label="Toggle dark mode">${icon(theme() === "dark" ? "sun" : "moon", 20)}</button>`;
+export const themeBtn = () => `<button class="icon-btn toggle-theme" data-theme-btn aria-label="Switch between light and dark mode">${icon(theme() === "dark" ? "sun" : "moon", 20)}</button>`;
 
 // ---------- routing ----------
 export const go = (h) => { if (location.hash === h) render(); else location.hash = h; };
@@ -43,15 +43,18 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
 const topnav = () => (S.tenant ? TOPNAV.map((x) => (x[0] === "/rentals" ? ["/myhome", "My home", "home"] : x)) : TOPNAV);
-const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "clipList", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/admin/payments", "card", "Payments"], ["/admin/verifications", "shield", "Verifications"], ["/admin/support", "chatdots", "Support"], ["/admin/suggestions", "chatlines", "Suggestions"], ["/admin/user-reports", "flag", "User reports"], ["/admin/reports", "bars3", "Reports"], ["/admin/calls", "phone", "Call setup"], ["/admin/get-app", "download", "Installations"]];
+// (the console sidebar now lives in ax-shell.js)
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="" referrerpolicy="no-referrer">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
 const WRAPPED = ["/bookings"];
 const isSettings = (p) => p === "/settings" || p.startsWith("/settings/");
 
-function shell(path, inner, { admin = false, pending = 0, role = "" } = {}) {
-  return role ? adminShell(path, inner, 0, role) : admin ? adminShell(path, inner, pending) : appShell(path, inner);
+function shell(path, inner, o = {}) {
+  const { admin = false, role = "" } = o, staff = !!(S.user && (S.isAdmin || ROLE_UI[S.role]));
+  // Staff also see Messages and Settings inside their own console (sidebar and top bar stay).
+  if (AXS && (role || admin || (staff && (path.startsWith("/messages") || isSettings(path))))) return adminShell(path, inner, o, role || (admin || S.isAdmin ? "" : S.role));
+  return appShell(path, inner);
 }
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
@@ -61,30 +64,135 @@ const ROLE_UI = {
   agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
-// Admin console: its own header + labelled sidebar, with a way back to the site.
-function adminShell(path, inner, pending, role = "") {
-  const R = ROLE_UI[role];
-  const on = (p) => (p === "/admin" || (R && p === R.home) ? path === p : path === p || path.startsWith(p + "/"));
-  const items = (R ? R.nav : ANAV).map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}${l === "Verifications" ? `<b class="badge" data-vbadge ${S.pendingV ? "" : "hidden"}>${S.pendingV || ""}</b>` : ""}</a>`).join("");
-  return `<div class="adm"><header class="adm-top"><a class="logo" href="#${R ? R.home : "/admin"}" aria-label="Dashboard">${logo().match(/<svg.*<\/svg>/s)[0]}<span class="logo-word"><b>Faxton</b> Rentals</span></a><span class="vr"></span><span class="adm-title">${R ? R.title : "Admin console"}</span><span style="flex:1"></span>
-      <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label>${themeBtn()}<button type="button" class="icon-btn bell ${noteDot()}" data-bell aria-label="Notifications" aria-haspopup="true">${icon("bell", 22)}</button>
-      <a class="me-btn" href="#/settings" aria-label="Account">${avatarHtml()}${icon("chev", 18)}</a></header>
-    <div class="adm-body"><aside class="adm-side" aria-label="Admin navigation"><nav>${items}</nav><a class="adm-back" href="#/">${icon("left", 20)} Back to site</a></aside>
-    <main class="adm-main page" id="main">${verifyBanner()}${path === "/admin" || (R && path === R.home) ? "" : `<div class="adm-backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`}${inner}</main></div></div>`;
+// Admin console and staff portals: grouped sidebar, top bar, four-icon phone bar and More sheet (ax-shell.js, loaded for staff only).
+let AXS = null;
+function adminShell(path, inner, view, role = "") {
+  AXS.setHost({ S, go, render, theme, themePref, setThemePref, toggleTheme, logout, confirmSignOut, noteDot, verifyBanner, userName });
+  setTimeout(() => AXS.afterRender(), 0);
+  return AXS.renderShell(path, inner, view || {}, role);
 }
-// The site's navigation: a top bar with the logo at the left, the page tabs, the bell and the account menu.
+// ---- navigation chrome: the desktop header, the phone's four-icon bar and its "Me" sheet ----
+// Phone bar (<= 860px): Home, Search, Messages, Me. Everything else lives in the Me sheet. The staff consoles (adminShell) draw their own bar.
+const BAR = [["/", "home", "homeFill", "Home"], ["/search", "search", "searchFill", "Search"], ["/messages", "msg", "msgFill", "Messages"]];
+const ME_PATHS = ["/settings", "/saved", "/bookings", "/payments", "/documents", "/rentals", "/applications", "/apply", "/book", "/offers", "/myhome", "/match", "/help", "/compare"];
+const pathIs = (path, h) => path === h || path.startsWith(h + "/");
+const navOn = (path, h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => pathIs(path, p)) : pathIs(path, h));
+const unreadTxt = (n) => (n > 99 ? "99+" : n || "");
+const roleLabel = () => (S.isOwner ? "Owner" : S.tenant ? "Tenant" : { renter: "Renter", landlord: "Home owner", agency: "Agency", agent: "Agent", support: "Support", admin: "Admin" }[S.role] || "Member");
+// One list feeds both the desktop account menu and the phone sheet. A fourth entry of 1 means "the top bar already links here" (left out of the desktop menu).
+const meGroups = () => {
+  const dash = S.isAdmin ? ["/admin", "building", "Admin console"] : ROLE_UI[S.role] ? [ROLE_UI[S.role].home, "building", "My dashboard"] : null;
+  return [
+    [S.tenant ? ["/myhome", "home", "My home"] : ["/rentals", "folder", "My rentals"], ["/saved", "heart", "Saved homes", 1], ["/bookings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/payments", "card", "Payments"], ["/documents", "doc", "Documents"]],
+    [["/match", "sparkle", "Smart Home Match"], ["/help", "headset", "Contact us", 1], ["/settings", "cog", "Settings"]],
+    [["/?to=app", "download", "Get the app"], ...(dash ? [dash] : [])],
+  ];
+};
+function meMenuHtml() {
+  const rows = (it) => it.filter((x) => !x[3]).map(([h, ic, l]) => `<a role="menuitem" class="fx-mi" href="#${h}">${icon(ic, 18)}<span>${l}</span></a>`).join("");
+  return `<div class="fx-menu" id="meMenu" role="menu" aria-label="Account" hidden><div class="fx-mhead">${avatarHtml("lg")}<span class="fx-mwho"><b>${esc(userName())}</b><small>${esc(S.user?.email || "")}</small></span><em class="fx-role">${esc(roleLabel())}</em></div>
+    ${meGroups().map((it) => `<div class="fx-mgrp" role="none">${rows(it)}</div>`).join("")}
+    <div class="fx-mgrp" role="none"><button type="button" role="menuitem" class="fx-mi out" id="logoutBtn" data-signout>${icon("logout", 18)}<span>Sign out</span></button></div></div>`;
+}
+// The site's navigation: a glass top bar (logo, centred page links, theme, bell, account) and, on phones, the four-icon bar.
 function appShell(path, inner) {
-  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/myhome" ? path === "/myhome" || path.startsWith("/myhome/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => path === p || path.startsWith(p + "/")) : path === h || path.startsWith(h + "/"));
-  const links = topnav().map(([h, l, ic]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}><span class="tn-ic">${icon(ic, 24)}</span><span class="tn-lb">${l}</span>${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
-  const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
-      <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
-      <a role="menuitem" href="#/settings">${icon("gear", 18)} Settings</a><a role="menuitem" href="#/match">${icon("sparkle", 18)} Smart Home Match</a><a role="menuitem" href="#/rentals">${icon("cal", 18)} My rentals</a><a role="menuitem" href="#/payments">${icon("doc", 18)} Payments</a><a role="menuitem" href="#/?to=app">${icon("download", 18)} Get the app</a>
-      ${S.isAdmin ? `<a role="menuitem" href="#/admin">${icon("building", 18)} Admin console</a>` : ROLE_UI[S.role] ? `<a role="menuitem" href="#${ROLE_UI[S.role].home}">${icon("building", 18)} My dashboard</a>` : ""}<button role="menuitem" id="logoutBtn">${icon("logout", 18)} Sign out</button></div></div>`;
+  const links = topnav().map(([h, l]) => { const o = navOn(path, h); return `<a class="${o ? "on" : ""}" href="#${h}" ${o ? 'aria-current="page"' : ""}><span class="fx-lbl">${l}</span>${h === "/messages" ? `<b class="fx-badge" data-unread ${S.unread ? "" : "hidden"}>${unreadTxt(S.unread)}</b>` : ""}</a>`; }).join("");
+  const menu = `<div class="me-wrap"><button type="button" class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 16, 2)}</button>${meMenuHtml()}</div>`;
+  const tabs = BAR.map(([h, ic, icf, l]) => { const o = h === "/messages" ? pathIs(path, h) : navOn(path, h); return `<a class="fx-tab ${o ? "on" : ""}" href="#${h}" ${o ? 'aria-current="page"' : ""}><span class="fx-ic">${icon(o ? icf : ic, 22, o ? 1.9 : 1.7)}${h === "/messages" ? `<b class="fx-badge" data-unread ${S.unread ? "" : "hidden"}>${unreadTxt(S.unread)}</b>` : ""}</span><span class="fx-tl">${l}</span></a>`; }).join("");
+  const meOn = ME_PATHS.some((p) => pathIs(path, p));
+  const meTab = `<button type="button" class="fx-tab ${meOn ? "on" : ""}" id="fxMe" aria-haspopup="dialog" aria-expanded="false" aria-label="Me: account and more"><span class="fx-ic">${S.profile?.photo ? `<img class="fx-me-img" src="${esc(S.profile.photo)}" alt="" referrerpolicy="no-referrer">` : icon(meOn ? "userFill" : "user", 22, meOn ? 1.9 : 1.7)}</span><span class="fx-tl">Me</span></button>`;
   const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
   const back = path === "/" || path.startsWith("/messages") || isSettings(path) ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
-  return `<header class="topnav"><div class="tn-in">${logo()}<nav class="tn-links" aria-label="Main">${links}</nav>
-    <div class="tn-right">${themeBtn()}<button type="button" class="icon-btn bell ${noteDot()}" id="bell" data-bell aria-label="Notifications" aria-haspopup="true">${icon("bell", 22)}</button>${menu}</div></div></header>
-    <main class="main-top page ${isSettings(path) ? "is-settings" : ""}" id="main">${verifyBanner()}${back}${body}</main>${path.startsWith("/messages") ? "" : siteFooter()}`;
+  return `<a class="fx-skip" href="#" data-skip-main>Skip to content</a><header class="fx-top"><div class="fx-in">${logo()}<nav class="fx-links" aria-label="Main">${links}</nav>
+    <div class="fx-right">${themeBtn()}<button type="button" class="icon-btn bell ${noteDot()}" id="bell" data-bell aria-label="Notifications" aria-haspopup="true" aria-expanded="false">${icon("bell", 20)}</button>${menu}</div></div></header>
+    <main class="main-top page ${isSettings(path) ? "is-settings" : ""}" id="main" tabindex="-1">${verifyBanner()}${back}${body}</main>${path.startsWith("/messages") ? "" : siteFooter()}
+    <nav class="fx-bar${path.startsWith("/messages/") ? " is-off" : ""}" aria-label="Primary">${tabs}${meTab}</nav>`;
+}
+// Drag a sheet down by its handle to dismiss it (phones).
+function dragClose(handle, sheetEl, close) {
+  if (!handle) return; let y0 = null, dy = 0;
+  handle.addEventListener("pointerdown", (e) => { y0 = e.clientY; dy = 0; try { handle.setPointerCapture(e.pointerId); } catch {} sheetEl.style.transition = "none"; });
+  handle.addEventListener("pointermove", (e) => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); sheetEl.style.transform = `translateY(${dy}px)`; });
+  const end = () => { if (y0 === null) return; y0 = null; sheetEl.style.transition = ""; if (dy > 80) close(); else sheetEl.style.transform = ""; };
+  handle.addEventListener("pointerup", end); handle.addEventListener("pointercancel", end);
+}
+const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])';
+const trapTab = (el) => (e) => { if (e.key !== "Tab") return; const f = $$(FOCUSABLE, el).filter((x) => x.offsetParent !== null); if (!f.length) return; const a = f[0], z = f[f.length - 1]; if (e.shiftKey && (document.activeElement === a || document.activeElement === el)) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); } };
+// The "Me" sheet: photo and name, every personal page, appearance, sign out.
+let sheet = null;
+function meSheetHtml() {
+  const dark = theme() === "dark";
+  const row = ([h, ic, l]) => `<a class="fx-row" href="#${h}"><span class="fx-ti">${icon(ic, 20)}</span><span class="fx-rl">${l}</span>${icon("chevR", 18, 2)}</a>`;
+  const who = S.profile?.photo ? `<img class="avatar xl" src="${esc(S.profile.photo)}" alt="" referrerpolicy="no-referrer">` : `<span class="avatar xl">${esc(initials(userName()))}</span>`;
+  const g = meGroups();
+  return `<div class="fx-grab" aria-hidden="true"><i></i></div><div class="fx-scroll">
+    <a class="fx-who" href="#/settings">${who}<span class="fx-wt"><b>${esc(userName())}</b><small>${esc(S.user?.email || "")}</small></span><em class="fx-role">${esc(roleLabel())}</em>${icon("chevR", 18, 2)}</a>
+    <div class="fx-grp">${g[0].map(row).join("")}</div>
+    <div class="fx-grp">${g[1].map(row).join("")}<button type="button" class="fx-row fx-sw" role="switch" aria-checked="${dark}" data-theme-sw><span class="fx-ti">${icon(dark ? "sun" : "moon", 20)}</span><span class="fx-rl">Dark mode</span><span class="fx-switch" aria-hidden="true"><i></i></span></button></div>
+    <div class="fx-grp">${g[2].map(row).join("")}</div>
+    <div class="fx-grp"><button type="button" class="fx-row out" data-signout><span class="fx-ti">${icon("logout", 20)}</span><span class="fx-rl">Sign out</span></button></div></div>`;
+}
+function paintThemeSw() {
+  const sw = $("[data-theme-sw]"); if (!sw) return; const dark = theme() === "dark";
+  sw.setAttribute("aria-checked", String(dark)); const t = $(".fx-ti", sw); if (t) t.innerHTML = icon(dark ? "sun" : "moon", 20);
+}
+function openMeSheet() {
+  if (sheet) return closeSheet();
+  closeNotes(true); closeMenu();
+  const back = document.createElement("div"); back.className = "fx-back";
+  const el = document.createElement("div"); el.className = "fx-sheet"; el.id = "meSheet"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Me"); el.tabIndex = -1;
+  el.innerHTML = meSheetHtml(); document.body.append(back, el);
+  document.documentElement.classList.add("fx-lock");
+  sheet = { el, back, from: document.activeElement };
+  const me = $("#fxMe"); me?.setAttribute("aria-expanded", "true"); me?.classList.add("open");
+  requestAnimationFrame(() => requestAnimationFrame(() => { back.classList.add("in"); el.classList.add("in"); }));
+  el.focus({ preventScroll: true });
+  back.onclick = () => closeSheet();
+  el.addEventListener("click", (e) => {
+    if (e.target.closest("[data-theme-sw]")) return toggleTheme();
+    if (e.target.closest("[data-signout]")) { closeSheet(); return doSignOut(); }
+    if (e.target.closest("a[href]")) closeSheet();
+  });
+  el.addEventListener("keydown", trapTab(el));
+  dragClose($(".fx-grab", el), el, () => closeSheet());
+}
+function closeSheet(instant) {
+  if (!sheet) return; const { el, back, from } = sheet; sheet = null;
+  document.documentElement.classList.remove("fx-lock");
+  const me = $("#fxMe"); me?.setAttribute("aria-expanded", "false"); me?.classList.remove("open");
+  const rm = () => { el.remove(); back.remove(); };
+  if (instant) return rm();
+  el.style.transform = ""; el.classList.remove("in"); back.classList.remove("in"); setTimeout(rm, 280);
+  try { from?.focus?.({ preventScroll: true }); } catch {}
+}
+function closeMenu() { const mm = $("#meMenu"), mb = $("#meBtn"); if (mm && !mm.hidden) { mm.hidden = true; mb?.setAttribute("aria-expanded", "false"); } }
+async function doSignOut() { if (await confirmSignOut()) { await logout(); go("#/login"); } }
+const isPhone = () => matchMedia("(max-width: 860px)").matches;
+// Header, bar and menu behaviour is wired once for the whole page (the markup is re-created on every route).
+let chromeWired = false;
+function wireChrome() {
+  if (chromeWired) return; chromeWired = true;
+  const root = document.documentElement, TEXTY = 'input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]):not([type=file]):not([type=color]),textarea,select,[contenteditable="true"]';
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    const sk = t.closest?.("[data-skip-main]"); if (sk) { e.preventDefault(); const m = $("#main"); m?.focus({ preventScroll: true }); m?.scrollIntoView?.({ block: "start" }); return; }
+    const mb = t.closest?.("#meBtn");
+    if (mb) { e.preventDefault(); if (isPhone()) return openMeSheet(); const mm = $("#meMenu"); if (mm) { mm.hidden = !mm.hidden; mb.setAttribute("aria-expanded", String(!mm.hidden)); if (!mm.hidden) mm.querySelector("a,button")?.focus({ preventScroll: true }); } return; }
+    if (t.closest?.("#fxMe")) { e.preventDefault(); return openMeSheet(); }
+    const so = t.closest?.("#meMenu [data-signout]"); if (so) { closeMenu(); return doSignOut(); }
+    if (!t.closest?.("#meMenu") || t.closest?.("#meMenu a")) closeMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    const mm = $("#meMenu");
+    if (e.key === "Escape") { if (sheet) closeSheet(); if (mm && !mm.hidden) { closeMenu(); $("#meBtn")?.focus(); } return; }
+    if (mm && !mm.hidden && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); const f = $$("a,button", mm), i = f.indexOf(document.activeElement); f[(i + (e.key === "ArrowDown" ? 1 : -1) + f.length) % f.length]?.focus(); }
+  });
+  // Haptic-like feedback on the phone bar (where the device supports it).
+  document.addEventListener("pointerdown", (e) => { if (e.pointerType === "touch" && e.target.closest?.(".fx-tab")) { try { navigator.vibrate?.(6); } catch {} } }, { passive: true });
+  // The bar slides away while the on-screen keyboard is up, so it never squeezes the page or the composer.
+  const coarse = matchMedia("(pointer: coarse)");
+  document.addEventListener("focusin", (e) => { if (coarse.matches && e.target.matches?.(TEXTY)) root.classList.add("fx-kbd"); });
+  document.addEventListener("focusout", () => setTimeout(() => { if (!document.activeElement?.matches?.(TEXTY)) root.classList.remove("fx-kbd"); }, 120));
 }
 function topbar() {
   return `<div class="admin-top"><label class="input">${icon("search", 20)}<input type="search" placeholder="Search properties, users, applications…" aria-label="Search"></label><span style="flex:1"></span>${themeBtn()}<button type="button" class="icon-btn bell ${noteDot()}" data-bell aria-label="Notifications" aria-haspopup="true">${icon("bell", 20)}</button><span class="me"><span class="avatar">${esc(initials(userName()))}</span><span style="line-height:1.2"><b style="color:var(--head)">${esc(userName().split(" ")[0])}</b><br><small class="muted">${S.isOwner ? "Owner" : "Admin"}</small></span></span></div>`;
@@ -115,6 +223,7 @@ export async function render() {
   try { view = S.user && G.needsVerify(S.user) && !["/terms", "/privacy", "/license"].includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="empty"><h2>Something went wrong</h2><p>This page couldn’t load. Please refresh, or go back home.</p><p style="margin-top:14px"><a class="btn primary" href="#/">Go home</a></p></div>`); return wire(); }
   if (id !== renderId) return;
   bar(false);
+  if (!AXS && view && !view.full && S.user && (S.isAdmin || ROLE_UI[S.role]) && (view.admin || view.role || path.startsWith("/messages") || isSettings(path))) { try { AXS = await import("./ax-shell.js"); } catch (e) { console.error(e); } if (id !== renderId) return; }
   if (!view) { app.innerHTML = shell(path, `<div class="empty"><h2>Page not found</h2><p><a class="link" href="#/">Go home</a></p></div>`); return wire(); }
   app.innerHTML = view.full ? view.html : shell(path, view.html, view);
   document.title = (view.title ? view.title + " · " : "") + "Faxton Rentals";
@@ -134,7 +243,7 @@ export async function render() {
 }
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
 function wire() {
-  wireFooter(); wireNotes(); closeNotes(); paintBell();
+  wireFooter(); wireNotes(); wireChrome(); closeNotes(true); closeSheet(true); paintBell();
   // Tab strips that scroll sideways open with the current tab in view.
   requestAnimationFrame(() => $$(".rn-tabs, .set-nav, .adm-side nav, .dt-tabs").forEach((c) => { const on = c.querySelector(".on, [aria-current]"); if (on && c.scrollWidth > c.clientWidth) c.scrollLeft = Math.max(0, on.offsetLeft - (c.clientWidth - on.offsetWidth) / 2); }));
   const rs = $("[data-resend]"), rf = $("[data-refresh]");
@@ -142,15 +251,6 @@ function wire() {
   if (rf) rf.onclick = async () => { try { await refreshUser(); } catch (e) { toast(friendlyErr(e)); } };
   $$("[data-theme-btn]").forEach((b) => (b.onclick = toggleTheme));
   $$("[data-back]").forEach((b) => (b.onclick = () => (S.nav > 0 ? history.back() : go("#/"))));
-  const mb = $("#meBtn"), mm = $("#meMenu");
-  if (mb && mm) {
-    const close = () => { mm.hidden = true; mb.setAttribute("aria-expanded", "false"); };
-    mb.onclick = (e) => { e.stopPropagation(); mm.hidden = !mm.hidden; mb.setAttribute("aria-expanded", String(!mm.hidden)); };
-    mm.onclick = (e) => { if (e.target.closest("a,button")) close(); };
-    document.addEventListener("click", close, { once: true });
-    mm.addEventListener("keydown", (e) => { if (e.key === "Escape") { close(); mb.focus(); } });
-    const lo = $("#logoutBtn"); if (lo) lo.onclick = async () => { if (await confirmSignOut()) { await logout(); go("#/login"); } };
-  }
   const c = $("#collapse"); if (c) c.onclick = () => { const s = c.closest(".shell,.home-grid"); s.classList.toggle("collapsed"); try { localStorage.setItem("rail", s.classList.contains("collapsed") ? "1" : "0"); } catch {} };
 }
 
@@ -203,35 +303,53 @@ async function signUp(name, email, pw, role, details, photo, residence) {
   // Load the new profile now so the app opens signed in on the home page.
   await refreshAuthState(auth.currentUser);
 }
-// ---- the notifications panel under the bell ----
+// ---- the notifications panel under the bell (a popover on desktop, a bottom sheet on phones) ----
 const noteUnread = () => (S.notes || []).filter((n) => !n.read).length;
 const noteDot = () => (noteUnread() ? "dot" : "");
 const paintBell = () => $$("[data-bell]").forEach((b) => b.classList.toggle("dot", noteUnread() > 0));
 const agoText = (sec) => { if (!sec) return ""; const d = Math.max(0, Date.now() / 1000 - sec); return d < 60 ? "Just now" : d < 3600 ? Math.floor(d / 60) + " min ago" : d < 86400 ? Math.floor(d / 3600) + " h ago" : new Date(sec * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 const NOTE_IC = { verified: "check", rejected: "x", info: "info" };
-let noteSeen = new Set();
+// Unread items sit under "New"; the rest are grouped by age.
+const noteGroup = (n) => { if (!n.read) return "New"; const d = new Date(); d.setHours(0, 0, 0, 0); const t = d.getTime() / 1000, s = n.createdAt?.seconds || 0; return s >= t ? "Today" : s >= t - 6 * 86400 ? "This week" : "Earlier"; };
 function drawNotes() {
-  const box = $("#notePanel"); if (!box) return; const list = S.notes || [];
-  box.innerHTML = `<div class="np-head"><b>Notifications</b>${noteUnread() ? `<button type="button" id="npAll">Mark all as read</button>` : ""}</div>
-    <div class="np-list">${list.length ? list.map((n) => `<div class="np-item ${n.read && !noteSeen.has(n.id) ? "" : "new"}" ${n.href ? `data-href="${esc(n.href)}" role="link" tabindex="0"` : ""}><span class="np-ic ${esc(n.kind || "")}">${icon(NOTE_IC[n.kind] || "bell", 18)}</span><div><b>${esc(n.title || "")}</b>${n.body ? `<p>${esc(n.body)}</p>` : ""}<small>${agoText(n.createdAt?.seconds)}</small></div></div>`).join("") : `<p class="np-empty">${icon("bell", 28)}<br>You’re all caught up.</p>`}</div>
-    <a class="np-foot" href="#/messages">Open messages${S.unread ? ` <b>${S.unread}</b>` : ""}</a>`;
-  $$("[data-href]", box).forEach((x) => (x.onclick = () => { closeNotes(); go("#" + x.dataset.href); }));
-  const all = $("#npAll", box); if (all) all.onclick = () => (S.notes || []).filter((n) => !n.read).forEach((n) => markNotificationRead(n.id));
+  const box = $("#notePanel"); if (!box) return; const list = S.notes || [], un = noteUnread(), groups = {};
+  list.forEach((n) => (groups[noteGroup(n)] ||= []).push(n));
+  const item = (n) => `<div class="fxn-item ${n.read ? "" : "new"}" data-id="${esc(n.id)}" ${n.href ? `data-href="${esc(n.href)}" role="link"` : 'role="button"'} tabindex="0"><span class="fxn-ic ${esc(n.kind || "")}">${icon(NOTE_IC[n.kind] || "bell", 18)}</span><span class="fxn-tx"><b>${esc(n.title || "")}</b>${n.body ? `<span class="fxn-b">${esc(n.body)}</span>` : ""}<small>${agoText(n.createdAt?.seconds)}</small></span>${n.read ? "" : `<i class="fxn-dot" title="Unread"></i><span class="sr">Unread</span>`}</div>`;
+  box.innerHTML = `<div class="fxn-grab" aria-hidden="true"><i></i></div>
+    <div class="fxn-head"><h2>Notifications</h2>${un ? `<span class="fxn-count num">${un} new</span>` : ""}<span class="fxn-sp"></span>${un ? `<button type="button" class="fxn-all" id="npAll">Mark all as read</button>` : ""}<button type="button" class="fxn-x" data-npclose aria-label="Close notifications">${icon("x", 18)}</button></div>
+    <div class="fxn-list">${list.length ? ["New", "Today", "This week", "Earlier"].filter((g) => groups[g]).map((g) => `<section class="fxn-sec"><h3 class="fxn-gh">${g}</h3>${groups[g].map(item).join("")}</section>`).join("") : `<div class="fxn-empty"><span class="fxn-eic">${icon("bell", 26)}</span><b>You’re all caught up</b><p>Replies, viewing updates and account news will show up here.</p></div>`}</div>
+    <a class="fxn-foot" href="#/messages">Open messages${S.unread ? ` <b class="num">${unreadTxt(S.unread)}</b>` : ""}</a>`;
+  const open = (x) => { const n = list.find((m) => m.id === x.dataset.id); if (n && !n.read) { n.read = true; markNotificationRead(n.id); paintBell(); } if (x.dataset.href) { closeNotes(); go("#" + x.dataset.href); } else drawNotes(); };
+  $$(".fxn-item", box).forEach((x) => { x.onclick = () => open(x); x.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(x); } }; });
+  const all = $("#npAll", box); if (all) all.onclick = () => { (S.notes || []).filter((n) => !n.read).forEach((n) => { n.read = true; markNotificationRead(n.id); }); paintBell(); drawNotes(); };
+  const x = $("[data-npclose]", box); if (x) x.onclick = () => closeNotes();
+  dragClose($(".fxn-grab", box), box, () => closeNotes());
 }
-function closeNotes() { $("#notePanel")?.remove(); }
+function closeNotes(instant) {
+  const box = $("#notePanel"), back = $("#noteBack"); if (!box && !back) return;
+  document.documentElement.classList.remove("fx-lock");
+  $("#bell")?.setAttribute("aria-expanded", "false");
+  const rm = () => { box?.remove(); back?.remove(); };
+  if (instant || !back) return rm();
+  box.style.transform = ""; box.classList.remove("in"); back.classList.remove("in"); box.id = ""; back.id = ""; setTimeout(rm, 260);
+}
 function openNotes(btn) {
   if ($("#notePanel")) return closeNotes();
-  noteSeen = new Set((S.notes || []).filter((n) => !n.read).map((n) => n.id));
-  const box = document.createElement("div"); box.id = "notePanel"; box.className = "note-panel"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Notifications"); document.body.append(box);
-  const r = btn.getBoundingClientRect(); box.style.top = Math.round(r.bottom + 8) + "px"; box.style.right = Math.max(8, Math.round(innerWidth - r.right)) + "px";
+  closeSheet(true); closeMenu();
+  const phone = isPhone();
+  const box = document.createElement("div"); box.id = "notePanel"; box.className = "fxn"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Notifications"); box.tabIndex = -1;
+  if (phone) { const back = document.createElement("div"); back.id = "noteBack"; back.className = "fx-back"; document.body.append(back); requestAnimationFrame(() => requestAnimationFrame(() => back.classList.add("in"))); document.documentElement.classList.add("fx-lock"); }
+  document.body.append(box); btn.setAttribute("aria-expanded", "true");
+  if (!phone) { const r = btn.getBoundingClientRect(); box.style.top = Math.round(r.bottom + 10) + "px"; box.style.right = Math.max(12, Math.round(innerWidth - r.right - 4)) + "px"; }
   drawNotes();
-  (S.notes || []).filter((n) => !n.read).forEach((n) => markNotificationRead(n.id)); // opening the panel counts as reading
+  requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add("in")));
+  box.focus({ preventScroll: true });
 }
 let notesWired = false;
 function wireNotes() {
   if (notesWired) return; notesWired = true;
-  document.addEventListener("click", (e) => { const b = e.target.closest?.("[data-bell]"); if (b) { e.preventDefault(); e.stopPropagation(); return openNotes(b); } if (!e.target.closest?.("#notePanel") || e.target.closest?.(".np-foot")) closeNotes(); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNotes(); });
+  document.addEventListener("click", (e) => { const b = e.target.closest?.("[data-bell]"); if (b) { e.preventDefault(); e.stopPropagation(); return openNotes(b); } if (!e.target.closest?.("#notePanel") || e.target.closest?.(".fxn-foot")) closeNotes(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#notePanel")) { closeNotes(); $("#bell")?.focus(); } });
 }
 function showNotification(n) {
   if (n.kind === "verified") { markNotificationRead(n.id); verifiedPopup(n.title, n.body, "Go to my dashboard", () => go("#" + (roleHome() || "/"))); }
@@ -395,11 +513,11 @@ async function refreshAuthState(u) {
   S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0;
   if (u) S.unsubConvs = watchConversations(u, (c) => {
     const n = c.filter((x) => x.unread).length; if (n === S.unread) return; if (n > S.unread) sysNotify("New message", "You have a new message on Faxton Rentals."); S.unread = n;
-    $$("[data-unread]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
+    $$("[data-unread]").forEach((b) => { b.textContent = unreadTxt(n); b.hidden = !n; });
   });
 }
 onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
-addEventListener("hashchange", () => { S.nav++; render(); });
+addEventListener("hashchange", () => { if (AXS?.softNav()) return; S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
 render();
 // Give every table cell its column name, so phones can show tables as stacked cards.
