@@ -1408,3 +1408,11 @@ dialog.nodismiss .close{display:none!important}
 
 /* the sidebar is an ordinary card that scrolls away with the page */
 .pdp .side-card{position:static!important;max-height:none!important;overflow:visible!important;top:auto}
+
+/* the sidebar card follows you down the page and scrolls inside itself when it is taller than the screen */
+.pdp .side-card{position:sticky!important;top:84px;max-height:calc(100vh - 100px)!important;overflow-y:auto!important;scrollbar-width:thin}
+@media (max-width:1100px){.pdp .side-card{position:static!important;max-height:none!important;overflow:visible!important}}
+/* heart buttons stay visible in dark mode */
+:root[data-theme=dark] .heart,:root[data-theme=dark] .main-top .heart{background:rgba(10,15,13,.78);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+:root[data-theme=dark] .heart.on,:root[data-theme=dark] .main-top .heart.on{color:#ff5d7a}
+:root[data-theme=dark] .heart:hover{color:#ff5d7a}
