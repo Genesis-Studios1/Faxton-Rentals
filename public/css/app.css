@@ -1230,3 +1230,7 @@ html.dlx-lock{overflow:hidden}
 @media (max-width:1280px){.dsh-kpis.k6{grid-template-columns:repeat(3,minmax(0,1fr))}.dsh-kpis.k5{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:1100px){.dsh-grid.g3,.dsh-grid.g21,.dsh-grid.g13{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:700px){.dsh-kpis.k6,.dsh-kpis.k5{grid-template-columns:repeat(2,minmax(0,1fr))}.dsh-kpi{padding:12px;gap:10px}.dsh-ki{width:36px;height:36px}.dsh-kv b{font-size:1.25rem}.dsh-head{align-items:flex-start}.dsh-act{width:100%}.dsh-act .btn{flex:1;justify-content:center}.dsh-p{padding:14px}.dsh-bars{height:150px}.dsh-donut .ring{margin:0 auto}}
+
+/* ---- account-type chooser (renter / home owner / agency) ---- */
+.dz-role.three{grid-template-columns:repeat(3,minmax(0,1fr))}.dz-role.three button{font-size:calc(16 * var(--u));padding:0 4px;line-height:1.15}
+.m-as{margin:12px 0 6px;font-size:.82rem;color:var(--muted)}.m-role.three button{font-size:.84rem;padding:12px 4px}
