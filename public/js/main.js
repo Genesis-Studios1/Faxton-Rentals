@@ -131,6 +131,8 @@ export async function render() {
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
 function wire() {
   wireFooter(); wireNotes(); closeNotes(); paintBell();
+  // Tab strips that scroll sideways open with the current tab in view.
+  requestAnimationFrame(() => $$(".rn-tabs, .set-nav, .adm-side nav, .dt-tabs").forEach((c) => { const on = c.querySelector(".on, [aria-current]"); if (on && c.scrollWidth > c.clientWidth) c.scrollLeft = Math.max(0, on.offsetLeft - (c.clientWidth - on.offsetWidth) / 2); }));
   const rs = $("[data-resend]"), rf = $("[data-refresh]");
   if (rs) rs.onclick = async () => { try { await resendVerification(); toast("Verification email sent."); } catch (e) { toast(friendlyErr(e)); } };
   if (rf) rf.onclick = async () => { try { await refreshUser(); } catch (e) { toast(friendlyErr(e)); } };
