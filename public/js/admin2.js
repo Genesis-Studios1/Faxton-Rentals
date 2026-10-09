@@ -119,9 +119,6 @@ export function support(ctx, tks) {
 // ---------- text a user from the console ----------
 async function openChat(ctx, u) {
   let cid; try { cid = await st.ensureDirectConversation(ctx.S.user, u); } catch (e) { return toast(friendlyErr(e)); }
-  const m = modal(`<h2>Text ${esc(u.name || u.email)}</h2><p class="muted" style="margin:2px 0 8px">They’ll see this in their Messages as “Faxton team”.</p><div class="thread cmsg" id="cmT"></div><form id="cmF" class="a2-reply" style="padding:10px 0 0;border:0"><textarea id="cmI" rows="2" maxlength="1500" placeholder="Write a message…" required></textarea><div class="a2-act"><button class="btn primary" type="submit">${icon("send", 18)} Send</button></div></form>`);
-  m.el.classList.add("cm-modal"); const me = ctx.S.user.uid;
-  const un = st.watchMessages(cid, (ms) => { const t = $("#cmT", m.el); if (!t) return; t.innerHTML = ms.length ? ms.map((x) => `<div class="brow ${x.from === me ? "me" : ""}"><div class="bubble ${x.from === me ? "me" : ""}">${esc(x.text)}</div></div>`).join("") : `<p class="muted" style="padding:10px">No messages yet. Say hello.</p>`; t.scrollTop = t.scrollHeight; });
-  m.el.addEventListener("close", un);
-  $("#cmF", m.el).onsubmit = async (e) => { e.preventDefault(); const i = $("#cmI", m.el), t = i.value.trim(); if (!t) return; i.value = ""; try { await st.sendMessage(ctx.S.user, cid, t, {}, true); } catch (x) { toast(friendlyErr(x)); i.value = t; } };
+  try { sessionStorage.setItem("msgMode", "faxton"); } catch {}
+  ctx.go("#/messages/" + cid);
 }

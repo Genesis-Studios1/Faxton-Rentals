@@ -59,10 +59,14 @@ export async function ensureConversation(user, l) {
 export const watchConversations = (user, cb) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
   (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
 export const watchMessages = (cid, cb) => onSnapshot(query(collection(db, "conversations", cid, "messages"), orderBy("at")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => cb([]));
-export async function sendMessage(user, cid, text, extra = {}, unread = false) {
+// Every conversation the Faxton team has with users (admins, the owner and support see all of them).
+export const watchStaffConversations = (cb) => onSnapshot(query(collection(db, "conversations"), where("listingId", "==", "direct")),
+  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
+export const setStaffUnread = (cid, v) => updateDoc(doc(db, "conversations", cid), { staffUnread: !!v });
+export async function sendMessage(user, cid, text, extra = {}, unread = false, convExtra = {}) {
   const b = writeBatch(db);
   b.set(doc(collection(db, "conversations", cid, "messages")), { from: user.uid, text, at: serverTimestamp(), ...extra });
-  b.update(doc(db, "conversations", cid), { last: text, lastAt: serverTimestamp(), unread });
+  b.update(doc(db, "conversations", cid), { last: text, lastAt: serverTimestamp(), unread, ...convExtra });
   await b.commit();
 }
 export const markRead = (cid) => updateDoc(doc(db, "conversations", cid), { unread: false });
@@ -121,6 +125,6 @@ export async function deleteProfile(uid) { await deleteDoc(doc(db, "users", uid)
 // A direct conversation started by the Faxton team (admin or support) with any user.
 export async function ensureDirectConversation(staff, u) {
   const id = `${u.id}__direct`, ref = doc(db, "conversations", id);
-  if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: u.id, userName: u.name || u.email, listingId: "direct", listingTitle: "Faxton team", area: "", price: 0, beds: 0, baths: 0, image: "assets/mark.svg", agent: { id: "faxton", name: "Faxton team", avatar: "assets/mark.svg", photo: "assets/mark.svg" }, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
+  if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: u.id, userName: u.name || u.email, listingId: "direct", listingTitle: "Faxton team", area: "", price: 0, beds: 0, baths: 0, image: "assets/mark.svg", userPhoto: u.photo || "", agent: { id: "faxton", name: "Faxton team", avatar: "assets/mark.svg", photo: "assets/mark.svg" }, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
   return id;
 }
