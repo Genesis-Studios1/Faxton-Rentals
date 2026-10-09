@@ -4,7 +4,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
@@ -12,7 +12,7 @@ import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
 import { watchIncoming } from "./calls.js";
 import { siteFooter, wireFooter } from "./footer.js";
 
-export const S = { shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
+export const S = { notes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
 
 // ---------- theme ----------
@@ -62,7 +62,7 @@ function adminShell(path, inner, pending, role = "") {
   const on = (p) => (p === "/admin" || (R && p === R.home) ? path === p : path === p || path.startsWith(p + "/"));
   const items = (R ? R.nav : ANAV).map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}${l === "Verifications" ? `<b class="badge" data-vbadge ${S.pendingV ? "" : "hidden"}>${S.pendingV || ""}</b>` : ""}</a>`).join("");
   return `<div class="adm"><header class="adm-top"><a class="logo" href="#${R ? R.home : "/admin"}" aria-label="Dashboard">${logo().match(/<svg.*<\/svg>/s)[0]}<span class="logo-word"><b>Faxton</b> Rentals</span></a><span class="vr"></span><span class="adm-title">${R ? R.title : "Admin console"}</span><span style="flex:1"></span>
-      <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label>${themeBtn()}<a class="icon-btn bell ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 22)}</a>
+      <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label>${themeBtn()}<button type="button" class="icon-btn bell ${noteDot()}" data-bell aria-label="Notifications" aria-haspopup="true">${icon("bell", 22)}</button>
       <a class="me-btn" href="#/settings" aria-label="Account">${avatarHtml()}${icon("chev", 18)}</a></header>
     <div class="adm-body"><aside class="adm-side" aria-label="Admin navigation"><nav>${items}</nav><a class="adm-back" href="#/">${icon("left", 20)} Back to site</a></aside>
     <main class="adm-main page" id="main">${verifyBanner()}${path === "/admin" || (R && path === R.home) ? "" : `<div class="adm-backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`}${inner}</main></div></div>`;
@@ -78,11 +78,11 @@ function appShell(path, inner) {
   const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
   const back = path === "/" || path.startsWith("/messages") || isSettings(path) ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
   return `<header class="topnav"><div class="tn-in">${logo()}<nav class="tn-links" aria-label="Main">${links}</nav>
-    <div class="tn-right">${themeBtn()}<a class="icon-btn bell ${S.unread ? "dot" : ""}" id="bell" href="#/messages" aria-label="Messages and notifications">${icon("bell", 22)}</a>${menu}</div></div></header>
+    <div class="tn-right">${themeBtn()}<button type="button" class="icon-btn bell ${noteDot()}" id="bell" data-bell aria-label="Notifications" aria-haspopup="true">${icon("bell", 22)}</button>${menu}</div></div></header>
     <main class="main-top page ${isSettings(path) ? "is-settings" : ""}" id="main">${verifyBanner()}${back}${body}</main>${path.startsWith("/messages") ? "" : siteFooter()}`;
 }
 function topbar() {
-  return `<div class="admin-top"><label class="input">${icon("search", 20)}<input type="search" placeholder="Search properties, users, applications…" aria-label="Search"></label><span style="flex:1"></span>${themeBtn()}<a class="icon-btn ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 20)}</a><span class="me"><span class="avatar">${esc(initials(userName()))}</span><span style="line-height:1.2"><b style="color:var(--head)">${esc(userName().split(" ")[0])}</b><br><small class="muted">${S.isOwner ? "Owner" : "Admin"}</small></span></span></div>`;
+  return `<div class="admin-top"><label class="input">${icon("search", 20)}<input type="search" placeholder="Search properties, users, applications…" aria-label="Search"></label><span style="flex:1"></span>${themeBtn()}<button type="button" class="icon-btn bell ${noteDot()}" data-bell aria-label="Notifications" aria-haspopup="true">${icon("bell", 20)}</button><span class="me"><span class="avatar">${esc(initials(userName()))}</span><span style="line-height:1.2"><b style="color:var(--head)">${esc(userName().split(" ")[0])}</b><br><small class="muted">${S.isOwner ? "Owner" : "Admin"}</small></span></span></div>`;
 }
 
 function verifyBanner() {
@@ -129,7 +129,7 @@ export async function render() {
 }
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
 function wire() {
-  wireFooter();
+  wireFooter(); wireNotes(); closeNotes(); paintBell();
   const rs = $("[data-resend]"), rf = $("[data-refresh]");
   if (rs) rs.onclick = async () => { try { await resendVerification(); toast("Verification email sent."); } catch (e) { toast(friendlyErr(e)); } };
   if (rf) rf.onclick = async () => { try { await refreshUser(); } catch (e) { toast(friendlyErr(e)); } };
@@ -195,9 +195,37 @@ async function signUp(name, email, pw, role, details, photo, residence) {
   // Load the new profile now so the app opens signed in on the home page.
   await refreshAuthState(auth.currentUser);
 }
+// ---- the notifications panel under the bell ----
+const noteUnread = () => (S.notes || []).filter((n) => !n.read).length;
+const noteDot = () => (noteUnread() ? "dot" : "");
+const paintBell = () => $$("[data-bell]").forEach((b) => b.classList.toggle("dot", noteUnread() > 0));
+const agoText = (sec) => { if (!sec) return ""; const d = Math.max(0, Date.now() / 1000 - sec); return d < 60 ? "Just now" : d < 3600 ? Math.floor(d / 60) + " min ago" : d < 86400 ? Math.floor(d / 3600) + " h ago" : new Date(sec * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
+const NOTE_IC = { verified: "check", rejected: "x", info: "info" };
+let noteSeen = new Set();
+function drawNotes() {
+  const box = $("#notePanel"); if (!box) return; const list = S.notes || [];
+  box.innerHTML = `<div class="np-head"><b>Notifications</b>${noteUnread() ? `<button type="button" id="npAll">Mark all as read</button>` : ""}</div>
+    <div class="np-list">${list.length ? list.map((n) => `<div class="np-item ${n.read && !noteSeen.has(n.id) ? "" : "new"}"><span class="np-ic ${esc(n.kind || "")}">${icon(NOTE_IC[n.kind] || "bell", 18)}</span><div><b>${esc(n.title || "")}</b>${n.body ? `<p>${esc(n.body)}</p>` : ""}<small>${agoText(n.createdAt?.seconds)}</small></div></div>`).join("") : `<p class="np-empty">${icon("bell", 28)}<br>You’re all caught up.</p>`}</div>
+    <a class="np-foot" href="#/messages">Open messages${S.unread ? ` <b>${S.unread}</b>` : ""}</a>`;
+  const all = $("#npAll", box); if (all) all.onclick = () => (S.notes || []).filter((n) => !n.read).forEach((n) => markNotificationRead(n.id));
+}
+function closeNotes() { $("#notePanel")?.remove(); }
+function openNotes(btn) {
+  if ($("#notePanel")) return closeNotes();
+  noteSeen = new Set((S.notes || []).filter((n) => !n.read).map((n) => n.id));
+  const box = document.createElement("div"); box.id = "notePanel"; box.className = "note-panel"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Notifications"); document.body.append(box);
+  const r = btn.getBoundingClientRect(); box.style.top = Math.round(r.bottom + 8) + "px"; box.style.right = Math.max(8, Math.round(innerWidth - r.right)) + "px";
+  drawNotes();
+  (S.notes || []).filter((n) => !n.read).forEach((n) => markNotificationRead(n.id)); // opening the panel counts as reading
+}
+let notesWired = false;
+function wireNotes() {
+  if (notesWired) return; notesWired = true;
+  document.addEventListener("click", (e) => { const b = e.target.closest?.("[data-bell]"); if (b) { e.preventDefault(); e.stopPropagation(); return openNotes(b); } if (!e.target.closest?.("#notePanel") || e.target.closest?.(".np-foot")) closeNotes(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNotes(); });
+}
 function showNotification(n) {
-  markNotificationRead(n.id);
-  if (n.kind === "verified") verifiedPopup(n.title, n.body, "Go to my dashboard", () => go("#" + (roleHome() || "/")));
+  if (n.kind === "verified") { markNotificationRead(n.id); verifiedPopup(n.title, n.body, "Go to my dashboard", () => go("#" + (roleHome() || "/"))); }
   else toast(n.title + (n.body ? ": " + n.body : ""));
   sysNotify(n.title, n.body);
 }
@@ -275,7 +303,7 @@ async function setSaved(id, on) {
 export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 async function refreshAuthState(u) {
-  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; }
+  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; }
   S.user = u; S.profile = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
@@ -292,7 +320,7 @@ async function refreshAuthState(u) {
       if (was && (p.role !== was.role)) refreshAuthState(auth.currentUser || u).then(render);
       else if (was && (p.verified !== was.verified || p.verification?.status !== was.verification?.status)) render();
     });
-    S.unsubNotes?.(); S.unsubNotes = watchNotifications(u.uid, (list) => list.forEach((n) => { if (S.shownNotes.has(n.id)) return; S.shownNotes.add(n.id); showNotification(n); }));
+    S.unsubNotes?.(); S.unsubNotes = watchAllNotifications(u.uid, (list) => { S.notes = list; paintBell(); list.filter((n) => !n.read).forEach((n) => { if (S.shownNotes.has(n.id)) return; S.shownNotes.add(n.id); showNotification(n); }); if ($("#notePanel")) drawNotes(); });
     // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
     if (!S.ownerUid && u.emailVerified) {
       try { await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = await getProfile(u.uid); toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
@@ -310,7 +338,6 @@ async function refreshAuthState(u) {
   if (u) S.unsubConvs = watchConversations(u, (c) => {
     const n = c.filter((x) => x.unread).length; if (n === S.unread) return; if (n > S.unread) sysNotify("New message", "You have a new message on Faxton Rentals."); S.unread = n;
     $$("[data-unread]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
-    $$("#bell").forEach((b) => b.classList.toggle("dot", n > 0));
   });
 }
 onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });

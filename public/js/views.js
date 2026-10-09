@@ -261,7 +261,7 @@ async function discover(ctx) {
     <div class="hmm-sec"><div><h2>Featured Homes</h2><p>Handpicked rental homes for you.</p></div><a class="hmm-all" href="#/search">View all ${icon("arrow", 18)}</a></div>
     <div class="hmm-grid">${list.slice(0, 6).map(hmCard).join("")}</div></div>`;
   return { title: "Home", html: `<div class="wrap hm">${mobile}
-    <section class="hm-hero"><div class="hm-text"><div class="eyebrow-s rise">Find your next chapter</div><h1 class="rise" style="--d:.08s">A place to live.<br>A place to<br>call home.</h1><p class="rise" style="--d:.18s">Find a rental that fits your life, in a neighbourhood you love.</p></div><div class="hm-img reveal" style="background-image:url(img/hero.webp)" role="img" aria-label="Modern home in Lagos"></div></section>
+    <section class="hm-hero"><div class="hm-text"><div class="eyebrow-s rise">Find your next chapter</div><h1 class="rise" style="--d:.08s">A place to live.<br>A place to<br>call home.</h1><p class="rise" style="--d:.18s">Find a rental that fits your life, in a neighbourhood you love.</p></div><div class="hm-img reveal" style="background-image:url(img/hero-hd.webp)" role="img" aria-label="Modern home in Lagos"></div></section>
     <form class="searchbar hm-search rise" style="--d:.3s" id="sb" role="search">
       <div class="sb-cell">${icon("pin", 26)}<label>Location<select name="area">${opts(AREAS, pr.area || "lekki")}</select></label></div>
       <div class="sb-cell">${icon("home", 26)}<label>Property type<select name="type"><option value="">Any type</option>${typeOptions(pr.type)}</select></label></div>
@@ -280,7 +280,7 @@ async function discover(ctx) {
 
 // ---------- search ----------
 async function search(ctx) {
-  const q = ctx.q, all = await st.getListings(), view = q.view === "grid" ? "grid" : "map";
+  const q = ctx.q, all = await st.getListings();
   const area = q.area || "", max = +q.max || 0, beds = +q.beds || 0, type = q.type || "", sort = q.sort || "recommended";
   const am = (q.am || "").split(",").filter(Boolean), avail = q.avail !== "0";
   let list = all.filter((l) => (!area || (l.area + " " + l.city).toLowerCase().includes(area)) && (!max || l.price <= max) && l.beds >= beds && matchType(l, type) && (!avail || l.available !== false) && am.every((x) => l.amenities.includes(x)));
@@ -290,7 +290,7 @@ async function search(ctx) {
   const chips = [chip("area", area ? areaName : "Lagos"), avail && chip("avail", "Available now"), max && chip("max", BUDGETS.find((b) => b[0] === max)?.[1] || naira(max)), beds && chip("beds", beds + "+ beds"), type && chip("type", CATS.find((c) => c[0] === type)?.[1] || type), ...am.map((x) => chip("am:" + x, x))].filter(Boolean).join("");
   const AMEN = ["Parking", "Water supply", "Security", "Generator", "Balcony", "Garden", "Pool", "Gym", "Wi-Fi"];
   return { title: "Search", html: `<div class="wrap"><div class="page-head rise"><div><h1 style="font-size:clamp(1.9rem,3.4vw,2.9rem)">Homes for rent in ${esc(areaName === "Lagos" ? "Lagos" : areaName)}</h1><p>${list.length} home${list.length === 1 ? "" : "s"} match your search</p></div>
-      <div class="seg" role="group" aria-label="View"><button data-view="map" class="${view === "map" ? "on" : ""}">${icon("map", 18)} Map</button><button data-view="grid" class="${view === "grid" ? "on" : ""}">${icon("grid", 18)} Grid</button></div></div>
+</div>
     <form class="filters" id="ff"><label class="fsel">${icon("pin", 18)}<select name="area" aria-label="Location">${opts(AREAS, area)}</select></label>
       <label class="fsel">${icon("wallet", 18)}<select name="max" aria-label="Budget">${opts(BUDGETS, max)}</select></label>
       <label class="fsel">${icon("bed", 18)}<select name="beds" aria-label="Bedrooms">${opts([[0, "Bedrooms"], [1, "1+"], [2, "2+"], [3, "3+"], [4, "4+"], [5, "5+"]], beds)}</select></label>
@@ -299,22 +299,15 @@ async function search(ctx) {
         <div class="pop-menu" id="morePanel" hidden><b>Amenities</b>${AMEN.map((x) => `<label class="chk"><input type="checkbox" value="${esc(x)}" ${am.includes(x) ? "checked" : ""}> ${esc(x)}</label>`).join("")}<button type="button" class="btn primary sm" id="applyMore">Apply</button></div></div>
       <label class="fsel sort"><span class="muted">Sort by</span><select name="sort" aria-label="Sort">${opts([["recommended", "Recommended"], ["low", "Price: low to high"], ["high", "Price: high to low"]], sort)}</select></label></form>
     <div class="chips">${chips}</div>
-    ${list.length ? `<div class="results ${view === "grid" ? "grid-only" : ""}"><div class="cards">${list.map((l, i) => card(l, ctx.S.saved, true, i)).join("")}</div>${view === "map" ? '<div id="map" role="region" aria-label="Map of results"></div>' : ""}</div>` : `<div class="empty"><h3>No homes match your search</h3><p>Try widening your filters.</p><p style="margin-top:14px"><a class="btn" href="#/search">Reset filters</a></p></div>`}</div>`,
+    ${list.length ? `<div class="results grid-only"><div class="cards">${list.map((l, i) => card(l, ctx.S.saved, true, i)).join("")}</div></div>` : `<div class="empty"><h3>No homes match your search</h3><p>Try widening your filters.</p><p style="margin-top:14px"><a class="btn" href="#/search">Reset filters</a></p></div>`}</div>`,
     async mount(root) {
       bindCards(root, ctx);
       const nav = (patch) => { const p = new URLSearchParams(q); Object.entries(patch).forEach(([k, v]) => (v && v !== "0" ? p.set(k, v) : p.delete(k))); ctx.go("#/search?" + p); };
       $$("select", $("#ff")).forEach((s) => (s.onchange = () => nav({ [s.name]: s.value })));
-      $$("[data-view]").forEach((b) => (b.onclick = () => nav({ view: b.dataset.view })));
       const mb = $("#moreBtn"), mp = $("#morePanel");
       mb.onclick = (e) => { e.stopPropagation(); mp.hidden = !mp.hidden; mb.setAttribute("aria-expanded", String(!mp.hidden)); };
       mp.onclick = (e) => e.stopPropagation(); document.addEventListener("click", () => { mp.hidden = true; }, { once: true });
       $("#applyMore").onclick = () => nav({ am: $$("input:checked", mp).map((i) => i.value).join(",") });
-      if (view === "map" && list.length) try {
-        await loadLeaflet(); if (!$("#map")) return; const map = L.map("map", { scrollWheelZoom: false }).setView([list[0].lat, list[0].lng], 12); ctrlZoom(map);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors", maxZoom: 18 }).addTo(map);
-        const pts = list.map((l) => { const m = L.marker([l.lat, l.lng], { icon: L.divIcon({ className: "", html: `<div class="pin"><b>${short(l.price)}</b><i></i></div>`, iconSize: [0, 0] }), title: l.title }).addTo(map); m.on("click", () => ctx.go("#/home/" + l.id)); return [l.lat, l.lng]; });
-        if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40] }); ctx.S.cleanups.push(() => map.remove());
-      } catch { const m = $("#map"); if (m) m.innerHTML = '<div class="empty">Map unavailable right now.</div>'; }
     } };
 }
 
@@ -470,12 +463,17 @@ async function messages(ctx, cid) {
         CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, toPhoto: c.agent.avatar, kind, title: c.listingTitle, image: c.image, area: c.area });
       };
       // The left column: title and new-message button, the Me / Faxton switch for staff, search, tabs and the list.
+      const lastLine = (c) => {
+        const k = calls.filter((x) => x.convId === c.id)[0]; // newest first
+        if (k && (k.createdAt?.seconds || 0) >= (c.lastAt?.seconds || 0)) { const [t, sub] = callText(k); return `${icon(k.kind === "video" ? "video" : "phone", 14)} ${esc(t)}${sub ? " · " + esc(sub.split(" · ")[0]) : ""}`; }
+        return esc(c.last || (c.listingId === "direct" ? "Say hello" : c.listingTitle));
+      };
       const drawList = () => {
         const f = FILTERS(), list = vis();
         f.forEach(([k, , , n]) => { const c = $(`[data-cnt="${k}"]`); if (c) c.textContent = n; });
         const box = $("#convs"); if (!box) return;
         box.innerHTML = tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") : `<p class="muted mx-none">No calls yet. Open a conversation and tap Call or Video call.</p>`)
-          : list.length ? list.map((c) => { const o = other(c); return `<a class="mx-conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${esc(c.last || (c.listingId === "direct" ? "Say hello" : c.listingTitle))}</p></div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
+          : list.length ? list.map((c) => { const o = other(c); return `<a class="mx-conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${lastLine(c)}</p></div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
           : `<p class="muted mx-none">${faxton() && teamErr ? "Couldn’t load the Faxton Rentals inbox. The database rules may not be published yet." : convs().length ? "No conversations match." : faxton() ? "No one has messaged Faxton Rentals yet." : "No conversations yet. Open a home and tap “Message agent”."}</p>`;
         $$("[data-cb]", box).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
       };
@@ -497,6 +495,10 @@ async function messages(ctx, cid) {
         toast(faxton() ? "Now messaging as Faxton Rentals." : "Now messaging as yourself.");
         const chat = $("#chat"); if (chat) chat.dataset.cid = ""; drawSide(); if (cid && !convs().some((x) => x.id === cid)) { ctx.go("#/messages"); } else drawChat();
       };
+      let paintThread = () => {}, tfind = "";
+      const dayLabel = (sec) => { const d = new Date(sec * 1000), n = new Date(); const same = (a, b) => a.toDateString() === b.toDateString(); const y = new Date(n); y.setDate(n.getDate() - 1); return same(d, n) ? "Today" : same(d, y) ? "Yesterday" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
+      const callText = (c) => { const outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), vid = c.kind === "video" ? "video" : "voice", st2 = c.status; return st2 === "missed" || st2 === "cancelled" ? [outc ? `Cancelled ${vid} call` : `Missed ${vid} call`, "No answer"] : st2 === "declined" ? [`Declined ${vid} call`, ""] : st2 === "ringing" ? [`${outc ? "Calling" : "Incoming"} ${vid} call`, "Ringing…"] : [`${outc ? "Outgoing" : "Incoming"} ${vid} call`, c.duration ? `${CALLS.fmtDur(c.duration)} · ${c.duration < 60 ? c.duration + " seconds" : Math.round(c.duration / 60) + " minutes"}` : ""]; };
+      const callCard = (c) => { const [t, sub] = callText(c), outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), bad = /Missed|Declined|Cancelled/.test(t); return `<div class="mx-row ${outc ? "me" : ""}"><div class="mx-cc ${outc ? "me" : ""} ${bad ? "bad" : ""}"><span class="mx-ci">${icon(c.kind === "video" ? "video" : "phone", 22)}</span><div><b>${t}</b>${sub ? `<small>${sub}</small>` : ""}</div><time>${c.createdAt?.seconds ? fmtTime(c.createdAt) : ""}</time></div></div>`; };
       const tk = (mine) => (mine ? `<span class="ticks">${icon("check", 14, 2.4)}${icon("check", 14, 2.4)}</span>` : "");
       const bubble = (m, c) => {
         const mineB = isMine(m, c), av = mineB ? myAv() : other(c).avatar;
@@ -511,11 +513,15 @@ async function messages(ctx, cid) {
         if (faxton() ? c.staffUnread : c.unread && c.uid === me) (faxton() ? st.setStaffUnread(cid, false) : st.markRead(cid)).catch(() => {});
         const o = other(c), direct = c.listingId === "direct", agentView = !faxton() && !direct;
         chat.innerHTML = `<header class="mx-head"><a class="mx-back" href="#/messages" aria-label="Back">${icon("left", 22)}</a><span class="mx-hav"><img src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"></span><div class="mx-hn"><b>${esc(o.name)}</b><span>${faxton() ? "Replying as Faxton Rentals" : esc(o.role)}</span></div>
-          <div class="mx-acts"><button type="button" class="mx-ab" data-call="voice">${icon("phone", 18)}<span>Call</span></button><button type="button" class="mx-ab" data-call="video">${icon("video", 18)}<span>Video call</span></button>${agentView ? `<a class="mx-ab mx-d" href="#/book/${esc(c.listingId)}">${icon("cal", 18)}<span>Schedule viewing</span></a><a class="mx-ab mx-d" href="#/agent/${esc(c.agent.id)}">${icon("user", 18)}<span>View profile</span></a>` : ""}${faxton() ? `<a class="mx-ab mx-d" href="#/admin/users">${icon("users", 18)}<span>All users</span></a>` : ""}
-          <span class="mx-more"><button type="button" class="mx-dots" id="mxMore" aria-label="More options" aria-haspopup="menu">${icon("dots", 20)}</button><div class="menu mx-menu" id="mxMenu" role="menu" hidden>${agentView ? `<a role="menuitem" href="#/home/${esc(c.listingId)}">${icon("home", 18)} View listing</a>` : ""}<a role="menuitem" href="#/messages" data-calls>${icon("phone", 18)} Call history</a>${agentView ? `<span id="mxSafe"></span>` : ""}${staff ? `<button role="menuitem" type="button" data-sw>${icon("share", 18)} Switch to ${faxton() ? "me" : "Faxton Rentals"}</button>` : ""}</div></span></div></header>
+          <div class="mx-acts"><button type="button" class="mx-ab mx-d" id="mxFind" aria-label="Search in this chat" title="Search in this chat">${icon("search", 21)}</button><button type="button" class="mx-ab" data-call="voice" aria-label="Voice call" title="Voice call">${icon("phone", 21)}</button><button type="button" class="mx-ab" data-call="video" aria-label="Video call" title="Video call">${icon("video", 21)}</button>
+          <span class="mx-more"><button type="button" class="mx-dots" id="mxMore" aria-label="More options" aria-haspopup="menu">${icon("dots", 20)}</button><div class="menu mx-menu" id="mxMenu" role="menu" hidden>${agentView ? `<a role="menuitem" href="#/book/${esc(c.listingId)}">${icon("cal", 18)} Schedule viewing</a><a role="menuitem" href="#/agent/${esc(c.agent.id)}">${icon("user", 18)} View profile</a><a role="menuitem" href="#/home/${esc(c.listingId)}">${icon("home", 18)} View listing</a>` : ""}${faxton() ? `<a role="menuitem" href="#/admin/users">${icon("users", 18)} All users</a>` : ""}<a role="menuitem" href="#/messages" data-calls>${icon("phone", 18)} Call history</a>${agentView ? `<span id="mxSafe"></span>` : ""}${staff ? `<button role="menuitem" type="button" data-sw>${icon("share", 18)} Switch to ${faxton() ? "me" : "Faxton"}</button>` : ""}</div></span></div></header>
+          <div class="mx-find" id="mxFindBar" hidden><input id="mxFindIn" type="search" placeholder="Search in this chat…" aria-label="Search in this chat"></div>
           <div class="mx-thread" id="thread"></div><div class="mx-emoji" id="emoji" hidden>${EMOJI.map((e) => `<button type="button">${e}</button>`).join("")}</div>
-          <form class="mx-comp" id="cf" autocomplete="off"><button type="button" class="mx-ib" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><input id="ci" placeholder="${staff ? "Type a message… or /switch" : "Type a message…"}" maxlength="2000" aria-label="Message"><button type="button" class="mx-ib" data-soon aria-label="Attach">${icon("clip", 22)}</button><button type="button" class="mx-ib mx-micb" data-soon aria-label="Voice message">${icon("mic", 22)}</button><button class="mx-send" aria-label="Send">${icon("send", 22)}</button></form>`;
+          <form class="mx-comp" id="cf" autocomplete="off"><button type="button" class="mx-ib mx-circ" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><button type="button" class="mx-ib mx-circ" data-soon aria-label="Attach">${icon("plus", 22)}</button><input id="ci" placeholder="${staff ? "Type a message… or /switch" : "Type a message"}" maxlength="2000" aria-label="Message"><button class="mx-send" id="sendB" aria-label="Send" type="submit"><span class="mx-mic">${icon("mic", 24)}</span><span class="mx-snd">${icon("send", 22)}</span></button></form>`;
         $$("[data-soon]", chat).forEach((b) => (b.onclick = () => toast("Coming soon.")));
+        const ciEl = $("#ci"), sendB = $("#sendB"); const syncSend = () => sendB.classList.toggle("has", !!ciEl.value.trim()); ciEl.addEventListener("input", syncSend);
+        $("#mxFind").onclick = () => { const bar = $("#mxFindBar"); bar.hidden = !bar.hidden; if (!bar.hidden) $("#mxFindIn").focus(); else { tfind = ""; $("#mxFindIn").value = ""; paintThread(); } };
+        $("#mxFindIn").oninput = (e) => { tfind = e.target.value.trim().toLowerCase(); paintThread(); };
         $$("[data-call]", chat).forEach((b) => (b.onclick = () => beginCall(c, b.dataset.call)));
         const menu = $("#mxMenu"); $("#mxMore").onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; };
         const closeMenu = () => { menu.hidden = true; }; document.addEventListener("click", closeMenu); ctx.S.cleanups.push(() => document.removeEventListener("click", closeMenu));
@@ -536,18 +542,27 @@ async function messages(ctx, cid) {
         const sw = $("[data-sw]", menu); if (sw) sw.onclick = () => { closeMenu(); switchMode(); };
         const em = $("#emoji"); $("#emojiBtn").onclick = () => (em.hidden = !em.hidden); em.onclick = (e) => { const b = e.target.closest("button"); if (b) { $("#ci").value += b.textContent; $("#ci").focus(); } };
         $("#cf").onsubmit = async (e) => {
-          e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return;
+          e.preventDefault(); const i = $("#ci"), t = i.value.trim(); if (!t) return toast("Voice messages are coming soon.");
           if (staff && t.toLowerCase() === "/switch") { i.value = ""; return switchMode(); }
-          i.value = ""; em.hidden = true;
+          i.value = ""; syncSend(); em.hidden = true;
           try { faxton() ? await st.sendMessage(ctx.S.user, cid, t, {}, true, { staffUnread: false }) : await st.sendMessage(ctx.S.user, cid, t, {}, c.uid !== me, c.listingId === "direct" && c.uid === me ? { staffUnread: true } : {}); } catch (x) { toast(friendlyErr(x)); i.value = t; }
         };
-        unsubM?.(); unsubM = st.watchMessages(cid, (ms) => {
+        let ms = [];
+        paintThread = () => {
           const th = $("#thread"); if (!th) return; const near = th.scrollHeight - th.scrollTop - th.clientHeight < 80;
-          const rows = ms.map((m) => bubble(m, c)); rows.splice(Math.min(1, rows.length), 0, listingCard(c));
-          th.innerHTML = `<span class="mx-day">Today</span>${ms.length ? rows.join("") : `${listingCard(c)}<div class="mx-hello">Say hello to ${esc(o.name.split(" ")[0])} 👋</div>`}${agentView ? `<div class="mx-quick"><a href="#/book/${esc(c.listingId)}">${icon("cal", 20)}<span>Schedule Viewing</span></a><a href="#/documents">${icon("doc", 20)}<span>Send Documents</span></a><button type="button" data-qcall>${icon("phone", 20)}<span>Call Agent</span></button></div>` : ""}`;
+          const items = [...ms.map((m) => ({ t: m.at?.seconds || Date.now() / 1000, m })), ...calls.filter((x) => x.convId === cid && x.callerUid && (x.status !== "ringing" || Date.now() / 1000 - (x.createdAt?.seconds || 0) < 90)).map((x) => ({ t: x.createdAt?.seconds || Date.now() / 1000, k: x }))].sort((a, b) => a.t - b.t);
+          const out = []; let day = "", first = true;
+          items.forEach((it) => {
+            const d = dayLabel(it.t); if (d !== day) { day = d; out.push(`<span class="mx-day">${d}</span>`); }
+            if (it.k) out.push(callCard(it.k)); else if (!tfind || String(it.m.text || "").toLowerCase().includes(tfind)) { out.push(bubble(it.m, c)); if (first) { out.push(listingCard(c)); first = false; } }
+          });
+          if (first) out.push(listingCard(c));
+          th.innerHTML = `${out.join("") || `<div class="mx-hello">Say hello to ${esc(o.name.split(" ")[0])} 👋</div>`}${agentView ? `<div class="mx-quick"><a href="#/book/${esc(c.listingId)}">${icon("cal", 20)}<span>Schedule Viewing</span></a><a href="#/documents">${icon("doc", 20)}<span>Send Documents</span></a><button type="button" data-qcall>${icon("phone", 20)}<span>Call Agent</span></button></div>` : ""}`;
           const q = $("[data-qcall]", th); if (q) q.onclick = () => beginCall(c, "voice");
-          if (near || ms.length < 2) th.scrollTop = th.scrollHeight;
-        });
+          if (near || items.length < 3) th.scrollTop = th.scrollHeight;
+        };
+        unsubM?.(); unsubM = st.watchMessages(cid, (list) => { ms = list; paintThread(); });
+        paintThread();
       };
       const refresh = () => {
         // A conversation opened from the admin console belongs to the Faxton inbox. If the list hasn't brought it yet, fetch it directly.
@@ -557,7 +572,7 @@ async function messages(ctx, cid) {
       };
       const unsubC = st.watchConversations(ctx.S.user, (c) => { mine = c; refresh(); });
       const unsubT = staff ? st.watchStaffConversations((c) => { team = c.length || !team.length ? c : team; teamErr = false; refresh(); }, () => { teamErr = true; refresh(); }) : null;
-      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; if ($("#convs")) drawList(); else drawSide(); });
+      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; if ($("#convs")) drawList(); else drawSide(); paintThread(); });
       drawSide(); drawChat();
       ctx.S.cleanups.push(() => { unsubC(); unsubT?.(); unsubL(); unsubM?.(); });
     } };
