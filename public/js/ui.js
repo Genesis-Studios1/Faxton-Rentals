@@ -6,6 +6,10 @@ export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 export const initials = (n) => (n || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 const P = {
+  clipList: '<rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.5 9h.01M8.5 12.5h.01M8.5 16h.01M11.5 9h4M11.5 12.5h4M11.5 16h4" stroke-width="2"/>',
+  calDots: '<rect x="3.5" y="5" width="17" height="15.500" rx="2.500"/><path d="M8 3v4M16 3v4M3.500 10h17"/><path d="M8 13.500h.01M12 13.500h.01M16 13.500h.01M8 17h.01M12 17h.01" stroke-width="2.200"/>',
+  card: '<rect x="3" y="5.500" width="18" height="13" rx="2.500"/><path d="M3 10h18M7 15h3"/>',
+  bars3: '<path d="M6 20v-6M12 20V5M18 20v-9" stroke-width="3"/>',
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -105,4 +109,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-09.58";
+export const BUILD = "2026-10-09.59";
