@@ -10,6 +10,7 @@ import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.j
 import { startTour, tourSeen, resetTour } from "./tour.js";
 import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
 import { watchIncoming } from "./calls.js";
+import { siteFooter, wireFooter } from "./footer.js";
 
 export const S = { shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
@@ -78,7 +79,7 @@ function appShell(path, inner) {
   const back = path === "/" || path.startsWith("/messages") || isSettings(path) ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
   return `<header class="topnav"><div class="tn-in">${logo()}<nav class="tn-links" aria-label="Main">${links}</nav>
     <div class="tn-right">${themeBtn()}<a class="icon-btn bell ${S.unread ? "dot" : ""}" id="bell" href="#/messages" aria-label="Messages and notifications">${icon("bell", 22)}</a>${menu}</div></div></header>
-    <main class="main-top page ${isSettings(path) ? "is-settings" : ""}" id="main">${verifyBanner()}${back}${body}</main>`;
+    <main class="main-top page ${isSettings(path) ? "is-settings" : ""}" id="main">${verifyBanner()}${back}${body}</main>${path.startsWith("/messages") ? "" : siteFooter()}`;
 }
 function topbar() {
   return `<div class="admin-top"><label class="input">${icon("search", 20)}<input type="search" placeholder="Search properties, users, applications…" aria-label="Search"></label><span style="flex:1"></span>${themeBtn()}<a class="icon-btn ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 20)}</a><span class="me"><span class="avatar">${esc(initials(userName()))}</span><span style="line-height:1.2"><b style="color:var(--head)">${esc(userName().split(" ")[0])}</b><br><small class="muted">${S.isOwner ? "Owner" : "Admin"}</small></span></span></div>`;
@@ -97,7 +98,7 @@ export async function render() {
   if (!S.ready) return;
   // Everything except onboarding, login and sign-up needs an account. Signed-out visitors start at the onboarding.
   const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup" || path === "/forgot" || path === "/download";
-  const pub = path === "/terms" || path === "/privacy";
+  const pub = path === "/terms" || path === "/privacy" || path === "/license";
   if (!S.user && !open && !pub) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (S.user && open) return go("#" + (q.next || "/"));
   // Staff accounts open their own dashboard first, once per visit.
@@ -128,6 +129,7 @@ export async function render() {
 }
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
 function wire() {
+  wireFooter();
   const rs = $("[data-resend]"), rf = $("[data-refresh]");
   if (rs) rs.onclick = async () => { try { await resendVerification(); toast("Verification email sent."); } catch (e) { toast(friendlyErr(e)); } };
   if (rf) rf.onclick = async () => { try { await refreshUser(); } catch (e) { toast(friendlyErr(e)); } };

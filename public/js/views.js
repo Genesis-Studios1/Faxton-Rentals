@@ -64,7 +64,7 @@ export async function route(ctx) {
   if (path === "/login") return authPage(ctx, "login");
   if (path === "/signup") return authPage(ctx, "signup");
   if (path === "/forgot") return PG.forgotPage(ctx);
-  if (path === "/terms" || path === "/privacy") return LEGAL.legalPage(ctx, path.slice(1));
+  if (path === "/terms" || path === "/privacy" || path === "/license") return LEGAL.legalPage(ctx, path.slice(1));
   if (path === "/download") return APPS.downloadPage(ctx);
   if (path === "/") return discover(ctx);
   if (path === "/search") return search(ctx);

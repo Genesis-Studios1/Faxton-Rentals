@@ -25,10 +25,19 @@ const PRIVACY = [
   ["Changes and contact", "We will update this page if our practices change. For privacy questions, use the Contact us page in the app."],
 ];
 
+const LICENSE = [
+  ["Copyright", "© 2026 Faxton Rentals Inc. All rights reserved. The Faxton Rentals name, logo, design, text, photos and software are owned by Faxton Rentals Inc. or used with permission."],
+  ["Your licence to use the service", "We give you a personal, non-exclusive, non-transferable licence to use the Faxton Rentals website and apps to find homes, book viewings and talk to owners and agents. You may not copy, sell, rent out, reverse engineer or build a competing service from it."],
+  ["Content you add", "You keep ownership of the photos, videos, descriptions and messages you add. By posting a listing you let Faxton Rentals show it on the platform and in our apps so that renters can find it. You promise you have the right to share it."],
+  ["Open-source software", "Faxton Rentals is built with open-source software, each under its own licence: Firebase (Apache 2.0), Leaflet (BSD 2-Clause), Capacitor (MIT) and Electron (MIT)."],
+  ["Maps", "Map data © OpenStreetMap contributors, available under the Open Database Licence (ODbL)."],
+  ["Trademarks", "Other names and logos, including Google, Apple, Windows and Android, belong to their owners and are used only to describe where the app runs."],
+  ["Contact", "For licensing or copyright questions, use the Contact us page in the app."],
+];
 export function legalPage(ctx, which) {
-  const isT = which === "terms", secs = isT ? TERMS : PRIVACY, title = isT ? "Terms of Use" : "Privacy Policy";
+  const isT = which === "terms", isL = which === "license", secs = isL ? LICENSE : isT ? TERMS : PRIVACY, title = isL ? "License" : isT ? "Terms of Use" : "Privacy Policy";
   const html = `<main class="lg-page"><header class="lg-head"><a class="ob-logo" href="#/" aria-label="Faxton Rentals"><span><b>Faxton</b> Rentals</span></a><button type="button" class="btn sm" id="lgBack">${icon("left", 18)} Back</button></header>
-    <div class="lg-in"><div class="lg-tabs"><a class="${isT ? "on" : ""}" href="#/terms">Terms of Use</a><a class="${isT ? "" : "on"}" href="#/privacy">Privacy Policy</a></div>
+    <div class="lg-in"><div class="lg-tabs"><a class="${isT ? "on" : ""}" href="#/terms">Terms of Use</a><a class="${which === "privacy" ? "on" : ""}" href="#/privacy">Privacy Policy</a><a class="${isL ? "on" : ""}" href="#/license">License</a></div>
       <h1>${title}</h1><p class="lg-up">Last updated ${UPDATED}</p>
       ${secs.map(([h, t], i) => `<h2>${i + 1}. ${h}</h2><p>${t}</p>`).join("")}</div></main>`;
   return { full: true, title, html, mount(root) { const b = root.querySelector("#lgBack"); if (b) b.onclick = () => (history.length > 1 ? history.back() : ctx.go("#/")); } };
