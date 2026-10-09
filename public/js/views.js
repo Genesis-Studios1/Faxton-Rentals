@@ -18,6 +18,7 @@ import * as AREA from "./area.js";
 import * as OFFERS from "./offers.js";
 import * as MATCH from "./match.js";
 import * as MYHOME from "./myhome.js";
+import * as LOCK from "./applock.js";
 import * as TENANTS from "./tenants.js";
 import * as VS from "./viewsafe.js";
 
@@ -480,7 +481,7 @@ async function messages(ctx, cid) {
     mount() {
       let mine = [], base = [], dms = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set();
       const faxton = () => mode === "faxton", convs = () => (faxton() ? team : mine);
-      const iniAv = (name) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0f7a5a"/><text x="32" y="42" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${esc((String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase())}</text></svg>`);
+      const iniAv = (name) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0f7a5a"/><text x="32" y="42" font-family="system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${esc((String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase())}</text></svg>`);
       // Who the person on the other side is, from the point of view of the current mode.
       const byMe = (c) => c.byStaff === me;
       const merge = () => { mine = [...base, ...dms].sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0)); };
@@ -758,6 +759,7 @@ function settings(ctx, section) {
   else if (section === "account") body = `<div class="set-one">${card("Sign-in", "", `<div class="kv"><span>Email</span><b>${esc(u.email)} <span class="vbadge ${u.emailVerified ? "" : "no"}">${u.emailVerified ? `${icon("check", 14, 2.4)} Verified` : "Not verified"}</span></b></div>
       <div class="kv"><span>Account type</span><b style="text-transform:capitalize">${esc(role)}</b></div><div class="kv"><span>Sign-in method</span><b>${u.providerData.map((x) => (x.providerId === "google.com" ? "Google" : "Email & password")).join(", ")}</b></div>
       ${!u.emailVerified && pwd ? `<div class="set-actions"><button class="btn" id="resendV">Resend verification email</button></div>` : ""}`)}
+      <div id="lockCard"></div>
       ${pwd ? card("Password", "We'll email you a secure link to choose a new password.", `<div class="set-actions"><button class="btn" id="resetPw">Send password reset email</button></div>`) : ""}
       ${(() => { const d = ctx.S.profile?.deletion; return d?.status === "pending" ? card("Account deletion requested", "", `<p class="note" style="margin:0 0 10px">You asked to delete your account on ${new Date(d.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. Our team reviews every request, which takes about a day. Nothing is deleted until then, and you can cancel now.</p><div class="set-actions"><button class="btn" id="cancelDel">Cancel deletion</button></div>`) : d?.status === "approved" ? card("Account scheduled for deletion", "", `<p class="note" style="margin:0">Your request was approved. Your account will be removed the next time it’s opened after the one-day review period ends.</p>`) : card("Delete account", "Permanently remove your account and its data.", `<p class="note" style="margin:0 0 10px">Deletion is reviewed by our team first and takes about a day. You can cancel any time before it’s approved.</p><div class="set-actions"><button class="btn red-o" id="delAcct">${icon("trash", 18)} Delete my account</button></div>`); })()}
       ${ctx.S.isAdmin ? card("Admin console", "Manage listings, users, applications and viewings.", `<div class="set-actions"><a class="btn" href="#/admin">Open admin console</a></div>`) : ""}</div>`;
@@ -773,6 +775,7 @@ function settings(ctx, section) {
   return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><div class="set-head"><div><h1>${h1}</h1><p class="lead-s">${sub}</p></div><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>${body}</div></div>`,
     mount() {
       const save = async (patch, msg = "Saved.") => { try { await st.saveProfile(u.uid, patch); ctx.S.profile = { ...(ctx.S.profile || {}), ...patch }; toast(msg); } catch (x) { toast(friendlyErr(x)); throw x; } };
+      const lk = $("#lockCard"); if (lk) LOCK.mountCard(lk, ctx.S.user, ctx.logout);
       const del = $("#delAcct"); if (del) del.onclick = () => { const m = modal(`<h2>Delete your account?</h2><p class="muted" style="margin:6px 0 12px">Our team reviews deletion requests, which takes about a day. Your saved homes, messages and details will be removed once it’s approved. You can cancel before then.</p><label class="fl">Type <b>DELETE</b> to confirm<input id="dc" autocomplete="off"></label><div class="so-act"><button class="btn" id="dcNo">Keep my account</button><button class="btn red" id="dcYes" disabled>Request deletion</button></div>`);
         $("#dc", m.el).oninput = (e) => ($("#dcYes", m.el).disabled = e.target.value.trim() !== "DELETE"); $("#dcNo", m.el).onclick = () => m.close();
         $("#dcYes", m.el).onclick = async () => { try { const d = { status: "pending", requestedAt: Date.now() }; await st.setDeletion(u.uid, d); ctx.S.profile = { ...(ctx.S.profile || {}), deletion: d }; m.close(); toast("Request sent. We’ll review it within about a day."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } }; };

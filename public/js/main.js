@@ -1,4 +1,6 @@
 import { detectTenant } from "./myhome.js";
+import * as G from "./gate.js";
+import * as LOCK from "./applock.js";
 import { auth, db, google } from "./firebase.js";
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
@@ -110,7 +112,7 @@ export async function render() {
   const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
-  try { view = await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="empty"><h2>Something went wrong</h2><p>This page couldn’t load. Please refresh, or go back home.</p><p style="margin-top:14px"><a class="btn primary" href="#/">Go home</a></p></div>`); return wire(); }
+  try { view = S.user && G.needsVerify(S.user) && !["/terms", "/privacy", "/license"].includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="empty"><h2>Something went wrong</h2><p>This page couldn’t load. Please refresh, or go back home.</p><p style="margin-top:14px"><a class="btn primary" href="#/">Go home</a></p></div>`); return wire(); }
   if (id !== renderId) return;
   bar(false);
   if (!view) { app.innerHTML = shell(path, `<div class="empty"><h2>Page not found</h2><p><a class="link" href="#/">Go home</a></p></div>`); return wire(); }
@@ -184,7 +186,7 @@ async function signIn(email, pw, remember = true) {
   let c;
   try { c = await signInWithEmailAndPassword(auth, email, pw); }
   catch (e) {
-    if (["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password"].includes(e?.code) && (await hasAccountMarker(email)) === false) throw Object.assign(new Error("no account"), { code: "app/no-account" });
+    // Firebase hides whether an email exists (on purpose), so a wrong password and a missing account look the same. Say so honestly instead of guessing.
     throw e;
   }
   const p = await rejectIfBanned(c.user);
@@ -194,6 +196,7 @@ async function signIn(email, pw, remember = true) {
 async function signUp(name, email, pw, role, details, photo, residence) {
   const c = await createUserWithEmailAndPassword(auth, email, pw);
   try { await updateProfile(c.user, { displayName: name }); } catch {}
+  writeAccountMarker(email);
   const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter", details, photo, residence });
   try { await mk(); } catch { await mk(); }
   try { await sendEmailVerification(c.user); } catch {}
@@ -248,20 +251,63 @@ async function probeGoogle() {
   const seen = performance.getEntriesByType("resource").filter((x) => /googleapis|firebaseapp|google\.com|gstatic/.test(x.name) && !/identitytoolkit.*projects\?key/.test(x.name) || /accounts:|projects/.test(x.name)).slice(-4).map((x) => `${new URL(x.name).host.split(".")[0]}${new URL(x.name).pathname.split("/").pop().slice(0, 14)}:${x.responseStatus || 0}/${Math.round(x.duration)}`);
   return "|" + r.join(",") + "|seen:" + seen.join(",") + (window.__csp ? "|" + window.__csp : "");
 }
-async function signInGoogle(chosen = "renter", details, residence) {
-  // Google blocks sign-in inside an app's embedded browser, so the mobile app asks Google natively and hands the result to Firebase.
+// ---- Google sign-in inside the Android / iPhone app --------------------------------------------------------------
+// Google refuses OAuth in embedded browsers (error 403 disallowed_useragent), so the app asks Google natively
+// (Android Credential Manager / iOS Google Sign-In) and hands the ID token to Firebase. The web pop-up is never used inside the app.
+const GOOGLE_WEB_CLIENT_ID = "426381186757-t53dbg3io0h01d0rbpuo5g93qcl74f6r.apps.googleusercontent.com"; // the WEB client of google-services.json: the token audience Firebase expects
+const inAppShell = () => { const ua = navigator.userAgent; return /FaxtonApp\/mobile/.test(ua) || window.Capacitor?.isNativePlatform?.() === true || /; wv\)/.test(ua); };
+const jwtAud = (t) => { try { return JSON.parse(atob(String(t).split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).aud; } catch { return null; } };
+// Turn whatever the native plugin rejects with (it has a message and usually no code) into one of a few kinds.
+function classifyGoogleError(e) {
+  const raw = `${e?.code || ""} ${e?.message || e || ""}`, num = Number((/(?:^|\s)(\d{1,5})\s*:/.exec(raw) || /\[(\d{1,5})\]/.exec(raw) || [])[1]) || 0;
+  if (/cancel|dismiss|12501/i.test(raw) || num === 12501) return { kind: "cancelled", num };
+  if (num === 10 || num === 28444 || /developer console|developer_error|WILL_BE_OVERRIDDEN|invalid.*client/i.test(raw)) return { kind: "not-registered", num: num || 10 };
+  if (num === 7 || num === 20 || /network|timed? ?out|unreachable|unknownhost/i.test(raw)) return { kind: "network", num };
+  if (/no credential|credentials? available|cannot find a matching|NoCredential/i.test(raw)) return { kind: "no-account", num };
+  if (/play services|service_missing|service_version|service_disabled|api_unavailable|ProviderConfiguration|not supported|unsupported/i.test(raw) || num === 1 || num === 2 || num === 3 || num === 9 || num === 16) return { kind: "play-services", num };
+  return { kind: "failed", num };
+}
+const GOOGLE_CODES = { cancelled: "G-CANCEL", "not-registered": "G-DEV", network: "G-NET", "no-account": "G-NOCRED", "play-services": "G-PLAY", failed: "G-FAIL" };
+function googleError(k, e) {
+  console.warn("[google-signin]", k.kind, e?.code, e?.message);
+  // Never leave a dead end: put the cursor in the email box so the person can sign in with email and password instead.
+  if (k.kind !== "cancelled") setTimeout(() => { try { document.querySelector("#email")?.focus({ preventScroll: false }); } catch {} }, 50);
+  return Object.assign(new Error(e?.message || "Google sign-in failed"), { code: "google/" + k.kind, gcode: GOOGLE_CODES[k.kind] + (k.num ? "/" + k.num : "") });
+}
+async function nativeGoogleToken() {
   const cap = window.Capacitor;
-  if (/FaxtonApp\/mobile/.test(navigator.userAgent) && cap) {
-    const native = cap.registerPlugin ? cap.registerPlugin("FirebaseAuthentication") : cap.Plugins?.FirebaseAuthentication;
-    if (!native) throw Object.assign(new Error("Google sign-in plugin missing"), { code: "app/plugin-missing" });
-    let r;
-    try { r = await native.signInWithGoogle({ skipNativeAuth: true }); }
-    catch (e) { throw Object.assign(new Error(e?.message || "Google step failed"), { code: "google/" + (e?.code || e?.message || "error") }); }
-    const idToken = r?.credential?.idToken;
-    if (!idToken) throw Object.assign(new Error("No Google token returned"), { code: "app/no-token" });
+  if (/FaxtonNoGoogle/.test(navigator.userAgent)) throw Object.assign(new Error("Google sign-in is not configured in this build"), { code: "app/google-unavailable", gcode: "G-IOS" });
+  if (!cap || (cap.isPluginAvailable && !cap.isPluginAvailable("FirebaseAuthentication"))) throw Object.assign(new Error("Google sign-in plugin missing"), { code: "app/plugin-missing", gcode: "G-PLUGIN" });
+  const native = cap.registerPlugin ? cap.registerPlugin("FirebaseAuthentication") : cap.Plugins?.FirebaseAuthentication;
+  if (!native) throw Object.assign(new Error("Google sign-in plugin missing"), { code: "app/plugin-missing", gcode: "G-PLUGIN" });
+  const android = cap.getPlatform?.() === "android";
+  let r;
+  try { r = await native.signInWithGoogle({ skipNativeAuth: true }); }
+  catch (e1) {
+    const k1 = classifyGoogleError(e1);
+    // Credential Manager found nothing: try Google Play services' classic account chooser (it can also add an account). If this app build
+    // isn't registered with Google it answers with developer error 10, which tells us exactly what is wrong.
+    if (!(android && k1.kind === "no-account")) throw googleError(k1, e1);
+    try { r = await native.signInWithGoogle({ skipNativeAuth: true, useCredentialManager: false }); }
+    catch (e2) { const k2 = classifyGoogleError(e2); throw googleError(k2.kind === "failed" ? { kind: "no-account", num: k2.num } : k2, e2); }
+  }
+  const idToken = r?.credential?.idToken;
+  if (!idToken) throw Object.assign(new Error("No Google token returned"), { code: "app/no-token", gcode: "G-TOKEN" });
+  const aud = jwtAud(idToken);
+  if (aud && aud !== GOOGLE_WEB_CLIENT_ID) throw Object.assign(new Error("Google token audience " + aud), { code: "google/audience", gcode: "G-AUD" });
+  return { idToken, accessToken: r.credential.accessToken };
+}
+async function signInGoogle(chosen = "renter", details, residence) {
+  if (inAppShell()) {
+    const { idToken, accessToken } = await nativeGoogleToken();
     let c;
-    try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken)); }
-    catch (e) { throw Object.assign(new Error(e?.message), { code: `firebase/${e?.code || "error"}${window.__csp ? " | " + window.__csp : ""}` }); }
+    try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, accessToken || undefined)); }
+    catch (e) {
+      const code = e?.code || "error";
+      if (["auth/invalid-credential", "auth/invalid-idp-response", "auth/missing-or-invalid-nonce"].includes(code)) throw Object.assign(new Error(e?.message), { code: "google/token-rejected", gcode: "G-AUD" });
+      if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
+      throw Object.assign(new Error(e?.message), { code: `firebase/${code}${window.__csp ? " | " + window.__csp : ""}` });
+    }
     await ensureProfile(c.user, { role: chosen, details, residence }); return (await rejectIfBanned(c.user))?.role || "renter";
   }
   const t0 = performance.now();
@@ -343,6 +389,8 @@ async function refreshAuthState(u) {
     if (S.isAdmin) { let first = true; S.unsubVerif = watchPendingVerifications((list) => { const n = list.length, grew = n > (S.pendingV || 0); S.pendingV = n; $$("[data-vbadge]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
       if (first && n) toast(`${n} verification request${n > 1 ? "s" : ""} waiting for you.`); else if (!first && grew) toast("New verification request: an agency or agent is waiting for you."); first = false; }); }
   }
+  // App lock: ask for the fingerprint once when the app opens (and again after being away; see applock.js).
+  if (u) { if (S.lockedFor !== u.uid) { S.lockedFor = u.uid; LOCK.arm(u, logout); } else LOCK.refreshArm(u, logout); } else S.lockedFor = null;
   S.saved = new Set(u ? S.profile?.saved || [] : await getSaved(u));
   S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0;
   if (u) S.unsubConvs = watchConversations(u, (c) => {

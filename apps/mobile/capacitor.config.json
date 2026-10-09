@@ -10,8 +10,7 @@
     "androidScheme": "https",
     "allowNavigation": [
       "faxton-rentals.web.app",
-      "*.firebaseapp.com",
-      "accounts.google.com"
+      "faxton-rentals.firebaseapp.com"
     ],
     "errorPath": "index.html"
   },
