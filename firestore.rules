@@ -41,8 +41,9 @@ service cloud.firestore {
     // Optional TURN relay for calls: an admin pastes the servers under Admin > Call setup. Everyone signed in can read it.
     match /config/ice {
       allow read: if signedIn();
-      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['servers', 'updatedAt'])
-        && request.resource.data.servers is list && request.resource.data.servers.size() <= 8;
+      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['servers', 'credsUrl', 'updatedAt'])
+        && request.resource.data.servers is list && request.resource.data.servers.size() <= 8
+        && (!('credsUrl' in request.resource.data) || (request.resource.data.credsUrl is string && request.resource.data.credsUrl.size() <= 400));
     }
 
     // Ownership is claimed once, by the verified email stored in config/bootstrap, then transferable only by the owner.

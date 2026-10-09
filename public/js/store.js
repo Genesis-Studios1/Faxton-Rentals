@@ -142,8 +142,8 @@ export const isBlocked = async (blocker, blocked) => { try { return (await getDo
 export const reportUser = (me, r) => addDoc(collection(db, "reports"), { ...r, reporterUid: me.uid, reporterName: me.displayName || me.email || "", status: "New", createdAt: serverTimestamp() });
 
 // ---- call relay (TURN) servers, set by an admin ----
-export const getIce = async () => { try { const s = await getDoc(doc(db, "config", "ice")); return s.exists() ? s.data().servers || [] : []; } catch { return []; } };
-export const saveIce = (servers) => setDoc(doc(db, "config", "ice"), { servers, updatedAt: serverTimestamp() });
+export const getIce = async () => { try { const s = await getDoc(doc(db, "config", "ice")); const d = s.exists() ? s.data() : {}; return { servers: d.servers || [], credsUrl: d.credsUrl || "" }; } catch { return { servers: [], credsUrl: "" }; } };
+export const saveIce = (servers, credsUrl = "") => setDoc(doc(db, "config", "ice"), { servers, credsUrl, updatedAt: serverTimestamp() });
 
 // Pin one message to the top of a conversation (null removes the pin).
 export const pinMessage = (cid, pin) => updateDoc(doc(db, "conversations", cid), { pinned: pin || deleteField() });
