@@ -52,8 +52,9 @@ export function listings(ctx, ls) {
 // ---------- Users & agents ----------
 export function users(ctx, us) {
   const me = ctx.S.user.uid, owner = ctx.S.ownerUid, canManage = ctx.S.isOwner;
-  const roleOf = (u) => (u.id === owner ? "Owner" : u.role === "owner" || u.role === "admin" ? "Admin" : u.role === "agent" ? "Agent" : "Renter");
-  const html = `<div class="page-head"><div><h1>Users &amp; agents</h1><p>${canManage ? "As the owner you can promote, demote and transfer ownership." : "Only the owner can change roles."}</p></div><button class="btn primary" id="inv">${icon("plus", 18)} Invite user</button></div>
+  const ROLES = [["renter", "Renter"], ["agent", "Agent"], ["landlord", "Property owner"], ["agency", "Agency"], ["support", "Support"], ["admin", "Admin"]];
+  const roleOf = (u) => (u.id === owner ? "Owner" : u.role === "owner" || u.role === "admin" ? "Admin" : ROLES.find(([v]) => v === u.role)?.[1] || "Renter");
+  const html = `<div class="page-head"><div><h1>Users &amp; agents</h1><p>${canManage ? "As the owner you can set each person’s role (renter, agent, property owner, agency, support or admin) and transfer ownership." : "Only the owner can change roles."}</p></div><button class="btn primary" id="inv">${icon("plus", 18)} Invite user</button></div>
   <div class="a2-bar">${searchBox("uq", "Search users by name or email...")}${sel("ur", "Role", [["", "All roles"], ["Owner", "Owner"], ["Admin", "Admin"], ["Agent", "Agent"], ["Renter", "Renter"]])}</div>
   <div class="a2-split"><div class="panel a2-list u"><div class="tbl-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Joined</th></tr></thead><tbody id="urows"></tbody></table></div></div><aside class="panel a2-side" id="uside"></aside></div>`;
   return { html, mount(root) {
@@ -66,7 +67,7 @@ export function users(ctx, us) {
       const r = roleOf(u), mine = u.id === me;
       el.innerHTML = `<h3>Profile</h3><div class="a2-prof"><span class="avatar a2-av big">${esc(initials(u.name || u.email))}</span><h4>${esc(u.name || "—")}</h4><p class="muted">${esc(u.email)}</p>${pillFor(r)}</div>
       <dl class="a2-dl"><div><dt>Phone</dt><dd>${esc(u.phone || "—")}</dd></div><div><dt>Location</dt><dd>${esc(u.location || "—")}</dd></div><div><dt>Saved homes</dt><dd>${(u.saved || []).length}</dd></div></dl>
-      ${canManage && r !== "Owner" ? `<div class="field"><label for="rsel">Role</label><select id="rsel">${[["renter", "Renter"], ["agent", "Agent"], ["admin", "Admin"]].map(([v, l]) => `<option value="${v}" ${l === r ? "selected" : ""}>${l}</option>`).join("")}</select></div><div class="a2-act"><button class="btn" id="xfer">Transfer ownership</button></div>` : `<p class="muted">${r === "Owner" ? "The owner account can’t be changed here." : "Only the owner can change roles."}</p>`}
+      ${canManage && r !== "Owner" ? `<div class="field"><label for="rsel">Role</label><select id="rsel">${ROLES.map(([v, l]) => `<option value="${v}" ${l === r ? "selected" : ""}>${l}</option>`).join("")}</select></div><div class="a2-act"><button class="btn" id="xfer">Transfer ownership</button></div>` : `<p class="muted">${r === "Owner" ? "The owner account can’t be changed here." : "Only the owner can change roles."}</p>`}
       ${ctx.S.isAdmin && r !== "Owner" && !mine && (canManage || r !== "Admin") ? `<div class="a2-act"><button class="btn ${u.banned ? "" : "danger"}" id="banBtn">${u.banned ? "Unban this user" : "Ban this user"}</button></div>${u.banned ? `<p class="muted">Banned users are signed out and can’t sign back in.</p>` : ""}` : ""}`;
       const bb = $("#banBtn", el); if (bb) bb.onclick = async () => { const on = !u.banned; if (on && !confirm(`Ban ${u.name || u.email}? They will be signed out and can’t sign back in until you unban them.`)) return; try { await st.setBanned(u.id, on); u.banned = on; toast(on ? "User banned." : "User unbanned."); paint(); } catch (e) { toast(friendlyErr(e)); } };
       const rs = $("#rsel", el); if (rs) rs.onchange = async () => { try { await st.setRole(u.id, rs.value); u.role = rs.value; toast("Role updated."); paint(); } catch (e) { toast(friendlyErr(e)); } };
