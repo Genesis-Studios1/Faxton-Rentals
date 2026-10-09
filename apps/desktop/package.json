@@ -60,8 +60,7 @@
       "oneClick": true,
       "perMachine": false,
       "deleteAppDataOnUninstall": false,
-      "createDesktopShortcut": true,
-      "buildUniversalInstaller": false
+      "createDesktopShortcut": true
     },
     "mac": {
       "target": [
