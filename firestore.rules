@@ -51,18 +51,31 @@ service cloud.firestore {
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500;
-      // Users edit their own profile but never role or email; only the owner changes roles.
+      // Users edit their own profile but never role, email or ban status. The owner can change anything;
+      // an admin can only ban or unban renters and agents.
       allow update: if signedIn() && (
         (request.auth.uid == uid
           && request.resource.data.role == resource.data.role
           && request.resource.data.email == resource.data.email
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo'])
+          && request.resource.data.get('banned', false) == resource.data.get('banned', false)
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt'])
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
           && profileOk(request.resource.data))
-        || isOwner());
+        || isOwner()
+        || (isAdmin() && uid != request.auth.uid
+          && resource.data.role in ['renter', 'agent']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt'])));
       allow delete: if false;
     }
+
+    // One marker per registered email (keyed by a SHA-256 of the email) so sign-in can say "no account found".
+    match /accountEmails/{h} {
+      allow get: if true;
+      allow list, update, delete: if false;
+      allow create: if signedIn() && h.matches('^[0-9a-f]{64}$') && request.resource.data.keys().hasOnly(['t']);
+    }
+
 
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin();

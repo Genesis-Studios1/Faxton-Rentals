@@ -4,7 +4,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
@@ -128,16 +128,32 @@ async function ensureProfile(u, extra = {}) {
   const ref = doc(db, "users", u.uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) await setDoc(ref, { name: u.displayName || extra.name || "", email: u.email, role: extra.role || "renter", saved: [], createdAt: serverTimestamp() });
+  if (u.email) writeAccountMarker(u.email);
+}
+// A banned account is signed out straight away and told why.
+async function rejectIfBanned(u) {
+  const p = await getProfile(u.uid);
+  if (p?.banned) { S.bannedNote = true; try { await signOut(auth); } catch {} throw Object.assign(new Error("banned"), { code: "app/banned" }); }
 }
 async function signIn(email, pw, remember = true) {
   await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
-  await signInWithEmailAndPassword(auth, email, pw);
+  let c;
+  try { c = await signInWithEmailAndPassword(auth, email, pw); }
+  catch (e) {
+    if (["auth/invalid-credential", "auth/user-not-found", "auth/wrong-password"].includes(e?.code) && (await hasAccountMarker(email)) === false) throw Object.assign(new Error("no account"), { code: "app/no-account" });
+    throw e;
+  }
+  await rejectIfBanned(c.user);
+  writeAccountMarker(email);
 }
 async function signUp(name, email, pw, role) {
   const c = await createUserWithEmailAndPassword(auth, email, pw);
-  await updateProfile(c.user, { displayName: name });
-  await ensureProfile(c.user, { name, role: role === "agent" ? "agent" : "renter" });
+  try { await updateProfile(c.user, { displayName: name }); } catch {}
+  const mk = () => ensureProfile(c.user, { name, role: role === "agent" ? "agent" : "renter" });
+  try { await mk(); } catch { await mk(); }
   try { await sendEmailVerification(c.user); } catch {}
+  // Load the new profile now so the app opens signed in on the home page.
+  await refreshAuthState(auth.currentUser);
 }
 export async function refreshProfile() { if (S.user) S.profile = await getProfile(S.user.uid); }
 export async function resendVerification() { await sendEmailVerification(auth.currentUser); }
@@ -166,7 +182,7 @@ async function signInGoogle() {
     let c;
     try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, r.credential.accessToken)); }
     catch (e) { throw Object.assign(new Error(e?.message), { code: `firebase/${e?.code || "error"}${window.__csp ? " | " + window.__csp : ""}` }); }
-    return ensureProfile(c.user);
+    await ensureProfile(c.user); return rejectIfBanned(c.user);
   }
   const t0 = performance.now();
   let c;
@@ -179,6 +195,7 @@ async function signInGoogle() {
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
   }
   await ensureProfile(c.user);
+  await rejectIfBanned(c.user);
 }
 const logout = () => signOut(auth);
 async function setSaved(id, on) {
@@ -189,8 +206,13 @@ export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 async function refreshAuthState(u) {
   S.user = u; S.profile = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
+  if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
     [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
+    if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
+    S.bannedNote = false;
+    if (!S.profile) { try { await ensureProfile(u); S.profile = await getProfile(u.uid); } catch { /* rules refused; leave signed in without a profile */ } }
+    S.unsubProfile?.(); S.unsubProfile = watchProfile(u.uid, (p) => { if (p?.banned && S.user?.uid === u.uid) { S.bannedNote = true; signOut(auth); } });
     // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
     if (!S.ownerUid && u.emailVerified) {
       try { await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = await getProfile(u.uid); toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
