@@ -48,102 +48,29 @@ jobs:
           npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
           node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent='FaxtonApp/mobile/${{ needs.version.outputs.v }}';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add android
+          # Gives the google-services Gradle plugin the web client id (it becomes R.string.default_web_client_id, the serverClientId of Google sign-in).
           cp google-services.json android/app/google-services.json
-          # The Google sign-in libraries are optional in the plugin; without this the app has no Google sign-in code ("No credentials available").
-          sed -i '0,/ext {/s//ext {\n    rgcfaIncludeGoogle = true/' android/variables.gradle
-          grep -n rgcfaIncludeGoogle android/variables.gradle
           npx capacitor-assets generate --android --assetPath assets
           npx cap sync android
-      - name: Harden and version the Android project
-        working-directory: apps/mobile/android
-        run: |
-          M=app/src/main/AndroidManifest.xml
-          sed -i 's/android:allowBackup="true"/android:allowBackup="false"/' "$M"
-          sed -i 's/<application/<application android:usesCleartextTraffic="false"/' "$M"
-          # Calls (camera, microphone), map location and notifications
-          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" /><uses-permission android:name="android.permission.RECORD_AUDIO" /><uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" /><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /><uses-permission android:name="android.permission.POST_NOTIFICATIONS" /><uses-feature android:name="android.hardware.camera" android:required="false" /><uses-feature android:name="android.hardware.microphone" android:required="false" /><application#' "$M"
-          sed -i "s/versionCode 1/versionCode ${{ needs.version.outputs.code }}/; s/versionName \"1.0\"/versionName \"${{ needs.version.outputs.v }}\"/" app/build.gradle
-          grep -n "versionCode\|versionName" app/build.gradle
-      - name: Keep the app below the Android status bar
-        working-directory: apps/mobile/android
-        run: |
-          F=$(find app/src/main/java -name MainActivity.java | head -1)
-          cat > "$F" <<'JAVA'
-          package com.faxton.rentals;
-
-          import android.graphics.Color;
-          import android.os.Bundle;
-          import android.view.View;
-          import androidx.core.graphics.Insets;
-          import androidx.core.view.ViewCompat;
-          import androidx.core.view.WindowCompat;
-          import androidx.core.view.WindowInsetsCompat;
-          import androidx.core.view.WindowInsetsControllerCompat;
-          import com.getcapacitor.BridgeActivity;
-
-          public class MainActivity extends BridgeActivity {
-            @Override
-            public void onCreate(Bundle savedInstanceState) {
-              super.onCreate(savedInstanceState);
-              // Android 15 draws apps edge to edge. Pad the web view by the system bars so the page never sits under the clock and battery.
-              WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-              getWindow().getDecorView().setBackgroundColor(Color.WHITE);
-              WindowInsetsControllerCompat c = new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());
-              c.setAppearanceLightStatusBars(true);
-              c.setAppearanceLightNavigationBars(true);
-              View content = findViewById(android.R.id.content);
-              ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
-                Insets i = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime());
-                v.setPadding(i.left, i.top, i.right, i.bottom);
-                return WindowInsetsCompat.CONSUMED;
-              });
-            }
-          }
-          JAVA
-          sed -i 's/^          //' "$F"
-          head -5 "$F"
-      - name: Build (signed when the signing secrets exist)
+      # Permissions, Google sign-in libraries (rgcfaIncludeGoogle), https deep links, status-bar padding, version and the stable signing key.
+      # Every edit is asserted inside the script, so a template change fails the build instead of shipping a half-patched app.
+      - name: Patch the Android project
+        working-directory: apps/mobile
+        run: python3 ci/patch_android.py android "${{ needs.version.outputs.v }}" "${{ needs.version.outputs.code }}"
+      # Signs with ONE stable key (your ANDROID_KEYSTORE_* secrets, else apps/mobile/signing/faxton-android.jks), so the SHA-1 never changes
+      # and can be registered once in Firebase. The SHA-1 and SHA-256 are printed in this log and in the job summary.
+      - name: Build and sign the Android apps
         working-directory: apps/mobile/android
         env:
-          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -e
-          chmod +x gradlew
-          G=app/build.gradle
-          SIGN=""
-          if [ -n "$KS" ]; then
-            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.jks"
-            SIGN="-Pandroid.injected.signing.store.file=$RUNNER_TEMP/release.jks -Pandroid.injected.signing.store.password=$KS_PASS -Pandroid.injected.signing.key.alias=$KEY_ALIAS -Pandroid.injected.signing.key.password=$KEY_PASS"
-          else
-            echo "::warning::No Android signing key set. Building a debug-signed APK (installs fine, but updates need the same key each time)."
-          fi
-          # 1) x64 build (Intel/AMD devices, Chromebooks and emulators)
-          sed -i "0,/defaultConfig {/s//defaultConfig {\n        ndk { abiFilters 'x86_64' }/" "$G"
-          if [ -n "$KS" ]; then
-            ./gradlew --no-daemon assembleRelease $SIGN
-            cp app/build/outputs/apk/release/app-release.apk ../../../Faxton-Rentals-Android-x64.apk
-          else
-            ./gradlew --no-daemon assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk ../../../Faxton-Rentals-Android-x64.apk
-          fi
-          # 2) universal build (phones and tablets) plus the Play Store bundle
-          sed -i "/ndk { abiFilters 'x86_64' }/d" "$G"
-          if [ -n "$KS" ]; then
-            ./gradlew --no-daemon clean assembleRelease bundleRelease $SIGN
-            cp app/build/outputs/apk/release/app-release.apk ../../../Faxton-Rentals-Android.apk
-            cp app/build/outputs/bundle/release/app-release.aab ../../../Faxton-Rentals-Android.aab
-            rm -f "$RUNNER_TEMP/release.jks"
-          else
-            ./gradlew --no-daemon clean assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk ../../../Faxton-Rentals-Android.apk
-          fi
+        run: bash ../ci/build_android.sh
       - uses: actions/upload-artifact@v4
         with:
           name: android
-          path: Faxton-Rentals-Android.*
+          path: Faxton-Rentals-Android*
           if-no-files-found: error
 
   windows:
@@ -232,6 +159,25 @@ jobs:
           node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent='FaxtonApp/mobile/${{ needs.version.outputs.v }}';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add ios
           npx capacitor-assets generate --ios --assetPath assets
+      # The Firebase iOS SDK crashes on launch without a GoogleService-Info.plist. A real one (from an iOS app registered in Firebase, committed as
+      # apps/mobile/GoogleService-Info.plist or stored in the IOS_GOOGLE_SERVICE_INFO_BASE64 secret) turns Google sign-in on; without it a minimal
+      # plist keeps the app opening and Google sign-in is switched off (the app then says so and offers email sign-in).
+      - name: Set up Google sign-in for iPhone
+        working-directory: apps/mobile
+        env:
+          IOS_PLIST_B64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_BASE64 }}
+        run: |
+          bash ci/ios_google.sh detect
+          IOS_GOOGLE="$(grep '^IOS_GOOGLE=' "$GITHUB_ENV" | tail -1 | cut -d= -f2)"
+          if [ "$IOS_GOOGLE" = yes ]; then
+            bash ci/ios_google.sh enable || { echo "::warning::Could not enable Google sign-in for iPhone; building without it."; echo "IOS_GOOGLE=no" >> "$GITHUB_ENV"; }
+          fi
+      - name: Finish the iOS project
+        working-directory: apps/mobile
+        run: |
+          if [ "$IOS_GOOGLE" != yes ]; then
+            node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent+=' FaxtonNoGoogle';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
+          fi
           npx cap sync ios
       - name: Version the iOS project
         working-directory: apps/mobile/ios/App
@@ -247,6 +193,8 @@ jobs:
             -archivePath "$RUNNER_TEMP/App.xcarchive" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" archive
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
           cp -R "$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app" "$RUNNER_TEMP/ipa/Payload/"
+          # Firebase reads this file from the app bundle when the app starts (the .ipa is unsigned, so adding it here is safe).
+          cp "$RUNNER_TEMP/GoogleService-Info.plist" "$RUNNER_TEMP/ipa/Payload/App.app/GoogleService-Info.plist"
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Faxton-Rentals-iPhone-unsigned.ipa" Payload)
       - uses: actions/upload-artifact@v4
         with:
@@ -278,7 +226,7 @@ jobs:
           files: out/*
           body: |
             Faxton Rentals ${{ needs.version.outputs.v }}
-            - Android: Faxton-Rentals-Android.apk (phones), Faxton-Rentals-Android-x64.apk (Intel/x86), Faxton-Rentals-Android.aab (Play Store)
+            - Android: Faxton-Rentals-Android.apk (phones), Faxton-Rentals-Android-x64.apk (Intel/x86), Faxton-Rentals-Android.aab (Play Store upload bundle). Uninstall any older Faxton Rentals before installing: the signing key changed.
             - iPhone: Faxton-Rentals-iPhone-unsigned.ipa (install with AltStore or Sideloadly)
             - Windows: Faxton-Rentals-Windows-x64.exe / Faxton-Rentals-Windows-arm64.exe
             - Mac: Faxton-Rentals-Mac-arm64.dmg (Apple Silicon) / Faxton-Rentals-Mac-x64.dmg (Intel)
