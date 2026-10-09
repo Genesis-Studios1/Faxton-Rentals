@@ -16,7 +16,10 @@ function ringback() {
   cycle(); const id = setInterval(cycle, 3400); return () => clearInterval(id);
 }
 
-const ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
+const STUN = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
+let ICE = { iceServers: STUN }, iceP = null;
+// A TURN relay (needed when two people are on networks that block direct calls) is set by an admin under Admin > Call setup.
+const ensureIce = () => (iceP ||= getDoc(doc(db, "config", "ice")).then((s) => { const v = s.exists() ? s.data().servers : null; if (Array.isArray(v) && v.length) ICE = { iceServers: [...v, ...STUN] }; }).catch(() => {}));
 export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
 
 // ---------- Firestore signalling ----------
@@ -51,12 +54,16 @@ function run({ id, me, role, kind, other, offer }) {
   active = S;
   let stopTone = isCaller ? ringback() : null; const quiet = () => { stopTone?.(); stopTone = null; };
 
-  const setRemoteVideo = (on) => { remoteVideo = on; remoteV.style.display = on ? "block" : "none"; el("clVoice").style.display = on ? "none" : "grid"; };
+  const setRemoteVideo = (on) => { remoteVideo = on; remoteV.style.display = on ? "block" : "none"; el("clVoice").style.display = on ? "none" : "grid"; ov.classList.toggle("has-video", on); };
+  const checkVideo = () => { const t = remote.getVideoTracks()[0]; setRemoteVideo(!!(t && t.readyState === "live" && !t.muted && remoteV.videoWidth > 0)); };
+  const vidTimer = setInterval(checkVideo, 800); remoteV.addEventListener("resize", checkVideo);
   const syncLocal = () => { const v = preview.getVideoTracks()[0]; localV.hidden = !v; localV.srcObject = v ? preview : null; el("clCam").setAttribute("aria-pressed", String(!!cam && cam.enabled)); el("clShare").setAttribute("aria-pressed", String(!!screen)); };
   setRemoteVideo(false);
   remoteV.srcObject = remote;
-  pc.ontrack = (e) => { remote.addTrack(e.track); if (e.track.kind === "video") { e.track.onunmute = () => setRemoteVideo(true); e.track.onmute = () => setRemoteVideo(false); } remoteV.play?.().catch(() => {}); };
-  pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") { quiet(); if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); } } if (["failed", "closed"].includes(pc.connectionState) && !ended) { toast("The call lost its connection."); end("ended"); } };
+  pc.ontrack = (e) => { remote.addTrack(e.track); if (e.track.kind === "video") { e.track.onunmute = checkVideo; e.track.onmute = checkVideo; } remoteV.play?.().catch(() => {}); };
+  pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") { quiet(); if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); } } if (pc.connectionState === "disconnected" && !ended) setTimeout(() => { if (pc.connectionState === "disconnected" && !ended) { toast("The call lost its connection."); end("ended"); } }, 8000);
+    if (["failed", "closed"].includes(pc.connectionState) && !ended) { toast(startedAt ? "The call lost its connection." : "Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } };
+  let connectTO = null; const armConnect = () => { clearTimeout(connectTO); connectTO = setTimeout(() => { if (!startedAt && !ended) { toast("Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } }, 25000); };
   // The sound-wave under the name moves with the other person's voice.
   let waveStop = null;
   const startWave = () => {
@@ -127,28 +134,29 @@ function run({ id, me, role, kind, other, offer }) {
   el("clRecB").onclick = () => { if (!startedAt) return toast("You can record once the call is connected."); recorder ? stopRec() : (confirm("Everyone on the call will see that it’s being recorded. The recording is saved to this device only. Start recording?") && startRec()); };
 
   // ---- ending ----
-  async function end(status) {
-    if (closing) return; closing = true; ended = true; quiet(); waveStop?.(); clearTimeout(ringTO); clearInterval(timer); stopRec();
+  function end(status) {
+    if (closing) return; closing = true; ended = true; quiet(); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
-    await patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur });
-    unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s) => { try { s?.getTracks ? s.getTracks().forEach((t) => t.stop()) : s?.stop(); } catch {} });
-    try { pc.close(); } catch {}
-    say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); document.documentElement.classList.remove("dlx-lock"); active = null;
-    setTimeout(() => ov.remove(), 900);
+    patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
+    try { unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); pc.close(); } catch {}
+    try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); } catch {}
+    document.documentElement.classList.remove("dlx-lock"); active = null;
+    setTimeout(() => ov.remove(), 700);
   }
-  el("clEnd").onclick = () => end(isCaller && !startedAt ? "cancelled" : "ended");
+  el("clEnd").onclick = () => { if (closing) { ov.remove(); document.documentElement.classList.remove("dlx-lock"); active = null; return; } end(isCaller && !startedAt ? "cancelled" : "ended"); };
 
   const onDoc = (c) => {
     if (!c || closing) return;
     const theirs = isCaller ? c.recCallee : c.recCaller; if (theirs && !theirRec) toast("The other person started recording this call."); theirRec = !!theirs; showRec(!!(c.recCaller || c.recCallee));
     if (isCaller && c.delivered && !c.answer && !startedAt && !pc.remoteDescription) say("Ringing…");
     if (isCaller && c.answer) quiet();
-    if (isCaller && c.answer && !pc.remoteDescription) pc.setRemoteDescription(c.answer).then(flush).then(() => say("Connecting…")).catch(() => {});
+    if (isCaller && c.answer && !pc.remoteDescription) pc.setRemoteDescription(c.answer).then(flush).then(() => { say("Connecting…"); armConnect(); }).catch(() => {});
     if (["declined", "cancelled", "missed", "ended"].includes(c.status) && !closing) { if (c.status === "declined") toast(`${name} declined the call.`); if (c.status === "missed") toast("No answer."); end(c.status); }
   };
 
   (async () => {
     try {
+      unsubs.push(watchCall(id, onDoc)); // from the very start, so an ended call can never be missed
       await media();
       pc.onicecandidate = (e) => { if (e.candidate) addIce(id, me, e.candidate.toJSON()); };
       unsubs.push(watchIce(id, (d) => { if (d.from !== me) addCand(JSON.parse(d.c)); }));
@@ -158,13 +166,14 @@ function run({ id, me, role, kind, other, offer }) {
         const o = await pc.createOffer(); await pc.setLocalDescription(o); await patchCall(id, { offer: { type: o.type, sdp: o.sdp } });
         ringTO = setTimeout(() => { if (!startedAt) { patchCall(id, { status: "missed" }); toast("No answer."); end("missed"); } }, 45000);
       } else {
+        const cur = await getDoc(doc(db, "calls", id)); if (!cur.exists() || cur.data().status !== "ringing") { toast("That call has ended."); return end("ended"); }
         await pc.setRemoteDescription(offer); await flush(); pc.getTransceivers().forEach((t) => { try { t.direction = "sendrecv"; } catch {} });
         vtx = pc.getTransceivers().find((t) => t.receiver.track.kind === "video");
         if (kind === "video") { try { await useCamera(); } catch { toast("The camera isn’t available, so this will be a voice call."); } }
         const a = await pc.createAnswer(); await pc.setLocalDescription(a);
         await patchCall(id, { answer: { type: a.type, sdp: a.sdp }, status: "active", answeredAt: Date.now(), calleeUid: me, members: arrayUnion(me) });
+        armConnect();
       }
-      unsubs.push(watchCall(id, onDoc));
     } catch (e) { toast(e.message || "The call couldn’t start."); end("cancelled"); }
   })();
   return S;
@@ -181,7 +190,7 @@ export async function startCall(ctx, { convId, to, toName, toPhoto = "", kind = 
     if ((await getDoc(doc(db, "blocks", `${u.uid}_${to}`)).catch(() => null))?.exists()) return toast("You blocked this user. Unblock them to call.");
     if ((await getDoc(doc(db, "blocks", `${to}_${u.uid}`)).catch(() => null))?.exists()) return toast("You can’t call this user.");
   }
-  audio(); // lets the ringing sound play: the call button counts as a tap
+  audio(); await ensureIce(); // the call button counts as a tap, so the ringing sound may play
   try {
     const ref = await addDoc(collection(db, "calls"), { convId: convId || "", title, kind, status: "ringing", callerUid: u.uid, callerName: u.displayName || ctx.S.profile?.name || u.email, callerPhoto: ctx.S.profile?.photo || "", callerRole: ROLE[ctx.S.isOwner ? "owner" : ctx.S.profile?.role || "renter"] || "Tenant", image, area, calleeUid: to, calleeName: toName || "Faxton team", members: to === "staff" ? [u.uid] : [u.uid, to], createdAt: serverTimestamp() });
     run({ id: ref.id, me: u.uid, role: "caller", kind, other: { name: toName || "Faxton team", photo: toPhoto } });
@@ -211,7 +220,7 @@ async function systemRing(c) {
 const closeSystem = (id) => { try { navigator.serviceWorker?.ready.then((r) => r.getNotifications({ tag: "call-" + id }).then((l) => l.forEach((n) => n.close()))); } catch {} };
 // Answer or decline a call by its id (from a notification button or a link).
 export async function answerById(ctx, id, accept) {
-  const u = ctx.S.user; if (!u) return;
+  const u = ctx.S.user; if (!u) return; await ensureIce();
   const s = await getDoc(doc(db, "calls", id)).catch(() => null); if (!s?.exists()) return toast("That call has ended.");
   const c = { ...s.data(), id }; if (c.status !== "ringing" || !c.offer) return toast("That call has ended.");
   closeSystem(id);
@@ -220,6 +229,7 @@ export async function answerById(ctx, id, accept) {
 }
 let swHooked = false;
 export function watchIncoming(ctx, staff) {
+  ensureIce();
   const u = ctx.user || ctx.S.user, seen = new Set(), live = new Map(); let box = null, curId = null;
   if (!swHooked && navigator.serviceWorker) { swHooked = true; navigator.serviceWorker.addEventListener("message", (e) => { const d = e.data || {}; if (d.type === "call-accept") answerById(ctx, d.id, true); else if (d.type === "call-decline") answerById(ctx, d.id, false); }); }
   const close = () => { ringOff(); box?.remove(); box = null; if (curId) closeSystem(curId); curId = null; };

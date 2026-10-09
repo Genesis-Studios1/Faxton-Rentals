@@ -38,6 +38,13 @@ service cloud.firestore {
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
     match /config/bootstrap { allow read, write: if false; }
 
+    // Optional TURN relay for calls: an admin pastes the servers under Admin > Call setup. Everyone signed in can read it.
+    match /config/ice {
+      allow read: if signedIn();
+      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['servers', 'updatedAt'])
+        && request.resource.data.servers is list && request.resource.data.servers.size() <= 8;
+    }
+
     // Ownership is claimed once, by the verified email stored in config/bootstrap, then transferable only by the owner.
     match /config/owner {
       allow read: if signedIn();
@@ -212,7 +219,11 @@ service cloud.firestore {
       match /messages/{mid} {
         allow read: if signedIn() && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
         allow create: if signedIn() && request.resource.data.from == request.auth.uid
-          && short(request.resource.data.text, 2000)
+          && short(request.resource.data.text, 2000) && request.resource.data.keys().size() <= 14
+          && (!('image' in request.resource.data) || (request.resource.data.image is string && request.resource.data.image.size() < 450000))
+          && (!('audio' in request.resource.data) || (request.resource.data.audio is string && request.resource.data.audio.size() < 600000))
+          && (!('file' in request.resource.data) || (request.resource.data.file is string && request.resource.data.file.size() < 600000))
+          && (!('reply' in request.resource.data) || request.resource.data.reply is map)
           && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
       }
     }
