@@ -6,6 +6,20 @@ export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 export const initials = (n) => (n || "?").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
 const P = {
+  cart: '<path d="M3 4h2l2.4 11h10.200L20 8H6"/><circle cx="9" cy="19.500" r="1.400"/><circle cx="17" cy="19.500" r="1.400"/>',
+  cap: '<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.500V16c0 1.500 2.700 3 6 3s6-1.500 6-3v-4.500M22 9v6"/>',
+  cross: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/>',
+  fork: '<path d="M7 3v8M4 3v5a3 3 0 006 0V3M7 11v10M17 21V3c-2.500 1.500-3 5-3 8h3"/>',
+  dumbbell: '<path d="M6.500 6.500v11M17.500 6.500v11M3.500 9v6M20.500 9v6M6.500 12h11"/>',
+  route: '<circle cx="6" cy="18" r="2.500"/><circle cx="18" cy="6" r="2.500"/><path d="M8.500 18H15a3 3 0 000-6H9a3 3 0 010-6h6.500"/>',
+  sos: '<path d="M12 3.500L2.500 20h19z"/><path d="M12 10v4.500M12 17.500h.01"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.500" cy="8.500" r="1.200"/>',
+  wrench: '<path d="M14.500 6.500a4 4 0 005 5L20 18a2.500 2.500 0 01-3.500 0l-6-6A2.500 2.500 0 018 8.500l-3-3 2-2 3 3a4 4 0 004.500 0z" transform="translate(0 1)"/>',
+  handshake: '<path d="M2 12l4-4 4 1 3-2 4 3 5-1M2 12l5 6 3-1 2 2 3-1 1.500 1.500L22 12M9 14l3 3"/>',
+  calc: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.500 7h7M8.500 12h.01M12 12h.01M15.500 12h.01M8.500 16h.01M12 16h.01M15.500 16h.01" stroke-width="2"/>',
+  sparkle: '<path d="M12 3l1.800 5.200L19 10l-5.200 1.800L12 17l-1.800-5.200L5 10l5.200-1.800zM19 16l.8 2.200L22 19l-2.200.8L19 22l-.8-2.200L16 19l2.200-.8z"/>',
+  refresh: '<path d="M20 11a8 8 0 00-14-4L4 9M4 4v5h5M4 13a8 8 0 0014 4l2-2M20 20v-5h-5"/>',
+  checkc: '<circle cx="12" cy="12" r="9"/><path d="M8 12.500l3 3 5-6"/>',
   bolt: '<path d="M13 2L4.500 13.500H11L10 22l8.500-11.500H12z"/>',
   chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.500" y="9.500" width="5" height="5" rx=".8"/><path d="M9 2.500v3M15 2.500v3M9 18.500v3M15 18.500v3M2.500 9h3M2.500 15h3M18.500 9h3M18.500 15h3"/>',
   tree: '<path d="M12 21v-5M12 3l5 6h-2.500l3.500 5H6l3.500-5H7z"/><path d="M8 21h8"/>',
@@ -118,4 +132,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-09.86";
+export const BUILD = "2026-10-09.87";

@@ -5,7 +5,7 @@ const daniel = agent("daniel", "Daniel Okafor"), ngozi = agent("ngozi", "Ngozi A
 const base = { city: "Lagos", status: "active", service: 300000, deposit: 300000 };
 
 export const SEED = [
-  { ...base, id: "palm-court", title: "Palm Court Apartment", area: "Lekki Phase 1", type: "Apartment", price: 3600000, beds: 2, baths: 2, sqm: 120, lat: 6.4474, lng: 3.4723, agent: daniel,
+  { ...base, id: "palm-court", title: "Palm Court Apartment", area: "Lekki Phase 1", type: "Apartment", price: 3600000, service: 350000, deposit: 200000, beds: 2, baths: 2, sqm: 120, lat: 6.4474, lng: 3.4723, agent: daniel,
     thumb: "img/home-palm.webp", images: ["img/palm-living.webp", "img/palm-kitchen.webp", "img/palm-bedroom.webp", "img/palm-court.webp"],
     amenities: ["Parking", "Water supply", "Security", "Balcony"],
     desc: "A stylish 2-bedroom apartment in the heart of Lekki Phase 1, offering modern finishes, spacious living areas and excellent natural light. Located in a secure, well-maintained development with easy access to top schools, restaurants and retail hubs." },

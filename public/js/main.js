@@ -39,7 +39,7 @@ const parse = () => { const [p, q] = (location.hash.slice(1) || "/").split("?");
 
 const NAV = [["/", "home", "Home"], ["/search", "search", "Search"], ["/saved", "heart", "Saved"], ["/messages", "msg", "Messages"], ["/bookings", "cal", "Bookings"], ["/payments", "doc", "Payments"]];
 const TOPNAV = [["/", "Home", "home"], ["/search", "Find a home", "search"], ["/saved", "Saved homes", "heart"], ["/messages", "Messages", "msg"], ["/rentals", "My rentals", "cal"], ["/help", "Contact us", "help"]];
-const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "clipList", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "calDots", "Viewings"], ["/admin/payments", "card", "Payments"], ["/admin/verifications", "shield", "Verifications"], ["/admin/support", "chatdots", "Support"], ["/admin/suggestions", "chatlines", "Suggestions"], ["/admin/user-reports", "flag", "User reports"], ["/admin/reports", "bars3", "Reports"], ["/admin/calls", "phone", "Call setup"], ["/admin/get-app", "download", "Installations"]];
+const ANAV = [["/admin", "home", "Overview"], ["/admin/listings", "clipList", "Listings"], ["/admin/users", "users", "Users"], ["/admin/applications", "doc", "Applications"], ["/admin/viewings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/admin/payments", "card", "Payments"], ["/admin/verifications", "shield", "Verifications"], ["/admin/support", "chatdots", "Support"], ["/admin/suggestions", "chatlines", "Suggestions"], ["/admin/user-reports", "flag", "User reports"], ["/admin/reports", "bars3", "Reports"], ["/admin/calls", "phone", "Call setup"], ["/admin/get-app", "download", "Installations"]];
 export const avatarHtml = (cls = "") => (S.profile?.photo ? `<img class="avatar ${cls}" src="${esc(S.profile.photo)}" alt="" referrerpolicy="no-referrer">` : `<span class="avatar ${cls}">${esc(initials(userName()))}</span>`);
 const userName = () => S.user?.displayName || S.profile?.name || S.user?.email || "Guest";
 const isCollapsed = () => { try { return localStorage.getItem("rail") === "1"; } catch { return false; } };
@@ -52,9 +52,9 @@ function shell(path, inner, { admin = false, pending = 0, role = "" } = {}) {
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
   support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
-  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
+  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console: its own header + labelled sidebar, with a way back to the site.
@@ -70,7 +70,7 @@ function adminShell(path, inner, pending, role = "") {
 }
 // The site's navigation: a top bar with the logo at the left, the page tabs, the bell and the account menu.
 function appShell(path, inner) {
-  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply"].some((p) => path === p || path.startsWith(p + "/")) : path === h || path.startsWith(h + "/"));
+  const on = (h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => path === p || path.startsWith(p + "/")) : path === h || path.startsWith(h + "/"));
   const links = TOPNAV.map(([h, l, ic]) => `<a class="${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}><span class="tn-ic">${icon(ic, 24)}</span><span class="tn-lb">${l}</span>${h === "/messages" ? `<b class="tn-badge" data-unread ${S.unread ? "" : "hidden"}>${S.unread || ""}</b>` : ""}</a>`).join("");
   const menu = `<div class="me-wrap"><button class="me-btn" id="meBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${avatarHtml()}${icon("chev", 18)}</button>
       <div class="menu" id="meMenu" role="menu" hidden><div class="menu-head"><b>${esc(userName())}</b><small>${esc(S.isOwner ? "Owner" : S.role)}</small></div>
@@ -208,8 +208,9 @@ let noteSeen = new Set();
 function drawNotes() {
   const box = $("#notePanel"); if (!box) return; const list = S.notes || [];
   box.innerHTML = `<div class="np-head"><b>Notifications</b>${noteUnread() ? `<button type="button" id="npAll">Mark all as read</button>` : ""}</div>
-    <div class="np-list">${list.length ? list.map((n) => `<div class="np-item ${n.read && !noteSeen.has(n.id) ? "" : "new"}"><span class="np-ic ${esc(n.kind || "")}">${icon(NOTE_IC[n.kind] || "bell", 18)}</span><div><b>${esc(n.title || "")}</b>${n.body ? `<p>${esc(n.body)}</p>` : ""}<small>${agoText(n.createdAt?.seconds)}</small></div></div>`).join("") : `<p class="np-empty">${icon("bell", 28)}<br>You’re all caught up.</p>`}</div>
+    <div class="np-list">${list.length ? list.map((n) => `<div class="np-item ${n.read && !noteSeen.has(n.id) ? "" : "new"}" ${n.href ? `data-href="${esc(n.href)}" role="link" tabindex="0"` : ""}><span class="np-ic ${esc(n.kind || "")}">${icon(NOTE_IC[n.kind] || "bell", 18)}</span><div><b>${esc(n.title || "")}</b>${n.body ? `<p>${esc(n.body)}</p>` : ""}<small>${agoText(n.createdAt?.seconds)}</small></div></div>`).join("") : `<p class="np-empty">${icon("bell", 28)}<br>You’re all caught up.</p>`}</div>
     <a class="np-foot" href="#/messages">Open messages${S.unread ? ` <b>${S.unread}</b>` : ""}</a>`;
+  $$("[data-href]", box).forEach((x) => (x.onclick = () => { closeNotes(); go("#" + x.dataset.href); }));
   const all = $("#npAll", box); if (all) all.onclick = () => (S.notes || []).filter((n) => !n.read).forEach((n) => markNotificationRead(n.id));
 }
 function closeNotes() { $("#notePanel")?.remove(); }
