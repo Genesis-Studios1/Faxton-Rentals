@@ -1405,3 +1405,6 @@ dialog.nodismiss .close{display:none!important}
   .dt-sim .sim-grid{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:2px 16px 14px 0;scrollbar-width:none;overscroll-behavior-x:contain}.dt-sim .sim-grid::-webkit-scrollbar{display:none}
   .dt-sim .sim{flex:0 0 82%;scroll-snap-align:start}
 }
+
+/* the sidebar is an ordinary card that scrolls away with the page */
+.pdp .side-card{position:static!important;max-height:none!important;overflow:visible!important;top:auto}
