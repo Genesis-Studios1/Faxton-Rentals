@@ -1549,7 +1549,7 @@ dialog.nodismiss .close{display:none!important}
 .cs-ring>i{display:none}.cs-ring{width:min(300px,52vw);margin-bottom:10px}.cs-pic{width:100%;border:3px solid rgba(110,231,183,.75);box-shadow:0 0 0 10px rgba(52,211,153,.06),0 0 50px rgba(52,211,153,.25)}
 .cs-tn{display:none}
 @media (max-width:700px){
-  .cs-ov{background:#031a13 url(../img/call-bg.webp) center/cover no-repeat}.cs-ov:before,.cs-ov:after{display:none}
+  .cs-ov{background:#031a13 url(../img/chat-wall.webp) center/cover no-repeat}.cs-ov:before,.cs-ov:after{display:none}
   .cs-top{position:relative;justify-content:center;padding:calc(22px + env(safe-area-inset-top)) 18px 8px;min-height:84px}.cs-logo,.cs-top>.cs-sep,.cs-state{display:none}
   .cs-tn{display:grid;justify-items:center;gap:4px;text-align:center}.cs-tn b{font-size:1.5rem;font-weight:500;color:#fff}.cs-tn span{font-size:1.1rem;color:rgba(255,255,255,.62)}
   .cs-minb{position:absolute;left:16px;top:calc(18px + env(safe-area-inset-top));margin:0;width:54px;height:54px;background:rgba(255,255,255,.06)}.cs-top .cl-rec{position:absolute;right:16px;top:calc(30px + env(safe-area-inset-top));margin:0}
@@ -1665,7 +1665,7 @@ dialog.nodismiss .close{display:none!important}
 @media (max-width:860px){.mx-thread{background-size:480px 448px}}
 
 /* ---- chat in the dark design: curved backdrop, voice messages, files, call cards, unread line ---- */
-:root[data-theme=dark] .mx-thread{background-image:linear-gradient(rgba(3,14,11,.30),rgba(3,14,11,.30)),url(../img/call-bg-wide.webp);background-size:cover;background-position:center}
+:root[data-theme=dark] .mx-thread{background-image:linear-gradient(rgba(3,14,11,.30),rgba(3,14,11,.30)),url(../img/chat-wall-wide.webp);background-size:cover;background-position:center}
 .mx-vn{display:flex;align-items:center;gap:12px;min-width:min(300px,60vw)}.mx-play{width:44px;height:44px;border-radius:50%;border:0;background:color-mix(in srgb,currentColor 14%,transparent);color:inherit;display:grid;place-items:center;flex:none;cursor:pointer}.mx-play svg{margin-left:2px}.mx-vn.playing .mx-play svg{display:none}.mx-vn.playing .mx-play:after{content:"";width:12px;height:14px;border-left:4px solid currentColor;border-right:4px solid currentColor}
 .mx-wv{display:flex;align-items:center;gap:2px;height:34px;flex:1}.mx-wv i{flex:1;max-width:5px;min-width:2px;border-radius:2px;background:currentColor;opacity:.35}.mx-wv i.on{background:#34d399;opacity:1}.mx-row:not(.me) .mx-wv i.on{background:var(--brand)}
 .mx-vd{font-size:.8rem;opacity:.75;align-self:flex-end;margin-bottom:2px;white-space:nowrap}.mx-b.has-vn{padding-right:14px}
@@ -1680,7 +1680,7 @@ dialog.nodismiss .close{display:none!important}
 .mx-comp.recording>:not(.mx-rec){display:none!important}
 .mx-send .mx-snd{display:none}.mx-send.has .mx-snd{display:grid}.mx-send.has .mx-mic{display:none}
 /* call screen background on computers */
-@media (min-width:701px){.cs-ov{background:#031a13 url(../img/call-bg-wide.webp) center/cover no-repeat}.cs-ov:before,.cs-ov:after{display:none}}
+@media (min-width:701px){.cs-ov{background:#031a13 url(../img/chat-wall-wide.webp) center/cover no-repeat}.cs-ov:before,.cs-ov:after{display:none}}
 
 /* ---- profile card (tap a picture) and the verified tick ---- */
 .vseal{display:inline-block;vertical-align:-3px;flex:none}
@@ -1916,6 +1916,14 @@ dialog.nodismiss .close{display:none!important}
 .pf-av{overflow:visible}
 
 /* the verified badge is a plain round circle */
-.pf-vb .vseal circle{stroke:var(--bg);stroke-width:2.4;paint-order:stroke}
-.pf-vb .vseal path:first-of-type{stroke:none}
+.pf-vb .vseal path:first-of-type{stroke:var(--bg);stroke-width:2.6;paint-order:stroke}
 .pf-vb .vseal path:last-of-type{stroke:#fff}
+
+/* phone home hero: the text sits on a clear panel so it never fights the photo */
+@media (max-width:860px){
+  .hmm-hero{background:linear-gradient(90deg,#fff 34%,rgba(255,255,255,.88) 60%,rgba(255,255,255,.12) 92%),url(../img/hero-hd.webp) 88% 25%/cover}
+  .hmm-text{max-width:88%}.hmm-text p{color:#33423c;font-size:.98rem}
+  .hmm-chips a{flex-direction:column;justify-content:center;text-align:center;gap:6px;padding:12px 6px;border-radius:18px;font-size:.76rem!important;line-height:1.25}
+  .hmm-chips a span{overflow-wrap:anywhere}
+  :root[data-theme=dark] .hmm-hero{background:linear-gradient(90deg,#0c181e 34%,rgba(12,24,30,.9) 62%,rgba(12,24,30,.3) 100%),url(../img/hero-hd.webp) 88% 25%/cover}
+}
