@@ -128,3 +128,9 @@ export async function ensureDirectConversation(staff, u) {
   if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: u.id, userName: u.name || u.email, listingId: "direct", listingTitle: "Faxton team", area: "", price: 0, beds: 0, baths: 0, image: "assets/mark.svg", userPhoto: u.photo || "", agent: { id: "faxton", name: "Faxton team", avatar: "assets/mark.svg", photo: "assets/mark.svg" }, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
   return id;
 }
+
+// ---- blocking and reporting other users ----
+export const blockUser = (me, uid, name = "") => setDoc(doc(db, "blocks", `${me.uid}_${uid}`), { blocker: me.uid, blocked: uid, name, at: serverTimestamp() });
+export const unblockUser = (me, uid) => deleteDoc(doc(db, "blocks", `${me.uid}_${uid}`));
+export const isBlocked = async (blocker, blocked) => { try { return (await getDoc(doc(db, "blocks", `${blocker}_${blocked}`))).exists(); } catch { return false; } };
+export const reportUser = (me, r) => addDoc(collection(db, "reports"), { ...r, reporterUid: me.uid, reporterName: me.displayName || me.email || "", status: "New", createdAt: serverTimestamp() });
