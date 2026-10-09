@@ -15,6 +15,12 @@ const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
 const BUDGETS = [[0, "Any price"], [1500000, "Up to ₦1.5m"], [2500000, "Up to ₦2.5m"], [3600000, "Up to ₦3.6m"], [5000000, "Up to ₦5m"]];
 const TYPES = ["Apartment", "House", "Studio"];
+// What kind of home a listing is: by bedrooms for apartments, plus shortlets, houses and studios.
+const CATS = [["1bed", "1 Bedroom Apartment"], ["2bed", "2 Bedroom Apartment"], ["3bed", "3 Bedroom Apartment"], ["shortlet", "Shortlet"], ["house", "House or Duplex"], ["studio", "Studio"]];
+const catOf = (l) => { const t = String(l.type || ""); return l.shortlet || /short/i.test(t) ? "shortlet" : /studio/i.test(t) || l.beds === 0 ? "studio" : /house|duplex|detached|terrace|mansion|villa|bungalow/i.test(t) ? "house" : l.beds === 1 ? "1bed" : l.beds === 2 ? "2bed" : l.beds === 3 ? "3bed" : "house"; };
+const catName = (l) => CATS.find((c) => c[0] === catOf(l))[1];
+const matchType = (l, t) => !t || catOf(l) === t || l.type === t;
+const typeOptions = (sel) => CATS.map(([k, n]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${n}</option>`).join("");
 const opts = (list, sel) => list.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(sel) ? "selected" : ""}>${esc(l)}</option>`).join("");
 const fmtDate = (s) => { const d = new Date(s); return isNaN(d) ? s : d.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long" }); };
 const fmtTime = (t) => (t?.toDate ? t.toDate() : new Date()).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" });
@@ -231,7 +237,7 @@ const inRange = (price, r) => { if (!r) return true; const [lo, hi] = r.split("-
 async function discover(ctx) {
   const all = await st.getListings(), pr = ctx.S.profile?.prefs || {};
   // "Homes you might love": listings that match the saved rental preferences come first
-  const score = (l) => (pr.area && (l.area + " " + l.city).toLowerCase().includes(pr.area) ? 2 : 0) + (pr.type && l.type === pr.type ? 1 : 0) + (pr.budget && inRange(l.price, pr.budget) ? 1 : 0);
+  const score = (l) => (pr.area && (l.area + " " + l.city).toLowerCase().includes(pr.area) ? 2 : 0) + (pr.type && matchType(l, pr.type) ? 1 : 0) + (pr.budget && inRange(l.price, pr.budget) ? 1 : 0);
   const list = [...all].map((l, i) => [l, i]).sort((x, y) => score(y[0]) - score(x[0]) || x[1] - y[1]).map((x) => x[0]);
   const TABS = [["", "All homes"], ["Apartment", "Apartments"], ["House", "Houses"], ["Studio", "Studios"]];
   const cardsFor = (t) => { const rows = list.filter((l) => !t || l.type === t).slice(0, 3); return rows.length ? rows.map((l, i) => homeCard(l, ctx.S.saved, i)).join("") : `<p class="muted hm-none">No ${t.toLowerCase()} listings yet.</p>`; };
@@ -251,7 +257,7 @@ async function discover(ctx) {
     <section class="hm-hero"><div class="hm-text"><div class="eyebrow-s rise">Find your next chapter</div><h1 class="rise" style="--d:.08s">A place to live.<br>A place to<br>call home.</h1><p class="rise" style="--d:.18s">Find a rental that fits your life, in a neighbourhood you love.</p></div><div class="hm-img reveal" style="background-image:url(img/hero.webp)" role="img" aria-label="Modern home in Lagos"></div></section>
     <form class="searchbar hm-search rise" style="--d:.3s" id="sb" role="search">
       <div class="sb-cell">${icon("pin", 26)}<label>Location<select name="area">${opts(AREAS, pr.area || "lekki")}</select></label></div>
-      <div class="sb-cell">${icon("home", 26)}<label>Property type<select name="type"><option value="">Any type</option>${TYPES.map((t) => `<option ${t === pr.type ? "selected" : ""}>${t}</option>`).join("")}</select></label></div>
+      <div class="sb-cell">${icon("home", 26)}<label>Property type<select name="type"><option value="">Any type</option>${typeOptions(pr.type)}</select></label></div>
       <div class="sb-cell">${icon("coins", 26)}<label>Yearly budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
       <button class="btn primary">${icon("search", 22)} Search homes</button></form>
     <div class="hm-pop rise" style="--d:.35s"><span>Popular locations:</span>${[["lekki", "Lekki"], ["ajah", "Ajah"], ["yaba", "Yaba"], ["ikeja", "Ikeja"]].map(([v, l], i) => `<a class="chip-l" href="#/search?area=${v}">${i === 0 ? icon("pin", 16) : ""}${l}</a>`).join("")}</div>
@@ -270,18 +276,18 @@ async function search(ctx) {
   const q = ctx.q, all = await st.getListings(), view = q.view === "grid" ? "grid" : "map";
   const area = q.area || "", max = +q.max || 0, beds = +q.beds || 0, type = q.type || "", sort = q.sort || "recommended";
   const am = (q.am || "").split(",").filter(Boolean), avail = q.avail !== "0";
-  let list = all.filter((l) => (!area || (l.area + " " + l.city).toLowerCase().includes(area)) && (!max || l.price <= max) && l.beds >= beds && (!type || l.type === type) && (!avail || l.available !== false) && am.every((x) => l.amenities.includes(x)));
+  let list = all.filter((l) => (!area || (l.area + " " + l.city).toLowerCase().includes(area)) && (!max || l.price <= max) && l.beds >= beds && matchType(l, type) && (!avail || l.available !== false) && am.every((x) => l.amenities.includes(x)));
   if (sort === "low") list = [...list].sort((a, b) => a.price - b.price); if (sort === "high") list = [...list].sort((a, b) => b.price - a.price);
   const areaName = area ? AREAS.find((a) => a[0] === area)?.[1].replace(/, Lagos/, "") || "Lagos" : "Lagos";
   const chip = (k, label) => `<span class="chip static">${esc(label)}</span>`;
-  const chips = [chip("area", area ? areaName : "Lagos"), avail && chip("avail", "Available now"), max && chip("max", BUDGETS.find((b) => b[0] === max)?.[1] || naira(max)), beds && chip("beds", beds + "+ beds"), type && chip("type", type), ...am.map((x) => chip("am:" + x, x))].filter(Boolean).join("");
+  const chips = [chip("area", area ? areaName : "Lagos"), avail && chip("avail", "Available now"), max && chip("max", BUDGETS.find((b) => b[0] === max)?.[1] || naira(max)), beds && chip("beds", beds + "+ beds"), type && chip("type", CATS.find((c) => c[0] === type)?.[1] || type), ...am.map((x) => chip("am:" + x, x))].filter(Boolean).join("");
   const AMEN = ["Parking", "Water supply", "Security", "Generator", "Balcony", "Garden", "Pool", "Gym", "Wi-Fi"];
   return { title: "Search", html: `<div class="wrap"><div class="page-head rise"><div><h1 style="font-size:clamp(1.9rem,3.4vw,2.9rem)">Homes for rent in ${esc(areaName === "Lagos" ? "Lagos" : areaName)}</h1><p>${list.length} home${list.length === 1 ? "" : "s"} match your search</p></div>
       <div class="seg" role="group" aria-label="View"><button data-view="map" class="${view === "map" ? "on" : ""}">${icon("map", 18)} Map</button><button data-view="grid" class="${view === "grid" ? "on" : ""}">${icon("grid", 18)} Grid</button></div></div>
     <form class="filters" id="ff"><label class="fsel">${icon("pin", 18)}<select name="area" aria-label="Location">${opts(AREAS, area)}</select></label>
       <label class="fsel">${icon("wallet", 18)}<select name="max" aria-label="Budget">${opts(BUDGETS, max)}</select></label>
       <label class="fsel">${icon("bed", 18)}<select name="beds" aria-label="Bedrooms">${opts([[0, "Bedrooms"], [1, "1+"], [2, "2+"], [3, "3+"], [4, "4+"], [5, "5+"]], beds)}</select></label>
-      <label class="fsel">${icon("home", 18)}<select name="type" aria-label="Property type"><option value="">Property type</option>${TYPES.map((t) => `<option ${t === type ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <label class="fsel">${icon("home", 18)}<select name="type" aria-label="Property type"><option value="">Property type</option>${typeOptions(type)}</select></label>
       <div class="fsel more" style="padding:0;position:relative"><button type="button" id="moreBtn" aria-haspopup="true" aria-expanded="false" style="display:flex;align-items:center;gap:8px;border:0;background:none;padding:12px;font-weight:500">${icon("sliders", 18)} More filters${am.length ? ` (${am.length})` : ""} ${icon("chev", 16)}</button>
         <div class="pop-menu" id="morePanel" hidden><b>Amenities</b>${AMEN.map((x) => `<label class="chk"><input type="checkbox" value="${esc(x)}" ${am.includes(x) ? "checked" : ""}> ${esc(x)}</label>`).join("")}<button type="button" class="btn primary sm" id="applyMore">Apply</button></div></div>
       <label class="fsel sort"><span class="muted">Sort by</span><select name="sort" aria-label="Sort">${opts([["recommended", "Recommended"], ["low", "Price: low to high"], ["high", "Price: high to low"]], sort)}</select></label></form>
@@ -343,26 +349,52 @@ async function detail(ctx, id) {
   const l = await st.getListing(id);
   if (!l) return { title: "Not found", html: `<div class="empty"><h2>This home isn’t available</h2><p><a class="link" href="#/search">Browse homes</a></p></div>` };
   const total = l.price + l.service + l.deposit, on = ctx.S.saved.has(l.id), A = { Parking: "car", "Water supply": "drop", Security: "shield", Balcony: "building" };
-  const im = l.images, vids = (l.videos || []).map((u) => ({ type: "video", ...videoEmbed(u) })), media = [...im.map((src) => ({ type: "img", src })), ...vids], gal = im.length > 1 ? `<div class="gallery"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div><div><img src="${esc(im[1])}" alt=""></div><div>${im[2] ? `<img src="${esc(im[2])}" alt="">` : ""}<button class="show-all" id="all">${icon("img", 18)} Show all photos</button></div></div>` : `<div class="gallery one"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div></div>`;
-  return { title: l.title, html: `<div class="wrap"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Discover</a>${icon("chev", 14)}<a href="#/search">${esc(l.city)}</a>${icon("chev", 14)}<a href="#/search?area=${esc(l.area.split(/[ ,]/)[0].toLowerCase())}">${esc(l.area.split(",")[0].replace(" Phase 1", ""))}</a></nav>
-    <div class="detail"><div><div class="d-head"><div><h1>${esc(l.title)}</h1><div class="loc" style="color:var(--text);margin-top:8px;font-size:1.05rem"><span style="color:var(--brand)">${icon("pin", 20)}</span>${esc(l.area)}, ${esc(l.city)}</div></div>
-      <div style="display:flex;gap:10px"><button class="btn sm" id="save" style="border-color:var(--border);color:var(--text)">${icon("heart", 18)} <span>${on ? "Saved" : "Save"}</span></button><button class="btn sm" id="share" style="border-color:var(--border);color:var(--text)">${icon("share", 18)} Share</button></div></div>
-      ${gal}${vids.length ? `<div class="vid-row"><button type="button" class="vid-btn" data-vid="${im.length}"><span class="vid-ic">${icon("video", 20)}</span><span><b>Watch ${vids.length > 1 ? vids.length + " videos" : "the video tour"}</b><small>${im.length} photo${im.length === 1 ? "" : "s"} · ${vids.length} video${vids.length === 1 ? "" : "s"}</small></span></button></div>` : ""}<div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div><div class="fact">${icon("area", 22)}${l.sqm} m²</div></div>
-      <h2 style="margin:28px 0 8px">About this home</h2><p class="muted" style="max-width:720px;font-size:1.05rem">${esc(l.desc)}</p><hr class="divider">
-      ${l.lat != null && l.lng != null && l.hasPin !== false ? `<hr class="divider"><h2 style="margin-bottom:10px">Location</h2><p class="muted" style="margin:0 0 10px">${icon("pin", 16)} ${esc(l.area)}, ${esc(l.city)}</p><div id="dmap" class="dmap"></div>` : ""}<div style="display:flex;gap:26px;align-items:center;flex-wrap:wrap"><h2>Amenities</h2><div class="amen" style="margin:0">${l.amenities.map((a) => `<span>${icon(A[a] || "check", 22)}${esc(a)}</span>`).join("")}</div></div></div>
+  const im = l.images, vids = (l.videos || []).map((u) => ({ type: "video", ...videoEmbed(u) })), media = [...im.map((src) => ({ type: "img", src })), ...vids];
+  const gal = im.length > 1 ? `<div class="gallery"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div><div><img src="${esc(im[1])}" alt=""></div><div>${im[2] ? `<img src="${esc(im[2])}" alt="">` : ""}<button class="show-all" id="all">${icon("img", 18)} Show all photos</button></div></div>` : `<div class="gallery one"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div></div>`;
+  const all = (await st.getListings().catch(() => [])).filter((x) => x.id !== l.id && x.city === l.city), cat = catOf(l);
+  const similar = [...all.filter((x) => catOf(x) === cat), ...all.filter((x) => catOf(x) !== cat)].slice(0, 6);
+  const hasPin = l.lat != null && l.lng != null && l.hasPin !== false, lid = "FR-" + String([...l.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9000, 7) + 1000);
+  const parking = l.parking != null && l.parking !== "" ? `${l.parking} space${+l.parking === 1 ? "" : "s"}` : l.amenities.includes("Parking") ? "Available" : "None listed";
+  const info = [["home", "Property type", catName(l)], ["area", "Size", l.sqm ? `${l.sqm} m²` : "Not listed"], ["cal", "Year built", l.yearBuilt || "Not listed"], ["car", "Parking", parking], ["building", "Furnishing", l.furnished || "Not listed"], ["list", "Listing ID", lid]];
+  const PLANS = [["Yearly", 1], ["Every 6 months", 2], ["Quarterly", 4], ["Monthly", 12]];
+  const desc = String(l.desc || "").split(/\n+/).filter(Boolean);
+  const simCard = (x) => `<article class="sim" data-open="${esc(x.id)}" tabindex="0" aria-label="${esc(x.title)}"><div class="sim-img"><img src="${esc(x.thumb || x.images[0])}" alt="${esc(x.title)}" loading="lazy"><span class="sim-tag ${x.available === false ? "off" : ""}">${x.available === false ? "Rented" : "For rent"}</span><span class="sim-ph">${icon("camera", 14)} ${x.images.length}</span><button class="heart ${ctx.S.saved.has(x.id) ? "on" : ""}" data-fav="${esc(x.id)}" aria-label="Save ${esc(x.title)}" aria-pressed="${ctx.S.saved.has(x.id)}">${icon("heart", 20)}</button></div>
+    <div class="sim-b"><b class="sim-p">${naira(x.price)}<small> / year</small></b><h3>${esc(x.title)}</h3><p class="loc">${icon("pin", 15)} ${esc(x.area)}${x.area.includes(",") ? "" : ", " + esc(x.city)}</p><div class="sim-f"><span>${icon("bed", 17)}${x.beds || "Studio"}</span><span>${icon("bath", 17)}${x.baths}</span>${x.parking ? `<span>${icon("car", 17)}${x.parking}</span>` : ""}${x.sqm ? `<span>${icon("area", 17)}${x.sqm} m²</span>` : ""}</div></div></article>`;
+  return { title: l.title, html: `<div class="wrap pdp"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Home</a><span>/</span><a href="#/search">Rent</a><span>/</span><b>${esc(l.area.split(",")[0])}</b></nav>
+    <div class="d-head"><div><h1>${esc(l.title)}</h1><div class="loc dt-loc"><span>${icon("pin", 20)}</span>${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</div></div>
+      <div class="dt-acts"><button class="btn" id="save">${icon("heart", 18)} <span>${on ? "Saved" : "Save"}</span></button><button class="btn" id="share">${icon("share", 18)} Share</button></div></div>
+    ${gal}${vids.length ? `<div class="vid-row"><button type="button" class="vid-btn" data-vid="${im.length}"><span class="vid-ic">${icon("video", 20)}</span><span><b>Watch ${vids.length > 1 ? vids.length + " videos" : "the video tour"}</b><small>${im.length} photo${im.length === 1 ? "" : "s"} · ${vids.length} video${vids.length === 1 ? "" : "s"}</small></span></button></div>` : ""}
+    <div class="detail"><div class="dt-main">
+      <div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div>${l.sqm ? `<div class="fact">${icon("area", 22)}${l.sqm} m²</div>` : ""}<div class="fact">${icon("car", 22)}${parking}</div></div>
+      <div class="dt-tabs" role="tablist">${[["overview", "Overview"], ["features", "Features"], ["location", "Location"], ["plan", "Floor plan"]].map(([k, t], i) => `<button type="button" role="tab" class="${i ? "" : "on"}" data-pane="${k}">${t}</button>`).join("")}</div>
+      <section class="dt-pane" id="p-overview">${(desc.length ? desc : ["The agent hasn’t added a description yet."]).map((x) => `<p class="dt-desc">${esc(x)}</p>`).join("")}<p class="dt-desc">Listed by ${esc(l.agent.name)}. Rent is paid per year. Documents are available for inspection after your viewing.</p>
+        <div class="dt-info">${info.map(([ic, k, v]) => `<div><span>${icon(ic, 18)} ${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
+        <div class="dt-pay"><h2>Payment estimate</h2><div class="dt-pay-in"><div><h4>Payment plan</h4><div class="dt-plans" role="radiogroup" aria-label="Payment plan">${PLANS.map(([t, n], i) => `<button type="button" role="radio" aria-checked="${i === 0}" class="${i === 0 ? "on" : ""}" data-n="${n}">${t}</button>`).join("")}</div><p class="muted">Estimate only. Your agent confirms the final plan.</p></div>
+          <div class="dt-est"><span>Est. payment each time</span><b id="estP">${naira(l.price)}</b><small id="estN">Paid once a year</small><hr><div class="dt-rows"><div><span>Service charge</span><b>${naira(l.service)}</b></div><div><span>Refundable deposit</span><b>${naira(l.deposit)}</b></div><div><span>Move-in total</span><b id="estT">${naira(total)}</b></div></div></div></div></div></section>
+      <section class="dt-pane" id="p-features" hidden><div class="amen dt-amen">${l.amenities.length ? l.amenities.map((a) => `<span>${icon(A[a] || "check", 22)}${esc(a)}</span>`).join("") : `<p class="muted">No features have been listed yet.</p>`}</div></section>
+      <section class="dt-pane" id="p-location" hidden><p class="muted" style="margin:0 0 10px">${icon("pin", 16)} ${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</p>${hasPin ? `<div id="dmap" class="dmap"></div>` : `<p class="muted">The exact location hasn’t been shared yet. Message the agent to ask.</p>`}</section>
+      <section class="dt-pane" id="p-plan" hidden>${l.floorPlan ? `<img class="dt-fp" src="${esc(l.floorPlan)}" alt="Floor plan of ${esc(l.title)}">` : `<p class="muted">No floor plan has been added for this home yet.</p>`}</section>
+    </div>
     <aside class="side-card"><div class="big-price">${naira(l.price)} <small>/ year</small></div><p class="muted">Annual payment</p>
       <div class="rows"><div><span>Rent</span><span>${naira(l.price)}</span></div><div><span>Service charge</span><span>${naira(l.service)}</span></div><div><span>Refundable deposit</span><span>${naira(l.deposit)}</span></div><div class="total"><span>Move-in total</span><span>${naira(total)}</span></div></div>
       <button class="btn primary block" id="apply" style="padding:15px">Apply to rent ${icon("arrow", 20)}</button><button class="btn block" id="view" style="padding:15px">${icon("cal", 20)} Book a viewing</button>
       <p class="muted" style="font-size:.9rem;display:flex;gap:8px">${icon("info", 18)}<span>Review the <a class="link" href="#/search" style="text-decoration:underline">terms</a> before making a payment.</span></p>
-      <div class="agent"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><div><a href="#/agent/${esc(l.agent.id)}" style="color:var(--head);font-size:1.1rem;font-weight:700">${esc(l.agent.name)}</a><p class="muted" style="margin-bottom:10px">Listing agent</p><button class="btn sm" id="msg">${icon("msg", 18)} Message agent</button></div></div></aside></div></div>`,
-    mount() {
+      <div class="agent"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><div><a href="#/agent/${esc(l.agent.id)}" style="color:var(--head);font-size:1.1rem;font-weight:700">${esc(l.agent.name)}</a><p class="muted" style="margin-bottom:10px">Listing agent</p><button class="btn sm" id="msg">${icon("msg", 18)} Message agent</button></div></div></aside></div>
+    ${similar.length ? `<section class="dt-sim"><h2><i></i>Similar homes</h2><p class="muted">More like this in ${esc(l.city)}</p><div class="sim-grid">${similar.map(simCard).join("")}</div></section>` : ""}</div>`,
+    mount(root) {
       const authed = (fn) => () => (ctx.S.user ? fn() : (toast("Please sign in first."), ctx.go("#/login?next=" + encodeURIComponent("/home/" + l.id))));
+      bindCards(root, ctx);
       $("#save").onclick = async () => { const n = !ctx.S.saved.has(l.id); await ctx.setSaved(l.id, n); $("#save span").textContent = n ? "Saved" : "Save"; };
       $("#share").onclick = async () => { const url = location.href; try { navigator.share ? await navigator.share({ title: l.title, url }) : (await navigator.clipboard.writeText(url), toast("Link copied.")); } catch {} };
-      const all = $("#all"); if (all) all.onclick = () => openViewer(media, 0);
+      const allB = $("#all"); if (allB) allB.onclick = () => openViewer(media, 0);
       $$(".gallery img").forEach((g, k) => { g.style.cursor = "zoom-in"; g.onclick = () => openViewer(media, k); });
       $$("[data-vid]").forEach((b) => (b.onclick = () => openViewer(media, +b.dataset.vid)));
-      if (l.lat != null && l.lng != null && l.hasPin !== false && $("#dmap")) loadLeaflet().then(() => { const el = $("#dmap"); if (!el) return; const map = L.map(el, { scrollWheelZoom: false }).setView([l.lat, l.lng], 15); tiles().addTo(map); L.marker([l.lat, l.lng]).addTo(map); ctrlZoom(map); ctx.S.cleanups.push(() => map.remove()); }).catch(() => {});
+      let mapDone = false;
+      $$(".dt-tabs [data-pane]").forEach((b) => (b.onclick = () => {
+        $$(".dt-tabs [data-pane]").forEach((x) => x.classList.toggle("on", x === b)); $$(".dt-pane").forEach((p) => (p.hidden = p.id !== "p-" + b.dataset.pane));
+        if (b.dataset.pane === "location" && hasPin && !mapDone) { mapDone = true; loadLeaflet().then(() => { const el = $("#dmap"); if (!el) return; const map = L.map(el, { scrollWheelZoom: false }).setView([l.lat, l.lng], 15); tiles().addTo(map); L.marker([l.lat, l.lng]).addTo(map); ctrlZoom(map); setTimeout(() => map.invalidateSize(), 100); ctx.S.cleanups.push(() => map.remove()); }).catch(() => { mapDone = false; }); }
+      }));
+      $$(".dt-plans [data-n]").forEach((b) => (b.onclick = () => { const n = +b.dataset.n; $$(".dt-plans button").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); }); $("#estP").textContent = naira(Math.round(l.price / n)); $("#estN").textContent = n === 1 ? "Paid once a year" : `Paid ${n} times a year`; $("#estT").textContent = naira(Math.round(l.price / n) + l.service + l.deposit); }));
       $("#msg").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } });
       $("#view").onclick = authed(() => ctx.go("#/book/" + l.id));
       $("#apply").onclick = authed(() => ctx.go("#/apply/" + l.id));
@@ -471,7 +503,7 @@ function settings(ctx, section) {
           <label class="fl">Country<select id="lcc">${countryOptions(p.country || "Nigeria")}</select></label><label class="fl">City<input id="lct" maxlength="60" value="${esc(p.city || "")}" placeholder="e.g. Lagos"></label></div>
         <p class="note">Your contact details are only shared when you choose.</p>`)}
       ${card("Rental preferences", "Help us show you more relevant homes.", `<div class="f3"><label class="fl">Preferred location<select id="pl">${AREAS.filter((a) => a[0]).map(([c, l]) => `<option value="${c}" ${c === (pr.area || "lekki") ? "selected" : ""}>${l.replace(", Lagos", ", Lagos")}</option>`).join("")}</select></label>
-        <label class="fl">Property type<select id="pt"><option value="">Any type</option>${TYPES.map((t) => `<option ${t === pr.type ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label class="fl">Property type<select id="pt"><option value="">Any type</option>${typeOptions(pr.type)}</select></label>
         <label class="fl">Yearly budget<select id="pb">${BUD.map(([v, l]) => `<option value="${v}" ${v === (pr.budget || "") ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>`)}
       <div class="err" id="perr" role="alert"></div>
       <div class="set-actions"><button class="btn primary" type="submit">Save changes</button><button class="btn plain" type="button" id="cancel">Cancel</button></div></form>
