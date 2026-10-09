@@ -106,3 +106,11 @@ export async function seedListings() {
 
 // Documents (listings, viewings, applications) that belong to a landlord or agency account.
 export async function ownedDocs(col, uid) { try { return (await getDocs(query(collection(db, col), where("ownerUid", "==", uid)))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; } }
+
+// ---- verification of agencies and agents, notifications, suggestions ----
+export const verifyUser = (uid, verification) => updateDoc(doc(db, "users", uid), { verified: verification.status === "verified", verification });
+export const notify = (uid, n) => addDoc(collection(db, "notifications"), { uid, read: false, createdAt: serverTimestamp(), ...n });
+export const watchNotifications = (uid, cb) => onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid), where("read", "==", false)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
+export const markNotificationRead = (id) => updateDoc(doc(db, "notifications", id), { read: true }).catch(() => {});
+export const watchPendingVerifications = (cb) => onSnapshot(query(collection(db, "users"), where("verification.status", "==", "pending")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
+export const addSuggestion = (u, s) => addDoc(collection(db, "suggestions"), { ...s, uid: u.uid, name: u.displayName || u.email, email: u.email, status: "New", createdAt: serverTimestamp() });

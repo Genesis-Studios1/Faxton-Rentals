@@ -20,7 +20,7 @@ const first = (ctx) => (ctx.S.user.displayName || ctx.S.profile?.name || "").spl
 const head = ({ eyebrow, title, sub, actions = "" }) => `<div class="dsh-head"><div>${eyebrow ? `<span class="dsh-eye">${esc(eyebrow)}</span>` : ""}<h1>${esc(title)}</h1><p>${esc(sub)}</p></div><div class="dsh-act">${actions}</div></div>`;
 const arrow = (p) => (p ? `<span class="dsh-d ${p < 0 ? "dn" : "up"}">${p > 0 ? "↑" : "↓"} ${Math.abs(p)}%</span>` : "");
 const kpi = ({ ic, label, value, sub, d, tone = "g", href }) => { const tag = href ? `a href="#${href}"` : "div"; return `<${tag} class="dsh-kpi t-${tone}"><span class="dsh-ki">${icon(ic, 22)}</span><div><small>${esc(label)}</small><div class="dsh-kv"><b>${value}</b>${d == null ? "" : arrow(d)}</div><em>${esc(sub || "")}</em></div></${href ? "a" : "div"}>`; };
-const panel = (title, sub, body, right = "", cls = "") => `<section class="dsh-p ${cls}"><header><div><h3>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ""}</div>${right}</header>${body}</section>`;
+const panel = (title, sub, body, right = "", cls = "", tag = "") => `<section class="dsh-p ${cls}"${tag ? ` data-t="${tag}"` : ""}><header><div><h3>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ""}</div>${right}</header>${body}</section>`;
 const link = (href, text = "View all →") => `<a class="dsh-link" href="#${href}">${text}</a>`;
 const bars = (series, labels) => { const max = Math.max(1, ...series.flat()); return `<div class="dsh-bars" role="img" aria-label="Bar chart by month">${labels.map((l, i) => `<div class="dsh-b">${series.map((s, k) => `<i class="s${k}" style="height:${Math.max(s[i] ? 5 : 2, (s[i] / max) * 100)}%" title="${esc(l)}: ${s[i]}"></i>`).join("")}<em>${esc(l)}</em></div>`).join("")}</div>`; };
 const legend = (items) => `<div class="dsh-legend">${items.map(([l, k]) => `<span><i class="s${k}"></i>${esc(l)}</span>`).join("")}</div>`;
@@ -51,13 +51,14 @@ export function platform(ctx, { ls, apps, views, users, tks }) {
     kpi({ ic: "headset", label: "Open tickets", value: tks.filter(isOpenTk).length, sub: `${tks.length} in total`, tone: "r", href: "/admin/support" }),
   ].join("");
   const types = Object.entries(byType).sort((a, b) => b[1].length - a[1].length);
-  const attention = [["/admin/listings", "doc", "Listings awaiting approval", pending.length], ["/admin/applications", "users", "Applications to review", toReview.length], ["/admin/viewings", "cal", "Viewing requests", views.filter((v) => v.status === "Requested").length], ["/admin/support", "msg", "Open support tickets", tks.filter(isOpenTk).length]];
+  const pendingV = users.filter((u) => u.verification?.status === "pending").length;
+  const attention = [["/admin/verifications", "shield", "Agency & agent verifications", pendingV], ["/admin/listings", "doc", "Listings awaiting approval", pending.length], ["/admin/applications", "users", "Applications to review", toReview.length], ["/admin/viewings", "cal", "Viewing requests", views.filter((v) => v.status === "Requested").length], ["/admin/support", "msg", "Open support tickets", tks.filter(isOpenTk).length]];
   const table6 = ms.slice(-6).reverse().map((m, i) => { const k = L - i; return `<tr><td><b>${m.full}</b></td><td>${uM[k]}</td><td>${lM[k]}</td><td>${aM[k]}</td><td>${vM[k]}</td><td>${tM[k]}</td></tr>`; });
   const html = `<div class="dsh">${head({ eyebrow: "Business performance", title: "Platform analytics", sub: `A complete view of Faxton Rentals’ growth and activity over the last 12 months.`, actions: `${!ls.length ? `<button class="btn" id="seed">Add sample listings</button>` : ""}<button class="btn primary" id="export">${icon("download", 18)} Export report</button>` })}
-    <div class="dsh-kpis k6">${kpis}</div>
-    <div class="dsh-grid g3">${panel("New signups", "People who joined each month", bars([uM], mname))}${panel("Listings growth", "Total listings on the platform", line(cumulative(ls, ms), mname))}${panel("Applications & viewings", "Requests received each month", legend([["Applications", 0], ["Viewings", 1]]) + bars([aM, vM], mname))}</div>
+    <div class="dsh-kpis k6" data-t="kpis">${kpis}</div>
+    <div class="dsh-grid g3">${panel("New signups", "People who joined each month", bars([uM], mname), "", "", "chart")}${panel("Listings growth", "Total listings on the platform", line(cumulative(ls, ms), mname))}${panel("Applications & viewings", "Requests received each month", legend([["Applications", 0], ["Viewings", 1]]) + bars([aM, vM], mname))}</div>
     <div class="dsh-grid g3">${panel("Listings by city", "Active listings, by location", rank(Object.entries(byCity).sort((a, b) => b[1] - a[1]).slice(0, 6)))}${panel("Users by role", "Everyone on the platform", donut(Object.entries(roles).sort((a, b) => b[1] - a[1]), users.length, "Total users"))}${panel("Property categories", "Active listings and average rent", tbl(["Category", "Listings", "Avg rent / yr", "Share"], types.map(([t, p]) => `<tr><td><b>${esc(t)}</b></td><td>${p.length}</td><td>${naira(Math.round(p.reduce((a, b) => a + b, 0) / p.length))}</td><td>${active.length ? Math.round((p.length / active.length) * 100) : 0}%</td></tr>`)))}</div>
-    <div class="dsh-grid g13">${panel("Needs attention", "Things waiting for you", `<ul class="dsh-att">${attention.map(([h, ic, t, n]) => `<li><a href="#${h}"><span class="dsh-ki sm">${icon(ic, 18)}</span><span>${t}</span><b>${n}</b>${icon("chev", 16).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</a></li>`).join("")}</ul>`)}${panel("Monthly platform metrics", "The last six months", tbl(["Month", "New users", "New listings", "Applications", "Viewings", "Tickets"], table6))}</div></div>`;
+    <div class="dsh-grid g13">${panel("Needs attention", "Things waiting for you", `<ul class="dsh-att">${attention.map(([h, ic, t, n]) => `<li><a href="#${h}"><span class="dsh-ki sm">${icon(ic, 18)}</span><span>${t}</span><b>${n}</b>${icon("chev", 16).replace("<svg", '<svg style="transform:rotate(-90deg)"')}</a></li>`).join("")}</ul>`, "", "", "att")}${panel("Monthly platform metrics", "The last six months", tbl(["Month", "New users", "New listings", "Applications", "Viewings", "Tickets"], table6))}</div></div>`;
   return { html, mount(root) {
     $("#export", root).onclick = () => csv("faxton-platform-report.csv", ["Month", "New users", "New listings", "Applications", "Viewings", "Tickets"], ms.map((m, i) => [m.full, uM[i], lM[i], aM[i], vM[i], tM[i]]));
     const seed = $("#seed", root); if (seed) seed.onclick = async () => { seed.disabled = true; try { await st.seedListings(); toast("Sample listings added."); ctx.render(); } catch (e) { toast(friendlyErr(e)); seed.disabled = false; } };
@@ -77,7 +78,7 @@ export function support(ctx, { tks, convs }) {
   const row = (t) => `<tr data-go="/support/tickets"><td>#${esc(t.ref || "")}</td><td><div class="cell"><span class="avatar a2-av">${esc(initials(t.name || "?"))}</span><div><b>${esc(t.name || "Customer")}</b></div></div></td><td>${esc(t.subject || "")}</td><td>${pill(prio(t))}</td><td>${pill(/progress/i.test(t.status || "") ? "In progress" : "Open")}</td><td class="muted">${ago(t.createdAt)}</td></tr>`;
   const chats = [...convs].sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0)).slice(0, 5);
   const html = `<div class="dsh">${head({ title: "Customer care support", sub: "Handle customer issues efficiently and deliver exceptional support.", actions: `<a class="btn primary" href="#/support/tickets">${icon("headset", 18)} Open ticket queue</a><a class="btn" href="#/help">${icon("help", 18)} Help centre</a>` })}
-    <div class="dsh-kpis k6">${[
+    <div class="dsh-kpis k6" data-t="kpis">${[
       kpi({ ic: "msg", label: "Open tickets", value: open.length, sub: `${live.length} still unresolved`, tone: "g", href: "/support/tickets" }),
       kpi({ ic: "clock", label: "In progress", value: prog.length, sub: "being handled now", tone: "b" }),
       kpi({ ic: "check", label: "Resolved", value: done.length, sub: `${tks.length ? Math.round((done.length / tks.length) * 100) : 0}% of all tickets`, tone: "g" }),
@@ -85,7 +86,7 @@ export function support(ctx, { tks, convs }) {
       kpi({ ic: "chatdots", label: "Live chats", value: convs.length, sub: `${unread} with new messages`, tone: "b" }),
       kpi({ ic: "flag", label: "Overdue (48h+)", value: overdue.length, sub: "waiting more than two days", tone: "r" }),
     ].join("")}</div>
-    <div class="dsh-grid g21">${panel("Support ticket queue", "Oldest unresolved tickets first", tbl(["#", "Customer", "Issue type", "Priority", "Status", "Opened"], queue.map(row), "No unresolved tickets. Nice work."), link("/support/tickets"))}${panel("Live chat conversations", `${convs.length} conversation${convs.length === 1 ? "" : "s"}`, `<ul class="dsh-chats">${chats.map((c) => `<li><span class="avatar a2-av">${esc(initials(c.userName || "?"))}</span><div><b>${esc(c.userName || "Customer")}</b><small>${esc(c.last || c.listingTitle || "")}</small></div><span class="muted">${ago(c.lastAt)}</span>${c.unread ? `<i class="dsh-dot"></i>` : ""}</li>`).join("") || `<li class="muted">No conversations yet.</li>`}</ul>`)}</div>
+    <div class="dsh-grid g21">${panel("Support ticket queue", "Oldest unresolved tickets first", tbl(["#", "Customer", "Issue type", "Priority", "Status", "Opened"], queue.map(row), "No unresolved tickets. Nice work."), link("/support/tickets"), "", "queue")}${panel("Live chat conversations", `${convs.length} conversation${convs.length === 1 ? "" : "s"}`, `<ul class="dsh-chats">${chats.map((c) => `<li><span class="avatar a2-av">${esc(initials(c.userName || "?"))}</span><div><b>${esc(c.userName || "Customer")}</b><small>${esc(c.last || c.listingTitle || "")}</small></div><span class="muted">${ago(c.lastAt)}</span>${c.unread ? `<i class="dsh-dot"></i>` : ""}</li>`).join("") || `<li class="muted">No conversations yet.</li>`}</ul>`, "", "", "chats")}</div>
     <div class="dsh-grid g3">${panel("Support volume trend", "Tickets received and resolved", legend([["Received", 0], ["Resolved", 1]]) + bars([perMonth(tks, ms), perMonth(done, ms)], mname))}${panel("Ticket categories", "Breakdown by issue type", donut(Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 6), tks.length, "Total tickets"))}${panel("Recent escalations", "Tickets waiting more than 48 hours", tbl(["#", "Customer", "Issue", "Waiting"], overdue.slice(0, 5).map((t) => `<tr data-go="/support/tickets"><td>#${esc(t.ref || "")}</td><td>${esc(t.name || "")}</td><td>${esc(t.subject || "")}</td><td class="muted">${ago(t.createdAt)}</td></tr>`), "Nothing is overdue."), link("/support/tickets"))}</div></div>`;
   return { html, mount(root) { $$("[data-go]", root).forEach((r) => { r.style.cursor = "pointer"; r.onclick = () => ctx.go("#" + r.dataset.go); }); } };
 }
@@ -107,7 +108,9 @@ export function addProperty(ctx, done) {
 }
 
 // ---------- 3 and 4. property owner portfolio and agency ----------
-export function portfolio(ctx, { ls, apps, views }, agency = false) {
+export function portfolio(ctx, { ls, apps, views }, kind = "landlord") {
+  const agency = kind === "agency", agent = kind === "agent", pipeline = agency || agent;
+  const prof = ctx.S.profile || {}, needsV = pipeline && !prof.verified, vst = prof.verification?.status || "pending";
   const ms = months(12), L = ms.length - 1, mname = ms.map((m) => m.label);
   const live = ls.filter(isActive), pend = ls.filter((l) => /pending|flag/i.test(l.status || ""));
   const tenants = apps.filter((a) => /approved|active/i.test(a.status || "")), occupied = new Set([...tenants.map((a) => a.listingId), ...ls.filter((l) => l.available === false).map((l) => l.id)]);
@@ -129,28 +132,66 @@ export function portfolio(ctx, { ls, apps, views }, agency = false) {
   const agents = {}; ls.forEach((l) => { const n = l.agent?.name || "Unassigned"; (agents[n] ||= { n, l: 0, e: 0 }).l++; agents[n].e += perL(l.id); });
   const funnel = [["New enquiries", pv.length + apps.filter((a) => /review/i.test(a.status || "")).length], ["Viewings confirmed", views.filter((v) => v.status === "Confirmed").length], ["Applications", apps.length], ["Approved tenants", tenants.length]];
   const fmax = Math.max(1, ...funnel.map((f) => f[1]));
-  const html = `<div class="dsh">${head({ eyebrow: `Welcome back, ${first(ctx)} 👋`, title: agency ? "Agency dashboard" : "Your rental portfolio", sub: agency ? "Here’s your team’s performance and business overview." : "Here’s what’s happening with your properties.", actions: `<button class="btn primary" id="addp">${icon("plus", 18)} Add property</button>` })}
-    <div class="dsh-kpis k5">${kpis}</div>
-    <div class="dsh-grid g21">${panel(agency ? "Leads pipeline" : "Enquiries trend", agency ? "From new enquiry to approved tenant" : "Viewing requests and applications per month", agency ? `<ul class="dsh-funnel">${funnel.map(([l, v], i) => `<li><span>${esc(l)}</span><div><i style="width:${Math.max(v ? 8 : 2, (v / fmax) * 100)}%;opacity:${1 - i * 0.18}"></i></div><b>${v}</b></li>`).join("")}</ul>` : bars([eM], mname))}${panel(agency ? "Listings by neighbourhood" : "Occupancy", agency ? "Active listings" : "Occupied and vacant properties", agency ? rank(Object.entries(areas).sort((a, b) => b[1] - a[1]).slice(0, 6)) : donut([["Occupied", occupied.size], ["Vacant", Math.max(0, ls.length - occupied.size)]], occ + "%", "Occupied"))}</div>
-    <div class="dsh-grid g21">${panel(agency ? "Your listings" : "Your properties", `${ls.length} propert${ls.length === 1 ? "y" : "ies"}`, tbl(["Property", "Rent / yr", "Enquiries", "Status", ""], props, "You haven’t added a property yet. Choose Add property to get started."))}${panel("Recent applications", "Latest people who applied", tbl(["Applicant", "Status", "Date"], recentApps, "No applications yet."))}</div>
-    <div class="dsh-grid ${agency ? "g21" : "g1"}">${panel("Viewing requests", "Confirm or decline requests", tbl(["Prospect", "When", "Status"], reqs, "No viewing requests yet."))}${agency ? panel("Team performance", "Listings and enquiries by agent", tbl(["Agent", "Listings", "Enquiries"], Object.values(agents).map((a) => `<tr><td><b>${esc(a.n)}</b></td><td>${a.l}</td><td>${a.e}</td></tr>`), "No listings yet.")) : ""}</div></div>`;
+  const vbanner = needsV ? `<section class="dsh-vf ${vst === "rejected" ? "bad" : ""}" data-t="verify"><span class="vf-ic">${icon(vst === "rejected" ? "info" : "clock", 24)}</span><div><b>${vst === "rejected" ? "We couldn’t verify your account" : "Your account is being verified"}</b><p>${vst === "rejected" ? esc(prof.verification?.reason || "Please contact support for details.") : `This usually takes about ${agency ? "3 to 5 minutes" : "10 minutes"}. We’ll notify you the moment you’re verified, and then you can start listing properties.`}</p></div></section>` : "";
+  const html = `<div class="dsh">${head({ eyebrow: `Welcome back, ${first(ctx)} 👋`, title: agency ? "Agency dashboard" : agent ? "Agent dashboard" : "Your rental portfolio", sub: agency ? "Here’s your team’s performance and business overview." : agent ? "Your listings, leads and viewings at a glance." : "Here’s what’s happening with your properties.", actions: `<button class="btn primary" id="addp" ${needsV ? 'aria-disabled="true" style="opacity:.55"' : ""}>${icon("plus", 18)} Add property</button>` })}${vbanner}
+    <div class="dsh-kpis k5" data-t="kpis">${kpis}</div>
+    <div class="dsh-grid g21">${panel(pipeline ? "Leads pipeline" : "Enquiries trend", pipeline ? "From new enquiry to approved tenant" : "Viewing requests and applications per month", pipeline ? `<ul class="dsh-funnel">${funnel.map(([l, v], i) => `<li><span>${esc(l)}</span><div><i style="width:${Math.max(v ? 8 : 2, (v / fmax) * 100)}%;opacity:${1 - i * 0.18}"></i></div><b>${v}</b></li>`).join("")}</ul>` : bars([eM], mname), "", "", "pipe")}${panel(pipeline ? "Listings by neighbourhood" : "Occupancy", pipeline ? "Active listings" : "Occupied and vacant properties", pipeline ? rank(Object.entries(areas).sort((a, b) => b[1] - a[1]).slice(0, 6)) : donut([["Occupied", occupied.size], ["Vacant", Math.max(0, ls.length - occupied.size)]], occ + "%", "Occupied"))}</div>
+    <div class="dsh-grid g21">${panel(pipeline ? "Your listings" : "Your properties", `${ls.length} propert${ls.length === 1 ? "y" : "ies"}`, tbl(["Property", "Rent / yr", "Enquiries", "Status", ""], props, "You haven’t added a property yet. Choose Add property to get started."), "", "", "props")}${panel("Recent applications", "Latest people who applied", tbl(["Applicant", "Status", "Date"], recentApps, "No applications yet."))}</div>
+    <div class="dsh-grid ${agency ? "g21" : "g1"}">${panel("Viewing requests", "Confirm or decline requests", tbl(["Prospect", "When", "Status"], reqs, "No viewing requests yet."), "", "", "views")}${agency ? panel("Team performance", "Listings and enquiries by agent", tbl(["Agent", "Listings", "Enquiries"], Object.values(agents).map((a) => `<tr><td><b>${esc(a.n)}</b></td><td>${a.l}</td><td>${a.e}</td></tr>`), "No listings yet.")) : ""}</div></div>`;
   return { html, mount(root) {
-    $("#addp", root).onclick = () => addProperty(ctx, () => ctx.render());
+    $("#addp", root).onclick = () => (needsV ? toast("Your account is still being verified. You’ll be able to list properties as soon as it’s done.") : addProperty(ctx, () => ctx.render()));
     $$("select[data-view]", root).forEach((s) => (s.onchange = async () => { try { await st.setStatus("viewings", s.dataset.view, s.value); toast("Status updated."); } catch (e) { toast(friendlyErr(e)); } }));
   } };
 }
 
 // ---------- page loaders used by the router ----------
-export const allowed = (ctx, kind) => (kind === "support" ? ctx.S.isAdmin || ctx.S.role === "support" : kind === "landlord" ? ctx.S.isAdmin || ctx.S.role === "landlord" : ctx.S.isAdmin || ctx.S.role === "agency");
+export const allowed = (ctx, kind) => ctx.S.isAdmin || ctx.S.role === kind;
 export const denied = () => ({ title: "Not available", html: `<div class="empty"><h2>This area isn’t available for your account</h2><p>Ask the Faxton owner to give your account access.</p><p style="margin-top:14px"><a class="btn" href="#/">Back home</a></p></div>` });
 export async function supportPage(ctx, sub) {
   if (!allowed(ctx, "support")) return denied();
   const [tks, convs] = await Promise.all([st.adminAll("tickets"), st.adminAll("conversations")]);
+  if (sub === "suggestions") { const v = suggestions(ctx, await st.adminAll("suggestions")); return { title: "Suggestions", role: "support", html: v.html, mount: v.mount }; }
   if (sub === "tickets") { const A2 = await import("./admin2.js"); const v = A2.support(ctx, tks); return { title: "Tickets", role: "support", html: v.html, mount: v.mount }; }
   const v = support(ctx, { tks, convs }); return { title: "Support dashboard", role: "support", html: v.html, mount: v.mount };
 }
-export async function ownerPage(ctx, agency) {
-  if (!allowed(ctx, agency ? "agency" : "landlord")) return denied();
+export async function ownerPage(ctx, kind) {
+  if (!allowed(ctx, kind)) return denied();
   const uid = ctx.S.user.uid, [ls, apps, views] = await Promise.all([st.ownedDocs("listings", uid), st.ownedDocs("applications", uid), st.ownedDocs("viewings", uid)]);
-  const v = portfolio(ctx, { ls, apps, views }, agency); return { title: agency ? "Agency dashboard" : "My portfolio", role: agency ? "agency" : "landlord", html: v.html, mount: v.mount };
+  const v = portfolio(ctx, { ls, apps, views }, kind); return { title: { agency: "Agency dashboard", agent: "Agent dashboard", landlord: "My portfolio" }[kind], role: kind, html: v.html, mount: v.mount };
+}
+
+// ---------- admin: verification requests ----------
+const row = (k, v) => (v || v === 0 ? `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>` : "");
+export function verifications(ctx, users) {
+  const want = users.filter((u) => u.verification), by = (st0) => want.filter((u) => u.verification.status === st0).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
+  const pend = by("pending"), done = [...by("verified"), ...by("rejected")].slice(0, 12);
+  const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
+  const mins = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} hours ago` : `${Math.floor(m / 1440)} days ago`; };
+  const card = (u) => { const a = u.agency, g = u.agentInfo, v = u.verification, isA = v.kind === "agency";
+    return `<article class="vf-card" data-uid="${esc(u.id)}"><header><span class="avatar a2-av">${esc(initials((isA ? a?.business : u.name) || "?"))}</span><div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${mins(v.requestedAt)}</small></div>${pill(v.status === "pending" ? "Pending" : v.status === "verified" ? "Verified" : "Rejected")}</header>
+      <dl class="a2-dl">${row("Full name", u.name)}${isA ? `${row("Business name", a?.business)}${row("Name of registrar", a?.registrar)}${row("Role in the company", a?.position)}${row("Year the company opened", a?.opened)}${row("Registrar’s date of birth", dob(a?.dob))}${row("CAC registration no.", a?.cac)}${row("Support email", a?.supportEmail)}${row("Business phone", a?.phone)}${row("Office address", a?.address)}${row("Website", a?.website)}` : `${row("Phone", g?.phone)}${row("Years of experience", g?.experience)}${row("Agency", g?.company)}${row("ID / licence no.", g?.licence)}${row("Areas covered", g?.areas)}`}${row("Account email", u.email)}</dl>
+      ${v.status === "pending" ? `<div class="a2-act"><button class="btn primary" data-v="verified">${icon("check", 18)} Verify</button><button class="btn" data-v="rejected">Reject</button></div>` : `<p class="muted">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + mins(v.decidedAt) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
+  const html = `<div class="page-head"><div><h1>Verifications</h1><p>Agencies and agents waiting to be verified. Passwords are never stored or shown; only the details they entered are.</p></div></div>
+    <h3 class="vf-h">Waiting for you <b>${pend.length}</b></h3><div class="vf-grid">${pend.map(card).join("") || `<div class="panel muted">No one is waiting for verification.</div>`}</div>
+    ${done.length ? `<h3 class="vf-h">Recently decided</h3><div class="vf-grid">${done.map(card).join("")}</div>` : ""}`;
+  return { html, mount(root) {
+    $$(".vf-card [data-v]", root).forEach((b) => (b.onclick = async () => {
+      const u = users.find((x) => x.id === b.closest(".vf-card").dataset.uid), ok = b.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
+      let reason = ""; if (!ok) { reason = prompt("Reason for rejecting (shown to them):", "We couldn’t verify the details you gave.") ; if (reason === null) return; }
+      b.disabled = true;
+      try {
+        const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(reason ? { reason } : {}) };
+        await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok;
+        await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: reason || "Please contact support." }).catch(() => {});
+        toast(ok ? "Verified. They’ve been notified." : "Rejected. They’ve been notified."); ctx.render();
+      } catch (e) { toast(friendlyErr(e)); b.disabled = false; }
+    }));
+  } };
+}
+
+// ---------- suggestion box (admin and support) ----------
+export function suggestions(ctx, items) {
+  const by = [...items].sort((a, b) => secOf(b) - secOf(a));
+  const html = `<div class="page-head"><div><h1>Suggestions</h1><p>Ideas and feedback sent from the Contact us page.</p></div></div><div class="panel">${tbl(["From", "Topic", "Suggestion", "Date", "Status"], by.map((x) => `<tr><td><b>${esc(x.name || "")}</b><small class="muted" style="display:block">${esc(x.email || "")}</small></td><td>${esc(x.topic || "General")}</td><td style="max-width:420px;white-space:pre-wrap">${esc(x.text)}</td><td class="muted">${day(x.createdAt)}</td><td><select data-sg="${esc(x.id)}" aria-label="Status">${["New", "Reviewed", "Planned", "Done"].map((o) => `<option ${o === x.status ? "selected" : ""}>${o}</option>`).join("")}</select></td></tr>`), "No suggestions yet.")}</div>`;
+  return { html, mount(root) { $$("select[data-sg]", root).forEach((sel) => (sel.onchange = async () => { try { await st.setStatus("suggestions", sel.dataset.sg, sel.value); toast("Updated."); } catch (e) { toast(friendlyErr(e)); } })); } };
 }
