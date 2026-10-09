@@ -7,6 +7,7 @@
     "name": "Faxton Rentals",
     "email": "noreply@faxton-rentals.web.app"
   },
+  "homepage": "https://faxton-rentals.web.app",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
