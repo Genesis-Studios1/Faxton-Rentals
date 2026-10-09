@@ -1110,3 +1110,14 @@ details{border-top:1px solid var(--border);padding:12px 0}details:first-of-type{
 @media (max-width:860px){:root[data-theme=dark] .hmm-chips a{background:#17261f!important}}
 @media (max-width:860px){:root[data-theme=dark] .hmm-all{background:#17261f!important}}
 /* DARK-AUTO-END */
+
+/* ---- admin console: compact desktop scale ---- */
+@media (min-width:1101px){
+.adm-top{height:54px;padding:0 20px;gap:14px}.adm-top .logo{font-size:1.15rem}.adm-top .logo-svg{height:28px}.vr{height:22px}.adm-title{font-size:1rem}.adm-search{height:38px;font-size:.92rem;width:min(340px,28vw)}
+.adm-body{grid-template-columns:clamp(180px,12.5vw,200px) minmax(0,1fr);min-height:calc(100vh - 54px)}.adm-side{top:54px;height:calc(100vh - 54px);padding:14px 10px 12px}.adm-side nav{gap:3px}
+.adm-side a.item{height:40px;padding:0 14px;gap:12px;font-size:.92rem}.adm-back{padding:12px 12px 4px;font-size:.92rem}
+.adm-main{padding:18px 24px 32px}.adm-welcome{margin-bottom:14px}.adm-welcome h1{font-size:clamp(1.5rem,2.1vw,2rem)}.adm-welcome p{font-size:.95rem}
+.stats4{gap:12px;margin-bottom:14px}.stat4{padding:14px;gap:12px}.stat4 small{font-size:.88rem}.stat4 b{font-size:1.8rem}.stat4 .ico{width:40px;height:40px}
+.panel-head h3{font-size:1.15rem}.attn{padding:8px 0;gap:10px}.attn .ico{width:38px;height:38px}
+.a2-search,.a2-sel select{height:38px}.a2-tabs button{padding:9px 14px;font-size:.92rem}
+}
