@@ -123,13 +123,35 @@ export function modal(html, { sticky = false } = {}) {
   else { $(".close", d).onclick = close; d.addEventListener("click", (e) => { if (e.target === d) close(); }); d.addEventListener("cancel", () => setTimeout(() => d.remove())); }
   return { el: d, close };
 }
-export const friendlyErr = (e) => ({
-  "auth/invalid-credential": "Incorrect email or password.", "auth/user-not-found": "No account found with that email.", "app/no-account": "No account found with this email. Check the spelling or create an account.", "app/banned": "This account has been banned. If you think this is a mistake, please contact support.",
-  "auth/wrong-password": "Incorrect email or password.", "auth/email-already-in-use": "An account with this email already exists.",
+const FRIENDLY = {
+  "auth/invalid-credential": "That email and password don’t match an account. Check them, use “Forgot password?”, or create an account if you’re new.", "auth/user-not-found": "We couldn’t find an account for that email and password.", "app/no-account": "We couldn’t find an account for that email and password.", "app/banned": "This account has been banned. If you think this is a mistake, please contact support.",
+  "auth/wrong-password": "That email and password don’t match. Check them or use “Forgot password?”.", "auth/email-already-in-use": "An account with this email already exists. Sign in instead, or use “Forgot password?” if you don’t remember it.",
   "auth/weak-password": "Password must be at least 8 characters.", "auth/invalid-email": "Enter a valid email address.",
   "auth/popup-closed-by-user": "Sign-in was cancelled.", "auth/popup-blocked": "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.", "auth/operation-not-allowed": "This sign-in method isn't enabled yet in Firebase Authentication.",
   "auth/unauthorized-domain": "This domain isn't authorised in Firebase Authentication yet.", "auth/too-many-requests": "Too many attempts. Try again shortly.",
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
-}[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
+  // Google sign-in inside the Android / iPhone app (codes come from signInGoogle in main.js; a support code is appended)
+  "google/cancelled": "Google sign-in was cancelled.",
+  "google/no-account": "No Google account is ready on this phone. Add one in Settings > Accounts and try again, or sign in with your email and password below.",
+  "google/not-registered": "Google sign-in isn't switched on for this version of the app yet. Please sign in with your email and password below for now.",
+  "google/network": "Can't reach Google. Check your internet connection and try again.",
+  "google/play-services": "Google Play services is missing or out of date on this phone. Update it in the Play Store, or sign in with your email and password below.",
+  "google/failed": "Google sign-in didn't finish. Try again, or sign in with your email and password below.",
+  "google/audience": "Google sign-in is set up for a different app version. Please update Faxton Rentals, or sign in with your email and password below.",
+  "google/token-rejected": "Google sign-in was refused. Check that your phone's date and time are set automatically, then try again, or use your email and password below.",
+  "app/plugin-missing": "Google sign-in isn't available in this version of the app. Please update the app, or sign in with your email and password below.",
+  "app/no-token": "Google didn't send back a sign-in token. Try again, or sign in with your email and password below.",
+  "app/google-unavailable": "Google sign-in isn't available in the iPhone app yet. Please sign in with your email and password below.",
+  "auth/network-request-failed": "Can't reach the server. Check your internet connection and try again.",
+  "auth/user-disabled": "This account has been disabled. Please contact support.",
+  "auth/account-exists-with-different-credential": "An account with this email already exists. Sign in with your email and password instead.",
+};
+export const friendlyErr = (e) => {
+  const m = FRIENDLY[e?.code?.replace("firestore/", "")];
+  if (m) return m + (e?.gcode ? ` (code ${e.gcode})` : "");
+  return `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`;
+};
+
+
 
 export const BUILD = "2026-10-09.97";

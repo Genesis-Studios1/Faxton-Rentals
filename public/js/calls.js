@@ -131,7 +131,7 @@ function run({ id, me, role, kind, other, offer }) {
     if (kind === "video" || cam || screen || remoteVideo) {
       cv = document.createElement("canvas"); cv.width = 1280; cv.height = 720; const g = cv.getContext("2d");
       const cover = (v, x, y, w, h) => { const vw = v.videoWidth, vh = v.videoHeight; if (!vw) return; const r = Math.max(w / vw, h / vh), dw = vw * r, dh = vh * r; g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip(); g.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); g.restore(); };
-      const draw = () => { g.fillStyle = "#07110d"; g.fillRect(0, 0, 1280, 720); if (remoteVideo) cover(remoteV, 0, 0, 1280, 720); else { g.fillStyle = "#fff"; g.font = "600 44px sans-serif"; g.textAlign = "center"; g.fillText(name, 640, 370); } if (!localV.hidden) cover(localV, 1280 - 340, 720 - 200, 320, 180); raf = requestAnimationFrame(draw); };
+      const draw = () => { g.fillStyle = "#07110d"; g.fillRect(0, 0, 1280, 720); if (remoteVideo) cover(remoteV, 0, 0, 1280, 720); else { g.fillStyle = "#fff"; g.font = `600 44px ${getComputedStyle(document.documentElement).getPropertyValue("--font-display") || "system-ui, sans-serif"}`; g.textAlign = "center"; g.fillText(name, 640, 370); } if (!localV.hidden) cover(localV, 1280 - 340, 720 - 200, 320, 180); raf = requestAnimationFrame(draw); };
       draw(); tracks.unshift(...cv.captureStream(24).getVideoTracks());
     }
     const type = ["video/webm;codecs=vp8,opus", "video/webm", "audio/webm;codecs=opus", "audio/webm"].find((t) => (cv ? t.startsWith("video") : t.startsWith("audio")) && MediaRecorder.isTypeSupported(t)) || "";

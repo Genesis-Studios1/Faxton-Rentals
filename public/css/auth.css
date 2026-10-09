@@ -1,1 +1,13 @@
 /* auth.css: loaded after app.css, so rules here win. Owned by one workstream of the Faxton redesign. */
+/* ---- app lock and email verification gate ---- */
+.lk-ov{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:24px;background:linear-gradient(160deg,#041812,#0b3d2e 60%,#0c181e);color:#fff}
+.lk-card{width:min(380px,100%);text-align:center;display:grid;gap:14px;justify-items:center}.lk-logo svg{width:84px;height:auto}
+.lk-card h1{color:#fff;font-size:1.6rem}.lk-card p{color:#b7d6c9;margin:0}.lk-go{min-width:200px;padding:14px 22px;font-size:1.05rem}
+.lk-err{color:#ff9bab!important;min-height:1.3em;font-size:.9rem}.lk-out{background:none;border:0;color:#b7d6c9;text-decoration:underline;padding:8px}
+html.locked body>*:not(.lk-ov){visibility:hidden}
+.vg{min-height:100dvh;display:grid;place-items:center;padding:24px;background:var(--bg)}
+.vg-card{width:min(460px,100%);border:1px solid var(--border);background:var(--card);border-radius:24px;padding:32px 26px;text-align:center;display:grid;gap:14px;justify-items:center;box-shadow:var(--shadow)}
+.vg-ic{width:76px;height:76px;border-radius:50%;background:var(--soft);color:var(--soft-t);display:grid;place-items:center}
+.vg-card h1{font-size:1.6rem}.vg-card p{color:var(--muted);margin:0}.vg-card b{color:var(--head);overflow-wrap:anywhere}
+.vg-act{display:grid;gap:10px;width:100%;margin-top:6px}.vg-act .btn{width:100%}.vg-link{background:none;border:0;color:var(--muted);text-decoration:underline;padding:8px}
+.vg-msg{min-height:1.3em;font-size:.9rem}
