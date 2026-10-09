@@ -1,0 +1,26 @@
+// Applied at the end of android/app/build.gradle by ci/patch_android.py (the Android project is generated in CI, never committed).
+// Every build (debug AND release, APK AND bundle) is signed with ONE stable key chosen by the workflow:
+//   - your own upload key, when the ANDROID_KEYSTORE_* repository secrets exist, otherwise
+//   - the sideload key committed at apps/mobile/signing/faxton-android.jks.
+// A stable key means a stable SHA-1, which is what Google needs in order to trust the app for "Sign in with Google".
+def faxtonKeystore = System.getenv('FAXTON_KS_FILE')
+if (!faxtonKeystore) {
+    throw new GradleException('FAXTON_KS_FILE is not set. Build through ci/build_android.sh so that a signing key is chosen.')
+}
+android {
+    signingConfigs {
+        faxton {
+            storeFile file(faxtonKeystore)
+            storePassword System.getenv('FAXTON_KS_PASS')
+            keyAlias System.getenv('FAXTON_KEY_ALIAS')
+            keyPassword System.getenv('FAXTON_KEY_PASS')
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.faxton }
+        release { signingConfig signingConfigs.faxton }
+    }
+    if (System.getenv('FAXTON_ABI')) {
+        defaultConfig { ndk { abiFilters System.getenv('FAXTON_ABI') } }
+    }
+}
