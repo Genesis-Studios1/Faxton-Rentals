@@ -478,19 +478,22 @@ async function messages(ctx, cid) {
   const html = `<div class="mx-shell ${cid ? "has-chat" : ""}"><aside class="mx-side" id="mxSide"></aside><section class="mx-chat" id="chat"></section></div>`;
   return { title: "Messages", bare: true, html,
     mount() {
-      let mine = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set();
+      let mine = [], base = [], dms = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set();
       const faxton = () => mode === "faxton", convs = () => (faxton() ? team : mine);
       const iniAv = (name) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0f7a5a"/><text x="32" y="42" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${esc((String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase())}</text></svg>`);
       // Who the person on the other side is, from the point of view of the current mode.
-      const other = (c) => faxton() ? { name: c.userName || "User", avatar: c.userPhoto || iniAv(c.userName), role: "User", id: c.uid } : { name: c.agent.name, avatar: c.agent.avatar, role: c.listingId === "direct" ? "Faxton team" : "Property Agent", id: c.agent.id };
+      const byMe = (c) => c.byStaff === me;
+      const merge = () => { mine = [...base, ...dms].sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0)); };
+      const other = (c) => byMe(c) ? { name: c.userName || "User", avatar: c.userPhoto || iniAv(c.userName), role: "User", id: c.uid } : faxton() ? { name: c.userName || "User", avatar: c.userPhoto || iniAv(c.userName), role: "User", id: c.uid } : { name: c.agent.name, avatar: c.agent.avatar, role: c.listingId === "direct" ? "Faxton team" : "Property Agent", id: c.agent.id };
       const myAv = () => faxton() ? "assets/mark.svg" : ctx.S.profile?.photo || ctx.S.user.photoURL || iniAv(ctx.S.user.displayName || ctx.S.profile?.name || ctx.S.user.email);
       const isMine = (m, c) => (faxton() ? m.from !== c.uid : m.from === me);
-      const unreadOf = (c) => (faxton() ? !!c.staffUnread : !!c.unread);
+      const unreadOf = (c) => (faxton() || byMe(c) ? !!c.staffUnread : !!c.unread);
       const FILTERS = () => [["all", "chatdots", "All", convs().length], ["unread", "bell", "Unread", convs().filter(unreadOf).length], ["calls", "phone", "Calls", calls.length]];
       const vis = () => convs().filter((c) => (tab === "all" || (tab === "unread" ? unreadOf(c) : true)) && (!term || (other(c).name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
       const beginCall = async (c, kind) => {
         if (faxton()) return CALLS.startCall(ctx, { convId: c.id, to: c.uid, toName: c.userName || "User", toPhoto: c.userPhoto || "", kind, title: "Faxton team" });
-        if (c.listingId === "direct") return CALLS.startCall(ctx, { convId: c.id, to: "staff", toName: "Faxton team", kind, title: "Faxton team" });
+        if (byMe(c)) return CALLS.startCall(ctx, { convId: c.id, to: c.uid, toName: c.userName || "User", toPhoto: c.userPhoto || "", kind, title: "Faxton team" });
+        if (c.listingId === "direct") return CALLS.startCall(ctx, { convId: c.id, to: c.byStaff || "staff", toName: "Faxton team", kind, title: "Faxton team" });
         const l = await st.getListing(c.listingId).catch(() => null); const to = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : "staff";
         CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, toPhoto: c.agent.avatar, kind, title: c.listingTitle, image: c.image, area: c.area });
       };
@@ -511,7 +514,7 @@ async function messages(ctx, cid) {
       };
       const drawSide = () => {
         const side = $("#mxSide"); if (!side) return; const f = FILTERS();
-        side.innerHTML = `<div class="mx-sidehead"><div class="mx-hrow"><h1>Messages</h1><a class="mx-newi" href="${faxton() ? "#/admin/users" : "#/search"}" aria-label="New conversation" title="New conversation">${icon("edit", 22)}</a></div>
+        side.innerHTML = `<div class="mx-sidehead"><div class="mx-hrow"><h1>Messages</h1><a class="mx-newi" href="${ctx.S.isAdmin ? "#/admin/users" : faxton() ? "#/admin/users" : "#/search"}" aria-label="New conversation" title="New conversation">${icon("edit", 22)}</a></div>
           ${staff ? `<div class="mx-mode" role="tablist" aria-label="Message as"><button type="button" class="${faxton() ? "" : "on"}" data-mode="personal">Me</button><button type="button" class="${faxton() ? "on" : ""}" data-mode="faxton">Faxton</button></div><p class="mx-hint">Type <b>/switch</b> in a message to change.</p>` : ""}
           <label class="mx-search">${icon("search", 18)}<input id="cs" type="search" placeholder="Search conversations…" value="${esc(term)}" aria-label="Search conversations"></label>
           <div class="mx-tabs" role="tablist">${f.map(([k, , l]) => `<button type="button" role="tab" data-tab="${k}" class="${k === tab ? "on" : ""}">${l} (<span data-cnt="${k}">0</span>)</button>`).join("")}</div></div>
@@ -552,7 +555,7 @@ async function messages(ctx, cid) {
         const c = convs().find((x) => x.id === cid); const chat = $("#chat");
         if (!c) { unsubM?.(); chat.dataset.cid = ""; chat.innerHTML = `<div class="mx-empty"><span>${icon("chatdots", 34)}</span><h2>${convs().length ? "Select a conversation" : "No messages yet"}</h2><p>${faxton() ? "Choose a person to reply as Faxton Rentals." : "Message a listing agent to start chatting."}</p></div>`; return; }
         if (chat.dataset.cid === cid + mode) { drawChat.paintPin?.(c); return; } chat.dataset.cid = cid + mode;
-        if (faxton() ? c.staffUnread : c.unread && c.uid === me) (faxton() ? st.setStaffUnread(cid, false) : st.markRead(cid)).catch(() => {});
+        if (faxton() || byMe(c) ? c.staffUnread : c.unread && c.uid === me) (faxton() || byMe(c) ? st.setStaffUnread(cid, false) : st.markRead(cid)).catch(() => {});
         const o = other(c), direct = c.listingId === "direct", agentView = !faxton() && !direct;
         const seenAt = unreadFrom(cid); try { localStorage.setItem("seen_" + cid, String(Math.floor(Date.now() / 1000))); } catch {}
         chat.innerHTML = `<header class="mx-head"><a class="mx-back" href="#/messages" aria-label="Back">${icon("left", 22)}</a><span class="mx-hav"><img src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"></span><div class="mx-hn"><b>${esc(o.name)}</b><span>${faxton() ? "Replying as Faxton Rentals" : esc(o.role)}</span></div>
@@ -624,7 +627,7 @@ async function messages(ctx, cid) {
         // Tap a picture to see that person's profile; businesses and verified agents get the green tick.
         const showProfile = async () => {
           let uid = "", role = "user";
-          if (faxton()) { uid = c.uid; role = "user"; }
+          if (faxton() || byMe(c)) { uid = c.uid; role = "user"; }
           else if (c.listingId === "direct") role = "team";
           else { const l = await st.getListing(c.listingId).catch(() => null); uid = l?.ownerUid || c.agent.id || ""; const pb = await st.getPublic(uid); role = ["agent", "agency", "landlord"].includes(pb?.role) ? pb.role : "agent"; }
           const imgs = ms.filter((m) => m.image).map((m) => ({ type: "image", src: m.image }));
@@ -636,7 +639,7 @@ async function messages(ctx, cid) {
         const hav = $(".mx-hav"); if (hav) { hav.style.cursor = "pointer"; hav.onclick = showProfile; }
         thread.addEventListener("click", (e) => { const av = e.target.closest(".mx-bav"); if (av && !av.closest(".me")) showProfile(); });
         // a green tick next to the name when the person is verified
-        (async () => { let ver = c.listingId === "direct" && !faxton(); if (!ver && !faxton() && agentView) { const l = await st.getListing(c.listingId).catch(() => null); ver = !!(await st.getPublic(l?.ownerUid || c.agent.id))?.verified; } else if (faxton()) ver = !!(await st.getPublic(c.uid))?.verified; const nm = $(".mx-hn b"); if (ver && nm && !nm.querySelector(".vseal")) nm.insertAdjacentHTML("beforeend", " " + verifiedBadge(18)); })();
+        (async () => { let ver = c.listingId === "direct" && !faxton() && !byMe(c); if (!ver && !faxton() && agentView) { const l = await st.getListing(c.listingId).catch(() => null); ver = !!(await st.getPublic(l?.ownerUid || c.agent.id))?.verified; } else if (faxton()) ver = !!(await st.getPublic(c.uid))?.verified; const nm = $(".mx-hn b"); if (ver && nm && !nm.querySelector(".vseal")) nm.insertAdjacentHTML("beforeend", " " + verifiedBadge(18)); })();
         // call back from a missed-call card
         thread.addEventListener("click", (e) => { const cb = e.target.closest("[data-cb2]"); if (cb) beginCall(c, "voice"); });
         thread.addEventListener("click", (e) => { const a = e.target.closest("[data-act]"); if (a) { e.stopPropagation(); const r = a.getBoundingClientRect(); return openMM(a.dataset.act, r.left - 120, r.bottom + 6); } const g = e.target.closest("[data-goto]"); if (g) return jump(g.dataset.goto); const pc2 = e.target.closest("[data-pic]"); if (pc2) openViewer([{ type: "image", src: pc2.src }], 0); });
@@ -700,15 +703,16 @@ async function messages(ctx, cid) {
       };
       const refresh = () => {
         // A conversation opened from the admin console belongs to the Faxton inbox. If the list hasn't brought it yet, fetch it directly.
-        if (staff && cid && !mine.some((x) => x.id === cid) && !team.some((x) => x.id === cid) && !fetched.has(cid)) { fetched.add(cid); st.getConversation(cid).then((c) => { if (c && c.listingId === "direct") { team = [c, ...team.filter((x) => x.id !== c.id)]; refresh(); } }); }
+        if (staff && cid && !mine.some((x) => x.id === cid) && !team.some((x) => x.id === cid) && !fetched.has(cid)) { fetched.add(cid); st.getConversation(cid).then((c) => { if (c && c.byStaff === me) { dms = [c, ...dms.filter((x) => x.id !== c.id)]; merge(); refresh(); } else if (c && c.listingId === "direct") { team = [c, ...team.filter((x) => x.id !== c.id)]; refresh(); } }); }
         if (staff && cid && mode === "personal" && !mine.some((x) => x.id === cid) && team.some((x) => x.id === cid)) { mode = "faxton"; try { sessionStorage.setItem("msgMode", mode); } catch {} drawSide(); } else if ($("#convs")) { drawList(); } else drawSide();
         drawChat();
       };
-      const unsubC = st.watchConversations(ctx.S.user, (c) => { mine = c; refresh(); });
+      const unsubC = st.watchConversations(ctx.S.user, (c) => { base = c; merge(); refresh(); });
+      const unsubD = staff ? st.watchStaffDMs(me, (c) => { dms = c; merge(); refresh(); }) : null;
       const unsubT = staff ? st.watchStaffConversations((c) => { team = c.length || !team.length ? c : team; teamErr = false; refresh(); }, () => { teamErr = true; refresh(); }) : null;
       const unsubL = CALLS.watchLogs(me, (l) => { calls = l; if ($("#convs")) drawList(); else drawSide(); paintThread(); });
       drawSide(); drawChat();
-      ctx.S.cleanups.push(() => { unsubC(); unsubT?.(); unsubL(); unsubM?.(); });
+      ctx.S.cleanups.push(() => { unsubC(); unsubD?.(); unsubT?.(); unsubL(); unsubM?.(); });
     } };
 }
 
