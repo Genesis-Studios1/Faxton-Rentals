@@ -182,6 +182,59 @@ service cloud.firestore {
         && request.resource.data.files is map && request.resource.data.files.size() <= 20;
       allow delete: if isAdmin();
     }
+    // ---- After-rent: the tenant's My Home dashboard ----
+    // One record per approved application: lease dates, renewal and move-out requests, and the owner's replies.
+    match /tenancies/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && exists(/databases/$(database)/documents/applications/$(id))
+        && get(/databases/$(database)/documents/applications/$(id)).data.uid == request.auth.uid
+        && get(/databases/$(database)/documents/applications/$(id)).data.status in ['Approved', 'Active']
+        && request.resource.data.get('ownerUid', null) == get(/databases/$(database)/documents/applications/$(id)).data.get('ownerUid', null)
+        && request.resource.data.keys().size() <= 20 && short(request.resource.data.title, 200);
+      allow read: if owns() || ownsListing() || isAdmin();
+      allow update: if (owns() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['renewal', 'moveOut', 'updatedAt']))
+        || ((ownsListing() || isAdmin()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reply', 'updatedAt']));
+    }
+    // Maintenance requests. Either side adds one signed entry at a time to the updates list.
+    match /maintenance/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Open'
+        && request.resource.data.keys().size() <= 16 && short(request.resource.data.title, 140) && short(request.resource.data.desc, 1500)
+        && (!('photo' in request.resource.data) || (request.resource.data.photo is string && request.resource.data.photo.size() < 400000))
+        && request.resource.data.updates is list && request.resource.data.updates.size() == 0;
+      allow read: if owns() || ownsListing() || isAdmin();
+      allow update: if signedIn() && (owns() || ownsListing() || isAdmin())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updates', 'updatedAt'])
+        && request.resource.data.updates is list && request.resource.data.updates.size() == resource.data.updates.size() + 1
+        && request.resource.data.updates.size() <= 60
+        && request.resource.data.updates[request.resource.data.updates.size() - 1].uid == request.auth.uid
+        && request.resource.data.status in ['Open', 'In progress', 'Resolved']
+        && (owns() || request.resource.data.status != 'Open' || resource.data.status == 'Open');
+    }
+    // Rent, service charge and utility records for a tenancy. The tenant or the owner can add one; the owner confirms payment.
+    match /records/{id} {
+      allow create: if signedIn() && request.resource.data.keys().size() <= 14 && short(request.resource.data.label, 120)
+        && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount < 1000000000
+        && request.resource.data.status in ['Due', 'Paid']
+        && exists(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId))
+        && (request.resource.data.uid == request.auth.uid
+            && get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.uid == request.auth.uid
+          || (get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.get('ownerUid', '') == request.auth.uid || isAdmin())
+            && get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.uid == request.resource.data.uid);
+      allow read: if owns() || ownsListing() || isAdmin();
+      allow update: if (owns() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidOn', 'updatedAt']))
+        || ((ownsListing() || isAdmin()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidOn', 'confirmed', 'updatedAt']));
+      allow delete: if (owns() && resource.data.get('by', '') == 'tenant') || ownsListing();
+    }
+    // Property notices from the owner to the tenants of a home.
+    match /notices/{id} {
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.keys().size() <= 10
+        && short(request.resource.data.title, 140) && short(request.resource.data.text, 2000)
+        && request.resource.data.tenants is list && request.resource.data.tenants.size() <= 300
+        && (myRole() in ['landlord', 'agency', 'agent'] || isAdmin());
+      allow read: if (signedIn() && request.auth.uid in resource.data.tenants) || ownsListing() || isAdmin();
+      allow delete: if ownsListing() || isAdmin();
+    }
+
     // Rent offers and counter-offers. Each change adds exactly one entry to the history, signed by the person making it.
     match /offers/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Pending'
