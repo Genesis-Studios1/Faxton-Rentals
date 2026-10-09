@@ -8,8 +8,13 @@ import { $, $$, esc, icon, toast, initials } from "./ui.js";
 let toneCtx = null;
 const audio = () => { try { toneCtx ||= new (window.AudioContext || window.webkitAudioContext)(); toneCtx.resume?.(); return toneCtx; } catch { return null; } };
 const tone = (ac, f, t, d, v) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.05); };
-// What the caller hears while the other phone rings: two soft tones, two seconds on and four off.
-function ringback() { const ac = audio(); if (!ac) return () => {}; const burst = () => { const t = ac.currentTime; [440, 480].forEach((f) => tone(ac, f, t, 1.9, 0.05)); }; burst(); const id = setInterval(burst, 6000); return () => clearInterval(id); }
+// What the caller hears while the other phone rings: the familiar "ring-ring ... ring-ring" (two soft pulses, then a pause).
+function ringback() {
+  const ac = audio(); if (!ac) return () => {};
+  const pulse = (t) => [440, 480].forEach((f) => { const o = ac.createOscillator(), g = ac.createGain(), lfo = ac.createOscillator(), lg = ac.createGain(); o.type = "sine"; o.frequency.value = f; lfo.frequency.value = 20; lg.gain.value = 0.035; lfo.connect(lg); lg.connect(g.gain); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09, t + 0.03); g.gain.setValueAtTime(0.09, t + 0.38); g.gain.linearRampToValueAtTime(0.0001, t + 0.42); o.connect(g); g.connect(ac.destination); o.start(t); lfo.start(t); o.stop(t + 0.45); lfo.stop(t + 0.45); });
+  const cycle = () => { const t = ac.currentTime + 0.02; pulse(t); pulse(t + 0.6); };
+  cycle(); const id = setInterval(cycle, 3400); return () => clearInterval(id);
+}
 
 const ICE = { iceServers: [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }] };
 export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
@@ -174,7 +179,12 @@ export async function startCall(ctx, { convId, to, toName, toPhoto = "", kind = 
 
 // ---------- incoming calls ----------
 let ringT = null;
-const ringOn = () => { const ac = audio(); if (!ac) return; const play = () => { const t = ac.currentTime; [[659.25, 0], [880, 0.2], [659.25, 0.55], [880, 0.75]].forEach(([f, d]) => tone(ac, f, t + d, 0.3, 0.1)); }; play(); ringT = setInterval(play, 2400); };
+const ringOn = () => {
+  const ac = audio(); if (!ac) return;
+  const note = (f, t, d) => { [[1, 0.13], [2, 0.04], [3, 0.015]].forEach(([m, v]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine"; o.frequency.value = f * m; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.05); }); };
+  const tune = () => { const t = ac.currentTime + 0.02; [[659.25, 0], [783.99, 0.16], [1046.5, 0.32], [783.99, 0.55], [880, 0.71], [1174.66, 0.87], [987.77, 1.1], [783.99, 1.26], [659.25, 1.42], [783.99, 1.7]].forEach(([f, d]) => note(f, t + d, 0.5)); };
+  tune(); ringT = setInterval(tune, 3200);
+};
 const ringOff = () => { clearInterval(ringT); ringT = null; };
 const avatar = (c, cls = "") => (c.callerPhoto ? `<img class="cl-ph ${cls}" src="${esc(c.callerPhoto)}" alt="">` : `<span class="cl-av ${cls || "sm"}">${esc(initials(c.callerName || "?"))}</span>`);
 // When the app isn't on screen, ring through the system: a notification with Decline and Accept buttons.
@@ -242,8 +252,11 @@ export function watchIncoming(ctx, staff) {
 
 // ---------- call logs (the Calls tab in Messages) ----------
 export function logRow(c, me) {
-  const out = c.callerUid === me, other = out ? c.calleeName : c.callerName, missed = !out && ["missed", "cancelled"].includes(c.status), when = c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000) : null;
-  const state = c.status === "ringing" ? "Ringing" : missed ? "Missed" : c.status === "declined" ? "Declined" : ["cancelled", "missed"].includes(c.status) ? "No answer" : "";
+  const out = c.callerUid === me, other = out ? c.calleeName : c.callerName, when = c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000) : null;
+  // A call that never got an answer or an ending is shown as unanswered once it is clearly over.
+  const stale = c.status === "ringing" && when && Date.now() - when.getTime() > 90000;
+  const st = stale ? "missed" : c.status, missed = !out && ["missed", "cancelled"].includes(st);
+  const state = st === "ringing" ? "Ringing" : missed ? "Missed" : st === "declined" ? "Declined" : ["cancelled", "missed"].includes(st) ? "No answer" : "";
   const dur = c.duration ? fmtDur(c.duration) : "";
-  return `<div class="conv call-row ${missed ? "missed" : ""}"><span class="cl-av sm">${esc(initials(other || "?"))}</span><div class="conv-main"><div class="conv-top"><b>${esc(other || "Unknown")}</b><span>${when ? when.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</span></div><p>${icon(c.kind === "video" ? "video" : "phone", 14)} ${out ? "Outgoing" : "Incoming"}${state ? " · " + state : ""}${dur ? " · " + dur : ""}${c.recorded ? " · Recorded" : ""}</p></div><button type="button" class="icon-btn flat" data-cb="${esc(c.id)}" data-k="voice" aria-label="Call back">${icon("phone", 20)}</button><button type="button" class="icon-btn flat" data-cb="${esc(c.id)}" data-k="video" aria-label="Video call back">${icon("video", 20)}</button></div>`;
+  return `<div class="mx-call ${missed ? "missed" : ""}"><span class="mx-av ini">${esc(initials(other || "?"))}</span><div class="mx-cm"><b>${esc(other || "Unknown")}</b><p>${icon(c.kind === "video" ? "video" : "phone", 14)} ${out ? "Outgoing" : "Incoming"}${state ? " · " + state : ""}${dur ? " · " + dur : ""}${c.recorded ? " · Recorded" : ""}</p><small>${when ? when.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</small></div><div class="mx-cb"><button type="button" class="mx-ib" data-cb="${esc(c.id)}" data-k="voice" aria-label="Call back" title="Call back">${icon("phone", 20)}</button><button type="button" class="mx-ib" data-cb="${esc(c.id)}" data-k="video" aria-label="Video call back" title="Video call back">${icon("video", 20)}</button></div></div>`;
 }
