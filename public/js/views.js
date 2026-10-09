@@ -6,6 +6,7 @@ import * as PG from "./pages.js";
 import * as A2 from "./admin2.js";
 import * as DASH from "./dash.js";
 import * as LEGAL from "./legal.js";
+import * as CALLS2 from "./calls.js";
 import { loadLeaflet, ctrlZoom, tiles } from "./maps.js";
 import * as CALLS from "./calls.js";
 import { collectDetails, verifyPopup, resizePhoto, askResidence } from "./onboard.js";
@@ -350,6 +351,16 @@ function openViewer(items, start = 0) {
 }
 
 // ---------- detail ----------
+const amenIcon = (a) => (/park/i.test(a) ? "car" : /secur|guard|cctv/i.test(a) ? "shield" : /pool|swim/i.test(a) ? "waves" : /power|generator|backup|solar|electric|inverter/i.test(a) ? "bolt" : /smart/i.test(a) ? "chip" : /garden|tree|lawn/i.test(a) ? "tree" : /water|borehole/i.test(a) ? "drop" : /balcon|terrace/i.test(a) ? "building" : "check");
+// An illustrative room layout built from the bedrooms, bathrooms and size in the listing.
+function planHtml(l) {
+  const b = +l.beds || 0, ba = +l.baths || 0, sqft = l.sqm ? Math.round(l.sqm * 10.764) : 0, part = (f) => (sqft ? `≈ ${Math.round(sqft * f).toLocaleString("en-NG")} sqft` : "");
+  const cell = (n, sub = "", cls = "") => `<div class="fp-c ${cls}"><b>${esc(n)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</div>`;
+  if (!b) return `<div class="fp"><div class="fp-row">${cell("Living & Sleeping", part(0.6), "hl")}${cell("Kitchenette")}</div><div class="fp-row">${cell("Bathroom")}${cell("Entrance")}</div></div>`;
+  const beds = Math.min(b, 6), top = [cell("Living & Dining", part(0.28), "hl wide"), cell("Kitchen")];
+  if (b >= 3) top.push(cell("Family Lounge"));
+  return `<div class="fp"><div class="fp-row top">${top.join("")}</div><div class="fp-row">${Array.from({ length: beds }, (_, i) => cell(i ? `Bedroom ${i + 1}` : "Master Suite", ba >= b ? "en suite" : i === 0 ? "en suite" : "")).join("")}</div></div><p class="fp-note">Illustrative layout based on the listing details. Not to scale.</p>`;
+}
 async function detail(ctx, id) {
   const l = await st.getListing(id);
   if (!l) return { title: "Not found", html: `<div class="empty"><h2>This home isn’t available</h2><p><a class="link" href="#/search">Browse homes</a></p></div>` };
@@ -361,6 +372,7 @@ async function detail(ctx, id) {
   const hasPin = l.lat != null && l.lng != null && l.hasPin !== false, lid = "FR-" + String([...l.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9000, 7) + 1000);
   const parking = l.parking != null && l.parking !== "" ? `${l.parking} space${+l.parking === 1 ? "" : "s"}` : l.amenities.includes("Parking") ? "Available" : "None listed";
   const info = [["home", "Property type", catName(l)], ["area", "Size", l.sqm ? `${l.sqm} m²` : "Not listed"], ["cal", "Year built", l.yearBuilt || "Not listed"], ["car", "Parking", parking], ["building", "Furnishing", l.furnished || "Not listed"], ["list", "Listing ID", lid]];
+  const bkDays = []; for (let i = 1; bkDays.length < 7; i++) { const d = new Date(Date.now() + i * 864e5); if (d.getDay() === 0) continue; bkDays.push([d.toISOString().slice(0, 10), d.toLocaleDateString("en-GB", { weekday: "short", month: "short", day: "numeric" })]); }
   const PLANS = [["Yearly", 1], ["Every 6 months", 2], ["Quarterly", 4], ["Monthly", 12]];
   const desc = String(l.desc || "").split(/\n+/).filter(Boolean);
   const simCard = (x) => `<article class="sim" data-open="${esc(x.id)}" tabindex="0" aria-label="${esc(x.title)}"><div class="sim-img"><img src="${esc(x.thumb || x.images[0])}" alt="${esc(x.title)}" loading="lazy"><span class="sim-tag ${x.available === false ? "off" : ""}">${x.available === false ? "Rented" : "For rent"}</span><span class="sim-ph">${icon("camera", 14)} ${x.images.length}</span><button class="heart ${ctx.S.saved.has(x.id) ? "on" : ""}" data-fav="${esc(x.id)}" aria-label="Save ${esc(x.title)}" aria-pressed="${ctx.S.saved.has(x.id)}">${icon("heart", 20)}</button></div>
@@ -371,20 +383,27 @@ async function detail(ctx, id) {
     ${gal}${vids.length ? `<div class="vid-row"><button type="button" class="vid-btn" data-vid="${im.length}"><span class="vid-ic">${icon("video", 20)}</span><span><b>Watch ${vids.length > 1 ? vids.length + " videos" : "the video tour"}</b><small>${im.length} photo${im.length === 1 ? "" : "s"} · ${vids.length} video${vids.length === 1 ? "" : "s"}</small></span></button></div>` : ""}
     <div class="detail"><div class="dt-main">
       <div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div>${l.sqm ? `<div class="fact">${icon("area", 22)}${l.sqm} m²</div>` : ""}<div class="fact">${icon("car", 22)}${parking}</div></div>
-      <div class="dt-tabs" role="tablist">${[["overview", "Overview"], ["features", "Features"], ["location", "Location"], ["plan", "Floor plan"]].map(([k, t], i) => `<button type="button" role="tab" class="${i ? "" : "on"}" data-pane="${k}">${t}</button>`).join("")}</div>
+      <div class="dt-tabs" role="tablist">${[["overview", "Overview"], ["features", "Features"], ["location", "Location"], ["plan", "Floor plan"], ["media", "Media"]].map(([k, t], i) => `<button type="button" role="tab" class="${i ? "" : "on"}" data-pane="${k}">${t}</button>`).join("")}</div>
       <section class="dt-pane" id="p-overview">${(desc.length ? desc : ["The agent hasn’t added a description yet."]).map((x) => `<p class="dt-desc">${esc(x)}</p>`).join("")}<p class="dt-desc">Listed by ${esc(l.agent.name)}. Rent is paid per year. Documents are available for inspection after your viewing.</p>
         <div class="dt-info">${info.map(([ic, k, v]) => `<div><span>${icon(ic, 18)} ${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
         <div class="dt-pay"><h2>Payment estimate</h2><div class="dt-pay-in"><div><h4>Payment plan</h4><div class="dt-plans" role="radiogroup" aria-label="Payment plan">${PLANS.map(([t, n], i) => `<button type="button" role="radio" aria-checked="${i === 0}" class="${i === 0 ? "on" : ""}" data-n="${n}">${t}</button>`).join("")}</div><p class="muted">Estimate only. Your agent confirms the final plan.</p></div>
           <div class="dt-est"><span>Est. payment each time</span><b id="estP">${naira(l.price)}</b><small id="estN">Paid once a year</small><hr><div class="dt-rows"><div><span>Service charge</span><b>${naira(l.service)}</b></div><div><span>Refundable deposit</span><b>${naira(l.deposit)}</b></div><div><span>Move-in total</span><b id="estT">${naira(total)}</b></div></div></div></div></div></section>
-      <section class="dt-pane" id="p-features" hidden><div class="amen dt-amen">${l.amenities.length ? l.amenities.map((a) => `<span>${icon(A[a] || "check", 22)}${esc(a)}</span>`).join("") : `<p class="muted">No features have been listed yet.</p>`}</div></section>
-      <section class="dt-pane" id="p-location" hidden><p class="muted" style="margin:0 0 10px">${icon("pin", 16)} ${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</p>${hasPin ? `<div id="dmap" class="dmap"></div>` : `<p class="muted">The exact location hasn’t been shared yet. Message the agent to ask.</p>`}</section>
-      <section class="dt-pane" id="p-plan" hidden>${l.floorPlan ? `<img class="dt-fp" src="${esc(l.floorPlan)}" alt="Floor plan of ${esc(l.title)}">` : `<p class="muted">No floor plan has been added for this home yet.</p>`}</section>
+      <section class="dt-pane" id="p-features" hidden>${l.amenities.length ? `<div class="ft-grid">${l.amenities.map((a) => `<div class="ft"><span class="ft-i">${icon(amenIcon(a), 22)}</span><b>${esc(a)}</b></div>`).join("")}</div>` : `<p class="muted">No features have been listed yet.</p>`}<div class="ft-facts"><div><span>Bedrooms</span><b>${l.beds === 0 ? "Studio" : l.beds}</b></div><div><span>Bathrooms</span><b>${l.baths}</b></div><div><span>Area</span><b>${l.sqm ? l.sqm + " m²" : "Not listed"}</b></div><div><span>Parking</span><b>${esc(parking)}</b></div></div></section>
+      <section class="dt-pane" id="p-location" hidden>${hasPin ? `<div class="dmap lg" id="dmap"><span class="dmap-pill">${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</span></div>` : `<div class="dmap lg dmap-none"><span>${icon("pin", 28)}</span><b>${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</b><small>The exact pin hasn’t been shared yet.</small></div>`}<div class="dmap-row"><span class="muted">${icon("pin", 16)} ${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</span><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${hasPin ? l.lat + "," + l.lng : encodeURIComponent(l.area + ", " + l.city)}">${icon("arrow", 16)} Open in Google Maps</a></div></section>
+      <section class="dt-pane" id="p-plan" hidden>${l.floorPlan ? `<img class="dt-fp" src="${esc(l.floorPlan)}" alt="Floor plan of ${esc(l.title)}">` : planHtml(l)}</section>
+      <section class="dt-pane" id="p-media" hidden><h3 class="md-h">Photos <b>${im.length}</b></h3><div class="md-grid">${im.map((src, k) => `<button type="button" class="md-i" data-m="${k}" aria-label="Open photo ${k + 1}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join("")}</div>${vids.length ? `<h3 class="md-h">Videos <b>${vids.length}</b></h3><div class="md-grid">${vids.map((v, k) => `<button type="button" class="md-i md-v" data-m="${im.length + k}" aria-label="Play video ${k + 1}">${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy">` : `<span class="md-vb"></span>`}<span class="md-play">${icon("video", 26)}</span><em>Video ${k + 1}</em></button>`).join("")}</div>` : `<p class="muted" style="margin-top:14px">No videos have been added for this home yet.</p>`}</section>
     </div>
     <aside class="side-card"><div class="big-price">${naira(l.price)} <small>/ year</small></div><p class="muted">Annual payment</p>
       <div class="rows"><div><span>Rent</span><span>${naira(l.price)}</span></div><div><span>Service charge</span><span>${naira(l.service)}</span></div><div><span>Refundable deposit</span><span>${naira(l.deposit)}</span></div><div class="total"><span>Move-in total</span><span>${naira(total)}</span></div></div>
-      <button class="btn primary block" id="apply" style="padding:15px">Apply to rent ${icon("arrow", 20)}</button><button class="btn block" id="view" style="padding:15px">${icon("cal", 20)} Book a viewing</button>
-      <p class="muted" style="font-size:.9rem;display:flex;gap:8px">${icon("info", 18)}<span>Review the <a class="link" href="#/search" style="text-decoration:underline">terms</a> before making a payment.</span></p>
-      <div class="agent"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><div><a href="#/agent/${esc(l.agent.id)}" style="color:var(--head);font-size:1.1rem;font-weight:700">${esc(l.agent.name)}</a><p class="muted" style="margin-bottom:10px">Listing agent</p><button class="btn sm" id="msg">${icon("msg", 18)} Message agent</button></div></div></aside></div>
+      <button class="btn primary block" id="apply" style="padding:15px">Apply to rent ${icon("arrow", 20)}</button>
+      <div class="sc-agent"><div class="sc-av"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><i class="on" title="Online"></i></div><div><a href="#/agent/${esc(l.agent.id)}" class="sc-name">${esc(l.agent.name)}</a><small>${esc(l.agent.title || "Property consultant")}</small>${l.agent.rating ? `<div class="sc-rate">${icon("star", 13)} <b>${esc(l.agent.rating)}</b></div>` : ""}</div></div>
+      <div class="sc-msg"><button class="btn block" id="msg">${icon("msg", 18)} Message agent</button><button class="btn sc-call" id="callAgent" aria-label="Call the agent" title="Call the agent">${icon("phone", 20)}</button></div>
+      <h3 class="sc-h">Book a viewing</h3>
+      <div class="sc-seg" role="radiogroup" aria-label="Tour type"><button type="button" role="radio" aria-checked="true" class="on" data-tour="person">In person</button><button type="button" role="radio" aria-checked="false" data-tour="virtual">Virtual</button></div>
+      <label class="sc-date">${icon("cal", 20)}<select id="bkDate" aria-label="Date">${bkDays.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></label>
+      <p class="muted sc-t">Available times</p><div class="sc-times" id="bkTimes">${["10:00 AM", "12:00 PM", "2:00 PM", "4:00 PM"].map((t, i) => `<button type="button" class="${i ? "" : "on"}" data-time="${t}">${t}</button>`).join("")}</div>
+      <button class="btn block" id="view" style="padding:14px">${icon("cal", 20)} Book a viewing</button>
+      <p class="muted" style="font-size:.88rem;display:flex;gap:8px;margin-top:12px">${icon("info", 18)}<span>Review the <a class="link" href="#/terms" style="text-decoration:underline">terms</a> before making a payment.</span></p></aside></div>
     ${similar.length ? `<section class="dt-sim"><h2><i></i>Similar homes</h2><p class="muted">More like this in ${esc(l.city)}</p><div class="sim-grid">${similar.map(simCard).join("")}</div></section>` : ""}</div>`,
     mount(root) {
       const authed = (fn) => () => (ctx.S.user ? fn() : (toast("Please sign in first."), ctx.go("#/login?next=" + encodeURIComponent("/home/" + l.id))));
@@ -401,7 +420,12 @@ async function detail(ctx, id) {
       }));
       $$(".dt-plans [data-n]").forEach((b) => (b.onclick = () => { const n = +b.dataset.n; $$(".dt-plans button").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); }); $("#estP").textContent = naira(Math.round(l.price / n)); $("#estN").textContent = n === 1 ? "Paid once a year" : `Paid ${n} times a year`; $("#estT").textContent = naira(Math.round(l.price / n) + l.service + l.deposit); }));
       $("#msg").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } });
-      $("#view").onclick = authed(() => ctx.go("#/book/" + l.id));
+      let tour = "person", slot = "10:00 AM";
+      $$("[data-tour]").forEach((b) => (b.onclick = () => { tour = b.dataset.tour; $$("[data-tour]").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); }); }));
+      $$("[data-time]").forEach((b) => (b.onclick = () => { slot = b.dataset.time; $$("[data-time]").forEach((x) => x.classList.toggle("on", x === b)); }));
+      $("#view").onclick = authed(() => ctx.go(`#/book/${l.id}?date=${$("#bkDate").value}&slot=${encodeURIComponent(slot)}&tour=${tour}`));
+      $("#callAgent").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l), to = l.ownerUid && l.ownerUid !== ctx.S.user.uid ? l.ownerUid : "staff"; CALLS2.startCall(ctx, { convId: cid, to, toName: to === "staff" ? "Faxton team" : l.agent.name, kind: "voice", title: l.title, image: l.thumb || l.images[0], area: l.area }); } catch (e) { toast(friendlyErr(e)); } });
+      $$("[data-m]").forEach((b) => (b.onclick = () => openViewer(media, +b.dataset.m)));
       $("#apply").onclick = authed(() => ctx.go("#/apply/" + l.id));
     } };
 }
