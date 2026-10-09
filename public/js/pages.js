@@ -54,7 +54,7 @@ export async function agentPage(ctx, id) {
 export async function bookPage(ctx, id) {
   const l = await st.getListing(id); if (!l) return notFound();
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const S = { date: ctx.q.date ? new Date(ctx.q.date + "T00:00:00") : null, slot: ctx.q.slot || "", tour: "In-person tour", step: 1, month: null, phone: ctx.S.profile?.phone || "", note: "" };
+  const S = { date: ctx.q.date ? new Date(ctx.q.date + "T00:00:00") : null, slot: ctx.q.slot || "", tour: ctx.q.tour === "virtual" ? "Virtual tour" : "In-person tour", step: 1, month: null, phone: ctx.S.profile?.phone || "", note: "" };
   if (S.date && (isNaN(S.date) || S.date <= today || S.date.getDay() === 0)) S.date = null;
   if (!S.date) { const d = new Date(today.getTime() + 864e5); while (d.getDay() === 0) d.setDate(d.getDate() + 1); S.date = d; }
   S.month = new Date(S.date.getFullYear(), S.date.getMonth(), 1);
