@@ -1194,3 +1194,16 @@ html.dlx-lock{overflow:hidden}
 @media (max-width:860px) and (min-width:701px){.dlx-top{padding:26px 22px 6px}}
 .btn.danger{background:var(--danger-bg);color:var(--danger);border-color:transparent}.btn.danger:hover{filter:brightness(.97)}
 .dlx-opt>svg{transform:rotate(-90deg);flex:none;opacity:.8}
+
+/* ---- property photos & videos ---- */
+.vid-row{margin:14px 0 4px}.vid-btn{display:flex;align-items:center;gap:14px;width:100%;padding:12px 16px;border:1px solid var(--border);border-radius:14px;background:var(--card);color:var(--text);font:inherit;text-align:left;cursor:pointer;transition:border-color .2s,transform .2s,box-shadow .2s}.vid-btn:hover{border-color:var(--brand);transform:translateY(-1px);box-shadow:var(--shadow)}
+.vid-ic{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:var(--brand);color:var(--brand-c);flex:none}.vid-btn b{display:block;color:var(--head)}.vid-btn small{color:var(--muted)}
+.vw-ov{position:fixed;inset:0;z-index:320;display:grid;grid-template-rows:minmax(0,1fr) auto;grid-template-columns:64px minmax(0,1fr) 64px;background:rgba(3,10,7,.97);animation:dlxIn .18s ease}
+.vw-stage{grid-column:2;grid-row:1;display:grid;place-items:center;min-height:0;padding:56px 0 8px}.vw-stage img,.vw-stage video{max-width:100%;max-height:100%;border-radius:10px;object-fit:contain}.vw-stage iframe{width:min(100%,960px);aspect-ratio:16/9;max-height:100%;border:0;border-radius:10px;background:#000}
+.vw-x{position:absolute;top:14px;right:14px;z-index:2;width:42px;height:42px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}.vw-x:hover{background:rgba(255,255,255,.26)}
+.vw-nav{grid-row:1;align-self:center;justify-self:center;width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.14);color:#fff;cursor:pointer;transition:background .2s}.vw-nav:hover{background:rgba(255,255,255,.28)}.vw-prev{grid-column:1}.vw-next{grid-column:3}
+.vw-bar{grid-column:1/-1;grid-row:2;display:grid;justify-items:center;gap:8px;padding:8px 16px 16px;color:#cfe0d8;font-size:.85rem}.vw-strip{display:flex;gap:8px;max-width:100%;overflow-x:auto;padding:2px}
+.vw-th{flex:none;width:70px;height:50px;border-radius:8px;border:2px solid transparent;overflow:hidden;padding:0;background:#16241e;cursor:pointer;opacity:.7;transition:opacity .2s,border-color .2s;display:grid;place-items:center;color:#fff}.vw-th img{width:100%;height:100%;object-fit:cover}.vw-th:hover{opacity:1}.vw-th.on{opacity:1;border-color:#34d399}
+@media (max-width:700px){.vw-ov{grid-template-columns:0 minmax(0,1fr) 0}.vw-nav{position:absolute;bottom:92px;top:auto}.vw-prev{left:12px}.vw-next{right:12px}.vw-stage{padding-top:60px}}
+/* ---- theme button beside the bell ---- */
+.tn-right .toggle-theme,.adm-top .toggle-theme{margin-right:2px}

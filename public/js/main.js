@@ -50,7 +50,7 @@ function adminShell(path, inner, pending) {
   const on = (p) => (p === "/admin" ? path === p : path === p || path.startsWith(p + "/"));
   const items = ANAV.map(([h, ic, l]) => `<a class="item ${on(h) ? "on" : ""}" href="#${h}" ${on(h) ? 'aria-current="page"' : ""}>${icon(ic, 24)}<span>${l}</span>${l === "Listings" && pending ? `<b class="badge">${pending}</b>` : ""}</a>`).join("");
   return `<div class="adm"><header class="adm-top"><a class="logo" href="#/admin" aria-label="Admin overview">${logo().match(/<svg.*<\/svg>/s)[0]}<span class="logo-word"><b>Faxton</b> Rentals</span></a><span class="vr"></span><span class="adm-title">Admin console</span><span style="flex:1"></span>
-      <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label><a class="icon-btn bell ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 22)}</a>
+      <label class="adm-search">${icon("search", 20)}<input type="search" placeholder="Search listings, users, applications…" aria-label="Search"></label>${themeBtn()}<a class="icon-btn bell ${S.unread ? "dot" : ""}" href="#/messages" aria-label="Notifications">${icon("bell", 22)}</a>
       <a class="me-btn" href="#/settings" aria-label="Account">${avatarHtml()}${icon("chev", 18)}</a></header>
     <div class="adm-body"><aside class="adm-side" aria-label="Admin navigation"><nav>${items}</nav><a class="adm-back" href="#/">${icon("left", 20)} Go back to Faxton Rentals</a></aside>
     <main class="adm-main page" id="main">${verifyBanner()}${inner}</main></div></div>`;
@@ -66,7 +66,7 @@ function appShell(path, inner) {
   const body = WRAPPED.includes(path) ? `<div class="wrap">${inner}</div>` : inner;
   const back = !(path === "/search" || path.startsWith("/home/")) ? "" : `<div class="wrap backbar"><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>`;
   return `<header class="topnav"><div class="tn-in">${logo()}<nav class="tn-links" aria-label="Main">${links}</nav>
-    <div class="tn-right"><a class="icon-btn bell ${S.unread ? "dot" : ""}" id="bell" href="#/messages" aria-label="Messages and notifications">${icon("bell", 22)}</a>${menu}</div></div></header>
+    <div class="tn-right">${themeBtn()}<a class="icon-btn bell ${S.unread ? "dot" : ""}" id="bell" href="#/messages" aria-label="Messages and notifications">${icon("bell", 22)}</a>${menu}</div></div></header>
     <main class="main-top page ${isSettings(path) ? "is-settings" : ""}" id="main">${verifyBanner()}${back}${body}</main>`;
 }
 function topbar() {
