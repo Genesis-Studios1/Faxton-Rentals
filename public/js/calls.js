@@ -35,7 +35,7 @@ function run({ id, me, role, kind, other, offer }) {
   const pic = other.photo ? `<img src="${esc(other.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(name));
   const canShare = !!navigator.mediaDevices?.getDisplayMedia, recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
   ov.innerHTML = `<header class="cs-top"><span class="cs-logo"><img src="assets/mark.svg" alt="" width="32" height="28"><b>Faxton</b></span><i class="cs-sep"></i><span class="cs-state"><i class="cs-dot"></i><span id="clSt">${isCaller ? "Calling " + esc(name) + "…" : "Connecting…"}</span></span><div class="cs-tn"><b>${esc(name)}</b><span id="clVt2">${isCaller ? "Calling…" : "Connecting…"}</span></div><span class="cl-rec" id="clRec" hidden><i></i> Recording</span><button type="button" class="cs-minb" id="clMin" aria-label="Minimise the call" title="Minimise">${icon("dchev", 22)}</button></header>
-    <div class="cs-stage"><video id="clRemote" autoplay playsinline></video><div class="cs-voice" id="clVoice"><div class="cs-ring"><span class="cs-pic">${pic}</span></div><h2>${esc(name)}</h2><p id="clVt">${isCaller ? "Calling…" : "Connecting…"}</p></div><video id="clLocal" class="cl-pip" autoplay playsinline muted hidden></video></div>
+    <div class="cs-stage"><video id="clRemote" autoplay playsinline></video><div class="cs-voice" id="clVoice"><div class="cs-ring"><span class="cs-pic">${pic}</span></div><h2>${esc(name)}</h2><p id="clVt">${isCaller ? "Calling…" : "Connecting…"}</p><div class="cs-wave" id="clWave" aria-hidden="true">${"<i></i>".repeat(29)}</div></div><video id="clLocal" class="cl-pip" autoplay playsinline muted hidden></video></div>
     <div class="cs-bar"><button type="button" class="cs-b" id="clMute" aria-pressed="false" aria-label="Mute"><span class="cs-ic">${icon("mic", 26)}</span><em>Mute</em></button>
       <button type="button" class="cs-b" id="clCam" aria-pressed="false" aria-label="Camera"><span class="cs-ic">${icon("video", 26)}</span><em>Camera</em></button>
       ${canShare ? `<i class="cs-bsep"></i><button type="button" class="cs-b" id="clShare" aria-pressed="false" aria-label="Share screen"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>` : `<button type="button" id="clShare" hidden></button>`}
@@ -56,7 +56,18 @@ function run({ id, me, role, kind, other, offer }) {
   setRemoteVideo(false);
   remoteV.srcObject = remote;
   pc.ontrack = (e) => { remote.addTrack(e.track); if (e.track.kind === "video") { e.track.onunmute = () => setRemoteVideo(true); e.track.onmute = () => setRemoteVideo(false); } remoteV.play?.().catch(() => {}); };
-  pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") { quiet(); if (!startedAt) { startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); } } if (["failed", "closed"].includes(pc.connectionState) && !ended) { toast("The call lost its connection."); end("ended"); } };
+  pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") { quiet(); if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); } } if (["failed", "closed"].includes(pc.connectionState) && !ended) { toast("The call lost its connection."); end("ended"); } };
+  // The sound-wave under the name moves with the other person's voice.
+  let waveStop = null;
+  const startWave = () => {
+    const wave = el("clWave"), bars = [...wave.children]; wave.classList.add("live");
+    try {
+      const ac = audio(), src = ac.createMediaStreamSource(remote), an = ac.createAnalyser(); an.fftSize = 128; src.connect(an);
+      const data = new Uint8Array(an.frequencyBinCount); let raf = 0;
+      const tick = () => { an.getByteFrequencyData(data); const mid = bars.length >> 1; bars.forEach((b, i) => { const d = Math.abs(i - mid), v = data[Math.min(data.length - 1, 2 + d * 2)] / 255; b.style.transform = `scaleY(${(0.1 + v * 0.9 * (1 - d / (mid + 4))).toFixed(2)})`; }); raf = requestAnimationFrame(tick); };
+      tick(); waveStop = () => { cancelAnimationFrame(raf); try { src.disconnect(); } catch {} };
+    } catch { wave.classList.add("anim"); }
+  };
   const addCand = async (c) => { try { if (pc.remoteDescription) await pc.addIceCandidate(c); else pending.push(c); } catch {} };
   const flush = async () => { for (const c of pending.splice(0)) { try { await pc.addIceCandidate(c); } catch {} } };
 
@@ -117,7 +128,7 @@ function run({ id, me, role, kind, other, offer }) {
 
   // ---- ending ----
   async function end(status) {
-    if (closing) return; closing = true; ended = true; quiet(); clearTimeout(ringTO); clearInterval(timer); stopRec();
+    if (closing) return; closing = true; ended = true; quiet(); waveStop?.(); clearTimeout(ringTO); clearInterval(timer); stopRec();
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     await patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur });
     unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s) => { try { s?.getTracks ? s.getTracks().forEach((t) => t.stop()) : s?.stop(); } catch {} });
