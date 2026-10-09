@@ -104,7 +104,7 @@ const P = {
 export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ""}</svg>`;
 
 export const logoMark = (cls = "") => `<svg class="logo-svg ${cls}" viewBox="570 235 415 355" aria-hidden="true"><path class="lg-a" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/><path class="lg-b" d="M702 455L775 429V581H702Z"/><path class="lg-b" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/></svg>`;
-export const verifiedBadge = (px = 18) => `<svg class="vseal" viewBox="0 0 24 24" width="${px}" height="${px}" role="img" aria-label="Verified"><title>Verified</title><path fill="#22c55e" d="M12 1.6l2.6 1.7 3.1-.2 1.2 2.9 2.6 1.7-.8 3 .8 3-2.6 1.7-1.2 2.9-3.1-.2L12 22.4l-2.6-1.7-3.1.2-1.2-2.9-2.6-1.7.8-3-.8-3 2.6-1.7 1.2-2.9 3.1.2z"/><path d="M7.8 12.3l3 3 5.6-5.8" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+export const verifiedBadge = (px = 18) => `<svg class="vseal" viewBox="0 0 24 24" width="${px}" height="${px}" role="img" aria-label="Verified"><title>Verified</title><circle cx="12" cy="12" r="10.5" fill="#22c55e"/><path d="M7.8 12.3l3 3 5.6-5.8" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 export const logo = (sub = "") => `<a class="logo" href="#/">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals${sub ? `<small>${sub}</small>` : ""}</span></a>`;
 
 let toastT;
@@ -132,4 +132,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-09.93";
+export const BUILD = "2026-10-09.94";
