@@ -62,7 +62,15 @@ export const watchConversations = (user, cb) => onSnapshot(query(collection(db, 
 export const watchMessages = (cid, cb) => onSnapshot(query(collection(db, "conversations", cid, "messages"), orderBy("at")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => cb([]));
 // Every conversation the Faxton team has with users (admins, the owner and support see all of them).
 export const watchStaffConversations = (cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("listingId", "==", "direct")),
-  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), (e) => { cb([]); onErr?.(e); });
+  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).filter((c) => !c.byStaff).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), (e) => { cb([]); onErr?.(e); });
+// An admin chatting as themselves (not as Faxton support): the conversation sits in the person's own inbox with the admin as the agent.
+export async function ensureStaffPersonalConversation(staff, me, u) {
+  const id = `${u.id}__dm_${staff.uid}`, ref = doc(db, "conversations", id), name = me.name || staff.displayName || staff.email, photo = me.photo || staff.photoURL || "assets/mark.svg";
+  if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: u.id, userName: u.name || u.email, listingId: "direct", listingTitle: name, area: "", price: 0, beds: 0, baths: 0, image: photo, userPhoto: u.photo || "", byStaff: staff.uid, agent: { id: staff.uid, name, avatar: photo, photo }, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
+  return id;
+}
+export const watchStaffDMs = (uid, cb) => onSnapshot(query(collection(db, "conversations"), where("byStaff", "==", uid)),
+  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
 export const getConversation = async (cid) => { try { const s = await getDoc(doc(db, "conversations", cid)); return s.exists() ? { ...s.data(), id: s.id } : null; } catch { return null; } };
 export const setStaffUnread = (cid, v) => updateDoc(doc(db, "conversations", cid), { staffUnread: !!v });
 export async function sendMessage(user, cid, text, extra = {}, unread = false, convExtra = {}) {

@@ -118,8 +118,16 @@ export function support(ctx, tks) {
 }
 
 // ---------- text a user from the console ----------
-async function openChat(ctx, u) {
-  let cid; try { cid = await st.ensureDirectConversation(ctx.S.user, u); } catch (e) { return toast(friendlyErr(e)); }
-  try { sessionStorage.setItem("msgMode", "faxton"); } catch {}
-  ctx.go("#/messages/" + cid);
+// First ask who the message is from: Faxton support, or the admin as themselves.
+function openChat(ctx, u) {
+  const me = ctx.S.profile?.name || ctx.S.user.displayName || ctx.S.user.email, photo = ctx.S.profile?.photo || ctx.S.user.photoURL || "";
+  const m = modal(`<div class="of-dlg"><h2>Message ${esc(u.name || u.email || "this user")}</h2><p class="muted">Who should this message come from?</p>
+    <button class="vs-act" data-as="faxton"><span><img src="assets/mark.svg" alt="" width="26" height="26"></span><div><b>Faxton support</b><small>They see it from the Faxton team</small></div></button>
+    <button class="vs-act" data-as="me"><span>${photo ? `<img src="${esc(photo)}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:12px" referrerpolicy="no-referrer">` : esc((me || "?")[0].toUpperCase())}</span><div><b>${esc(me)}</b><small>They see it from you, by name</small></div></button></div>`);
+  $$("[data-as]", m.el).forEach((b) => (b.onclick = async () => {
+    const faxton = b.dataset.as === "faxton"; b.disabled = true;
+    let cid; try { cid = faxton ? await st.ensureDirectConversation(ctx.S.user, u) : await st.ensureStaffPersonalConversation(ctx.S.user, { name: me, photo: ctx.S.profile?.photo || "" }, u); } catch (e) { b.disabled = false; return toast(friendlyErr(e)); }
+    try { sessionStorage.setItem("msgMode", faxton ? "faxton" : "personal"); } catch {}
+    m.close(); ctx.go("#/messages/" + cid);
+  }));
 }
