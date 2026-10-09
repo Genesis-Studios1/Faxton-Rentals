@@ -1665,7 +1665,7 @@ dialog.nodismiss .close{display:none!important}
 @media (max-width:860px){.mx-thread{background-size:480px 448px}}
 
 /* ---- chat in the dark design: curved backdrop, voice messages, files, call cards, unread line ---- */
-:root[data-theme=dark] .mx-thread{background-image:linear-gradient(rgba(5,18,15,.78),rgba(5,18,15,.78)),url(../img/call-bg-wide.webp);background-size:cover;background-position:center}
+:root[data-theme=dark] .mx-thread{background-image:linear-gradient(rgba(3,14,11,.42),rgba(3,14,11,.42)),url(../img/call-bg-wide.webp);background-size:cover;background-position:center}
 .mx-vn{display:flex;align-items:center;gap:12px;min-width:min(300px,60vw)}.mx-play{width:44px;height:44px;border-radius:50%;border:0;background:color-mix(in srgb,currentColor 14%,transparent);color:inherit;display:grid;place-items:center;flex:none;cursor:pointer}.mx-play svg{margin-left:2px}.mx-vn.playing .mx-play svg{display:none}.mx-vn.playing .mx-play:after{content:"";width:12px;height:14px;border-left:4px solid currentColor;border-right:4px solid currentColor}
 .mx-wv{display:flex;align-items:center;gap:2px;height:34px;flex:1}.mx-wv i{flex:1;max-width:5px;min-width:2px;border-radius:2px;background:currentColor;opacity:.35}.mx-wv i.on{background:#34d399;opacity:1}.mx-row:not(.me) .mx-wv i.on{background:var(--brand)}
 .mx-vd{font-size:.8rem;opacity:.75;align-self:flex-end;margin-bottom:2px;white-space:nowrap}.mx-b.has-vn{padding-right:14px}
@@ -1909,3 +1909,8 @@ dialog.nodismiss .close{display:none!important}
   .legend{flex-wrap:wrap;gap:10px 16px}
 }
 .mh-head .active-t{background:var(--soft);color:var(--soft-t)}.mh-head .pg-h1{font-size:clamp(1.5rem,5vw,2.2rem)}
+/* verified seal on a profile picture: the seal itself, with a thin ring, no white disc */
+.pf-vb{width:auto;height:auto;border-radius:0;background:none;right:2px;bottom:4px;z-index:2;line-height:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,.4))}
+.pf-vb .vseal{display:block;width:34px;height:34px;vertical-align:baseline}
+.pf-vb .vseal path:first-of-type{stroke:var(--bg);stroke-width:2.8;stroke-linejoin:round;paint-order:stroke}
+.pf-av{overflow:visible}
