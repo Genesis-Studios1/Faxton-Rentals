@@ -1721,3 +1721,18 @@ dialog.nodismiss .close{display:none!important}
 .cr-chip{background:rgba(52,211,153,.14);color:var(--brand);border-radius:10px;padding:7px 14px;font-weight:600;font-size:.9rem}.cr-chip.off{background:var(--surface);color:var(--muted)}
 .cr-card .field{display:block;margin:12px 0}.cr-l{display:block;font-weight:600;color:var(--head);margin-bottom:6px}.cr-card input{width:100%}
 .cr-ok{color:var(--brand);font-weight:600;margin:8px 0}.cr-ok[hidden]{display:none}
+
+/* ---- phone polish: dark mode on the home page, filters, tabs, notices ---- */
+:root[data-theme=dark] .dsh-vf{color:#f3d9a0;background:rgba(245,158,11,.1)}:root[data-theme=dark] .dsh-vf b{color:#ffe7b3}:root[data-theme=dark] .dsh-vf .vf-ic{color:#f6b73c;background:rgba(245,158,11,.2)}
+.dsh-tbl td[colspan]{white-space:normal}
+@media (max-width:860px){
+  :root[data-theme=dark] .hmm-hero{background:linear-gradient(90deg,#0c181e 24%,rgba(12,24,30,.82) 58%,rgba(12,24,30,.35) 100%),url(../img/hero-hd.webp) 78% 25%/cover}
+  :root[data-theme=dark] .hmm-text h1,:root[data-theme=dark] .hmc-p{color:var(--head)!important}
+  :root[data-theme=dark] .hmm-text p{color:#b9c9cf}:root[data-theme=dark] .hmm-eye{color:#9fd8c2}
+  :root[data-theme=dark] .hmm-search{background:var(--card);border-color:var(--border)}:root[data-theme=dark] .hmm-search input{color:var(--text)}:root[data-theme=dark] .hmm-si{color:var(--head)}:root[data-theme=dark] .hmm-search button{background:var(--brand);color:var(--brand-c)}
+  :root[data-theme=dark] .hmm-chips a,:root[data-theme=dark] .hmm-all{background:var(--card);color:var(--head);border:1px solid var(--border)}
+  :root[data-theme=dark] .hmm-sec h2{color:var(--head)}
+  .filters{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;overflow:visible!important;margin:0 0 12px!important;padding:0!important}.filters .fsel{min-width:0;width:100%}.filters .fsel select{min-width:0;width:100%}.filters .sort{grid-column:1/-1}.filters .more{grid-column:1/-1}.filters .more>button{width:100%;justify-content:center}
+  .rn-tabs{overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}.rn-tabs::-webkit-scrollbar{display:none}.rn-tabs a{flex:0 0 auto;padding-inline:14px}
+  #dt{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}#dt::-webkit-scrollbar{display:none}#dt button{flex:0 0 auto;white-space:nowrap}
+}

@@ -1,6 +1,6 @@
 // Faxton Rentals service worker: makes the app installable and fast to reopen.
 // Same-origin files are cached (network first for pages, cache first for assets). Firebase and map requests are never touched.
-const CACHE = "faxton-v85";
+const CACHE = "faxton-v86";
 const SHELL = ["./", "index.html", "css/app.css", "css/fonts.css", "manifest.webmanifest", "assets/mark.svg", "img/hero-hd.webp", "img/splash-final.webp"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n)))).then(() => self.clients.claim())); });
