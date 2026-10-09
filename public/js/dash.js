@@ -252,6 +252,11 @@ export function verifications(ctx, users) {
 }
 
 // ---------- suggestion box (admin and support) ----------
+export function userReports(ctx, items) {
+  const by = [...items].sort((a, b) => secOf(b) - secOf(a));
+  const html = `<div class="page-head"><div><h1>User reports</h1><p>People reported by other users. Review each one and update its status.</p></div></div><div class="panel">${tbl(["Reported", "Reported by", "Reason", "Details", "Date", "Status"], by.map((x) => `<tr><td><b>${esc(x.targetName || "")}</b><small class="muted" style="display:block">${esc(x.targetUid || "")}</small></td><td>${esc(x.reporterName || "")}</td><td>${esc(x.reason || "")}</td><td style="max-width:360px;white-space:pre-wrap">${esc(x.details || "")}</td><td class="muted">${day(x.createdAt)}</td><td><select data-rp="${esc(x.id)}" aria-label="Status">${["New", "Reviewing", "Action taken", "Dismissed"].map((o) => `<option ${o === x.status ? "selected" : ""}>${o}</option>`).join("")}</select></td></tr>`), "No reports yet.")}</div>`;
+  return { html, mount(root) { $$("select[data-rp]", root).forEach((sel) => (sel.onchange = async () => { try { await st.setStatus("reports", sel.dataset.rp, sel.value); toast("Updated."); } catch (e) { toast(friendlyErr(e)); } })); } };
+}
 export function suggestions(ctx, items) {
   const by = [...items].sort((a, b) => secOf(b) - secOf(a));
   const html = `<div class="page-head"><div><h1>Suggestions</h1><p>Ideas and feedback sent from the Contact us page.</p></div></div><div class="panel">${tbl(["From", "Topic", "Suggestion", "Date", "Status"], by.map((x) => `<tr><td><b>${esc(x.name || "")}</b><small class="muted" style="display:block">${esc(x.email || "")}</small></td><td>${esc(x.topic || "General")}</td><td style="max-width:420px;white-space:pre-wrap">${esc(x.text)}</td><td class="muted">${day(x.createdAt)}</td><td><select data-sg="${esc(x.id)}" aria-label="Status">${["New", "Reviewed", "Planned", "Done"].map((o) => `<option ${o === x.status ? "selected" : ""}>${o}</option>`).join("")}</select></td></tr>`), "No suggestions yet.")}</div>`;

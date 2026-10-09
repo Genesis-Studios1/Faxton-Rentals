@@ -12,6 +12,7 @@ import * as CALLS from "./calls.js";
 import { collectDetails, verifyPopup, resizePhoto, askResidence } from "./onboard.js";
 import { countryOptions } from "./countries.js";
 import * as APPS from "./apps.js";
+import * as SAFE from "./safety.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
@@ -465,10 +466,10 @@ async function messages(ctx, cid) {
         : [["all", "chatdots", "All conversations", mine.length], ["enq", "home", "Property enquiries", mine.filter((c) => c.listingId !== "direct").length], ["#/bookings", "cal", "Viewings", counts.v], ["#/applications", "doc", "Applications", counts.a], ["sys", "bell", "System updates", mine.filter((c) => c.listingId === "direct").length], ["calls", "phone", "Calls", calls.length]];
       const vis = () => convs().filter((c) => (tab === "all" || (tab === "unread" ? unreadOf(c) : tab === "enq" ? c.listingId !== "direct" : tab === "sys" ? c.listingId === "direct" : true)) && (!term || (other(c).name + " " + c.listingTitle + " " + c.last).toLowerCase().includes(term)));
       const beginCall = async (c, kind) => {
-        if (faxton()) return CALLS.startCall(ctx, { convId: c.id, to: c.uid, toName: c.userName || "User", kind, title: "Faxton team" });
+        if (faxton()) return CALLS.startCall(ctx, { convId: c.id, to: c.uid, toName: c.userName || "User", toPhoto: c.userPhoto || "", kind, title: "Faxton team" });
         if (c.listingId === "direct") return CALLS.startCall(ctx, { convId: c.id, to: "staff", toName: "Faxton team", kind, title: "Faxton team" });
         const l = await st.getListing(c.listingId).catch(() => null); const to = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : "staff";
-        CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, kind, title: c.listingTitle, image: c.image, area: c.area });
+        CALLS.startCall(ctx, { convId: c.id, to, toName: to === "staff" ? "Faxton team" : c.agent.name, toPhoto: c.agent.avatar, kind, title: c.listingTitle, image: c.image, area: c.area });
       };
       const drawSide = () => {
         const side = $("#mxSide"); if (!side) return; const f = FILTERS(), list = vis();
@@ -507,7 +508,7 @@ async function messages(ctx, cid) {
         const o = other(c), direct = c.listingId === "direct", agentView = !faxton() && !direct;
         chat.innerHTML = `<header class="mx-head"><a class="mx-back" href="#/messages" aria-label="Back">${icon("left", 22)}</a><span class="mx-hav"><img src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"></span><div class="mx-hn"><b>${esc(o.name)}</b><span>${faxton() ? "Replying as Faxton Rentals" : esc(o.role)}</span></div>
           <div class="mx-acts"><button type="button" class="mx-ab" data-call="voice">${icon("phone", 18)}<span>Call</span></button><button type="button" class="mx-ab" data-call="video">${icon("video", 18)}<span>Video call</span></button>${agentView ? `<a class="mx-ab mx-d" href="#/book/${esc(c.listingId)}">${icon("cal", 18)}<span>Schedule viewing</span></a><a class="mx-ab mx-d" href="#/agent/${esc(c.agent.id)}">${icon("user", 18)}<span>View profile</span></a>` : ""}${faxton() ? `<a class="mx-ab mx-d" href="#/admin/users">${icon("users", 18)}<span>All users</span></a>` : ""}
-          <span class="mx-more"><button type="button" class="mx-dots" id="mxMore" aria-label="More options" aria-haspopup="menu">${icon("dots", 20)}</button><div class="menu mx-menu" id="mxMenu" role="menu" hidden>${agentView ? `<a role="menuitem" href="#/home/${esc(c.listingId)}">${icon("home", 18)} View listing</a>` : ""}<a role="menuitem" href="#/messages" data-calls>${icon("phone", 18)} Call history</a>${staff ? `<button role="menuitem" type="button" data-sw>${icon("share", 18)} Switch to ${faxton() ? "me" : "Faxton Rentals"}</button>` : ""}</div></span></div></header>
+          <span class="mx-more"><button type="button" class="mx-dots" id="mxMore" aria-label="More options" aria-haspopup="menu">${icon("dots", 20)}</button><div class="menu mx-menu" id="mxMenu" role="menu" hidden>${agentView ? `<a role="menuitem" href="#/home/${esc(c.listingId)}">${icon("home", 18)} View listing</a>` : ""}<a role="menuitem" href="#/messages" data-calls>${icon("phone", 18)} Call history</a>${agentView ? `<span id="mxSafe"></span>` : ""}${staff ? `<button role="menuitem" type="button" data-sw>${icon("share", 18)} Switch to ${faxton() ? "me" : "Faxton Rentals"}</button>` : ""}</div></span></div></header>
           <div class="mx-thread" id="thread"></div><div class="mx-emoji" id="emoji" hidden>${EMOJI.map((e) => `<button type="button">${e}</button>`).join("")}</div>
           <form class="mx-comp" id="cf" autocomplete="off"><button type="button" class="mx-ib" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><input id="ci" placeholder="${staff ? "Type a message… or /switch" : "Type a message…"}" maxlength="2000" aria-label="Message"><button type="button" class="mx-ib" data-soon aria-label="Attach">${icon("clip", 22)}</button><button type="button" class="mx-ib mx-micb" data-soon aria-label="Voice message">${icon("mic", 22)}</button><button class="mx-send" aria-label="Send">${icon("send", 22)}</button></form>`;
         $$("[data-soon]", chat).forEach((b) => (b.onclick = () => toast("Coming soon.")));
@@ -515,6 +516,19 @@ async function messages(ctx, cid) {
         const menu = $("#mxMenu"); $("#mxMore").onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; };
         const closeMenu = () => { menu.hidden = true; }; document.addEventListener("click", closeMenu); ctx.S.cleanups.push(() => document.removeEventListener("click", closeMenu));
         const cl = $("[data-calls]", menu); if (cl) cl.onclick = (e) => { e.preventDefault(); tab = "calls"; drawSide(); closeMenu(); };
+        // Block and report the person on the other side (listing owners and agents).
+        if (agentView) {
+          let ouid = "", blocked = false;
+          const paint = () => {
+            const box = $("#mxSafe"); if (!box) return;
+            box.innerHTML = `${ouid ? `<button role="menuitem" type="button" data-blk>${icon("shield", 18)} ${blocked ? "Unblock user" : "Block user"}</button>` : ""}<button role="menuitem" type="button" data-rep class="danger-i">${icon("flag", 18)} Report user</button>`;
+            const ci = $("#ci"); if (ci) { ci.disabled = blocked; ci.placeholder = blocked ? "You blocked this user. Unblock to message." : "Type a message…"; }
+            const bk = $("[data-blk]", box); if (bk) bk.onclick = async () => { closeMenu(); if (blocked) { try { await st.unblockUser(ctx.S.user, ouid); blocked = false; toast("Unblocked."); paint(); } catch (x) { toast(friendlyErr(x)); } } else if (await SAFE.blockDialog(ctx, { uid: ouid, name: o.name })) { blocked = true; paint(); } };
+            $("[data-rep]", box).onclick = () => { closeMenu(); SAFE.reportDialog(ctx, { targetUid: ouid || c.agent.id, targetName: o.name, convId: cid }); };
+          };
+          paint();
+          st.getListing(c.listingId).then(async (l) => { ouid = l?.ownerUid && l.ownerUid !== me ? l.ownerUid : ""; blocked = ouid ? await st.isBlocked(me, ouid) : false; paint(); }).catch(() => {});
+        }
         const sw = $("[data-sw]", menu); if (sw) sw.onclick = () => { closeMenu(); switchMode(); };
         const em = $("#emoji"); $("#emojiBtn").onclick = () => (em.hidden = !em.hidden); em.onclick = (e) => { const b = e.target.closest("button"); if (b) { $("#ci").value += b.textContent; $("#ci").focus(); } };
         $("#cf").onsubmit = async (e) => {
@@ -656,6 +670,7 @@ async function admin(ctx, sub) {
   if (sub === "listings" || sub === "users" || sub === "support") { const v = sub === "listings" ? A2.listings(ctx, ls) : sub === "users" ? A2.users(ctx, users) : A2.support(ctx, tks); return { title: "Admin", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "verifications") { const v = DASH.verifications(ctx, users); return { title: "Verifications", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "suggestions") { const v = DASH.suggestions(ctx, await st.adminAll("suggestions")); return { title: "Suggestions", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
+  if (sub === "user-reports") { const v = DASH.userReports(ctx, await st.adminAll("reports")); return { title: "User reports", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   if (sub === "") { const v = DASH.platform(ctx, { ls, apps, views, users, tks }); return { title: "Admin", admin: true, pending: pending.length, html: v.html, mount: v.mount }; }
   let body;
   if (sub === "") body = `<div class="adm-welcome"><div><h1>Welcome back, ${esc((ctx.S.user.displayName || "").split(" ")[0] || "there")}</h1><p>Here’s what’s happening on Faxton Rentals today.</p></div><span class="muted">${new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>${!ls.length ? `<button class="btn primary" id="seed">Add sample listings</button>` : ""}</div>
