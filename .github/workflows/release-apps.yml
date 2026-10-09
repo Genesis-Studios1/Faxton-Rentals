@@ -1,5 +1,5 @@
 name: Build and release apps
-# Builds the Android, iPhone, Windows and Mac apps and publishes them as a GitHub Release.
+# Builds the Android, iPhone, Windows, Mac and Linux apps and publishes them as a GitHub Release.
 # Run it from the Actions tab ("Run workflow") and type a version such as 1.0.1, or push a tag like v1.0.1.
 on:
   workflow_dispatch:
@@ -108,17 +108,34 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          set -e
           chmod +x gradlew
+          G=app/build.gradle
+          SIGN=""
           if [ -n "$KS" ]; then
             echo "$KS" | base64 -d > "$RUNNER_TEMP/release.jks"
             SIGN="-Pandroid.injected.signing.store.file=$RUNNER_TEMP/release.jks -Pandroid.injected.signing.store.password=$KS_PASS -Pandroid.injected.signing.key.alias=$KEY_ALIAS -Pandroid.injected.signing.key.password=$KEY_PASS"
-            ./gradlew --no-daemon assembleRelease bundleRelease $SIGN
+          else
+            echo "::warning::No Android signing key set. Building a debug-signed APK (installs fine, but updates need the same key each time)."
+          fi
+          # 1) x64 build (Intel/AMD devices, Chromebooks and emulators)
+          sed -i "0,/defaultConfig {/s//defaultConfig {\n        ndk { abiFilters 'x86_64' }/" "$G"
+          if [ -n "$KS" ]; then
+            ./gradlew --no-daemon assembleRelease $SIGN
+            cp app/build/outputs/apk/release/app-release.apk ../../../Faxton-Rentals-Android-x64.apk
+          else
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk ../../../Faxton-Rentals-Android-x64.apk
+          fi
+          # 2) universal build (phones and tablets) plus the Play Store bundle
+          sed -i "/ndk { abiFilters 'x86_64' }/d" "$G"
+          if [ -n "$KS" ]; then
+            ./gradlew --no-daemon clean assembleRelease bundleRelease $SIGN
             cp app/build/outputs/apk/release/app-release.apk ../../../Faxton-Rentals-Android.apk
             cp app/build/outputs/bundle/release/app-release.aab ../../../Faxton-Rentals-Android.aab
             rm -f "$RUNNER_TEMP/release.jks"
           else
-            echo "::warning::No Android signing key set. Building a debug-signed APK (installs fine, but updates need the same key each time)."
-            ./gradlew --no-daemon assembleDebug
+            ./gradlew --no-daemon clean assembleDebug
             cp app/build/outputs/apk/debug/app-debug.apk ../../../Faxton-Rentals-Android.apk
           fi
       - uses: actions/upload-artifact@v4
@@ -146,8 +163,8 @@ jobs:
         with:
           name: windows
           path: |
-            apps/desktop/dist/Faxton-Rentals-Windows.exe
-            apps/desktop/dist/Faxton-Rentals-Windows.exe.blockmap
+            apps/desktop/dist/Faxton-Rentals-Windows-*.exe
+            apps/desktop/dist/Faxton-Rentals-Windows-*.exe.blockmap
             apps/desktop/dist/latest.yml
           if-no-files-found: error
 
@@ -173,6 +190,30 @@ jobs:
           path: |
             apps/desktop/dist/Faxton-Rentals-Mac-*.dmg
             apps/desktop/dist/Faxton-Rentals-Mac-*.zip
+          if-no-files-found: error
+
+  linux:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Build the Linux apps (x64 and arm64, AppImage and .deb)
+        working-directory: apps/desktop
+        run: |
+          npm install --no-audit --no-fund
+          npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
+          npx electron-builder --linux --x64 --arm64 --publish never
+          cd dist
+          for f in Faxton-Rentals-Linux-amd64.deb; do [ -f "$f" ] && mv "$f" Faxton-Rentals-Linux-x64.deb; done || true
+          ls
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            apps/desktop/dist/Faxton-Rentals-Linux-*.AppImage
+            apps/desktop/dist/Faxton-Rentals-Linux-*.deb
           if-no-files-found: error
 
   ios:
@@ -212,8 +253,8 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [version, android, windows, mac, ios]
-    if: ${{ !cancelled() && needs.version.result == 'success' && (needs.android.result == 'success' || needs.windows.result == 'success' || needs.mac.result == 'success' || needs.ios.result == 'success') }}
+    needs: [version, android, windows, mac, linux, ios]
+    if: ${{ !cancelled() && needs.version.result == 'success' && (needs.android.result == 'success' || needs.windows.result == 'success' || needs.mac.result == 'success' || needs.linux.result == 'success' || needs.ios.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -231,7 +272,8 @@ jobs:
           files: out/*
           body: |
             Faxton Rentals ${{ needs.version.outputs.v }}
-            - Android: Faxton-Rentals-Android.apk
+            - Android: Faxton-Rentals-Android.apk (phones), Faxton-Rentals-Android-x64.apk (Intel/x86), Faxton-Rentals-Android.aab (Play Store)
             - iPhone: Faxton-Rentals-iPhone-unsigned.ipa (install with AltStore or Sideloadly)
-            - Windows: Faxton-Rentals-Windows.exe
+            - Windows: Faxton-Rentals-Windows-x64.exe / Faxton-Rentals-Windows-arm64.exe
             - Mac: Faxton-Rentals-Mac-arm64.dmg (Apple Silicon) / Faxton-Rentals-Mac-x64.dmg (Intel)
+            - Linux: Faxton-Rentals-Linux-x64 / -arm64 as .AppImage or .deb

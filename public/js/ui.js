@@ -97,7 +97,7 @@ export function modal(html) {
   return { el: d, close };
 }
 export const friendlyErr = (e) => ({
-  "auth/invalid-credential": "Incorrect email or password.", "auth/user-not-found": "No account found with that email.",
+  "auth/invalid-credential": "Incorrect email or password.", "auth/user-not-found": "No account found with that email.", "app/no-account": "No account found with this email. Check the spelling or create an account.", "app/banned": "This account has been banned. If you think this is a mistake, please contact support.",
   "auth/wrong-password": "Incorrect email or password.", "auth/email-already-in-use": "An account with this email already exists.",
   "auth/weak-password": "Password must be at least 8 characters.", "auth/invalid-email": "Enter a valid email address.",
   "auth/popup-closed-by-user": "Sign-in was cancelled.", "auth/popup-blocked": "Your browser blocked the sign-in window. Allow pop-ups for this site and try again.", "auth/operation-not-allowed": "This sign-in method isn't enabled yet in Firebase Authentication.",
@@ -105,4 +105,4 @@ export const friendlyErr = (e) => ({
   "permission-denied": "You don't have permission to do that.", "unavailable": "Can't reach the server. Check your connection.",
 }[e?.code?.replace("firestore/", "")] || `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`);
 
-export const BUILD = "2026-10-09.50";
+export const BUILD = "2026-10-09.51";

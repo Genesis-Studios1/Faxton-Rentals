@@ -9,7 +9,7 @@ const HOST = new URL(SITE).host;
 const POPUP_OK = [/^accounts\.google\.com$/, /^[a-z0-9-]+\.firebaseapp\.com$/, /^faxton-rentals\.web\.app$/];
 const isHttps = (u) => { try { return new URL(u).protocol === "https:"; } catch { return false; } };
 const hostOf = (u) => { try { return new URL(u).host; } catch { return ""; } };
-const platform = process.platform === "darwin" ? "mac" : "win";
+const platform = process.platform === "darwin" ? "mac" : process.platform === "win32" ? "win" : "linux";
 // Google refuses sign-in from browsers that call themselves "Electron", so present a plain Chrome user agent plus our app tag.
 let UA = "";
 const makeUA = () => `${session.defaultSession.getUserAgent().replace(/ Electron\/[\d.]+/, "").replace(/ faxton-rentals-desktop\/[\d.]+/i, "").replace(/ Faxton Rentals\/[\d.]+/i, "")} FaxtonApp/desktop-${platform}/${app.getVersion()} arch/${process.arch}`;
