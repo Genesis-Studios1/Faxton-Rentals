@@ -1,5 +1,5 @@
 // The footer shown at the bottom of the site: social links, legal links, privacy choices and the brand.
-import { $, esc, icon, modal, toast } from "./ui.js";
+import { $, esc, icon, modal, toast, logoMark } from "./ui.js";
 
 // Add the real page address for each network here and its icon opens it; until then it shows "coming soon".
 const SOCIALS = [
@@ -20,7 +20,7 @@ export function siteFooter() {
       <nav class="sf-links" aria-label="Legal and help"><a href="#/help">Support ${ext}</a><a href="#/privacy">Privacy ${ext}</a><a href="#/terms">Terms of Use ${ext}</a><a href="#/license">License ${ext}</a></nav>
       <nav class="sf-links sf-links2" aria-label="Privacy"><button type="button" class="sf-choices" data-choices><span class="sf-tog" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span>Your Privacy Choices ${ext}</button><a href="#/download">Get the app ${ext}</a></nav>
     </div>
-    <div class="sf-brand"><span class="sf-mark"><svg viewBox="0 0 48 44" width="52" height="48" aria-hidden="true"><path d="M4 42V20L16 8l12 12v22M22 42V26l10-10 12 10v16" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><path d="M33 42v-9h6v9" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/></svg></span><b>FAXTON <span>RENTALS</span></b><small>© ${year} Faxton Rentals Inc. All rights reserved.</small></div>
+    <div class="sf-brand"><span class="sf-mark">${logoMark()}</span><b>FAXTON <span>RENTALS</span></b><small>© ${year} Faxton Rentals Inc. All rights reserved.</small></div>
   </div></footer>`;
 }
 
