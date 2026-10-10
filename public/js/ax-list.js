@@ -85,7 +85,7 @@ export function createList(root, cfg) {
     S.q = q.q || ""; S.page = Math.max(1, +q.page || 1); facets.forEach((f) => (S.f[f.k] = q[f.k] || ""));
     if (q.sort) { const d = q.sort[0] === "-"; S.sort = { k: q.sort.replace(/^-/, ""), dir: d ? "desc" : "asc" }; } else S.sort = cfg.sort ? { ...cfg.sort } : null;
     S.sel.clear(); compute(); paint();
-    if (q.id) { if (S.id !== q.id) openRow(q.id, { push: false, fromUrl: true }); } else if (S.id) { drawer.close({ silent: true }); S.id = null; pushed = false; paintRowSel(); }
+    if (q.id) { if (S.id !== q.id) openRow(q.id, { push: false, fromUrl: true }); } else if (S.id) { drawer.close({ silent: true }); S.id = null; pushed = false; paintRowSel(); }    if (!init) cfg.onQuery?.(q);
   }
 
   // ----- drawer -----

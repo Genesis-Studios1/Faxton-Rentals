@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 941 1672" preserveAspectRatio="xMidYMid slice">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f8f7f0"/><stop offset=".6" stop-color="#f3f5ee"/><stop offset="1" stop-color="#e9f2eb"/></linearGradient>
+<radialGradient id="a" cx=".4" cy=".25" r=".9"><stop offset="0" stop-color="#13926f" stop-opacity=".0"/><stop offset="1" stop-color="#13926f" stop-opacity=".09"/></radialGradient>
+<linearGradient id="l1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#13926f" stop-opacity=".10"/><stop offset=".5" stop-color="#13926f" stop-opacity=".44"/><stop offset="1" stop-color="#13926f" stop-opacity=".10"/></linearGradient>
+</defs>
+<rect width="941" height="1672" fill="url(#bg)"/>
+<g fill="none" stroke="url(#l1)" stroke-width="1.5" stroke-linecap="round">
+<ellipse cx="-30" cy="130" rx="960" ry="760" fill="url(#a)"/>
+<ellipse cx="10" cy="150" rx="990" ry="780" stroke-opacity=".65"/>
+<path d="M0 880C170 830 300 800 460 790" stroke-opacity=".7"/>
+<path d="M940 520C880 600 790 690 750 790" stroke-opacity=".7"/>
+<ellipse cx="860" cy="1740" rx="880" ry="990" fill="url(#a)"/>
+<ellipse cx="520" cy="1830" rx="740" ry="720" stroke-opacity=".6"/>
+</g>
+</svg>

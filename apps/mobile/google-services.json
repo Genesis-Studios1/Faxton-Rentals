@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "426381186757-jr5sjgcm4ain39p2el0dco3vv5k8kdeh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.faxton.rentals",
+            "certificate_hash": "1047ab78a51f8eeeb01b439f8992346459c508d2"
+          }
+        },
+        {
+          "client_id": "426381186757-ptsv5kvg5vk47g5ocva1l08chpkdv4g2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.faxton.rentals",
+            "certificate_hash": "2eec5a4cabd8f6c8b0f2456ba9f68d3b56a64703"
+          }
+        },
+        {
           "client_id": "426381186757-t53dbg3io0h01d0rbpuo5g93qcl74f6r.apps.googleusercontent.com",
           "client_type": 3
         }

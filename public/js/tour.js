@@ -19,8 +19,8 @@ const stepsFor = (kind, name) => {
   return ({
     renter: [
       hi("This is Faxton Rentals."),
-      { sel: "#sb", t: "Search for homes", b: "Choose a location, property type and budget, then tap <b>Search homes</b>." },
-      { sel: ".cards .card", t: "Browse and save", b: "Hover a home for a quick preview. Tap the heart to save it, or open it for photos, videos, prices and to book a viewing." },
+      { sel: "#sb, #sbm", t: "Search for homes", b: "Choose a location, property type and budget, then tap <b>Search homes</b>." },
+      { sel: ".lc", t: "Browse and save", b: "Hover a home for a quick preview. Tap the heart to save it, or open it for photos, videos, prices and to book a viewing." },
       { sel: ".fx-links", t: "Find your way around", b: "Use <b>Home</b>, <b>Find a home</b>, <b>Saved homes</b>, <b>Messages</b> and <b>My rentals</b> to move between pages." },
       { sel: ".fx-bar", t: "Four tabs, one thumb", b: "<b>Home</b>, <b>Search</b>, <b>Messages</b> and <b>Me</b> are always at the bottom of the screen. <b>Me</b> holds everything else." },
       { sel: "#bell", t: "Messages and updates", b: "A dot shows when an agent replies. Chat with agents before you visit." },

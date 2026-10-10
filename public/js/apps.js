@@ -90,7 +90,6 @@ export function checkNow(S) {
 export function syncShellAutoUpdate(on) { try { window.faxtonShell?.setAutoUpdate?.(!!on); } catch {} }
 
 // ---------- admin: Installations ----------
-const fmtDate = (t) => { const s = t?.seconds; return s ? new Date(s * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—"; };
 async function githubLatest() {
   const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } });
   if (!r.ok) throw new Error("No GitHub release yet");
@@ -107,54 +106,9 @@ async function uploadInstaller(file, version, onProgress) {
 }
 
 export async function installationsPage(ctx) {
-  let releases = await st.adminAll("appReleases");
-  releases.sort((a, b) => (newer(a.version, b.version) ? -1 : newer(b.version, a.version) ? 1 : 0));
-  const live = releases.find((r) => r.published);
-  const html = `<div class="page-head"><div><h1>Installations</h1><p>Upload app versions, edit their names, and publish them. Installed apps are notified automatically.</p></div><button class="btn primary" id="newRel">${icon("plus", 18)} New release</button></div>
-  <section class="panel ga-live"><h3>Latest published${live ? ` · v${esc(live.version)}` : ""}</h3>${live ? `<div class="ga-grid">${PLATFORMS.map(([k, name, ic, , tip]) => { const f = live.files?.[k]; return `<div class="ga-card2"><span class="ga-ic">${icon(ic, 22)}</span><div><b>${esc(name)}</b><small>${f ? esc(mb(f.size) || "Ready") : "Not uploaded"}</small></div>${f ? `<a class="btn sm primary" href="${esc(f.url)}" rel="noopener">${icon("download", 16)} Download</a>` : `<span class="muted">—</span>`}</div>`; }).join("")}</div>` : `<p class="muted">Nothing is published yet. Create a release, add the files, and tick “Publish”.</p>`}</section>
-  <section class="panel" style="margin-top:16px"><div class="panel-head"><h3>All releases</h3></div><div class="tbl-wrap"><table><thead><tr><th>Version</th><th>Name</th><th>Files</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>${releases.map((r) => `<tr><td><b>${esc(r.version)}</b></td><td>${esc(r.name)}</td><td>${Object.keys(r.files || {}).length}/${PLATFORMS.length}</td><td><span class="pill ${r.published ? "" : "warn"}">${r.published ? "Published" : "Draft"}</span>${r.mandatory ? ' <span class="pill bad">Required</span>' : ""}</td><td>${fmtDate(r.createdAt)}</td><td class="act-cell"><button class="btn sm" data-edit="${esc(r.id)}">Edit</button> <button class="btn sm" data-pub="${esc(r.id)}">${r.published ? "Unpublish" : "Publish"}</button> <button class="btn sm" data-del="${esc(r.id)}" aria-label="Delete">${icon("x", 14)}</button></td></tr>`).join("") || `<tr><td colspan="6" class="muted">No releases yet.</td></tr>`}</tbody></table></div></section>
-  <p class="muted" style="margin-top:14px">Files can be uploaded here (needs Firebase Storage) or linked by URL. “Import latest build” fills the links from the newest GitHub build. Windows installs also update themselves from GitHub.</p>`;
-
-  const form = (r) => {
-    const files = { ...(r?.files || {}) };
-    const m = modal(`<h2>${r ? "Edit release" : "New release"}</h2><form id="rf" class="ins-form">
-      <div class="f2"><div class="field"><label for="rv">Version</label><input id="rv" required pattern="\\d+\\.\\d+\\.\\d+" placeholder="1.0.1" value="${esc(r?.version || "")}"></div><div class="field"><label for="rn">Release name</label><input id="rn" required maxlength="120" placeholder="Faxton Rentals 1.0.1" value="${esc(r?.name || "")}"></div></div>
-      <div class="field"><label for="rt">What’s new (one line each: Title – description)</label><textarea id="rt" rows="4" maxlength="3000" placeholder="Improved home search – Find the right home faster.">${esc(r?.notes || "")}</textarea></div>
-      <div class="ins-files">${PLATFORMS.map(([k, name]) => `<div class="ins-row" data-k="${k}"><b>${esc(name)}</b><input type="url" class="u" placeholder="https://… download link" value="${esc(files[k]?.url || "")}"><label class="btn sm up">${icon("upload", 16)} Upload<input type="file" hidden></label><i class="pg"></i></div>`).join("")}</div>
-      <label class="chk"><input id="rm" type="checkbox" ${r?.mandatory ? "checked" : ""}> Required update (users can’t dismiss it)</label>
-      <label class="chk"><input id="rp" type="checkbox" ${r ? (r.published ? "checked" : "") : "checked"}> Publish now (sends the update notification)</label>
-      <p class="err" id="re" role="alert"></p>
-      <div class="a2-act"><button type="button" class="btn" id="imp">Import latest build</button><button class="btn primary" type="submit">Save release</button></div></form>`);
-    m.el.classList.add("ins-modal");
-    const err = $("#re", m.el);
-    $("#imp", m.el).onclick = async (e) => { e.target.disabled = true; try { const g = await githubLatest(); $("#rv", m.el).value ||= g.version; $("#rn", m.el).value ||= `Faxton Rentals ${g.version}`; if (!$("#rt", m.el).value) $("#rt", m.el).value = g.notes.split("\n").filter((l) => /^[-*]/.test(l)).join("\n"); Object.assign(files, g.files); $$(".ins-row", m.el).forEach((row) => { const f = files[row.dataset.k]; if (f) $(".u", row).value = f.url; }); toast("Imported the latest GitHub build."); } catch (x) { err.textContent = "Couldn’t import: " + (x.message || x); } e.target.disabled = false; };
-    $$(".ins-row", m.el).forEach((row) => {
-      const k = row.dataset.k, pg = $(".pg", row), inp = $("input[type=file]", row);
-      $(".u", row).oninput = (e) => { const v = e.target.value.trim(); if (v) files[k] = { ...(files[k] || {}), url: v, source: "link" }; else delete files[k]; };
-      inp.onchange = async () => {
-        const f = inp.files[0]; if (!f) return; const ver = $("#rv", m.el).value.trim();
-        if (!/^\d+\.\d+\.\d+$/.test(ver)) { err.textContent = "Enter the version number first."; return; }
-        err.textContent = ""; pg.textContent = "0%";
-        try { files[k] = await uploadInstaller(f, ver, (p) => (pg.textContent = Math.round(p * 100) + "%")); $(".u", row).value = files[k].url; pg.textContent = "Uploaded ✓"; }
-        catch (x) { pg.textContent = ""; err.textContent = /storage|unauthor|permission|404|bucket/i.test(String(x?.code || x)) ? "Upload isn’t available yet. Turn on Firebase Storage for this project, or paste a download link instead." : friendlyErr(x); }
-      };
-    });
-    $("#rf", m.el).onsubmit = async (e) => {
-      e.preventDefault(); err.textContent = "";
-      const data = { version: $("#rv", m.el).value.trim(), name: $("#rn", m.el).value.trim(), notes: $("#rt", m.el).value.trim(), mandatory: $("#rm", m.el).checked, published: $("#rp", m.el).checked, files: Object.fromEntries(Object.entries(files).filter(([, v]) => v?.url && /^https:\/\//.test(v.url))) };
-      if (!/^\d+\.\d+\.\d+$/.test(data.version)) return (err.textContent = "Version must look like 1.2.3.");
-      if (data.published && !Object.keys(data.files).length) return (err.textContent = "Add at least one file before publishing.");
-      try { await st.saveRelease(r?.id, data); m.close(); toast(data.published ? "Release published. Apps will be notified." : "Release saved."); ctx.render(); } catch (x) { err.textContent = friendlyErr(x); }
-    };
-  };
-  return { title: "Installations", admin: true, html, mount(root) {
-    $("#newRel", root).onclick = () => form(null);
-    $$("[data-edit]", root).forEach((b) => (b.onclick = () => form(releases.find((x) => x.id === b.dataset.edit))));
-    $$("[data-pub]", root).forEach((b) => (b.onclick = async () => { const r = releases.find((x) => x.id === b.dataset.pub); try { await st.saveRelease(r.id, { ...strip(r), published: !r.published }); toast(r.published ? "Unpublished." : "Published. Apps will be notified."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } }));
-    $$("[data-del]", root).forEach((b) => (b.onclick = async () => { const r = releases.find((x) => x.id === b.dataset.del); if (!confirm(`Delete version ${r.version}? This can’t be undone.`)) return; try { await st.removeRelease(r.id); toast("Release deleted."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } }));
-  } };
+  return (await import("./installs.js")).page(ctx, { PLATFORMS, newer, mb, githubLatest, uploadInstaller });
 }
-const strip = ({ id, createdAt, updatedAt, ...rest }) => rest;
+
 
 // ---------- public downloads: the "Download now" window and the #/download page ----------
 const GROUPS = [

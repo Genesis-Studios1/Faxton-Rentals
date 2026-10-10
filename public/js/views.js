@@ -19,6 +19,9 @@ import * as MYHOME from "./myhome.js";
 import * as LOCK from "./applock.js";
 import * as TENANTS from "./tenants.js";
 import * as VS from "./viewsafe.js";
+import * as HOME from "./home.js";
+import { fxErr, shrinkImage, ask } from "./fx.js";
+import { openViewer, detail } from "./pdp.js";
 
 const GOOGLE = `<svg class="gicon" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.500c3.500 0 6.600 1.200 9.100 3.600l6.800-6.800C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700A14.500 14.500 0 019.500 24c0-1.600.3-3.200.8-4.700l-7.900-6.100A24 24 0 000 24c0 3.900.9 7.500 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
 const AREAS = [["lekki", "Lekki, Lagos"], ["ajah", "Ajah, Lagos"], ["yaba", "Yaba, Lagos"], ["victoria", "Victoria Island, Lagos"], ["ikate", "Ikate, Lagos"], ["", "All of Lagos"]];
@@ -38,31 +41,7 @@ const rel = (t) => { const s = t?.seconds; if (!s) return "Just now"; const h = 
 const statusPill = (s) => `<span class="pill ${/pending|review|requested|awaiting/i.test(s) ? "warn" : /flag|reject|cancel/i.test(s) ? "bad" : ""}">${esc(s)}</span>`;
 
 // ---------- cards ----------
-const card = (l, saved, rc, i = 0) => `<article class="card ${rc ? "rcard" : ""}" style="--i:${Math.min(i, 9)}" data-open="${esc(l.id)}" tabindex="0" aria-label="${esc(l.title)}">
-  <div class="card-img"><img src="${esc(l.thumb || l.images[0])}" alt="${esc(l.title)}" loading="lazy"><span class="tag ${l.available === false ? "off" : ""}">${l.available === false ? "Rented" : "Available"}</span><span class="peek">View home ${icon("arrow", 16)}</span>
-    <button class="heart ${saved.has(l.id) ? "on" : ""}" data-fav="${esc(l.id)}" aria-label="Save ${esc(l.title)}" aria-pressed="${saved.has(l.id)}">${icon("heart", 20)}</button></div>
-  <div class="card-body">${rc ? `<div class="rc-top"><h3>${esc(l.title)}</h3><div class="price">${naira(l.price)}<small>per year</small></div></div><div class="loc">${icon("pin", 16)}${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</div>
-      <div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div>`
-    : `<h3>${esc(l.title)}</h3><div class="loc">${icon("pin", 16)}${esc(l.area)}, ${esc(l.city)}</div>
-      <div class="card-foot"><div class="price">${naira(l.price)} <small>/ year</small></div><div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><i>·</i><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div></div>`}</div></article>`;
-
-const homeCard = (l, saved, i = 0) => `<article class="card hcard" style="--i:${Math.min(i, 9)}" data-open="${esc(l.id)}" tabindex="0" aria-label="${esc(l.title)}">
-  <div class="card-img wide"><img src="${esc(l.thumb || l.images[0])}" alt="${esc(l.title)}" loading="lazy"><span class="peek">View home ${icon("arrow", 16)}</span>
-    <button class="heart ${saved.has(l.id) ? "on" : ""}" data-fav="${esc(l.id)}" aria-label="Save ${esc(l.title)}" aria-pressed="${saved.has(l.id)}">${icon("heart", 20)}</button></div>
-  <div class="card-body"><div class="hc-top"><div><h3>${esc(l.title)}</h3><div class="loc">${icon("pin", 16)}${esc(l.area)}, ${esc(l.city)}</div></div><span class="avail ${l.available === false ? "off" : ""}">${l.available === false ? "Rented" : "Available"}</span></div>
-    <div class="hc-price">${naira(l.price)} / year</div><div class="facts"><span>${icon("bed", 18)}${bedsLabel(l.beds)}</span><i>·</i><span>${icon("bath", 18)}${l.baths} bath${l.baths > 1 ? "s" : ""}</span></div></div></article>`;
-
-function bindCards(root, ctx) {
-  $$("[data-fav]", root).forEach((b) => (b.onclick = async (e) => {
-    e.stopPropagation(); const id = b.dataset.fav, on = !ctx.S.saved.has(id);
-    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); if (on) { b.classList.remove("pop"); void b.offsetWidth; b.classList.add("pop"); } await ctx.setSaved(id, on);
-    if (ctx.path === "/saved" && !on) ctx.render();
-  }));
-  $$("[data-open]", root).forEach((c) => {
-    const open = () => ctx.go("#/home/" + c.dataset.open);
-    c.onclick = open; c.onkeydown = (e) => { if (e.key === "Enter" && e.target === c) open(); };
-  });
-}
+// Listing cards, the filters and the property page live in cards.js, home.js and pdp.js.
 
 // ---------- router ----------
 export async function route(ctx) {
@@ -73,10 +52,10 @@ export async function route(ctx) {
   if (path === "/forgot") return PG.forgotPage(ctx);
   if (path === "/terms" || path === "/privacy" || path === "/license") return LEGAL.legalPage(ctx, path.slice(1));
   if (path === "/download") return APPS.downloadPage(ctx);
-  if (path === "/") return discover(ctx);
-  if (path === "/search") return search(ctx);
+  if (path === "/") return HOME.discover(ctx);
+  if (path === "/search") return HOME.search(ctx);
   if ((m = path.match(/^\/home\/([^/]+)$/))) return detail(ctx, decodeURIComponent(m[1]));
-  if (path === "/saved") return PG.savedPage(ctx);
+  if (path === "/saved") return HOME.savedPage(ctx);
   if (path === "/help") return PG.helpPage(ctx);
   if (path === "/messages" || path.startsWith("/messages/")) return messages(ctx, decodeURIComponent(path.split("/")[2] || ""));
   if (path === "/bookings") return bookings(ctx);
@@ -249,220 +228,25 @@ function authPage(ctx, mode) {
     } };
 }
 
-// ---------- discover ----------
-const inRange = (price, r) => { if (!r) return true; const [lo, hi] = r.split("-").map(Number); return price >= lo && (!hi || price <= hi); };
-async function discover(ctx) {
-  const all = await st.getListings(), pr = ctx.S.profile?.prefs || {};
-  // "Homes you might love": listings that match the saved rental preferences come first
-  const score = (l) => (pr.area && (l.area + " " + l.city).toLowerCase().includes(pr.area) ? 2 : 0) + (pr.type && matchType(l, pr.type) ? 1 : 0) + (pr.budget && inRange(l.price, pr.budget) ? 1 : 0);
-  const list = [...all].map((l, i) => [l, i]).sort((x, y) => score(y[0]) - score(x[0]) || x[1] - y[1]).map((x) => x[0]);
-  const TABS = [["", "All homes"], ["Apartment", "Apartments"], ["House", "Houses"], ["Studio", "Studios"]];
-  const cardsFor = (t) => { const rows = list.filter((l) => !t || l.type === t).slice(0, 3); return rows.length ? rows.map((l, i) => homeCard(l, ctx.S.saved, i)).join("") : `<p class="muted hm-none">No ${t.toLowerCase()} listings yet.</p>`; };
-  const hmCard = (l) => `<article class="hmc" data-open="${esc(l.id)}" tabindex="0" aria-label="${esc(l.title)}"><div class="hmc-img"><img src="${esc(l.thumb || l.images[0])}" alt="${esc(l.title)}" loading="lazy"><button class="heart ${ctx.S.saved.has(l.id) ? "on" : ""}" data-fav="${esc(l.id)}" aria-label="Save ${esc(l.title)}" aria-pressed="${ctx.S.saved.has(l.id)}">${icon("heart", 20)}</button><span class="hmc-tag">${icon("building", 16)} ${esc(l.type || "Home")}</span></div><b class="hmc-p">${naira(l.price)} <small>/ year</small></b><div class="hmc-f"><span>${icon("bed", 16)} ${bedsLabel(l.beds)}</span><span>${icon("bath", 16)} ${l.baths} bath${l.baths > 1 ? "s" : ""}</span><span>${icon("pin", 16)} ${esc(l.area)}</span></div></article>`;
-  const os = (img, name, sub) => `<div class="hm-os"><img src="img/${img}" alt="" width="36" height="36"><span><b>${name}</b><small>${sub}</small></span></div>`;
-  const macTile = `<div class="hm-os"><span class="hm-mac">${icon("download", 20)}</span><span><b>macOS</b><small>Use on MacBook</small></span></div>`;
-  const tuxTile = `<div class="hm-os"><span class="hm-mac tux"><svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true"><ellipse cx="16" cy="19" rx="9" ry="10" fill="#1b1b1f"/><ellipse cx="16" cy="21.5" rx="5.5" ry="6.5" fill="#f4f1ea"/><circle cx="12.6" cy="12.5" r="1.5" fill="#fff"/><circle cx="19.4" cy="12.5" r="1.5" fill="#fff"/><path d="M14 15.2h4l-2 2.2z" fill="#f2b233"/></svg></span><span><b>Linux</b><small>Use on desktop</small></span></div>`;
-  const dlNow = `<button type="button" class="hm-dlnow" data-dlnow>${icon("download", 18)} Download now</button>`;
-  const mobile = `<div class="hm-m"><section class="hmm-hero"><div class="hmm-text"><div class="hmm-eye rise">Find your space.</div><h1 class="rise" style="--d:.08s">A home that fits your life.</h1><p class="rise" style="--d:.16s">Explore rental homes across Nigeria. Find the space that feels right for you.</p></div></section>
-    <form class="hmm-search rise" id="hmmS" role="search" style="--d:.24s"><span class="hmm-si">${icon("search", 22)}</span><input name="area" type="search" placeholder="Search area or city" aria-label="Search homes" autocomplete="off"><button aria-label="Search">${icon("search", 22)}</button></form>
-    <div class="hmm-chips rise" style="--d:.3s"><a href="#/search">${icon("home", 26)}<span>Browse areas</span></a><a href="#/search">${icon("sliders3", 26)}<span>Filter by budget and bedrooms</span></a><a href="#/saved">${icon("heart", 26)}<span>Save your favourite homes</span></a></div>
-    ${MYHOME.homeCard(ctx.S)}
-    ${MATCH.matchBanner()}
-    <section class="hmm-app rise" style="--d:.36s"><div class="hmm-app-top"><div><div class="hmm-eye light">Get Faxton Rentals everywhere</div><h2>Start exploring on your device.</h2><p>Download the Faxton Rentals app or continue on web.</p>${dlNow}</div><img src="img/app-devices.webp" alt="Faxton Rentals on phone and laptop" loading="lazy"></div>
-      <div class="hm-os-row">${os("os-android.webp", "Android", "Get the app")}${os("os-apple.webp", "iOS", "Get the app")}${os("os-windows.webp", "Windows", "Use on desktop")}${macTile}</div></section>
-    <div class="hmm-sec"><div><h2>Featured Homes</h2><p>Handpicked rental homes for you.</p></div><a class="hmm-all" href="#/search">View all ${icon("arrow", 18)}</a></div>
-    <div class="hmm-grid">${list.slice(0, 6).map(hmCard).join("")}</div></div>`;
-  return { title: "Home", html: `<div class="wrap hm">${mobile}
-    <section class="hm-hero"><div class="hm-text"><div class="eyebrow-s rise">Find your next chapter</div><h1 class="rise" style="--d:.08s">A place to live.<br>A place to<br>call home.</h1><p class="rise" style="--d:.18s">Find a rental that fits your life, in a neighbourhood you love.</p></div><div class="hm-img reveal" style="background-image:url(img/hero-hd.webp)" role="img" aria-label="Modern home in Lagos"></div></section>
-    <form class="searchbar hm-search rise" style="--d:.3s" id="sb" role="search">
-      <div class="sb-cell">${icon("pin", 26)}<label>Location<select name="area">${opts(AREAS, pr.area || "lekki")}</select></label></div>
-      <div class="sb-cell">${icon("home", 26)}<label>Property type<select name="type"><option value="">Any type</option>${typeOptions(pr.type)}</select></label></div>
-      <div class="sb-cell">${icon("coins", 26)}<label>Yearly budget<select name="max">${opts(BUDGETS, 0)}</select></label></div>
-      <button class="btn primary">${icon("search", 22)} Search homes</button></form>
-    <div class="hm-pop rise" style="--d:.35s"><span>Popular locations:</span>${[["lekki", "Lekki"], ["ajah", "Ajah"], ["yaba", "Yaba"], ["ikeja", "Ikeja"]].map(([v, l], i) => `<a class="chip-l" href="#/search?area=${v}">${i === 0 ? icon("pin", 16) : ""}${l}</a>`).join("")}</div>
-    ${MYHOME.homeCard(ctx.S)}
-    ${MATCH.matchBanner("wide")}
-    <div class="hm-sec rise" style="--d:.4s"><div><h2>Find your kind of home</h2><p>Explore rentals selected for your next move.</p></div><div class="hm-tabs" role="tablist">${TABS.map(([v, l], i) => `<button role="tab" class="${i ? "" : "on"}" data-t="${v}">${l}</button>`).join("")}</div><a class="link" href="#/search">View all homes ${icon("arrow", 18)}</a></div>
-    <div class="cards" id="hmcards">${cardsFor("")}</div>
-    <section class="hm-app hmd-app rise" style="--d:.55s"><div class="hmd-top"><div><div class="hmm-eye light">Get Faxton Rentals everywhere</div><h2>Start exploring on your device.</h2><p>Download the Faxton Rentals app or continue on web.</p>${dlNow}</div><img src="img/app-devices.webp" alt="Faxton Rentals on phone and laptop" loading="lazy"></div>
-      <div class="hmd-os">${os("os-android.webp", "Android", "Get the app")}${os("os-apple.webp", "iOS", "Get the app")}${os("os-windows.webp", "Windows", "Use on desktop")}${macTile}${tuxTile}</div></section>
-    <div class="hm-feats rise" style="--d:.5s"><div><span class="hm-fi">${icon("pin", 24)}</span><b>Find your neighbourhood</b><p>Discover great areas, with everything you need nearby.</p></div><div><span class="hm-fi">${icon("cal", 24)}</span><b>Book a viewing</b><p>Schedule and tour your shortlisted homes with ease.</p></div><div><span class="hm-fi">${icon("user", 24)}</span><b>Manage your rental</b><p>Keep track of your enquiries, viewings and tenancy all in one place.</p></div></div></div>`,
-    mount(root) { bindCards(root, ctx);
-      // "Get the app" links land here: scroll to the app section (the phone layout has its own copy of it).
-      if (ctx.q.to === "app") setTimeout(() => { const t = [...root.querySelectorAll(".hmm-app, .hm-app")].find((e) => e.offsetParent !== null); t?.scrollIntoView({ behavior: "smooth", block: "center" }); }, 450);
-      $$("[data-dlnow]", root).forEach((b) => (b.onclick = () => APPS.openDownloadModal())); $("#sb").onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); ctx.go("#/search?" + p); };
-      const ms = $("#hmmS"); if (ms) ms.onsubmit = (e) => { e.preventDefault(); const t = ms.area.value.trim().toLowerCase(); ctx.go("#/search" + (t ? "?area=" + encodeURIComponent(t) : "")); };
-      $$(".hm-tabs [data-t]", root).forEach((b) => (b.onclick = () => { $$(".hm-tabs [data-t]", root).forEach((x) => x.classList.toggle("on", x === b)); $("#hmcards").innerHTML = cardsFor(b.dataset.t); bindCards(root, ctx); })); } };
-}
+// ---------- discover, search, property page, saved: see home.js and pdp.js ----------
 
-// ---------- search ----------
-async function search(ctx) {
-  const q = ctx.q, all = await st.getListings();
-  const area = q.area || "", max = +q.max || 0, beds = +q.beds || 0, type = q.type || "", sort = q.sort || "recommended";
-  const am = (q.am || "").split(",").filter(Boolean), avail = q.avail !== "0";
-  let list = all.filter((l) => (!area || (l.area + " " + l.city).toLowerCase().includes(area)) && (!max || l.price <= max) && l.beds >= beds && matchType(l, type) && (!avail || l.available !== false) && am.every((x) => l.amenities.includes(x)));
-  if (sort === "low") list = [...list].sort((a, b) => a.price - b.price); if (sort === "high") list = [...list].sort((a, b) => b.price - a.price);
-  const areaName = area ? AREAS.find((a) => a[0] === area)?.[1].replace(/, Lagos/, "") || "Lagos" : "Lagos";
-  const chip = (k, label) => `<span class="chip static">${esc(label)}</span>`;
-  const chips = [chip("area", area ? areaName : "Lagos"), avail && chip("avail", "Available now"), max && chip("max", BUDGETS.find((b) => b[0] === max)?.[1] || naira(max)), beds && chip("beds", beds + "+ beds"), type && chip("type", CATS.find((c) => c[0] === type)?.[1] || type), ...am.map((x) => chip("am:" + x, x))].filter(Boolean).join("");
-  const AMEN = ["Parking", "Water supply", "Security", "Generator", "Balcony", "Garden", "Pool", "Gym", "Wi-Fi"];
-  return { title: "Search", html: `<div class="wrap"><div class="page-head rise"><div><h1 style="font-size:clamp(1.9rem,3.4vw,2.9rem)">Homes for rent in ${esc(areaName === "Lagos" ? "Lagos" : areaName)}</h1><p>${list.length} home${list.length === 1 ? "" : "s"} match your search</p></div>
-</div>
-    ${MATCH.matchBanner("slim")}
-    <form class="filters" id="ff"><label class="fsel">${icon("pin", 18)}<select name="area" aria-label="Location">${opts(AREAS, area)}</select></label>
-      <label class="fsel">${icon("wallet", 18)}<select name="max" aria-label="Budget">${opts(BUDGETS, max)}</select></label>
-      <label class="fsel">${icon("bed", 18)}<select name="beds" aria-label="Bedrooms">${opts([[0, "Bedrooms"], [1, "1+"], [2, "2+"], [3, "3+"], [4, "4+"], [5, "5+"]], beds)}</select></label>
-      <label class="fsel">${icon("home", 18)}<select name="type" aria-label="Property type"><option value="">Property type</option>${typeOptions(type)}</select></label>
-      <div class="fsel more" style="padding:0;position:relative"><button type="button" id="moreBtn" aria-haspopup="true" aria-expanded="false" style="display:flex;align-items:center;gap:8px;border:0;background:none;padding:12px;font-weight:500">${icon("sliders", 18)} More filters${am.length ? ` (${am.length})` : ""} ${icon("chev", 16)}</button>
-        <div class="pop-menu" id="morePanel" hidden><b>Amenities</b>${AMEN.map((x) => `<label class="chk"><input type="checkbox" value="${esc(x)}" ${am.includes(x) ? "checked" : ""}> ${esc(x)}</label>`).join("")}<button type="button" class="btn primary sm" id="applyMore">Apply</button></div></div>
-      <label class="fsel sort"><span class="muted">Sort by</span><select name="sort" aria-label="Sort">${opts([["recommended", "Recommended"], ["low", "Price: low to high"], ["high", "Price: high to low"]], sort)}</select></label></form>
-    <div class="chips">${chips}</div>
-    ${list.length ? `<div class="results grid-only"><div class="cards">${list.map((l, i) => card(l, ctx.S.saved, true, i)).join("")}</div></div>` : `<div class="empty"><h3>No homes match your search</h3><p>Try widening your filters.</p><p style="margin-top:14px"><a class="btn" href="#/search">Reset filters</a></p></div>`}</div>`,
-    async mount(root) {
-      bindCards(root, ctx);
-      const nav = (patch) => { const p = new URLSearchParams(q); Object.entries(patch).forEach(([k, v]) => (v && v !== "0" ? p.set(k, v) : p.delete(k))); ctx.go("#/search?" + p); };
-      $$("select", $("#ff")).forEach((s) => (s.onchange = () => nav({ [s.name]: s.value })));
-      const mb = $("#moreBtn"), mp = $("#morePanel");
-      mb.onclick = (e) => { e.stopPropagation(); mp.hidden = !mp.hidden; mb.setAttribute("aria-expanded", String(!mp.hidden)); };
-      mp.onclick = (e) => e.stopPropagation(); document.addEventListener("click", () => { mp.hidden = true; }, { once: true });
-      $("#applyMore").onclick = () => nav({ am: $$("input:checked", mp).map((i) => i.value).join(",") });
-    } };
-}
-
-// ---------- photo & video viewer ----------
-const videoEmbed = (u) => {
-  let m;
-  if ((m = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/))([\w-]{11})/.exec(u))) return { kind: "frame", src: `https://www.youtube-nocookie.com/embed/${m[1]}?rel=0`, thumb: `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` };
-  if ((m = /vimeo\.com\/(?:video\/)?(\d+)/.exec(u))) return { kind: "frame", src: `https://player.vimeo.com/video/${m[1]}` };
-  return { kind: "file", src: u };
-};
-function openViewer(items, start = 0) {
-  if (!items.length || document.querySelector(".vw-ov")) return;
-  let i = start;
-  const ov = document.createElement("div"); ov.className = "vw-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Photos and videos");
-  const stage = () => { const it = items[i];
-    return it.type === "video" ? (it.kind === "frame" ? `<iframe src="${esc(it.src)}" title="Video tour" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>` : `<video src="${esc(it.src)}" controls playsinline preload="metadata" autoplay></video>`) : `<img src="${esc(it.src)}" alt="">`; };
-  const paint = () => {
-    $(".vw-stage", ov).innerHTML = stage();
-    $(".vw-count", ov).textContent = `${i + 1} / ${items.length}`;
-    $$(".vw-th", ov).forEach((b, k) => b.classList.toggle("on", k === i));
-    $(".vw-th.on", ov)?.scrollIntoView?.({ block: "nearest", inline: "center" });
-  };
-  ov.innerHTML = `<button type="button" class="vw-x" aria-label="Close">${icon("x", 22)}</button><button type="button" class="vw-nav vw-prev" aria-label="Previous">${icon("left", 24)}</button><div class="vw-stage"></div><button type="button" class="vw-nav vw-next" aria-label="Next"><span style="display:grid;transform:rotate(180deg)">${icon("left", 24)}</span></button>
-    <div class="vw-bar"><span class="vw-count"></span><div class="vw-strip">${items.map((it, k) => `<button type="button" class="vw-th" data-k="${k}" aria-label="${it.type === "video" ? "Video" : "Photo"} ${k + 1}">${it.type === "video" ? `<span class="vw-play">${icon("video", 18)}</span>` : `<img src="${esc(it.src)}" alt="" loading="lazy">`}</button>`).join("")}</div></div>`;
-  document.body.append(ov); document.documentElement.classList.add("dlx-lock");
-  const shut = () => { document.removeEventListener("keydown", key); document.documentElement.classList.remove("dlx-lock"); ov.remove(); };
-  const go = (d) => { i = (i + d + items.length) % items.length; paint(); };
-  const key = (e) => { if (e.key === "Escape") shut(); else if (e.key === "ArrowLeft") go(-1); else if (e.key === "ArrowRight") go(1); };
-  document.addEventListener("keydown", key);
-  $(".vw-x", ov).onclick = shut; $(".vw-prev", ov).onclick = () => go(-1); $(".vw-next", ov).onclick = () => go(1);
-  ov.addEventListener("click", (e) => { if (e.target === ov || e.target.classList.contains("vw-stage")) shut(); });
-  $$(".vw-th", ov).forEach((b) => (b.onclick = () => { i = +b.dataset.k; paint(); }));
-  let x0 = null; ov.addEventListener("touchstart", (e) => (x0 = e.touches[0].clientX), { passive: true }); ov.addEventListener("touchend", (e) => { if (x0 !== null && Math.abs(e.changedTouches[0].clientX - x0) > 50) go(e.changedTouches[0].clientX < x0 ? 1 : -1); x0 = null; }, { passive: true });
-  paint(); $(".vw-x", ov).focus();
-}
-
-// ---------- detail ----------
-const amenIcon = (a) => (/park/i.test(a) ? "car" : /secur|guard|cctv/i.test(a) ? "shield" : /pool|swim/i.test(a) ? "waves" : /power|generator|backup|solar|electric|inverter/i.test(a) ? "bolt" : /smart/i.test(a) ? "chip" : /garden|tree|lawn/i.test(a) ? "tree" : /water|borehole/i.test(a) ? "drop" : /balcon|terrace/i.test(a) ? "building" : "check");
-// An illustrative room layout built from the bedrooms, bathrooms and size in the listing.
-function planHtml(l) {
-  const b = +l.beds || 0, ba = +l.baths || 0, sqft = l.sqm ? Math.round(l.sqm * 10.764) : 0, part = (f) => (sqft ? `≈ ${Math.round(sqft * f).toLocaleString("en-NG")} sqft` : "");
-  const cell = (n, sub = "", cls = "") => `<div class="fp-c ${cls}"><b>${esc(n)}</b>${sub ? `<small>${esc(sub)}</small>` : ""}</div>`;
-  if (!b) return `<div class="fp"><div class="fp-row">${cell("Living & Sleeping", part(0.6), "hl")}${cell("Kitchenette")}</div><div class="fp-row">${cell("Bathroom")}${cell("Entrance")}</div></div>`;
-  const beds = Math.min(b, 6), top = [cell("Living & Dining", part(0.28), "hl wide"), cell("Kitchen")];
-  if (b >= 3) top.push(cell("Family Lounge"));
-  return `<div class="fp"><div class="fp-row top">${top.join("")}</div><div class="fp-row">${Array.from({ length: beds }, (_, i) => cell(i ? `Bedroom ${i + 1}` : "Master Suite", ba >= b ? "en suite" : i === 0 ? "en suite" : "")).join("")}</div></div><p class="fp-note">Illustrative layout based on the listing details. Not to scale.</p>`;
-}
-async function detail(ctx, id) {
-  const l = await st.getListing(id);
-  if (!l) return { title: "Not found", html: `<div class="empty"><h2>This home isn’t available</h2><p><a class="link" href="#/search">Browse homes</a></p></div>` };
-  const mi = AREA.moveIn(l), total = mi.total, on = ctx.S.saved.has(l.id), A = { Parking: "car", "Water supply": "drop", Security: "shield", Balcony: "building" };
-  const im = l.images, vids = (l.videos || []).map((u) => ({ type: "video", ...videoEmbed(u) })), media = [...im.map((src) => ({ type: "img", src })), ...vids];
-  const gal = im.length > 1 ? `<div class="gallery"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div><div><img src="${esc(im[1])}" alt=""></div><div>${im[2] ? `<img src="${esc(im[2])}" alt="">` : ""}<button class="show-all" id="all">${icon("img", 18)} Show all photos</button></div></div>` : `<div class="gallery one"><div><img src="${esc(im[0])}" alt="${esc(l.title)}"></div></div>`;
-  const all = (await st.getListings().catch(() => [])).filter((x) => x.id !== l.id && x.city === l.city), cat = catOf(l);
-  const similar = [...all.filter((x) => catOf(x) === cat), ...all.filter((x) => catOf(x) !== cat)].slice(0, 6);
-  const hasPin = l.lat != null && l.lng != null && l.hasPin !== false, lid = "FR-" + String([...l.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9000, 7) + 1000);
-  const parking = l.parking != null && l.parking !== "" ? `${l.parking} space${+l.parking === 1 ? "" : "s"}` : l.amenities.includes("Parking") ? "Available" : "None listed";
-  const info = [["home", "Property type", catName(l)], ["area", "Size", l.sqm ? `${l.sqm} m²` : "Not listed"], ["cal", "Year built", l.yearBuilt || "Not listed"], ["car", "Parking", parking], ["building", "Furnishing", l.furnished || "Not listed"], ["list", "Listing ID", lid]];
-  const bkDays = []; for (let i = 1; bkDays.length < 7; i++) { const d = new Date(Date.now() + i * 864e5); if (d.getDay() === 0) continue; bkDays.push([d.toISOString().slice(0, 10), d.toLocaleDateString("en-GB", { weekday: "short", month: "short", day: "numeric" })]); }
-  const PLANS = [["Yearly", 1], ["Every 6 months", 2], ["Quarterly", 4], ["Monthly", 12]];
-  const desc = String(l.desc || "").split(/\n+/).filter(Boolean);
-  const simCard = (x) => `<article class="sim" data-open="${esc(x.id)}" tabindex="0" aria-label="${esc(x.title)}"><div class="sim-img"><img src="${esc(x.thumb || x.images[0])}" alt="${esc(x.title)}" loading="lazy"><span class="sim-tag ${x.available === false ? "off" : ""}">${x.available === false ? "Rented" : "For rent"}</span><span class="sim-ph">${icon("camera", 14)} ${x.images.length}</span><button class="heart ${ctx.S.saved.has(x.id) ? "on" : ""}" data-fav="${esc(x.id)}" aria-label="Save ${esc(x.title)}" aria-pressed="${ctx.S.saved.has(x.id)}">${icon("heart", 20)}</button></div>
-    <div class="sim-b"><b class="sim-p">${naira(x.price)}<small> / year</small></b><h3>${esc(x.title)}</h3><p class="loc">${icon("pin", 15)} ${esc(x.area)}${x.area.includes(",") ? "" : ", " + esc(x.city)}</p><div class="sim-f"><span>${icon("bed", 17)}${x.beds || "Studio"}</span><span>${icon("bath", 17)}${x.baths}</span>${x.parking ? `<span>${icon("car", 17)}${x.parking}</span>` : ""}${x.sqm ? `<span>${icon("area", 17)}${x.sqm} m²</span>` : ""}</div></div></article>`;
-  return { title: l.title, html: `<div class="wrap pdp"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/">Home</a><span>/</span><a href="#/search">Rent</a><span>/</span><b>${esc(l.area.split(",")[0])}</b></nav>
-    <div class="d-head"><div><h1>${esc(l.title)}</h1><div class="loc dt-loc"><span>${icon("pin", 20)}</span>${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</div></div>
-      <div class="dt-acts"><button class="btn" id="save">${icon("heart", 18)} <span>${on ? "Saved" : "Save"}</span></button><button class="btn" id="share">${icon("share", 18)} Share</button></div></div>
-    ${gal}${vids.length ? `<div class="vid-row"><button type="button" class="vid-btn" data-vid="${im.length}"><span class="vid-ic">${icon("video", 20)}</span><span><b>Watch ${vids.length > 1 ? vids.length + " videos" : "the video tour"}</b><small>${im.length} photo${im.length === 1 ? "" : "s"} · ${vids.length} video${vids.length === 1 ? "" : "s"}</small></span></button></div>` : ""}
-    <div class="detail"><div class="dt-main">
-      <div class="facts-row"><div class="fact">${icon("bed", 22)}${l.beds === 0 ? "Studio" : l.beds + " bedroom" + (l.beds > 1 ? "s" : "")}</div><div class="fact">${icon("bath", 22)}${l.baths} bathroom${l.baths > 1 ? "s" : ""}</div>${l.sqm ? `<div class="fact">${icon("area", 22)}${l.sqm} m²</div>` : ""}<div class="fact">${icon("car", 22)}${parking}</div></div>
-      <div class="dt-tabs" role="tablist">${[["overview", "Overview"], ["features", "Features"], ["location", "Location"], ["hood", "Neighbourhood"], ["plan", "Floor plan"], ["media", "Media"]].map(([k, t], i) => `<button type="button" role="tab" class="${i ? "" : "on"}" data-pane="${k}">${t}</button>`).join("")}</div>
-      <section class="dt-pane" id="p-overview">${(desc.length ? desc : ["The agent hasn’t added a description yet."]).map((x) => `<p class="dt-desc">${esc(x)}</p>`).join("")}<p class="dt-desc">Listed by ${esc(l.agent.name)}. Rent is paid per year. Documents are available for inspection after your viewing.</p>
-        <div class="dt-info">${info.map(([ic, k, v]) => `<div><span>${icon(ic, 18)} ${k}</span><b>${esc(v)}</b></div>`).join("")}</div>
-        ${AREA.costHtml(l)}</section>
-      <section class="dt-pane" id="p-features" hidden>${l.amenities.length ? `<div class="ft-grid">${l.amenities.map((a) => `<div class="ft"><span class="ft-i">${icon(amenIcon(a), 22)}</span><b>${esc(a)}</b></div>`).join("")}</div>` : `<p class="muted">No features have been listed yet.</p>`}<div class="ft-facts"><div><span>Bedrooms</span><b>${l.beds === 0 ? "Studio" : l.beds}</b></div><div><span>Bathrooms</span><b>${l.baths}</b></div><div><span>Area</span><b>${l.sqm ? l.sqm + " m²" : "Not listed"}</b></div><div><span>Parking</span><b>${esc(parking)}</b></div></div></section>
-      <section class="dt-pane" id="p-location" hidden>${hasPin ? `<div class="dmap lg" id="dmap"><span class="dmap-pill">${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</span></div>` : `<div class="dmap lg dmap-none"><span>${icon("pin", 28)}</span><b>${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</b><small>The exact pin hasn’t been shared yet.</small></div>`}<div class="dmap-row"><span class="muted">${icon("pin", 16)} ${esc(l.area)}${l.area.includes(",") ? "" : ", " + esc(l.city)}</span><a class="btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${hasPin ? l.lat + "," + l.lng : encodeURIComponent(l.area + ", " + l.city)}">${icon("arrow", 16)} Open in Google Maps</a></div></section>
-      <section class="dt-pane" id="p-hood" hidden>${AREA.neighbourhoodHtml(l, all)}</section>
-      <section class="dt-pane" id="p-plan" hidden>${l.floorPlan ? `<img class="dt-fp" src="${esc(l.floorPlan)}" alt="Floor plan of ${esc(l.title)}">` : planHtml(l)}</section>
-      <section class="dt-pane" id="p-media" hidden><h3 class="md-h">Photos <b>${im.length}</b></h3><div class="md-grid">${im.map((src, k) => `<button type="button" class="md-i" data-m="${k}" aria-label="Open photo ${k + 1}"><img src="${esc(src)}" alt="" loading="lazy"></button>`).join("")}</div>${vids.length ? `<h3 class="md-h">Videos <b>${vids.length}</b></h3><div class="md-grid">${vids.map((v, k) => `<button type="button" class="md-i md-v" data-m="${im.length + k}" aria-label="Play video ${k + 1}">${v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy">` : `<span class="md-vb"></span>`}<span class="md-play">${icon("video", 26)}</span><em>Video ${k + 1}</em></button>`).join("")}</div>` : `<p class="muted" style="margin-top:14px">No videos have been added for this home yet.</p>`}</section>
-    </div>
-    <aside class="side-card"><div class="big-price">${naira(l.price)} <small>/ year</small></div><p class="muted">Annual payment</p>
-      <div class="rows"><div><span>Rent</span><span>${naira(l.price)}</span></div><div><span>Agency &amp; legal fees</span><span>${naira(mi.fees)}</span></div><div><span>Service charge</span><span>${naira(l.service)}</span></div><div><span>Caution (refundable)</span><span>${naira(l.deposit)}</span></div><div class="total"><span>Move-in total</span><span>${naira(total)}</span></div></div>
-      <a class="sc-tc" href="#" id="tcJump">${icon("calc", 16)} See the full cost breakdown</a>
-      <button class="btn primary block" id="apply" style="padding:15px">Apply to rent ${icon("arrow", 20)}</button>
-      <div class="sc-agent"><div class="sc-av"><img class="avatar" src="${esc(l.agent.avatar)}" alt=""><i class="on" title="Online"></i></div><div><a href="#/agent/${esc(l.agent.id)}" class="sc-name">${esc(l.agent.name)}</a><small>${esc(l.agent.title || "Property consultant")}</small>${l.agent.rating ? `<div class="sc-rate">${icon("star", 13)} <b>${esc(l.agent.rating)}</b></div>` : ""}</div></div>
-      <div class="sc-msg"><button class="btn block" id="msg">${icon("msg", 18)} Message agent</button><button class="btn sc-call" id="callAgent" aria-label="Call the agent" title="Call the agent">${icon("phone", 20)}</button></div>
-      <h3 class="sc-h">Book a viewing</h3>
-      <div class="sc-seg" role="radiogroup" aria-label="Tour type"><button type="button" role="radio" aria-checked="true" class="on" data-tour="person">In person</button><button type="button" role="radio" aria-checked="false" data-tour="virtual">Virtual</button></div>
-      <label class="sc-date">${icon("cal", 20)}<select id="bkDate" aria-label="Date">${bkDays.map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></label>
-      <p class="muted sc-t">Available times</p><div class="sc-times" id="bkTimes">${["10:00 AM", "12:00 PM", "2:00 PM", "4:00 PM"].map((t, i) => `<button type="button" class="${i ? "" : "on"}" data-time="${t}">${t}</button>`).join("")}</div>
-      <div class="sc-two"><button class="btn" id="view">${icon("cal", 18)} Book a viewing</button><button class="btn" id="offer">${icon("tag", 18)} Make an offer</button></div><div id="ofBanner"></div>
-      <p class="muted" style="font-size:.88rem;display:flex;gap:8px;margin-top:12px">${icon("info", 18)}<span>Review the <a class="link" href="#/terms" style="text-decoration:underline">terms</a> before making a payment.</span></p></aside></div>
-    ${similar.length ? `<section class="dt-sim"><h2><i></i>Similar homes</h2><p class="muted">More like this in ${esc(l.city)}</p><div class="sim-grid">${similar.map(simCard).join("")}</div></section>` : ""}</div>`,
-    mount(root) {
-      const authed = (fn) => () => (ctx.S.user ? fn() : (toast("Please sign in first."), ctx.go("#/login?next=" + encodeURIComponent("/home/" + l.id))));
-      bindCards(root, ctx);
-      $("#save").onclick = async () => { const n = !ctx.S.saved.has(l.id); await ctx.setSaved(l.id, n); $("#save span").textContent = n ? "Saved" : "Save"; };
-      $("#share").onclick = async () => { const url = location.href; try { navigator.share ? await navigator.share({ title: l.title, url }) : (await navigator.clipboard.writeText(url), toast("Link copied.")); } catch {} };
-      const allB = $("#all"); if (allB) allB.onclick = () => openViewer(media, 0);
-      $$(".gallery img").forEach((g, k) => { g.style.cursor = "zoom-in"; g.onclick = () => openViewer(media, k); });
-      $$("[data-vid]").forEach((b) => (b.onclick = () => openViewer(media, +b.dataset.vid)));
-      let mapDone = false;
-      $$(".dt-tabs [data-pane]").forEach((b) => (b.onclick = () => {
-        $$(".dt-tabs [data-pane]").forEach((x) => x.classList.toggle("on", x === b)); $$(".dt-pane").forEach((p) => (p.hidden = p.id !== "p-" + b.dataset.pane));
-        if (b.dataset.pane === "hood" && !hoodDone) { hoodDone = true; AREA.mountNeighbourhood($("#p-hood"), l); }
-        if (b.dataset.pane === "location" && hasPin && !mapDone) { mapDone = true; loadLeaflet().then(() => { const el = $("#dmap"); if (!el) return; const map = L.map(el, { scrollWheelZoom: false }).setView([l.lat, l.lng], 15); tiles().addTo(map); L.marker([l.lat, l.lng]).addTo(map); ctrlZoom(map); setTimeout(() => map.invalidateSize(), 100); ctx.S.cleanups.push(() => map.remove()); }).catch(() => { mapDone = false; }); }
-      }));
-      AREA.mountCost(root, l);
-      let hoodDone = false;
-      $("#tcJump").onclick = (e) => { e.preventDefault(); $$(".dt-tabs [data-pane]")[0].click(); $(".tc")?.scrollIntoView({ behavior: "smooth", block: "start" }); };
-      st.getPublic(l.ownerUid || l.agent.id).then((pb) => { if (pb?.verified) $(".sc-name")?.insertAdjacentHTML("beforeend", " " + verifiedBadge(16)); });
-      const scav = $(".sc-av"); if (scav) { scav.style.cursor = "pointer"; scav.onclick = async () => { const uid = l.ownerUid || l.agent.id, pb = await st.getPublic(uid); openProfile(ctx, { uid, name: l.agent.name, avatar: l.agent.avatar, role: ["agent", "agency", "landlord"].includes(pb?.role) ? pb.role : "agent", area: l.area, onMessage: () => $("#msg")?.click(), onCall: () => $("#callAgent")?.click() }); }; }
-      $("#msg").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l); ctx.go("#/messages/" + cid); } catch (e) { toast(friendlyErr(e)); } });
-      let tour = "person", slot = "10:00 AM";
-      $$("[data-tour]").forEach((b) => (b.onclick = () => { tour = b.dataset.tour; $$("[data-tour]").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", x === b); }); }));
-      $$("[data-time]").forEach((b) => (b.onclick = () => { slot = b.dataset.time; $$("[data-time]").forEach((x) => x.classList.toggle("on", x === b)); }));
-      $("#view").onclick = authed(() => ctx.go(`#/book/${l.id}?date=${$("#bkDate").value}&slot=${encodeURIComponent(slot)}&tour=${tour}`));
-      $("#callAgent").onclick = authed(async () => { try { const cid = await st.ensureConversation(ctx.S.user, l), to = l.ownerUid && l.ownerUid !== ctx.S.user.uid ? l.ownerUid : "staff"; CALLS2.startCall(ctx, { convId: cid, to, toName: to === "staff" ? "Faxton team" : l.agent.name, kind: "voice", title: l.title, image: l.thumb || l.images[0], area: l.area }); } catch (e) { toast(friendlyErr(e)); } });
-      $$("[data-m]").forEach((b) => (b.onclick = () => openViewer(media, +b.dataset.m)));
-      $("#apply").onclick = authed(() => ctx.go("#/apply/" + l.id));
-      const ofBan = async () => { if (!ctx.S.user) return; const o = await OFFERS.myOpenOffer(ctx.S.user.uid, l.id), b = $("#ofBanner"); if (!b) return; b.innerHTML = o ? `<a class="of-ban ${o.status.toLowerCase()}" href="#/offers">${icon("tag", 16)}<span><b>${o.status === "Accepted" ? "Offer accepted at " + naira(o.amount) : o.status === "Countered" ? "Counter-offer: " + naira(o.amount) : "Your offer: " + naira(o.amount)}</b><small>${o.status === "Accepted" ? "Apply at the agreed rent" : o.status === "Countered" ? "The owner replied. Your turn." : "Waiting for the owner"}</small></span>${icon("arrow", 16)}</a>` : ""; };
-      ofBan();
-      $("#offer").onclick = authed(() => { if (ctx.S.user.uid === l.ownerUid) return toast("This is your own listing."); if (l.available === false) return toast("This home isn’t available right now."); OFFERS.offerDialog(ctx, l, ofBan); });
-    } };
-}
-
-// ---------- saved / bookings / payments ----------
-async function saved(ctx) {
-  const list = (await st.getListings()).filter((l) => ctx.S.saved.has(l.id));
-  return { title: "Saved homes", html: `<div class="page-head"><div><h1>Saved homes</h1><p>${list.length} home${list.length === 1 ? "" : "s"} you love</p></div></div>${list.length ? `<div class="cards">${list.map((l) => card(l, ctx.S.saved)).join("")}</div>` : `<div class="empty"><h3>Nothing saved yet</h3><p>Tap the heart on any home to keep it here.</p><p style="margin-top:14px"><a class="btn primary" href="#/search">Browse homes</a></p></div>`}`, mount: (r) => bindCards(r, ctx) };
-}
+// ---------- bookings / payments ----------
 async function bookings(ctx) {
   const v = await st.myViewings(ctx.S.user);
   // Fill in who the agent is for viewings booked before the safety system existed.
   v.forEach((x) => { if (!x.agentName) x.agentName = "Faxton agent"; });
-  const draw = () => v.length ? v.map((x) => VS.viewingCard(x)).join("") : `<div class="empty">No viewings yet. Open a home and choose “Book a viewing”.</div>`;
-  return { title: "Viewings", html: `${PG.rentalsNav("/bookings")}<div class="page-head"><div><h1>Viewings</h1><p>Your scheduled and past viewings, with safety tools for each one</p></div><a class="btn primary" href="#/search">Find a home</a></div><div class="vw-list" id="vwList">${draw()}</div>`,
-    mount(root) { const redraw = () => { $("#vwList", root).innerHTML = draw(); VS.mountViewings(root, ctx, v, redraw); }; VS.mountViewings(root, ctx, v, redraw); VS.watchOverdue(ctx, () => v, redraw); } };
+  let tab = "up"; const up = () => v.filter((x) => !VS.isPast(x)).sort((a, b) => VS.startOf(a) - VS.startOf(b)), past = () => v.filter((x) => VS.isPast(x)).sort((a, b) => VS.startOf(b) - VS.startOf(a));
+  const draw = () => {
+    const L = tab === "up" ? up() : past();
+    return L.length ? L.map((x) => VS.viewingCard(x)).join("") : `<div class="rf-card"><div class="rf-empty"><span class="rf-empty-ic">${icon("cal", 26, 1.5)}</span><h3>${tab === "up" ? "No viewings coming up" : "No past viewings"}</h3><p>${tab === "up" ? "Open a home and choose “Book a viewing” to pick a day and time." : "Viewings you’ve been on, or cancelled, are kept here."}</p>${tab === "up" ? `<a class="btn primary" href="#/search">Find a home</a>` : ""}</div></div>`;
+  };
+  const tabs = () => `<button type="button" role="tab" aria-selected="${tab === "up"}" class="${tab === "up" ? "on" : ""}" data-vt="up">Upcoming <b>${up().length}</b></button><button type="button" role="tab" aria-selected="${tab === "past"}" class="${tab === "past" ? "on" : ""}" data-vt="past">Past <b>${past().length}</b></button>`;
+  return { title: "Viewings", html: `<div class="rf rf-in">${PG.rentalsNav("/bookings")}<header class="rf-ph"><div><span class="rf-eyebrow">My rentals</span><h1 class="rf-h1">Viewings</h1><p class="rf-sub">Your scheduled and past viewings, with safety tools for each one.</p></div><div class="rf-ph-a"><a class="btn primary" href="#/search">${icon("search", 18)} Find a home</a></div></header><div class="rf-seg" id="vwTabs" role="tablist" style="margin-bottom:14px">${tabs()}</div><div class="rf-vw-list" id="vwList">${draw()}</div></div>`,
+    mount(root) {
+      const redraw = () => { $("#vwTabs", root).innerHTML = tabs(); $("#vwList", root).innerHTML = draw(); wire(); };
+      const wire = () => { VS.mountViewings(root, ctx, v, redraw); $$("[data-vt]", root).forEach((b) => (b.onclick = () => { tab = b.dataset.vt; redraw(); })); };
+      wire(); VS.watchOverdue(ctx, () => v, redraw);
+    } };
 }
 async function payments(ctx) {
   const a = await st.myApplications(ctx.S.user);
@@ -475,8 +259,15 @@ async function messages(ctx, cid) {
   const me = ctx.S.user.uid, staff = !!(ctx.S.isAdmin || ctx.S.isOwner || ctx.S.role === "support");
   const getMode = () => { try { return staff && sessionStorage.getItem("msgMode") === "faxton" ? "faxton" : "personal"; } catch { return "personal"; } };
   const html = `<div class="mx-shell ${cid ? "has-chat" : ""}"><aside class="mx-side" id="mxSide"></aside><section class="mx-chat" id="chat"></section></div>`;
-  return { title: "Messages", bare: true, html,
+  return { title: "Messages", bare: true, bleed: true, html,
     mount() {
+      // An open chat takes the whole phone screen: html.in-chat hides the top bar and the four-icon bar (see chat.css).
+      const root = document.documentElement, vv = window.visualViewport;
+      root.classList.toggle("in-chat", !!cid);
+      // iOS keeps the layout viewport tall while the keyboard is up; follow the visual viewport so the composer stays above it.
+      const fitVV = () => { if (!cid || !vv) return root.style.removeProperty("--mx-vvh"); root.style.setProperty("--mx-vvh", Math.round(vv.height) + "px"); if (vv.offsetTop) window.scrollTo(0, 0); const th = document.getElementById("thread"); if (th) th.scrollTop = th.scrollHeight; };
+      if (vv && cid) { vv.addEventListener("resize", fitVV); fitVV(); }
+      ctx.S.cleanups.push(() => { root.classList.remove("in-chat"); root.style.removeProperty("--mx-vvh"); vv?.removeEventListener("resize", fitVV); });
       let mine = [], base = [], dms = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set();
       const faxton = () => mode === "faxton", convs = () => (faxton() ? team : mine);
       const iniAv = (name) => "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0f7a5a"/><text x="32" y="42" font-family="system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${esc((String(name || "?").trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("") || "?").toUpperCase())}</text></svg>`);
@@ -538,7 +329,9 @@ async function messages(ctx, cid) {
       const dayLabel = (sec) => { const d = new Date(sec * 1000), n = new Date(); const same = (a, b) => a.toDateString() === b.toDateString(); const y = new Date(n); y.setDate(n.getDate() - 1); return same(d, n) ? "Today" : same(d, y) ? "Yesterday" : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); };
       const callText = (c) => { const outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), vid = c.kind === "video" ? "video" : "voice", st2 = c.status; return st2 === "missed" || st2 === "cancelled" ? [outc ? `Cancelled ${vid} call` : `Missed ${vid} call`, "No answer"] : st2 === "declined" ? [`Declined ${vid} call`, ""] : st2 === "ringing" ? [`${outc ? "Calling" : "Incoming"} ${vid} call`, "Ringing…"] : [`${outc ? "Outgoing" : "Incoming"} ${vid} call`, c.duration ? `${CALLS.fmtDur(c.duration)} · ${c.duration < 60 ? c.duration + " seconds" : Math.round(c.duration / 60) + " minutes"}` : ""]; };
       const callCard = (c) => { const [t, sub] = callText(c), outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), bad = /Missed|Declined|Cancelled/.test(t), back = bad && !outc; return `<div class="mx-row ${outc ? "me" : ""}"><${back ? 'button type="button" data-cb2="' + esc(c.id) + '"' : "div"} class="mx-cc ${outc ? "me" : ""} ${bad ? "bad" : "ok"}"><span class="mx-ci">${icon(c.kind === "video" ? "video" : "phone", 22)}</span><div><b>${t}</b><small>${back ? "Tap to call back" : sub}</small></div><time>${c.createdAt?.seconds ? fmtTime(c.createdAt) : ""}</time></${back ? "button" : "div"}></div>`; };
-      const tk = (mine) => (mine ? `<span class="ticks">${icon("check", 14, 2.4)}${icon("check", 14, 2.4)}</span>` : "");
+      // One tick while a message is still being sent, two once it is stored, mint once the other side has opened the chat.
+      const readByThem = () => { const cc = convs().find((x) => x.id === cid); if (!cc) return false; return faxton() || byMe(cc) ? !cc.unread : cc.listingId === "direct" ? !cc.staffUnread : false; };
+      const tk = (mine, m) => (mine ? `<span class="ticks ${m && !m.at ? "pend" : readByThem() ? "read" : ""}" aria-label="${m && !m.at ? "Sending" : readByThem() ? "Seen" : "Delivered"}">${icon("check", 14, 2.4)}${icon("check", 14, 2.4)}</span>` : "");
       const bubble = (m, c) => {
         const mineB = isMine(m, c), av = mineB ? myAv() : other(c).avatar;
         if (m.type === "booking") return `<div class="mx-row"><div class="mx-bk"><img src="${esc(m.image || "")}" alt=""><div><b class="bk-when">${icon("cal", 18)} ${esc(fmtDate(m.when))}, ${esc(m.slot)}</b><b>${esc(m.title)}</b><span class="muted">${esc(m.area)}</span><a class="btn sm" href="#/bookings">View booking</a></div></div></div>`;
@@ -547,13 +340,13 @@ async function messages(ctx, cid) {
         const wave = (m.wave && m.wave.length ? m.wave : Array.from({ length: 40 }, (_, i) => 20 + ((i * 37) % 55))).slice(0, 40);
         const vn = m.audio ? `<div class="mx-vn" data-vn="${esc(m.id)}"><button type="button" class="mx-play" aria-label="Play voice message">${icon("play", 20)}</button><div class="mx-wv">${wave.map((h) => `<i style="height:${Math.max(8, Math.min(100, h))}%"></i>`).join("")}</div><span class="mx-vd">${fmtDurS(m.dur)}</span></div>` : "";
         const fl = m.file ? `<div class="mx-file"><span class="mx-fi">${icon("doc", 22)}</span><div><b>${esc(m.fname || "File")}</b><small>${fmtSize(m.fsize)} · ${esc((String(m.fname || "").split(".").pop() || "file").toUpperCase())}</small></div><a class="mx-dl" href="${esc(m.file)}" download="${esc(m.fname || "file")}" aria-label="Download">${icon("download", 18)}</a></div>` : "";
-        return `<div class="mx-row ${mineB ? "me" : ""}" data-mid="${esc(m.id || "")}"><img class="mx-bav" src="${esc(av)}" alt="" referrerpolicy="no-referrer"><div class="mx-bw"><div class="mx-b ${m.image ? "has-pic" : ""} ${m.audio ? "has-vn" : ""} ${m.file ? "has-file" : ""}">${q}${pic}${vn}${fl}${m.text ? `<span class="mx-tx">${esc(m.text)}</span>` : ""}<time class="in">${m.at ? fmtTime(m.at) : ""}${tk(mineB)}</time><button type="button" class="mx-ma" data-act="${esc(m.id || "")}" aria-label="Message options">${icon("dchev", 14)}</button></div><time class="out">${m.at ? fmtTime(m.at) : ""}${tk(mineB)}</time>${rxHtml(m)}</div></div>`;
+        return `<div class="mx-row ${mineB ? "me" : ""}" data-mid="${esc(m.id || "")}"><img class="mx-bav" src="${esc(av)}" alt="" referrerpolicy="no-referrer"><div class="mx-bw"><div class="mx-b ${m.image ? "has-pic" : ""} ${m.audio ? "has-vn" : ""} ${m.file ? "has-file" : ""}">${q}${pic}${vn}${fl}${m.text ? `<span class="mx-tx">${esc(m.text)}</span>` : ""}<time class="in">${m.at ? fmtTime(m.at) : ""}${tk(mineB, m)}</time><button type="button" class="mx-ma" data-act="${esc(m.id || "")}" aria-label="Message options">${icon("dchev", 14)}</button></div><time class="out">${m.at ? fmtTime(m.at) : ""}${tk(mineB, m)}</time>${rxHtml(m)}</div></div>`;
       };
       const listingCard = (c) => c.listingId === "direct" ? "" : `<div class="mx-lcard"><div class="mx-limg"><img src="${esc(c.image)}" alt=""><span class="mx-badge">Available</span></div><div class="mx-lb"><div class="mx-lt"><h3>${esc(c.listingTitle)}</h3><span class="mx-lp">${naira(c.price)} <small>per year</small></span></div><p class="mx-lloc">${icon("pin", 16)} ${esc(c.area)}${/,/.test(c.area || "") ? "" : ", Lagos"}</p><div class="mx-lf"><span>${icon("bed", 18)} ${c.beds === 0 ? "Studio" : c.beds + " Beds"}</span><span>${icon("bath", 18)} ${c.baths} Baths</span></div></div><div class="mx-lact"><a class="btn mx-vl" href="#/home/${esc(c.listingId)}">View listing</a><a class="mx-ext" href="#/home/${esc(c.listingId)}" aria-label="Open listing">${icon("share", 18)}</a></div></div>`;
       const drawChat = () => {
         const c = convs().find((x) => x.id === cid); const chat = $("#chat");
         if (!c) { unsubM?.(); chat.dataset.cid = ""; chat.innerHTML = `<div class="mx-empty"><span>${icon("chatdots", 34)}</span><h2>${convs().length ? "Select a conversation" : "No messages yet"}</h2><p>${faxton() ? "Choose a person to reply as Faxton Rentals." : "Message a listing agent to start chatting."}</p></div>`; return; }
-        if (chat.dataset.cid === cid + mode) { drawChat.paintPin?.(c); return; } chat.dataset.cid = cid + mode;
+        if (chat.dataset.cid === cid + mode) { drawChat.paintPin?.(c); const rd = readByThem(); if (rd !== drawChat.lastRead) { drawChat.lastRead = rd; paintThread(); } return; } chat.dataset.cid = cid + mode; drawChat.lastRead = readByThem(); drawChat.stopAudio?.();
         if (faxton() || byMe(c) ? c.staffUnread : c.unread && c.uid === me) (faxton() || byMe(c) ? st.setStaffUnread(cid, false) : st.markRead(cid)).catch(() => {});
         const o = other(c), direct = c.listingId === "direct", agentView = !faxton() && !direct;
         const seenAt = unreadFrom(cid); try { localStorage.setItem("seen_" + cid, String(Math.floor(Date.now() / 1000))); } catch {}
@@ -587,7 +380,7 @@ async function messages(ctx, cid) {
         const mm = document.createElement("div"); mm.className = "menu mx-mm"; mm.hidden = true; chat.append(mm);
         const openMM = (id, x, y) => { const m = msgOf(id); if (!m) return; const pinned = c.pinned?.id === id || convs().find((z) => z.id === cid)?.pinned?.id === id; mm.innerHTML = `<div class="mx-react">${["👍", "❤️", "😂", "😮", "😢", "🙏"].map((e) => `<button type="button" data-r="${e}" class="${m.reactions?.[me] === e ? "on" : ""}">${e}</button>`).join("")}<button type="button" data-more aria-label="More emojis">${icon("plus", 18)}</button></div><div class="mx-rmore" hidden>${EMOJI.map((e) => `<button type="button" data-r="${e}">${e}</button>`).join("")}</div><button type="button" data-a="reply">${icon("chev", 16)} Reply</button><button type="button" data-a="pin">${icon("pin", 16)} ${pinned ? "Unpin" : "Pin"}</button>${m.text ? `<button type="button" data-a="copy">${icon("doc", 16)} Copy</button>` : ""}`; mm.hidden = false; const r = chat.getBoundingClientRect(); mm.style.left = Math.max(8, Math.min(x - r.left, r.width - 170)) + "px"; mm.style.top = Math.max(8, Math.min(y - r.top, r.height - 140)) + "px";
           mm.onclick = async (e) => { const btn = e.target.closest("button"); if (btn?.dataset.more !== undefined) { e.stopPropagation(); $(".mx-rmore", mm).hidden = false; return; } if (btn?.dataset.r) { mm.hidden = true; return react(m, btn.dataset.r); } const a = btn?.dataset.a; mm.hidden = true; if (a === "reply") startReply(m); else if (a === "copy") { try { await navigator.clipboard.writeText(m.text); toast("Copied."); } catch {} } else if (a === "pin") { try { await st.pinMessage(cid, pinned ? null : { id: m.id, text: (m.text || "").slice(0, 120), name: isMine(m, c) ? "You" : o.name }); } catch (x) { toast(friendlyErr(x)); } } }; };
-        document.addEventListener("click", (e) => { if (!e.target.closest(".mx-mm")) mm.hidden = true; }); 
+        const offMM = (e) => { if (!e.target.closest(".mx-mm")) mm.hidden = true; }; document.addEventListener("click", offMM);
         const thread = $("#thread");
         const sendFiles = async (files) => { for (const f of [...files].slice(0, 6)) { if (/^image\//.test(f.type)) { await sendPics([f]); continue; }
             if (f.size > 400000) { toast("Documents can be up to 400 KB here. Send a smaller file or share a link."); continue; }
@@ -599,7 +392,7 @@ async function messages(ctx, cid) {
         const startVoice = async () => {
           if (vr) return stopVoice(true);
           if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("Voice messages aren’t supported on this device.");
-          let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch { return toast("Allow microphone access to record voice messages."); }
+          let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); } catch (x) { return toast(/NotFound|Overconstrained|DevicesNotFound/i.test(String(x?.name)) ? "No microphone was found on this device." : /NotReadable|TrackStart|Abort/i.test(String(x?.name)) ? "Your microphone is being used by another app. Close it and try again." : "Allow microphone access in your settings to send voice messages."); }
           const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
           const rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: 20000 }), chunks = [], peaks = [];
           rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -614,15 +407,18 @@ async function messages(ctx, cid) {
           rec.start(250); recUi(true); $("#recT").textContent = "0:00";
         };
         $("#recX").onclick = () => stopVoice(false); $("#recS").onclick = () => stopVoice(true); drawChat.startVoice = startVoice;
-        // play a voice message
+        // play a voice message (the thread is repainted when messages arrive, so the player state is re-applied after every paint)
         let playing = null;
+        const paintPlay = () => { $$("[data-vn]", thread).forEach((box) => { const on = !!playing && playing.id === box.dataset.vn, a = playing?.a; box.classList.toggle("playing", on && !a.paused); const f = on && a.duration ? a.currentTime / a.duration : 0; $$(".mx-wv i", box).forEach((b, i, all) => b.classList.toggle("on", on && i / all.length < f)); const vd = $(".mx-vd", box), m = msgOf(box.dataset.vn); if (vd && m) vd.textContent = on && a.currentTime > 0 ? fmtDurS(a.currentTime) : fmtDurS(m.dur); }); };
+        drawChat.paintPlay = paintPlay; drawChat.stopAudio = () => { try { playing?.a.pause(); } catch {} playing = null; };
         thread.addEventListener("click", (e) => { const btn = e.target.closest(".mx-play"); if (!btn) return; const box = btn.closest("[data-vn]"), id = box.dataset.vn, m = msgOf(id); if (!m) return;
-          if (playing && playing.id === id) { playing.a.paused ? playing.a.play() : playing.a.pause(); return; }
-          if (playing) { playing.a.pause(); playing.reset(); }
-          const a = new Audio(m.audio), bars = [...box.querySelectorAll(".mx-wv i")], reset = () => { box.classList.remove("playing"); bars.forEach((b) => b.classList.remove("on")); };
-          playing = { id, a, reset }; a.onplay = () => box.classList.add("playing"); a.onpause = () => box.classList.remove("playing");
-          a.ontimeupdate = () => { const f = a.duration ? a.currentTime / a.duration : 0; bars.forEach((b, i) => b.classList.toggle("on", i / bars.length < f)); };
-          a.onended = () => { reset(); playing = null; }; a.play().catch(() => toast("Couldn’t play that message.")); });
+          if (playing && playing.id === id) { playing.a.paused ? playing.a.play().catch(() => {}) : playing.a.pause(); return; }
+          drawChat.stopAudio(); paintPlay();
+          const a = new Audio(m.audio); a.preload = "auto"; playing = { id, a };
+          ["play", "pause", "timeupdate"].forEach((ev) => a.addEventListener(ev, paintPlay));
+          a.addEventListener("ended", () => { if (playing?.a === a) playing = null; paintPlay(); });
+          a.addEventListener("error", () => { if (playing?.a === a) playing = null; paintPlay(); });
+          a.play().catch(() => { if (playing?.a === a) playing = null; paintPlay(); toast("Couldn’t play that voice message on this device."); }); });
         // Tap a picture to see that person's profile; businesses and verified agents get the green tick.
         const showProfile = async () => {
           let uid = "", role = "user";
@@ -656,7 +452,9 @@ async function messages(ctx, cid) {
         $("#mxFindIn").oninput = (e) => { tfind = e.target.value.trim().toLowerCase(); paintThread(); };
         $$("[data-call]", chat).forEach((b) => (b.onclick = () => beginCall(c, b.dataset.call)));
         const menu = $("#mxMenu"); $("#mxMore").onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; };
-        const closeMenu = () => { menu.hidden = true; }; document.addEventListener("click", closeMenu); ctx.S.cleanups.push(() => document.removeEventListener("click", closeMenu));
+        const closeMenu = () => { menu.hidden = true; }; document.addEventListener("click", closeMenu);
+        const onEsc = (e) => { if (e.key === "Escape") { mm.hidden = true; menu.hidden = true; } }; document.addEventListener("keydown", onEsc);
+        drawChat.offDoc?.(); drawChat.offDoc = () => { document.removeEventListener("click", offMM); document.removeEventListener("click", closeMenu); document.removeEventListener("keydown", onEsc); };
         const cl = $("[data-calls]", menu); if (cl) cl.onclick = (e) => { e.preventDefault(); tab = "calls"; drawSide(); closeMenu(); };
         // Block and report the person on the other side (listing owners and agents).
         let safety = null;
@@ -695,7 +493,7 @@ async function messages(ctx, cid) {
           if (first) out.push(listingCard(c));
           th.innerHTML = `${out.join("") || `<div class="mx-hello">Say hello to ${esc(o.name.split(" ")[0])} 👋</div>`}${agentView ? `<div class="mx-quick"><a href="#/book/${esc(c.listingId)}">${icon("cal", 20)}<span>Schedule Viewing</span></a><a href="#/documents">${icon("doc", 20)}<span>Send Documents</span></a><button type="button" data-qcall>${icon("phone", 20)}<span>Call Agent</span></button></div>` : ""}`;
           const q = $("[data-qcall]", th); if (q) q.onclick = () => beginCall(c, "voice");
-          if (near || items.length < 3) th.scrollTop = th.scrollHeight;
+          drawChat.paintPlay?.(); if (near || items.length < 3) th.scrollTop = th.scrollHeight;
         };
         unsubM?.(); unsubM = st.watchMessages(cid, (list) => { ms = list; paintThread(); });
         paintThread();
@@ -711,74 +509,73 @@ async function messages(ctx, cid) {
       const unsubT = staff ? st.watchStaffConversations((c) => { team = c.length || !team.length ? c : team; teamErr = false; refresh(); }, () => { teamErr = true; refresh(); }) : null;
       const unsubL = CALLS.watchLogs(me, (l) => { calls = l; if ($("#convs")) drawList(); else drawSide(); paintThread(); });
       drawSide(); drawChat();
-      ctx.S.cleanups.push(() => { unsubC(); unsubD?.(); unsubT?.(); unsubL(); unsubM?.(); });
+      ctx.S.cleanups.push(() => { unsubC(); unsubD?.(); unsubT?.(); unsubL(); unsubM?.(); drawChat.offDoc?.(); drawChat.stopAudio?.(); });
     } };
 }
 
 // ---------- settings ----------
-const SET_NAV = [["profile", "user", "Profile"], ["account", "shield", "Account & security"], ["notifications", "bell", "Notifications"], ["appearance", "monitor", "Appearance"], ["privacy", "lock", "Privacy"], ["help", "help", "Help & support"]];
-const SET_TITLE = { profile: ["Profile settings", "Manage your personal details and preferences."], account: ["Account & security", "Your sign-in details and account access."], notifications: ["Notifications", "Control the notifications you receive."], appearance: ["Appearance", "Choose how Faxton Rentals looks on your device."], privacy: ["Privacy", "Decide what agents can see about you."], help: ["Help & support", "Answers, the product tour and app details."] };
-const LOCS = ["Lagos, Nigeria", "Abuja, Nigeria", "Port Harcourt, Nigeria", "Ibadan, Nigeria", "Other"];
-const BUD = [["", "No preference"], ["0-2000000", "Up to ₦2,000,000"], ["2000000-4000000", "₦2,000,000 – ₦4,000,000"], ["4000000-6000000", "₦4,000,000 – ₦6,000,000"], ["6000000-0", "₦6,000,000+"]];
-const NOTIFY = [["messages", "mail", "Message notifications", "Get notified when you receive new messages from landlords."], ["viewings", "cal", "Viewing reminders", "Get reminders about your scheduled property viewings."], ["applications", "doc", "Application updates", "Know when the status of a rental application changes."]];
+const SET_NAV = [["profile", "user", "Profile"], ["account", "shield", "Account and security"], ["notifications", "bell", "Notifications"], ["privacy", "lock", "Privacy"], ["appearance", "monitor", "Appearance"], ["help", "help", "Help and app"]];
+const SET_TITLE = { profile: ["Profile", "Your details, photo and what you’re looking for."], account: ["Account and security", "How you sign in, and keeping your account safe."], notifications: ["Notifications", "Choose which alerts you see in the app."], appearance: ["Appearance", "Pick how Faxton Rentals looks on this device."], privacy: ["Privacy", "Decide what agents can see, and ask for your data."], help: ["Help and app", "Answers, the quick tour and app updates."] };
+const BUD = [["", "No preference"], ["0-2000000", "Up to ₦2,000,000"], ["2000000-4000000", "₦2,000,000 to ₦4,000,000"], ["4000000-6000000", "₦4,000,000 to ₦6,000,000"], ["6000000-0", "₦6,000,000 and above"]];
+const NOTIFY = [["messages", "mail", "New messages", "When an agent or owner replies to you."], ["viewings", "cal", "Viewing updates", "Confirmations, changes and reminders for your viewings."], ["applications", "doc", "Application updates", "When the status of an application changes."], ["payments", "wallet", "Payment updates", "When a payment you sent is confirmed or needs attention."], ["offers", "tag", "Offers", "Replies and counter-offers on your rent offers."]];
 const PRIVACY = [["sharePhone", "phone", "Share my phone number", "Let agents I message see my phone number."], ["sharePrefs", "sliders3", "Share my rental preferences", "Help agents suggest homes that suit you."]];
-const sw = (g, k, on) => `<button type="button" class="switch ${on ? "on" : ""}" role="switch" aria-checked="${!!on}" data-sw="${g}.${k}" aria-label="${k}"><i></i></button>`;
-const swRow = (g, k, ic, t, d, on) => `<div class="sw-row"><span class="sw-ic">${icon(ic, 26, 1.7)}</span><div><b>${t}</b><p>${d}</p></div>${sw(g, k, on)}</div>`;
-const themeCards = (pref) => `<div class="theme-cards" role="radiogroup" aria-label="Theme">${[["light", "sun", "Light"], ["dark", "moon", "Dark"], ["system", "monitor", "System"]].map(([k, i, l]) => `<button type="button" class="theme-card ${pref === k ? "on" : ""}" role="radio" aria-checked="${pref === k}" data-theme-pref="${k}">${icon(i, 30, 1.6)}<span>${l}</span><i class="radio"></i></button>`).join("")}</div>`;
+const sw = (g, k, on, label) => `<button type="button" class="switch ${on ? "on" : ""}" role="switch" aria-checked="${!!on}" data-sw="${g}.${k}" aria-label="${esc(label || k)}"><i></i></button>`;
+const swRow = (g, k, ic, t, d, on) => `<div class="rf-sw"><span class="rf-sw-ic">${icon(ic, 20, 1.7)}</span><div><b>${t}</b><p>${d}</p></div>${sw(g, k, on, t)}</div>`;
+const themeCards = (pref) => `<div class="rf-theme" role="radiogroup" aria-label="Theme">${[["light", "sun", "Light"], ["dark", "moon", "Dark"], ["system", "monitor", "Match my device"]].map(([k, i, l]) => `<button type="button" class="${pref === k ? "on" : ""}" role="radio" aria-checked="${pref === k}" data-theme-pref="${k}"><span class="rf-theme-prev ${k}"><i></i><i></i><i></i></span>${icon(i, 20, 1.6)}<b>${l}</b><em class="rf-rd"></em></button>`).join("")}</div>`;
 
 function settings(ctx, section) {
   const u = ctx.S.user, p = ctx.S.profile || {}, role = ctx.S.isOwner ? "owner" : ctx.S.role;
   if (!SET_TITLE[section]) section = "profile";
-  const notify = { messages: true, viewings: true, applications: true, ...(p.notify || {}) }, privacy = { sharePhone: false, sharePrefs: true, ...(p.privacy || {}) };
-  const pr = p.prefs || {}, name = u.displayName || p.name || "", pwd = u.providerData.some((x) => x.providerId === "password");
-  const nav = `<aside class="set-nav" aria-label="Settings sections"><h2>Settings</h2>${SET_NAV.map(([k, ic, l]) => `<a class="${k === section ? "on" : ""}" href="#/settings/${k}" ${k === section ? 'aria-current="page"' : ""}>${icon(ic, 22)}<span>${l}</span></a>`).join("")}<hr><button type="button" id="out" class="set-out">${icon("logout", 22)}<span>Sign out</span></button></aside>`;
-  const card = (t, sub, inner, cls = "") => `<section class="set-card ${cls}"><h3>${t}</h3>${sub ? `<p class="sub">${sub}</p>` : ""}${inner}</section>`;
+  const notify = { messages: true, viewings: true, applications: true, payments: true, offers: true, ...(p.notify || {}) }, privacy = { sharePhone: false, sharePrefs: true, ...(p.privacy || {}) };
+  const pr = p.prefs || {}, name = u.displayName || p.name || "", pwd = u.providerData.some((x) => x.providerId === "password"), google = u.providerData.some((x) => x.providerId === "google.com");
+  const verified = `<span class="rf-pill ${u.emailVerified ? "ok" : "warn"}"><i></i>${u.emailVerified ? "Verified" : "Not verified"}</span>`;
+  const nav = `<aside class="rf-set-nav" aria-label="Settings sections"><h2>Settings</h2><div class="rf-set-links">${SET_NAV.map(([k, ic, l]) => `<a class="${k === section ? "on" : ""}" href="#/settings/${k}" ${k === section ? 'aria-current="page"' : ""}>${icon(ic, 20)}<span>${l}</span></a>`).join("")}</div><button type="button" id="out" class="rf-set-out">${icon("logout", 20)}<span>Sign out</span></button></aside>`;
+  const card = (t, sub, inner, cls = "") => `<section class="rf-card ${cls}"><div class="rf-card-h"><div><h3>${t}</h3>${sub ? `<p>${sub}</p>` : ""}</div></div>${inner}</section>`;
   const shell = APPS.shellInfo(), autoUpd = !!pr.autoUpdate;
-  const updCard = card("App updates", shell ? `You’re using the ${shell.platform.startsWith("mac") ? "Mac" : shell.platform === "windows" ? "Windows" : shell.platform === "android" ? "Android" : "iPhone"} app, version ${esc(shell.version)}.` : "On the web you always get the newest version automatically. Installed apps (Android, iPhone, Windows, Mac) can update themselves too.",
-    `<div class="sw-row"><span class="sw-ic">${icon("download", 26, 1.7)}</span><div><b>Automatic updates</b><p>Download new versions as soon as they’re available.</p></div><button type="button" class="switch ${autoUpd ? "on" : ""}" role="switch" aria-checked="${autoUpd}" id="autoUpd" aria-label="Automatic updates"><i></i></button></div>${shell ? `<div class="set-actions"><button class="btn" id="chkUpd">Check for updates</button></div>` : ""}`);
-  const apCard = card("Appearance", "Choose how Faxton Rentals looks on your device.", themeCards(ctx.themePref()));
-  const ntCard = (all) => card("Notifications", "Control the notifications you receive.", NOTIFY.slice(0, all ? 3 : 2).map(([k, ic, t, d]) => swRow("notify", k, ic, t, d, notify[k])).join("") + (all ? "" : `<a class="link manage" href="#/settings/notifications">Manage notifications ${icon("arrow", 18)}</a>`));
-  const initialsHtml = p.photo ? `<img class="big-av" src="${esc(p.photo)}" alt="">` : `<span class="big-av">${esc(initials(name || u.email))}</span>`;
+  const updCard = card("App updates", shell ? `You’re using the ${shell.platform.startsWith("mac") ? "Mac" : shell.platform === "windows" ? "Windows" : shell.platform === "android" ? "Android" : "iPhone"} app, version ${esc(shell.version)}.` : "On the web you always get the newest version automatically. Installed apps can update themselves too.",
+    `<div class="rf-sw first"><span class="rf-sw-ic">${icon("download", 20, 1.7)}</span><div><b>Automatic updates</b><p>Download new versions as soon as they’re ready.</p></div><button type="button" class="switch ${autoUpd ? "on" : ""}" role="switch" aria-checked="${autoUpd}" id="autoUpd" aria-label="Automatic updates"><i></i></button></div>${shell ? `<div class="rf-actions"><button class="btn" id="chkUpd">Check for updates</button></div>` : ""}`);
+  const apCard = card("Theme", "Choose how Faxton Rentals looks on your device.", themeCards(ctx.themePref()));
+  const ntCard = card("Alerts", "These show up in the bell and as banners in the app. We don’t send marketing email.", NOTIFY.map(([k, ic, t, d], i) => swRow("notify", k, ic, t, d, notify[k]).replace('class="rf-sw"', i ? 'class="rf-sw"' : 'class="rf-sw first"')).join(""));
+  const avatar = p.photo ? `<img class="rf-avatar" src="${esc(p.photo)}" alt="">` : `<span class="rf-avatar">${esc(initials(name || u.email))}</span>`;
   let body;
-  if (section === "profile") body = `<div class="set-cols"><form id="pf" class="set-left" novalidate>
-      ${card("Personal details", "", `<div class="pd-top">${initialsHtml}<div><b class="pd-name">${esc(name || "Your name")}</b><br><button type="button" class="btn sm" id="photoBtn">${icon("camera", 18)} Change photo</button><input type="file" id="photo" accept="image/*" hidden></div></div>
-        <div class="f2"><label class="fl">Full name<input id="nm" value="${esc(name)}" autocomplete="name" maxlength="120"></label>
-          <label class="fl">Email address<span class="in-wrap"><input value="${esc(u.email)}" disabled><span class="vbadge ${u.emailVerified ? "" : "no"}">${u.emailVerified ? `${icon("check", 14, 2.4)} Verified` : "Not verified"}</span></span></label>
-          <label class="fl">About<input id="ab" maxlength="160" placeholder="A short line about you" autocomplete="off"></label>
-          <label class="fl">Phone number<input id="ph" type="tel" placeholder="Add phone number" value="${esc(p.phone || "")}" autocomplete="tel" maxlength="30"></label>
-          <label class="fl">Country<select id="lcc">${countryOptions(p.country || "Nigeria")}</select></label><label class="fl">City<input id="lct" maxlength="60" value="${esc(p.city || "")}" placeholder="e.g. Lagos"></label></div>
-        <p class="note">Your contact details are only shared when you choose.</p>`)}
-      ${card("Rental preferences", "Help us show you more relevant homes.", `<div class="f3"><label class="fl">Preferred location<select id="pl">${AREAS.filter((a) => a[0]).map(([c, l]) => `<option value="${c}" ${c === (pr.area || "lekki") ? "selected" : ""}>${l.replace(", Lagos", ", Lagos")}</option>`).join("")}</select></label>
-        <label class="fl">Property type<select id="pt"><option value="">Any type</option>${typeOptions(pr.type)}</select></label>
-        <label class="fl">Yearly budget<select id="pb">${BUD.map(([v, l]) => `<option value="${v}" ${v === (pr.budget || "") ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>`)}
-      <div class="err" id="perr" role="alert"></div>
-      <div class="set-actions"><button class="btn primary" type="submit">Save changes</button><button class="btn plain" type="button" id="cancel">Cancel</button></div></form>
-      <div class="set-right">${apCard}${ntCard(false)}</div></div>`;
-  else if (section === "account") body = `<div class="set-one">${card("Sign-in", "", `<div class="kv"><span>Email</span><b>${esc(u.email)} <span class="vbadge ${u.emailVerified ? "" : "no"}">${u.emailVerified ? `${icon("check", 14, 2.4)} Verified` : "Not verified"}</span></b></div>
-      <div class="kv"><span>Account type</span><b style="text-transform:capitalize">${esc(role)}</b></div><div class="kv"><span>Sign-in method</span><b>${u.providerData.map((x) => (x.providerId === "google.com" ? "Google" : "Email & password")).join(", ")}</b></div>
-      ${!u.emailVerified && pwd ? `<div class="set-actions"><button class="btn" id="resendV">Resend verification email</button></div>` : ""}`)}
+  if (section === "profile") body = `<form id="pf" class="rf-col" novalidate>
+      ${card("Your profile", "", `<div class="rf-pd"><div class="rf-avwrap">${avatar}<button type="button" class="rf-avcam" id="photoBtn" aria-label="Change photo">${icon("camera", 16)}</button><input type="file" id="photo" accept="image/*" hidden></div><div><b class="rf-pd-name">${esc(name || "Your name")}</b><p class="rf-meta">${esc(u.email)}</p><div class="rf-pd-btns"><button type="button" class="btn sm" id="photoBtn2">${icon("camera", 15)} ${p.photo ? "Change photo" : "Add a photo"}</button>${p.photo ? `<button type="button" class="btn sm ghost" id="photoRm">Remove</button>` : ""}</div></div></div>
+        <div class="rf-form"><div class="rf-grid2"><label class="rf-fl">Full name<input id="nm" value="${esc(name)}" autocomplete="name" maxlength="120"></label>
+          <label class="rf-fl">Email address<span class="rf-input-wrap"><input value="${esc(u.email)}" disabled>${verified.replace('class="rf-pill', 'class="rf-tag rf-pill')}</span></label>
+          <label class="rf-fl">Phone number<input id="ph" type="tel" inputmode="tel" placeholder="e.g. 0803 000 0000" value="${esc(p.phone || "")}" autocomplete="tel" maxlength="30"></label>
+          <label class="rf-fl">About you <span class="rf-help">Shown on your profile card</span><input id="ab" maxlength="160" placeholder="A short line about you" autocomplete="off"></label>
+          <label class="rf-fl">Country of residence<select id="lcc">${countryOptions(p.country || "Nigeria")}</select></label><label class="rf-fl">City<input id="lct" maxlength="60" value="${esc(p.city || "")}" placeholder="e.g. Lagos" autocomplete="address-level2"></label></div>
+        <p class="rf-meta">Your phone number is only shared when you choose. See Privacy.</p></div>`)}
+      ${card("Rental preferences", "Helps us show you homes that fit.", `<div class="rf-grid3"><label class="rf-fl">Where<select id="pl">${AREAS.filter((a) => a[0]).map(([c, l]) => `<option value="${c}" ${c === (pr.area || "lekki") ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        <label class="rf-fl">Home type<select id="pt"><option value="">Any type</option>${typeOptions(pr.type)}</select></label>
+        <label class="rf-fl">Yearly budget<select id="pb">${BUD.map(([v, l]) => `<option value="${v}" ${v === (pr.budget || "") ? "selected" : ""}>${l}</option>`).join("")}</select></label></div>`)}
+      <p class="rf-err" id="perr" role="alert"></p>
+      <div class="rf-actions" style="margin:0"><button class="btn primary" type="submit">Save changes</button><button class="btn ghost" type="button" id="cancel">Discard</button></div></form>`;
+  else if (section === "account") body = `<div class="rf-col">${card("Sign-in", "", `<div class="rf-kv"><div><span>Email</span><b class="rf-kv-em">${esc(u.email)} ${verified}</b></div><div><span>Account type</span><b style="text-transform:capitalize">${esc(role)}</b></div><div><span>Sign-in method</span><b>${u.providerData.map((x) => (x.providerId === "google.com" ? "Google" : "Email and password")).join(", ")}</b></div></div>
+      ${!u.emailVerified && pwd ? `<div class="rf-actions"><button class="btn" id="resendV">Resend verification email</button></div>` : ""}`)}
       <div id="lockCard"></div>
-      ${pwd ? card("Password", "We'll email you a secure link to choose a new password.", `<div class="set-actions"><button class="btn" id="resetPw">Send password reset email</button></div>`) : ""}
-      ${(() => { const d = ctx.S.profile?.deletion; return d?.status === "pending" ? card("Account deletion requested", "", `<p class="note" style="margin:0 0 10px">You asked to delete your account on ${new Date(d.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. Our team reviews every request, which takes about a day. Nothing is deleted until then, and you can cancel now.</p><div class="set-actions"><button class="btn" id="cancelDel">Cancel deletion</button></div>`) : d?.status === "approved" ? card("Account scheduled for deletion", "", `<p class="note" style="margin:0">Your request was approved. Your account will be removed the next time it’s opened after the one-day review period ends.</p>`) : card("Delete account", "Permanently remove your account and its data.", `<p class="note" style="margin:0 0 10px">Deletion is reviewed by our team first and takes about a day. You can cancel any time before it’s approved.</p><div class="set-actions"><button class="btn red-o" id="delAcct">${icon("trash", 18)} Delete my account</button></div>`); })()}
-      ${ctx.S.isAdmin ? card("Admin console", "Manage listings, users, applications and viewings.", `<div class="set-actions"><a class="btn" href="#/admin">Open admin console</a></div>`) : ""}</div>`;
-  else if (section === "notifications") body = `<div class="set-one">${ntCard(true)}<p class="note">These are your preferences. They are saved to your account and used as notifications roll out.</p></div>`;
-  else if (section === "appearance") body = `<div class="set-one">${apCard}</div>`;
-  else if (section === "privacy") body = `<div class="set-one">${card("Privacy", "Your contact details are only shared when you choose.", PRIVACY.map(([k, ic, t, d]) => swRow("privacy", k, ic, t, d, privacy[k])).join(""))}</div>`;
-  else body = `<div class="set-one">${card("Frequently asked", "", `<details><summary>How do I book a viewing?</summary><p>Open any home and choose <b>Book a viewing</b>. Pick a date and time, and the agent will confirm it in Messages.</p></details>
-      <details><summary>How do I apply to rent?</summary><p>On a home page choose <b>Apply to rent</b> and pick your move-in date. Track the status in <b>Payments</b>.</p></details>
-      <details><summary>Where do I message an agent?</summary><p>Tap <b>Message agent</b> on a home, or open <b>Messages</b> in the side menu.</p></details>`)}
-      ${card("Product tour", "Replay the quick tour of Faxton Rentals.", `<div class="set-actions"><button class="btn" id="tour">Replay tour</button></div>`)}
-      ${updCard}${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="set-actions"><button class="btn" id="install">Install</button><a class="btn" href="#/download">All download options</a></div><p class="note">App version ${BUILD}</p>`)}</div>`;
+      ${pwd ? card("Password", "Change it with a secure link we email to you. Nobody can see or read your password, not even us.", `<div class="rf-actions" style="margin-top:0"><button class="btn" id="resetPw">${icon("mail", 17)} Email me a password reset link</button></div><p class="rf-meta" id="resetNote" style="margin-top:10px"></p>`) : card("Password", "", `<p class="rf-muted">You sign in with Google, so there’s no Faxton password. To change how you sign in, manage your Google account.</p>`)}
+      ${card("Signed in on other devices?", "", `<p class="rf-muted" style="margin:0 0 12px">Sign out here at any time. If you think someone else has access, reset your password: that signs your account out on your other devices.${google && !pwd ? " For a Google account, also review security in your Google account." : ""}</p><div class="rf-actions" style="margin-top:0"><button class="btn" id="out2">${icon("logout", 17)} Sign out on this device</button>${pwd ? `<button class="btn" id="resetPw2">Reset password to sign out other devices</button>` : ""}</div>`)}
+      ${(() => { const d = ctx.S.profile?.deletion; return d?.status === "pending" ? card("Account deletion requested", "", `<p class="rf-muted" style="margin:0 0 12px">You asked to delete your account on ${new Date(d.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. Our team reviews every request, which takes about a day. Nothing is deleted until then, and you can cancel now.</p><div class="rf-actions" style="margin-top:0"><button class="btn" id="cancelDel">Cancel deletion</button></div>`, "rf-danger") : d?.status === "approved" ? card("Account scheduled for deletion", "", `<p class="rf-muted" style="margin:0">Your request was approved. Your account will be removed the next time it’s opened after the one-day review period ends.</p>`, "rf-danger") : card("Delete account", "Remove your account and its data.", `<p class="rf-muted" style="margin:0 0 12px">Our team reviews every request, which takes about a day, and you can cancel before it’s approved. Some records, like payment confirmations, may be kept where the law requires.</p><div class="rf-actions" style="margin-top:0"><button class="btn red-o" id="delAcct">${icon("trash", 17)} Delete my account</button></div>`, "rf-danger"); })()}
+      ${ctx.S.isAdmin ? card("Admin console", "Manage listings, users, applications and viewings.", `<div class="rf-actions" style="margin-top:0"><a class="btn" href="#/admin">Open admin console</a></div>`) : ""}</div>`;
+  else if (section === "notifications") body = `<div class="rf-col">${ntCard}<p class="rf-meta">Saved to your account as you switch them. Important account and security messages are always sent.</p></div>`;
+  else if (section === "appearance") body = `<div class="rf-col">${apCard}</div>`;
+  else if (section === "privacy") body = `<div class="rf-col">${card("What agents can see", "Your contact details are only shared when you choose.", PRIVACY.map(([k, ic, t, d], i) => swRow("privacy", k, ic, t, d, privacy[k]).replace('class="rf-sw"', i ? 'class="rf-sw"' : 'class="rf-sw first"')).join(""))}
+      ${card("Your data", "Under Nigeria’s data protection law you can ask to see, correct or delete the personal data we hold about you.", `<div class="rf-actions" style="margin-top:0"><button class="btn" id="dataReq">${icon("download", 17)} Ask for a copy of my data</button><a class="btn ghost" href="#/privacy">Read the Privacy Policy</a></div>`)}</div>`;
+  else body = `<div class="rf-col">${card("Quick answers", "", `<div class="rf-actions" style="margin-top:0"><a class="btn primary" href="#/help">${icon("help", 17)} Open the Help centre</a></div>`)}
+      ${card("Product tour", "Replay the quick tour of Faxton Rentals.", `<div class="rf-actions" style="margin-top:0"><button class="btn" id="tour">Replay tour</button></div>`)}
+      ${updCard}${card("Install the app", "Add Faxton Rentals to your home screen or desktop.", `<div class="rf-actions" style="margin-top:0"><button class="btn" id="install">Install</button><a class="btn" href="#/download">All download options</a></div><p class="rf-meta" style="margin-top:10px">App version ${BUILD}</p>`)}</div>`;
   const [h1, sub] = SET_TITLE[section];
-  return { title: "Settings", html: `<div class="set-grid">${nav}<div class="set-main"><div class="set-head"><div><h1>${h1}</h1><p class="lead-s">${sub}</p></div><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 20)} Back</button></div>${body}</div></div>`,
+  return { title: "Settings", html: `<div class="rf-set">${nav}<div class="rf-set-main"><div class="rf-set-head"><div><h1 class="rf-h1">${h1}</h1><p class="rf-sub">${sub}</p></div><button type="button" class="back-btn" data-back aria-label="Go back">${icon("left", 18)} Back</button></div>${body}</div></div>`,
     mount() {
-      const save = async (patch, msg = "Saved.") => { try { await st.saveProfile(u.uid, patch); ctx.S.profile = { ...(ctx.S.profile || {}), ...patch }; toast(msg); } catch (x) { toast(friendlyErr(x)); throw x; } };
+      const save = async (patch, msg = "Saved.") => { try { await st.saveProfile(u.uid, patch); ctx.S.profile = { ...(ctx.S.profile || {}), ...patch }; toast(msg); } catch (x) { toast(fxErr(x)); throw x; } };
       const lk = $("#lockCard"); if (lk) LOCK.mountCard(lk, ctx.S.user, ctx.logout);
-      const del = $("#delAcct"); if (del) del.onclick = () => { const m = modal(`<h2>Delete your account?</h2><p class="muted" style="margin:6px 0 12px">Our team reviews deletion requests, which takes about a day. Your saved homes, messages and details will be removed once it’s approved. You can cancel before then.</p><label class="fl">Type <b>DELETE</b> to confirm<input id="dc" autocomplete="off"></label><div class="so-act"><button class="btn" id="dcNo">Keep my account</button><button class="btn red" id="dcYes" disabled>Request deletion</button></div>`);
+      const del = $("#delAcct"); if (del) del.onclick = () => { const m = modal(`<div class="rf-dlg"><h2>Delete your account?</h2><p class="rf-dlg-p">Our team reviews deletion requests, which takes about a day. Your saved homes, messages and details are removed once it’s approved. You can cancel before then.</p><label class="rf-fl">Type <b>DELETE</b> to confirm<input id="dc" autocomplete="off"></label><div class="rf-dlg-act"><button class="btn" id="dcNo">Keep my account</button><button class="btn red" id="dcYes" disabled>Request deletion</button></div></div>`);
         $("#dc", m.el).oninput = (e) => ($("#dcYes", m.el).disabled = e.target.value.trim() !== "DELETE"); $("#dcNo", m.el).onclick = () => m.close();
-        $("#dcYes", m.el).onclick = async () => { try { const d = { status: "pending", requestedAt: Date.now() }; await st.setDeletion(u.uid, d); ctx.S.profile = { ...(ctx.S.profile || {}), deletion: d }; m.close(); toast("Request sent. We’ll review it within about a day."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } }; };
-      const cd = $("#cancelDel"); if (cd) cd.onclick = async () => { try { await st.setDeletion(u.uid, null); const p = { ...(ctx.S.profile || {}) }; delete p.deletion; ctx.S.profile = p; toast("Deletion cancelled."); ctx.render(); } catch (x) { toast(friendlyErr(x)); } };
-      $("#out").onclick = async () => { if (await ctx.confirmSignOut()) { await ctx.logout(); ctx.go("#/login"); } };
+        $("#dcYes", m.el).onclick = async () => { try { const d = { status: "pending", requestedAt: Date.now() }; await st.setDeletion(u.uid, d); ctx.S.profile = { ...(ctx.S.profile || {}), deletion: d }; m.close(); toast("Request sent. We’ll review it within about a day."); ctx.render(); } catch (x) { toast(fxErr(x)); } }; };
+      const cd = $("#cancelDel"); if (cd) cd.onclick = async () => { try { await st.setDeletion(u.uid, null); const p2 = { ...(ctx.S.profile || {}) }; delete p2.deletion; ctx.S.profile = p2; toast("Deletion cancelled."); ctx.render(); } catch (x) { toast(fxErr(x)); } };
+      const signOut = async () => { if (await ctx.confirmSignOut()) { await ctx.logout(); ctx.go("#/login"); } };
+      $("#out").onclick = signOut; const o2 = $("#out2"); if (o2) o2.onclick = signOut;
       $$("[data-theme-pref]").forEach((b) => (b.onclick = () => { ctx.setThemePref(b.dataset.themePref); $$("[data-theme-pref]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on); }); }));
       $$("[data-sw]").forEach((b) => (b.onclick = async () => {
         const [g, k] = b.dataset.sw.split("."), cur = ctx.S.profile?.[g] || {}, base = g === "notify" ? notify : privacy, next = !(cur[k] ?? base[k]);
@@ -794,23 +591,24 @@ function settings(ctx, section) {
         pf.onsubmit = async (e) => {
           e.preventDefault(); const err = $("#perr"), nm = $("#nm").value.trim(); err.textContent = "";
           if (!nm) return (err.textContent = "Enter your full name.");
-          const btn = pf.querySelector("button[type=submit]"); btn.disabled = true; st.syncPublic(ctx.S.user.uid, { about: ($("#ab")?.value || "").trim() });
-          try { await updateProfile(auth.currentUser, { displayName: nm }); await save({ name: nm, phone: $("#ph").value.trim(), country: $("#lcc").value, city: $("#lct").value.trim(), location: `${$("#lct").value.trim()}, ${$("#lcc").value}`, prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile updated."); ctx.render(); } catch {} finally { btn.disabled = false; }
+          const ph = $("#ph").value.trim(); if (ph && !/^[+\d][\d\s-]{6,}$/.test(ph)) return (err.textContent = "That phone number doesn’t look right. Use digits, like 0803 000 0000.");
+          const btn = pf.querySelector("button[type=submit]"); btn.disabled = true;
+          try { await updateProfile(auth.currentUser, { displayName: nm }); const city = $("#lct").value.trim(), country = $("#lcc").value, about = ($("#ab")?.value || "").trim();
+            await save({ name: nm, phone: ph, country, city, location: `${city}${city ? ", " : ""}${country}`, prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile saved.");
+            st.syncPublic(ctx.S.user.uid, { name: nm, about, city, country, ...(ctx.S.profile?.photo ? { photo: ctx.S.profile.photo } : {}) }); ctx.render(); } catch {} finally { btn.disabled = false; }
         };
-        $("#photoBtn").onclick = () => $("#photo").click();
-        $("#photo").onchange = (e) => {
-          const f = e.target.files[0]; if (!f) return; if (!f.type.startsWith("image/")) return toast("Please choose an image.");
-          const img = new Image(), url = URL.createObjectURL(f);
-          img.onload = async () => {
-            const c = document.createElement("canvas"); c.width = c.height = 192; const s = Math.min(img.width, img.height), x = c.getContext("2d");
-            x.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 192, 192); URL.revokeObjectURL(url);
-            try { await save({ photo: c.toDataURL("image/jpeg", 0.82) }, "Photo updated."); ctx.render(); } catch {}
-          };
-          img.onerror = () => toast("Couldn't read that image."); img.src = url;
+        const pick = () => $("#photo").click(); $("#photoBtn").onclick = pick; $("#photoBtn2").onclick = pick;
+        $("#photo").onchange = async (e) => {
+          const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+          try { const data = await shrinkImage(f, { square: 192, bytes: 40000 }); await save({ photo: data }, "Photo updated."); st.syncPublic(ctx.S.user.uid, { photo: data }); ctx.render(); } catch (x) { if (x.userMessage) toast(x.userMessage); }
         };
+        const rm = $("#photoRm"); if (rm) rm.onclick = async () => { try { await save({ photo: "" }, "Photo removed."); st.syncPublic(ctx.S.user.uid, { photo: "" }); ctx.render(); } catch {} };
       }
-      const rs = $("#resendV"); if (rs) rs.onclick = async () => { try { await ctx.resendVerification(); toast("Verification email sent."); } catch (x) { toast(friendlyErr(x)); } };
-      const rp = $("#resetPw"); if (rp) rp.onclick = async () => { try { await ctx.resetPassword(u.email); toast("Password reset email sent."); } catch (x) { toast(friendlyErr(x)); } };
+      const rs = $("#resendV"); if (rs) rs.onclick = async () => { try { await ctx.resendVerification(); toast("Verification email sent."); } catch (x) { toast(fxErr(x)); } };
+      const resetPw = async (b) => { b.disabled = true; try { await ctx.resetPassword(u.email); toast("Check your email for the reset link."); const n = $("#resetNote"); if (n) n.textContent = `We sent a link to ${u.email}. It can take a minute, so check spam too.`; let s = 45; const t = setInterval(() => { s--; b.textContent = s > 0 ? `Sent. Resend in ${s}s` : "Email me a password reset link"; if (s <= 0) { clearInterval(t); b.disabled = false; } }, 1000); ctx.S.cleanups.push(() => clearInterval(t)); } catch (x) { toast(fxErr(x)); b.disabled = false; } };
+      const rp = $("#resetPw"); if (rp) rp.onclick = () => resetPw(rp);
+      const rp2 = $("#resetPw2"); if (rp2) rp2.onclick = async () => { rp2.disabled = true; try { await ctx.resetPassword(u.email); toast("Check your email for the reset link."); } catch (x) { toast(fxErr(x)); } rp2.disabled = false; };
+      const dr = $("#dataReq"); if (dr) dr.onclick = async () => { if (!(await ask({ title: "Ask for a copy of your data?", body: "We’ll open a support request. Our team replies by email, usually within a few days.", ok: "Send request", no: "Not now" }))) return; try { await st.addTicket(u, { subject: "Data request", message: "Please send me a copy of the personal data you hold about me (Nigeria Data Protection Act 2023)." }); toast("Request sent. We’ll reply by email."); } catch (x) { toast(fxErr(x)); } };
       const tr = $("#tour"); if (tr) tr.onclick = () => { ctx.resetTour(u); const h = "#" + ctx.dashHome(); ctx.go(h); };
       const ins = $("#install"); if (ins) ins.onclick = async () => { if (ctx.canInstall()) return void (await ctx.installApp()); ctx.go("#/download"); };
     } };
