@@ -25,7 +25,7 @@ const notify = (uid, n) => (uid ? st.notify(uid, n).catch(() => {}) : null);
 const busy = (b, on) => { if (!b) return; b.classList.toggle("is-busy", on); b.disabled = on; };
 
 export function notFound(ctx) {
-  return { title: "Page not found", ...AX.staffFlags(ctx), html: `<div class="ax-card" style="margin-top:8px">${empty({ icon: "search", title: "Page not found", hint: "That page does not exist or moved.", action: btn("Go to Overview", { v: "primary", href: "#/admin" }) })}</div>` };
+  return { title: "Page not found", ...AX.staffFlags(ctx), html: `${AX.pageHead({ eyebrow: "Console", title: "Page not found" })}<div class="ax-card" style="margin-top:8px">${empty({ icon: "search", title: "Nothing here", hint: "That page does not exist or moved.", action: btn("Go to Overview", { v: "primary", href: "#/admin" }) })}</div>` };
 }
 export async function route(ctx, sub) {
   const D = () => import("./dash.js");
@@ -159,6 +159,7 @@ export function listings(ctx) {
           menu: (l, api) => { const s = listingState(l); return [{ label: "Review", icon: "eye", act: api.open }, ...(s === "active" && l.status === "active" ? [{ label: "View live page", icon: "ext", act: () => ctx.go("#/home/" + encodeURIComponent(l.id)) }] : []), { label: "Edit photos and videos", icon: "img", act: () => mediaDialog(l, api.refresh) }, { sep: 1 },
             ...(isPendingL(l) ? [{ label: "Approve", icon: "check", act: () => listingAct(ctx, l, "approve", api) }, { label: "Request changes", icon: "msg", act: () => listingAct(ctx, l, "changes", api) }] : []), s === "archived" || s === "rejected" ? { label: "Restore", icon: "refresh", act: () => listingAct(ctx, l, "restore", api) } : { label: "Archive", icon: "folder", act: () => listingAct(ctx, l, "archive", api) }, { sep: 1 }, { label: "Copy link", icon: "copy", act: () => copy(location.origin + "/#/home/" + l.id, "Link copied.") }]; },
           drawer: (l, api) => listingDrawer(ctx, l, api),
+          onQuery: (q) => { if (q.new) { setQ({ new: "" }); add(); } },
           empty: { icon: "clipList", title: "No listings yet", hint: "Add the first listing, or wait for agents to submit.", action: btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add2" }) } });
         const add = () => addListingDialog(ctx, ls, list);
         root.querySelector("[data-act=add]")?.addEventListener("click", add); el.addEventListener("click", (e) => e.target.closest("[data-act=add2]") && add());
@@ -248,6 +249,7 @@ export function users(ctx) {
           csv: { name: "faxton-users", head: ["Name", "Email", "Phone", "Role", "Banned", "Country", "City", "Joined"], row: (u) => [u.name, u.email, u.phone, R(u), u.banned ? "yes" : "no", u.country, u.city, fmt.date(u.createdAt)] },
           quick: (u) => (u.id === ctx.S.user.uid ? "" : btn("Text", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=text" })), onQuick: (k, u) => openChat(ctx, u),
           menu: (u, api) => [{ label: "Open profile", icon: "user", act: api.open }, ...(u.id === ctx.S.user.uid ? [] : [{ label: "Message", icon: "msg", act: () => openChat(ctx, u) }, { label: "Call", icon: "phone", act: () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: "voice", title: "Faxton team" }) }, { label: "Video", icon: "video", act: () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: "video", title: "Faxton team" }) }]), ...(canBan(ctx, u) ? [{ sep: 1 }, { label: u.banned ? "Unban" : "Ban user", icon: "alert", tone: u.banned ? "" : "bad", act: () => banAct(ctx, u, api) }] : []), ...(ctx.S.isOwner && u.id !== ctx.S.user.uid && R(u) !== "owner" ? [{ label: "Transfer ownership", icon: "refresh", act: () => transferAct(ctx, u, api) }] : [])],
+          onQuery: (q) => { if (q.invite) { setQ({ invite: "" }); inviteDialog(); } },
           drawer: (u, api) => userDrawer(ctx, u, api), empty: { icon: "users", title: "No users yet", hint: "People appear here as soon as they sign up." } });
         root.querySelector("[data-act=inv]")?.addEventListener("click", inviteDialog);
         if (hq().q.invite) { setQ({ invite: "" }); inviteDialog(); }
@@ -265,7 +267,7 @@ export function verifications(ctx) {
       const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
       const dels = () => us.filter((u) => u.deletion?.status === "pending");
       const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
-      const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : `${Math.floor(m / 1440)} days ago`; };
+      const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : (Math.floor(m / 1440) === 1 ? "1 day ago" : `${Math.floor(m / 1440)} days ago`); };
       const nameOf = (id) => us.find((x) => x.id === id)?.name || "";
       const card = (u) => { const a = u.agency, g = u.agentInfo, v = u.verification, isA = v.kind === "agency", pend = v.status === "pending";
         return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>

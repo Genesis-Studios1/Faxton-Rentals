@@ -1,6 +1,7 @@
 // Neighbourhood Intelligence + True Cost of Renting.
 // Area ratings are Faxton estimates (owners can override them per listing with `hood`); nearby places come live from OpenStreetMap.
 import { esc, naira, icon, $, $$ } from "./ui.js";
+import { ddSelect } from "./dd.js";
 
 // ---------- True cost of renting ----------
 // Every listing shows the real move-in cost: rent plus agency, legal, caution and service charge.
@@ -135,7 +136,7 @@ export function neighbourhoodHtml(l, all) {
       ${tile("bolt", "Electricity (estimate)", `About ${hrs} hours a day`, hrs >= 20 ? "good" : hrs >= 15 ? "mid" : "bad", hasBackup ? `Around ${g.power} hours from the grid, topped up by this home’s backup power.` : `Grid supply in this area. This home doesn’t list a generator or solar.`)}
       ${tile("coins", "Average rent nearby", rent ? naira(rent.value) + " / year" : "Not enough data", rentTone, rent ? `${rentNote} Based on ${rent.live ? rent.n + " Faxton listing" + (rent.n === 1 ? "" : "s") + " here (" + rent.basis + ")" : "a Faxton estimate for " + (l.beds === 0 ? "studios" : l.beds + "-bed homes")}.` : "We need a few more listings here.")}
     </div>
-    <section class="nh-sec"><div class="nh-sh"><h3>${icon("clock", 20)} Commute estimates</h3><label class="nh-pick"><span>I work or study in</span><select id="nhWork" aria-label="Where you work or study">${WORK.map((w) => `<option ${w[0] === wk ? "selected" : ""}>${w[0]}</option>`).join("")}</select></label></div>
+    <section class="nh-sec"><div class="nh-sh"><h3>${icon("clock", 20)} Commute estimates</h3><div class="nh-pick"><span>I work or study in</span>${ddSelect({ name: "nhWork", label: "Where you work or study", options: WORK.map((w) => [w[0], w[0]]), value: wk, bare: true, cls: "dd-sm", title: "Where do you work or study?" })}</div></div>
       <div id="nhCommute">${hasPin ? commuteHtml(l, wk) : `<p class="muted">The exact location of this home hasn’t been shared yet, so we can’t estimate the commute.</p>`}</div></section>
     <section class="nh-sec"><div class="nh-sh"><h3>${icon("pin", 20)} Nearby</h3>${hasPin ? `<small class="muted">Within about 3 km · from OpenStreetMap</small>` : ""}</div>
       <div id="nhNear" class="nh-near">${hasPin ? CATS.map(([k, t, ic]) => `<div class="nh-c" data-k="${k}"><div class="nh-ch"><span>${icon(ic, 20)}</span><b>${t}</b><em>…</em></div><ul><li class="sk"></li><li class="sk"></li></ul></div>`).join("") : `<p class="muted">Nearby places appear once the agent shares the exact location.</p>`}</div></section></div>`;
@@ -147,8 +148,8 @@ const commuteHtml = (l, wk) => {
   return `<div class="nh-cm"><div><span class="nh-ic mid">${icon("car", 22)}</span><div><small>Rush hour</small><b>${same ? "Walkable" : "About " + minTxt(c.peak)}</b></div></div><div><span class="nh-ic good">${icon("car", 22)}</span><div><small>Off-peak</small><b>${same ? "Walkable" : "About " + minTxt(c.off)}</b></div></div><div><span class="nh-ic">${icon("route", 22)}</span><div><small>Distance by road</small><b>~${c.km} km</b></div></div></div><p class="muted nh-fine">Drive-time estimate to ${esc(wk)}. Real journeys vary with the day and the bridges.</p>`;
 };
 export function mountNeighbourhood(root, l) {
-  const sel = $("#nhWork", root); if (!sel) return;
-  sel.onchange = () => { try { localStorage.setItem("work", sel.value); } catch {} $("#nhCommute", root).innerHTML = commuteHtml(l, sel.value); };
+  if (!$("#nhCommute", root)) return;
+  root.addEventListener("dd-change", (e) => { if (e.detail.name !== "nhWork") return; try { localStorage.setItem("work", e.detail.value); } catch {} $("#nhCommute", root).innerHTML = commuteHtml(l, e.detail.value); });
   if (l.lat == null || l.lng == null || l.hasPin === false) return;
   nearby(l.lat, l.lng).then((res) => {
     CATS.forEach(([k]) => {

@@ -46,6 +46,15 @@ service cloud.firestore {
         && (!('credsUrl' in request.resource.data) || (request.resource.data.credsUrl is string && request.resource.data.credsUrl.size() <= 400));
     }
 
+    // Bank-transfer details tenants pay into (no payment gateway). Any signed-in user can read; only admins write.
+    match /config/payments {
+      allow read: if signedIn();
+      allow write: if isAdmin() && request.resource.data.keys().hasOnly(['bankName', 'accountNumber', 'accountName', 'instructions', 'enabled', 'updatedAt', 'updatedBy'])
+        && short(request.resource.data.get('bankName', ''), 80) && short(request.resource.data.get('accountNumber', ''), 30)
+        && short(request.resource.data.get('accountName', ''), 120) && short(request.resource.data.get('instructions', ''), 1200)
+        && request.resource.data.get('enabled', true) is bool;
+    }
+
     // Ownership is claimed once, by the verified email stored in config/bootstrap, then transferable only by the owner.
     match /config/owner {
       allow read: if signedIn();
@@ -153,7 +162,21 @@ service cloud.firestore {
           && (!('checkIn' in request.resource.data) || request.resource.data.checkIn is map)
           && (!('checkOut' in request.resource.data) || request.resource.data.checkOut is map)
           && (!('sos' in request.resource.data) || request.resource.data.sos is map)
-          && (!('sharedWith' in request.resource.data) || short(request.resource.data.sharedWith, 80)));
+          && (!('sharedWith' in request.resource.data) || short(request.resource.data.sharedWith, 80)))
+        // The renter can cancel a viewing the agent has not confirmed yet, ask to move any live viewing, and rate the agent afterwards.
+        || (owns() && request.resource.data.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+          && resource.data.status == 'Requested' && request.resource.data.status == 'Cancelled')
+        || (owns() && request.resource.data.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reschedule'])
+          && resource.data.status in ['Requested', 'Confirmed']
+          && request.resource.data.reschedule is map && request.resource.data.reschedule.size() <= 6)
+        || (owns() && request.resource.data.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating'])
+          && !('rating' in resource.data)
+          && request.resource.data.rating is map && request.resource.data.rating.size() <= 4
+          && request.resource.data.rating.stars is int && request.resource.data.rating.stars >= 1 && request.resource.data.rating.stars <= 5
+          && short(request.resource.data.rating.get('text', ''), 400));
     }
     match /applications/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
@@ -161,7 +184,11 @@ service cloud.firestore {
         && request.resource.data.keys().size() <= 30
         && short(request.resource.data.title, 200) && short(request.resource.data.name, 200);
       allow read: if owns() || isAdmin() || ownsListing();
-      allow update: if isAdmin() || (ownsListing() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+      // A renter can withdraw an application that is still under review (and only that).
+      allow update: if isAdmin() || (ownsListing() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+        || (owns() && request.resource.data.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'withdrawnAt'])
+          && resource.data.status == 'Under review' && request.resource.data.status == 'Withdrawn');
     }
 
     match /tickets/{id} {
@@ -313,6 +340,28 @@ service cloud.firestore {
         && short(request.resource.data.reason, 80) && short(request.resource.data.details, 2000)
         && request.resource.data.keys().size() <= 12;
       allow read, update: if isAdmin() || isSupport();
+    }
+    // Bank-transfer proofs: a renter says "I've paid" with an optional receipt image. The owner of the home or an admin confirms or rejects it.
+    match /paymentProofs/{id} {
+      function proofOwnerOk(d) {
+        return d.listingId is string
+          && (exists(/databases/$(database)/documents/listings/$(d.listingId))
+            ? d.get('ownerUid', null) == get(/databases/$(database)/documents/listings/$(d.listingId)).data.get('ownerUid', null)
+            : d.get('ownerUid', null) == null);
+      }
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Submitted'
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'ownerUid', 'listingId', 'title', 'applicationId', 'forLabel', 'amount', 'reference', 'paidOn', 'note', 'proof', 'proofName', 'status', 'createdAt'])
+        && request.resource.data.amount is number && request.resource.data.amount > 0 && request.resource.data.amount < 10000000000
+        && short(request.resource.data.get('reference', ''), 80) && short(request.resource.data.get('note', ''), 500)
+        && short(request.resource.data.get('title', ''), 200) && short(request.resource.data.get('name', ''), 200)
+        && short(request.resource.data.get('forLabel', ''), 120) && short(request.resource.data.get('paidOn', ''), 20) && short(request.resource.data.get('proofName', ''), 160)
+        && (!('proof' in request.resource.data) || (request.resource.data.proof is string && request.resource.data.proof.size() < 450000))
+        && proofOwnerOk(request.resource.data);
+      allow read: if owns() || ownsListing() || isAdmin();
+      allow update: if (isAdmin() || ownsListing())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewNote', 'reviewedAt', 'reviewedBy', 'decidedAt', 'decidedBy'])
+        && request.resource.data.status in ['Submitted', 'Confirmed', 'Rejected']
+        && short(request.resource.data.get('reviewNote', ''), 400);
     }
     match /documents/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid

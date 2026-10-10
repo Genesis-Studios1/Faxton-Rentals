@@ -196,7 +196,8 @@ export function dialog(o) {
   ov.innerHTML = `<div class="ax-dlg" role="dialog" aria-modal="true" aria-labelledby="${id}" data-size="${o.size || "md"}" tabindex="-1"><header class="ax-dlg-h">${o.icon ? `<span class="ax-tile" data-t="${o.tone || ""}">${I(o.icon, 20)}</span>` : ""}<h2 id="${id}">${esc(o.title)}</h2><button type="button" class="ax-ib" data-x aria-label="Close">${I("x", 18)}</button></header><div class="ax-dlg-b">${o.body || ""}</div>${o.footer ? `<footer class="ax-dlg-f">${o.footer}</footer>` : ""}</div>`;
   document.body.append(ov); lock(true);
   const el = ov.firstElementChild; let done = false;
-  const close = (v) => { if (done) return; done = true; lock(false); ov.removeEventListener("keydown", key); ov.classList.add("out"); setTimeout(() => ov.remove(), 140); try { back?.focus?.({ preventScroll: true }); } catch {} o.onClose?.(v); };
+  const p0 = hq().path, onHash = () => { if (hq().path !== p0) close(); }; addEventListener("hashchange", onHash);
+  const close = (v) => { if (done) return; done = true; lock(false); removeEventListener("hashchange", onHash); ov.removeEventListener("keydown", key); ov.classList.add("out"); setTimeout(() => ov.remove(), 140); try { back?.focus?.({ preventScroll: true }); } catch {} o.onClose?.(v); };
   const tryClose = () => { if (o.dirty?.()) return false; close(); return true; };
   const key = (e) => {
     if (e.key === "Escape" && !e.defaultPrevented) { e.stopPropagation(); tryClose(); }
@@ -254,7 +255,7 @@ export const drawer = {
     return el;
   },
   set(cfg) {
-    const el = drEl(); drCfg = { ...drCfg, ...cfg };
+    const el = drEl(); drCfg = { ...drCfg, ...cfg }; if (cfg.w) el.dataset.w = cfg.w; else delete el.dataset.w;
     $("#axDrT", el).textContent = cfg.title || ""; $(".ax-dr-s", el).innerHTML = cfg.sub || "";
     const b = $(".ax-dr-b", el), top = b.scrollTop; b.innerHTML = cfg.body || ""; if (cfg.keepScroll) b.scrollTop = top; else b.scrollTop = 0;
     const f = $(".ax-dr-f", el); f.hidden = !cfg.footer; f.innerHTML = cfg.footer || "";
@@ -289,7 +290,7 @@ export const progress = (v, max = 100, tone = "") => { const p = max ? Math.max(
 export function animateCounts(root = document) {
   if (reduce()) return;
   $$("[data-count]", root).forEach((el) => { if (el._c) return; el._c = 1; const n = +el.dataset.count; if (!n || n > 1e5) return; const t0 = performance.now(), txt = el.textContent, fix = /^[^\d]*$/.test(txt) ? null : txt; if (fix === null) return;
-    const suffix = txt.replace(/[\d,]+/, "\u0000"); const step = (t) => { const k = Math.min(1, (t - t0) / 600), e = 1 - Math.pow(1 - k, 3); el.textContent = suffix.replace("\u0000", Math.round(n * e).toLocaleString("en-NG")); if (k < 1) requestAnimationFrame(step); else el.textContent = txt; }; requestAnimationFrame(step); });
+    const suffix = txt.replace(/[\d,]+/, "\u0000"); const step = (t) => { const k = Math.max(0, Math.min(1, (t - t0) / 600)), e = 1 - Math.pow(1 - k, 3); el.textContent = suffix.replace("\u0000", Math.round(n * e).toLocaleString("en-NG")); if (k < 1) requestAnimationFrame(step); else el.textContent = txt; }; requestAnimationFrame(step); });
 }
 
 // ---------- charts: inline SVG, no library ----------

@@ -36,3 +36,7 @@ export function pickLocation({ lat, lng, title = "Set the property location" } =
     $("#pksave", m.el).onclick = () => { saved = true; m.close(); resolve(at); };
   });
 }
+
+// The emerald house pin used on the property page and in pickers (styled in css/home.css: .hx-pin). Call after Leaflet has loaded.
+export const homePin = () => L.divIcon({ className: "hx-pin", iconSize: [44, 52], iconAnchor: [22, 50], popupAnchor: [0, -46],
+  html: `<span class="hx-pin-b"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg></span><i></i>` });

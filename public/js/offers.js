@@ -2,7 +2,8 @@
 import { db } from "./firebase.js";
 import { collection, doc, getDoc, addDoc, updateDoc, onSnapshot, query, where, getDocs, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { $, $$, esc, naira, icon, toast, modal, friendlyErr } from "./ui.js";
+import { $, $$, esc, naira, icon, toast, modal } from "./ui.js";
+import { fxErr as friendlyErr, empty as fxEmpty } from "./fx.js";
 import { moveIn } from "./area.js";
 
 const FINAL = ["Accepted", "Declined", "Withdrawn"];
@@ -44,11 +45,11 @@ export function offerDialog(ctx, l, done) {
   const ask = l.price, min = Math.round(ask * 0.5);
   const m = modal(`<div class="of-dlg"><h2>${icon("tag", 22)} Make an offer</h2><p class="muted">Offer a yearly rent. The owner can accept, counter or decline, and everything stays on record.</p>
     <div class="of-ask"><span>Asking rent</span><b>${naira(ask)} / year</b></div>
-    <label class="field">Your offer (per year)<div class="of-in"><span>₦</span><input id="ofAmt" inputmode="numeric" autocomplete="off" placeholder="${Math.round(ask * 0.92).toLocaleString("en-NG")}" aria-label="Your offer per year"></div></label>
+    <label class="rf-fl">Your offer (per year)<div class="of-in"><span>₦</span><input id="ofAmt" inputmode="numeric" autocomplete="off" placeholder="${Math.round(ask * 0.92).toLocaleString("en-NG")}" aria-label="Your offer per year"></div></label>
     <div class="of-chips">${[5, 8, 10, 15].map((p) => `<button type="button" data-p="${p}">${p}% off<small>${naira(round10k(ask * (1 - p / 100)))}</small></button>`).join("")}</div>
     <div class="of-sum" id="ofSum" aria-live="polite"></div>
-    <label class="field">Message to the owner (optional)<textarea id="ofNote" rows="2" maxlength="300" placeholder="For example: I can pay the full year upfront."></textarea></label>
-    <p class="err" id="ofErr" role="alert"></p><div class="a2-act"><button class="btn" type="button" id="ofNo">Cancel</button><button class="btn primary" type="button" id="ofGo">Send offer ${icon("arrow", 18)}</button></div></div>`);
+    <label class="rf-fl">Message to the owner (optional)<textarea id="ofNote" rows="2" maxlength="300" placeholder="For example: I can pay the full year upfront."></textarea></label>
+    <p class="rf-err" id="ofErr" role="alert"></p><div class="rf-dlg-act"><button class="btn" type="button" id="ofNo">Cancel</button><button class="btn primary" type="button" id="ofGo">Send offer ${icon("arrow", 18)}</button></div></div>`);
   const amt = $("#ofAmt", m.el);
   const sum = () => {
     const v = digits(amt.value), box = $("#ofSum", m.el);
@@ -76,9 +77,9 @@ export function offerDialog(ctx, l, done) {
 function counterDialog(o, ctx, side) {
   const ask = o.listPrice, mid = round10k((o.amount + (side === "owner" ? ask : o.amount)) / 2);
   const m = modal(`<div class="of-dlg"><h2>${icon("refresh", 22)} Counter-offer</h2><p class="muted">Current offer ${naira(o.amount)} · asking ${naira(ask)}.</p>
-    <label class="field">Your counter (per year)<div class="of-in"><span>₦</span><input id="coAmt" inputmode="numeric" autocomplete="off" value="${mid.toLocaleString("en-NG")}"></div></label>
-    <label class="field">Message (optional)<textarea id="coNote" rows="2" maxlength="300"></textarea></label><p class="err" id="coErr" role="alert"></p>
-    <div class="a2-act"><button class="btn" type="button" id="coNo">Cancel</button><button class="btn primary" type="button" id="coGo">Send counter</button></div></div>`);
+    <label class="rf-fl">Your counter (per year)<div class="of-in"><span>₦</span><input id="coAmt" inputmode="numeric" autocomplete="off" value="${mid.toLocaleString("en-NG")}"></div></label>
+    <label class="rf-fl">Message (optional)<textarea id="coNote" rows="2" maxlength="300"></textarea></label><p class="rf-err" id="coErr" role="alert"></p>
+    <div class="rf-dlg-act"><button class="btn" type="button" id="coNo">Cancel</button><button class="btn primary" type="button" id="coGo">Send counter</button></div></div>`);
   const amt = $("#coAmt", m.el); amt.oninput = () => { const v = digits(amt.value); amt.value = v ? v.toLocaleString("en-NG") : ""; };
   $("#coNo", m.el).onclick = m.close;
   $("#coGo", m.el).onclick = async () => {
@@ -103,15 +104,16 @@ function card(o, me, isAdmin) {
   const acts = [];
   if (isOpen(o)) {
     if (iOwner && o.turn === "owner") acts.push(`<button class="btn primary" data-a="accept">Accept ${naira(o.amount)}</button><button class="btn" data-a="counter">Counter</button><button class="btn red" data-a="decline">Decline</button>`);
-    if (iRenter && o.turn === "renter") acts.push(`<button class="btn primary" data-a="accept">Accept ${naira(o.amount)}</button><button class="btn" data-a="counter">Counter again</button><button class="btn red" data-a="withdraw">Withdraw</button>`);
-    if (iRenter && o.turn === "owner") acts.push(`<button class="btn red" data-a="withdraw">Withdraw offer</button>`);
+    if (iRenter && o.turn === "renter") acts.push(`<button class="btn primary" data-a="accept">Accept ${naira(o.amount)}</button><button class="btn" data-a="counter">Counter again</button><button class="btn red-o" data-a="withdraw">Withdraw</button>`);
+    if (iRenter && o.turn === "owner") acts.push(`<button class="btn red-o" data-a="withdraw">Withdraw offer</button>`);
   }
   if (iRenter && o.status === "Accepted") acts.push(`<a class="btn primary" href="#/apply/${esc(o.listingId)}?offer=${esc(o.id)}">Apply at ${naira(o.amount)} ${icon("arrow", 18)}</a>`);
-  if ((iRenter || iOwner) && o.status === "Declined" && iRenter) acts.push(`<a class="btn" href="#/home/${esc(o.listingId)}">View the home</a>`);
-  return `<article class="of-card" data-id="${esc(o.id)}"><header><a href="#/home/${esc(o.listingId)}"><img src="${esc(o.image || "img/palm-court.webp")}" alt=""></a><div><h3><a href="#/home/${esc(o.listingId)}">${esc(o.title)}</a></h3><p class="muted">${icon("pin", 14)} ${esc(o.area)}${iRenter ? "" : " · from " + esc(o.name || "a renter")}</p></div><span class="pill ${STATUS_TONE[o.status] === "bad" ? "bad" : STATUS_TONE[o.status] === "warn" ? "warn" : ""}">${esc(o.status)}</span></header>
-    <div class="of-nums"><div><small>Asking rent</small><b>${naira(o.listPrice)}</b></div><div><small>${o.status === "Accepted" ? "Agreed rent" : "Latest offer"}</small><b>${naira(o.amount)}</b><em>${off > 0 ? "−" + off + "%" : ""}</em></div><div><small>Move-in cost</small><b>${naira(moveIn({ price: o.listPrice, service: o.service, deposit: o.deposit, agencyFee: o.agencyFee, legalFee: o.legalFee }, o.amount).total)}</b></div></div>
+  if (iRenter && o.status === "Declined") acts.push(`<a class="btn" href="#/home/${esc(o.listingId)}">View the home</a>`);
+  const tone = o.status === "Accepted" ? "ok" : STATUS_TONE[o.status] === "bad" ? "bad" : "warn";
+  return `<article class="of-card rf-card" data-id="${esc(o.id)}"><header><a href="#/home/${esc(o.listingId)}"><img src="${esc(o.image || "img/palm-court.webp")}" alt=""></a><div><h3><a href="#/home/${esc(o.listingId)}">${esc(o.title)}</a></h3><p class="rf-loc">${icon("pin", 14)} ${esc(o.area)}${iRenter ? "" : " · from " + esc(o.name || "a renter")}</p></div><span class="rf-pill ${tone}"><i></i>${esc(o.status)}</span></header>
+    <div class="of-nums"><div><small>Asking rent</small><b>${naira(o.listPrice)}</b></div><div><small>${o.status === "Accepted" ? "Agreed rent" : "Latest offer"}</small><b>${naira(o.amount)}</b>${off > 0 ? `<em>${off}% off</em>` : ""}</div><div><small>Move-in cost</small><b>${naira(moveIn({ price: o.listPrice, service: o.service, deposit: o.deposit, agencyFee: o.agencyFee, legalFee: o.legalFee }, o.amount).total)}</b></div></div>
     <p class="of-state ${myTurn ? "me" : ""}">${icon(myTurn ? "bell" : o.status === "Accepted" ? "checkc" : "clock", 16)} ${state}</p>
-    <ol class="of-tl">${o.history.map((e) => `<li class="${e.type}"><i></i><div><b>${esc(label(e, o, me))}${e.type === "offer" || e.type === "counter" || e.type === "accept" ? " " + naira(e.amount) : ""}</b>${e.note ? `<p>“${esc(e.note)}”</p>` : ""}<small>${ago(e.at)}</small></div></li>`).join("")}</ol>
+    <ol class="rf-tl">${o.history.map((e) => `<li class="${e.type === "decline" || e.type === "withdraw" ? "bad" : "ok"}"><i>${icon(e.type === "decline" || e.type === "withdraw" ? "x" : "check", 12, 3.2)}</i><div><b>${esc(label(e, o, me))}${e.type === "offer" || e.type === "counter" || e.type === "accept" ? " " + naira(e.amount) : ""}</b>${e.note ? `<p>“${esc(e.note)}”</p>` : ""}</div><span>${ago(e.at)}</span></li>`).join("")}</ol>
     ${acts.length ? `<div class="of-act">${acts.join("")}</div>` : ""}</article>`;
 }
 
@@ -119,23 +121,23 @@ export function offersPage(ctx, rentalsNav) {
   const me = ctx.S.user.uid, isAdmin = ctx.S.isAdmin, ownerRole = ["landlord", "agency", "agent"].includes(ctx.S.role);
   if (isAdmin || ownerRole) return staffOffersPage(ctx);
   const staff = isAdmin ? { admin: true, pending: 0 } : ownerRole ? { role: ctx.S.role } : {};
-  const html = `<div class="wrap pg of-pg">${staff.admin || staff.role ? "" : rentalsNav("/offers")}<div class="page-head"><div><h1>Rent offers</h1><p>${isAdmin ? "Every negotiation on the platform." : "Offers and counter-offers, with the full history of each."}</p></div></div>
-    <div class="pill-tabs" id="ofTabs" role="tablist"></div><div id="ofList" class="of-list"></div></div>`;
+  const html = `<div class="rf of-pg">${staff.admin || staff.role ? "" : rentalsNav("/offers")}<header class="rf-ph"><div><span class="rf-eyebrow">${isAdmin ? "Activity" : "My rentals"}</span><h1 class="rf-h1">Rent offers</h1><p class="rf-sub">${isAdmin ? "Every negotiation on the platform." : "Offers and counter-offers, with the full history of each."}</p></div></header>
+    <div class="rf-seg" id="ofTabs" role="tablist" style="margin-bottom:14px"></div><div id="ofList" class="of-list"></div></div>`;
   return { title: "Rent offers", ...staff, html, mount(root) {
     let sent = [], recv = [], all = [], tab = (isAdmin || ownerRole) ? "recv" : "sent";
     const draw = () => {
       const recvList = isAdmin ? all : recv, mine = isAdmin ? [] : sent;
       const tabs = [["recv", isAdmin ? "All offers" : "Received", recvList], ...(isAdmin ? [] : [["sent", "My offers", mine]])].filter(([k]) => k === "sent" || isAdmin || ownerRole || recv.length);
       if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
-      $("#ofTabs", root).innerHTML = tabs.length > 1 ? tabs.map(([k, t, l]) => `<button type="button" role="tab" class="${k === tab ? "on" : ""}" data-t="${k}">${t} <b>${l.length}</b></button>`).join("") : "";
+      $("#ofTabs", root).innerHTML = tabs.length > 1 ? tabs.map(([k, t, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" class="${k === tab ? "on" : ""}" data-t="${k}">${t} <b>${l.length}</b></button>`).join("") : ""; $("#ofTabs", root).hidden = tabs.length < 2;
       const cur = (tabs.find(([k]) => k === tab) || tabs[0])[2];
-      $("#ofList", root).innerHTML = cur.length ? cur.map((o) => card(o, me, isAdmin)).join("") : `<div class="empty">${icon("tag", 36, 1.3)}<h3>No offers yet</h3><p>${tab === "sent" ? "Open a home and tap “Make an offer” to propose a rent." : "When a renter makes an offer on one of your homes, it appears here."}</p>${tab === "sent" ? `<p style="margin-top:14px"><a class="btn primary" href="#/search">Find a home</a></p>` : ""}</div>`;
+      $("#ofList", root).innerHTML = cur.length ? cur.map((o) => card(o, me, isAdmin)).join("") : `<div class="rf-card">${fxEmpty({ ic: "tag", title: "No offers yet", hint: tab === "sent" ? "Open a home and tap “Make an offer” to propose a rent. Offers can be up to half the asking rent." : "When a renter makes an offer on one of your homes, it appears here.", action: tab === "sent" ? `<a class="btn primary" href="#/search">Find a home</a>` : "" })}</div>`;
       $$("[data-t]", root).forEach((b) => (b.onclick = () => { tab = b.dataset.t; draw(); }));
       $$(".of-card [data-a]", root).forEach((b) => (b.onclick = async () => {
         const o = [...sent, ...recv, ...all].find((x) => x.id === b.closest(".of-card").dataset.id); if (!o) return;
         const side = o.uid === me ? "renter" : "owner", a = b.dataset.a;
         if (a === "counter") return counterDialog(o, ctx, side);
-        if (a === "decline" || a === "withdraw") { const m = modal(`<div class="of-dlg"><h2>${a === "decline" ? "Decline this offer?" : "Withdraw your offer?"}</h2><p class="muted">${a === "decline" ? "The renter will be told you declined." : "The owner will be told you withdrew it."}</p><div class="a2-act"><button class="btn" id="cfNo">Keep it</button><button class="btn red" id="cfYes">${a === "decline" ? "Decline" : "Withdraw"}</button></div></div>`); $("#cfNo", m.el).onclick = m.close; $("#cfYes", m.el).onclick = () => { m.close(); run(o, side, a, b); }; return; }
+        if (a === "decline" || a === "withdraw") { const m = modal(`<div class="of-dlg"><h2>${a === "decline" ? "Decline this offer?" : "Withdraw your offer?"}</h2><p class="rf-dlg-p">${a === "decline" ? "The renter will be told you declined." : "The owner will be told you withdrew it."}</p><div class="rf-dlg-act"><button class="btn" id="cfNo">Keep it</button><button class="btn red" id="cfYes">${a === "decline" ? "Decline" : "Withdraw"}</button></div></div>`); $("#cfNo", m.el).onclick = m.close; $("#cfYes", m.el).onclick = () => { m.close(); run(o, side, a, b); }; return; }
         run(o, side, a, b);
       }));
     };
