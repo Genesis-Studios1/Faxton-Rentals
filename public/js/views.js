@@ -268,7 +268,7 @@ async function messages(ctx, cid) {
       const fitVV = () => { if (!cid || !vv) return root.style.removeProperty("--mx-vvh"); root.style.setProperty("--mx-vvh", Math.round(vv.height) + "px"); if (vv.offsetTop) window.scrollTo(0, 0); const th = document.getElementById("thread"); if (th) th.scrollTop = th.scrollHeight; };
       if (vv && cid) { vv.addEventListener("resize", fitVV); fitVV(); }
       ctx.S.cleanups.push(() => { root.classList.remove("in-chat"); root.style.removeProperty("--mx-vvh"); vv?.removeEventListener("resize", fitVV); });
-      let mine = [], base = [], dms = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set();
+      let mine = [], base = [], dms = [], team = [], calls = [], unsubM = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set(), loaded = false, callsLoaded = false;
       const faxton = () => mode === "faxton", convs = () => (faxton() ? team : mine);
       // two icons the shared set doesn't have: reply arrow and push-pin
       const LI = { reply: '<polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>', pushpin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>' };
@@ -300,9 +300,15 @@ async function messages(ctx, cid) {
         const f = FILTERS(), list = vis();
         f.forEach(([k, , , n]) => { const c = $(`[data-cnt="${k}"]`); if (c) c.textContent = n; });
         const box = $("#convs"); if (!box) return;
-        box.innerHTML = tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") : `<p class="muted mx-none">No calls yet. Open a conversation and tap Call or Video call.</p>`)
+        const nothing = (ic, title, hint, act = "") => `<div class="mx-none"><span class="mx-noi">${icon(ic, 24)}</span><b>${title}</b><p>${hint}</p>${act}</div>`;
+        const skel = `<div class="mx-sks" aria-hidden="true">${"<div class=\"mx-sk\"><i></i><div><b></b><p></p></div></div>".repeat(4)}</div>`;
+        box.innerHTML = tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") || nothing("phone", "No calls match", "Try a different search.") : callsLoaded ? nothing("phone", "No calls yet", "Open a conversation and tap Call or Video call.") : skel)
           : list.length ? list.map((c) => { const o = other(c); return `<a class="mx-conv ${c.id === cid ? "on" : ""}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${lastLine(c)}</p></div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
-          : `<p class="muted mx-none">${faxton() && teamErr ? "Couldn’t load the Faxton Rentals inbox. The database rules may not be published yet." : convs().length ? "No conversations match." : faxton() ? "No one has messaged Faxton Rentals yet." : "No conversations yet. Open a home and tap “Message agent”."}</p>`;
+          : !loaded && !convs().length ? skel
+          : faxton() && teamErr ? nothing("chatdots", "Couldn’t load the inbox", "Check your connection and try again. If it keeps happening, the database rules may not be published yet.")
+          : convs().length ? nothing("search", "No conversations match", "Try a different search, or switch tab.")
+          : faxton() ? nothing("chatdots", "No one has written yet", "When a renter messages Faxton Rentals, the conversation shows up here.")
+          : nothing("chatdots", "No conversations yet", "Open a home and tap “Message agent” to start chatting.", `<a class="btn sm" href="#/search">Find a home</a>`);
         $$("[data-cb]", box).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
       };
       const drawSide = () => {
@@ -334,6 +340,8 @@ async function messages(ctx, cid) {
       const callCard = (c) => { const [t, sub] = callText(c), outc = c.callerUid === me || (faxton() && c.callerUid !== (convs().find((x) => x.id === cid)?.uid)), bad = /Missed|Declined|Cancelled/.test(t), back = bad && !outc; return `<div class="mx-row ${outc ? "me" : ""}"><${back ? 'button type="button" data-cb2="' + esc(c.id) + '"' : "div"} class="mx-cc ${outc ? "me" : ""} ${bad ? "bad" : "ok"}"><span class="mx-ci">${icon(c.kind === "video" ? "video" : "phone", 22)}</span><div><b>${t}</b><small>${back ? "Tap to call back" : sub}</small></div><time>${c.createdAt?.seconds ? fmtTime(c.createdAt) : ""}</time></${back ? "button" : "div"}></div>`; };
       // One tick while a message is still being sent, two once it is stored, mint once the other side has opened the chat.
       const readByThem = () => { const cc = convs().find((x) => x.id === cid); if (!cc) return false; return faxton() || byMe(cc) ? cc.unread === false : cc.listingId === "direct" ? cc.staffUnread === false : false; };
+      // web addresses in a message become tappable (the text is escaped first, so nothing else can get in)
+      const lk = (t) => esc(t).replace(/https?:\/\/(?:(?!&quot;|&#39;|&lt;|&gt;)[^\s<>"'])+/g, (u) => `<a class="mx-ln" href="${u}" target="_blank" rel="noopener noreferrer">${u}</a>`);
       const tk = (mine, m) => (mine ? `<span class="ticks ${m && !m.at ? "pend" : readByThem() ? "read" : ""}" aria-label="${m && !m.at ? "Sending" : readByThem() ? "Seen" : "Delivered"}">${icon("check", 14, 2.4)}${icon("check", 14, 2.4)}</span>` : "");
       const bubble = (m, c) => {
         const mineB = isMine(m, c), av = mineB ? myAv() : other(c).avatar;
@@ -343,7 +351,7 @@ async function messages(ctx, cid) {
         const wave = (m.wave && m.wave.length ? m.wave : Array.from({ length: 40 }, (_, i) => 20 + ((i * 37) % 55))).slice(0, 40);
         const vn = m.audio ? `<div class="mx-vn" data-vn="${esc(m.id)}"><button type="button" class="mx-play" aria-label="Play voice message">${icon("play", 20)}</button><div class="mx-wv">${wave.map((h) => `<i style="height:${Math.max(8, Math.min(100, h))}%"></i>`).join("")}</div><span class="mx-vd">${fmtDurS(m.dur)}</span></div>` : "";
         const fl = m.file ? `<div class="mx-file"><span class="mx-fi">${icon("doc", 22)}</span><div><b>${esc(m.fname || "File")}</b><small>${fmtSize(m.fsize)} · ${esc((String(m.fname || "").split(".").pop() || "file").toUpperCase())}</small></div><a class="mx-dl" href="${esc(m.file)}" download="${esc(m.fname || "file")}" aria-label="Download">${icon("download", 18)}</a></div>` : "";
-        return `<div class="mx-row ${mineB ? "me" : ""}" data-mid="${esc(m.id || "")}"><img class="mx-bav" src="${esc(av)}" alt="" referrerpolicy="no-referrer"><div class="mx-bw"><div class="mx-b ${m.image ? "has-pic" : ""} ${m.audio ? "has-vn" : ""} ${m.file ? "has-file" : ""}">${q}${pic}${vn}${fl}${m.text ? `<span class="mx-tx">${esc(m.text)}</span>` : ""}<time class="in">${m.at ? fmtTime(m.at) : ""}${tk(mineB, m)}</time><button type="button" class="mx-ma" data-act="${esc(m.id || "")}" aria-label="Message options">${icon("chev", 14, 2.2)}</button></div><time class="out">${m.at ? fmtTime(m.at) : ""}${tk(mineB, m)}</time>${rxHtml(m)}</div></div>`;
+        return `<div class="mx-row ${mineB ? "me" : ""}" data-mid="${esc(m.id || "")}"><img class="mx-bav" src="${esc(av)}" alt="" referrerpolicy="no-referrer"><div class="mx-bw"><div class="mx-b ${m.image ? "has-pic" : ""} ${m.audio ? "has-vn" : ""} ${m.file ? "has-file" : ""}">${q}${pic}${vn}${fl}${m.text ? `<span class="mx-tx">${lk(m.text)}</span>` : ""}<time class="in">${m.at ? fmtTime(m.at) : ""}${tk(mineB, m)}</time><button type="button" class="mx-ma" data-act="${esc(m.id || "")}" aria-label="Message options">${icon("chev", 14, 2.2)}</button></div><time class="out">${m.at ? fmtTime(m.at) : ""}${tk(mineB, m)}</time>${rxHtml(m)}</div></div>`;
       };
       const listingCard = (c) => c.listingId === "direct" ? "" : `<div class="mx-lcard"><div class="mx-limg"><img src="${esc(c.image)}" alt=""><span class="mx-badge">Available</span></div><div class="mx-lb"><div class="mx-lt"><h3>${esc(c.listingTitle)}</h3><span class="mx-lp">${naira(c.price)} <small>per year</small></span></div><p class="mx-lloc">${icon("pin", 16)} ${esc(c.area)}${/,/.test(c.area || "") ? "" : ", Lagos"}</p><div class="mx-lf"><span>${icon("bed", 18)} ${c.beds === 0 ? "Studio" : c.beds + " Beds"}</span><span>${icon("bath", 18)} ${c.baths} Baths</span></div></div><div class="mx-lact"><a class="btn mx-vl" href="#/home/${esc(c.listingId)}">View listing</a><a class="mx-ext" href="#/home/${esc(c.listingId)}" aria-label="Open listing">${icon("share", 18)}</a></div></div>`;
       const drawChat = () => {
@@ -363,7 +371,7 @@ async function messages(ctx, cid) {
           <form class="mx-comp" id="cf" autocomplete="off"><div class="mx-rec" id="mxRec" hidden><button type="button" id="recX" aria-label="Cancel recording">${icon("trash", 20)}</button><i class="mx-rdot"></i><span id="recT">0:00</span><div class="mx-live" id="recW">${"<i></i>".repeat(28)}</div><button type="button" class="mx-recsend" id="recS" aria-label="Send voice message">${icon("send", 20)}</button></div><input type="file" id="mxFile" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" multiple hidden><button type="button" class="mx-ib mx-circ" id="emojiBtn" aria-label="Emoji">${icon("smile", 22)}</button><button type="button" class="mx-ib mx-circ" id="mxAttach" aria-label="Add a photo" title="Add a photo">${icon("plus", 22)}</button><input id="ci" placeholder="${staff ? "Type a message… or /switch" : "Type a message"}" maxlength="2000" aria-label="Message"><button class="mx-send" id="sendB" aria-label="Send" type="submit"><span class="mx-mic">${icon("mic", 24)}</span><span class="mx-snd">${icon("send", 22)}</span></button></form>`;
         $$("[data-soon]", chat).forEach((b) => (b.onclick = () => toast("Coming soon.")));
         // --- reply, pin, photos ---
-        let replyTo = null, ms = [];
+        let replyTo = null, ms = [], firstPaint = true;
         const paintReply = () => { const r = $("#mxReply"); if (!r) return; r.hidden = !replyTo; r.innerHTML = replyTo ? `<div><b>${esc(replyTo.name)}</b><span>${esc(replyTo.text)}</span></div><button type="button" aria-label="Cancel reply">${icon("x", 16)}</button>` : ""; const x = $("button", r); if (x) x.onclick = () => { replyTo = null; paintReply(); }; };
         const msgOf = (id) => ms.find((m) => m.id === id);
         const startReply = (m) => { replyTo = { id: m.id, name: isMine(m, c) ? "You" : o.name, text: (m.text || (m.image ? "📷 Photo" : "")).slice(0, 140) }; paintReply(); $("#ci")?.focus(); };
@@ -429,7 +437,7 @@ async function messages(ctx, cid) {
           else if (c.listingId === "direct") role = "team";
           else { const l = await st.getListing(c.listingId).catch(() => null); uid = l?.ownerUid || c.agent.id || ""; const pb = await st.getPublic(uid); role = ["agent", "agency", "landlord"].includes(pb?.role) ? pb.role : "agent"; }
           const imgs = ms.filter((m) => m.image).map((m) => ({ type: "image", src: m.image }));
-          openProfile(ctx, { uid, name: o.name, avatar: o.avatar && !o.avatar.startsWith("data:") ? o.avatar : "", role, area: agentView ? c.area : "", media: ms.filter((m) => m.image || m.file),
+          openProfile(ctx, { uid, name: o.name, avatar: o.avatar && !o.avatar.startsWith("data:") ? o.avatar : "", role, area: agentView ? c.area : "", media: ms.filter((m) => m.image || m.file), links: [...new Set(ms.flatMap((m) => (String(m.text || "").match(/https?:\/\/[^\s<>"']+/g) || [])))], onImage: (i) => openViewer(imgs, i),
             pinned: convs().find((z) => z.id === cid)?.pinned, onMessage: () => $("#ci")?.focus(), onCall: (k) => beginCall(c, k), onSearch: () => { const bar = $("#mxFindBar"); bar.hidden = false; $("#mxFindIn").focus(); },
             onMedia: () => (imgs.length ? openViewer(imgs, 0) : toast("Documents are saved with their messages. Use the download button on each one.")), onPinned: () => jump(convs().find((z) => z.id === cid)?.pinned?.id),
             ...(safety && safety.uid() ? { onBlock: () => safety.block(), blocked: safety.blocked() } : {}), ...(safety ? { onReport: () => safety.report() } : {}) });
@@ -497,7 +505,11 @@ async function messages(ctx, cid) {
           if (first) out.push(listingCard(c));
           th.innerHTML = `${out.join("") || `<div class="mx-hello">Say hello to ${esc(o.name.split(" ")[0])} 👋</div>`}${agentView ? `<div class="mx-quick"><a href="#/book/${esc(c.listingId)}">${icon("cal", 20)}<span>Schedule Viewing</span></a><a href="#/documents">${icon("doc", 20)}<span>Send Documents</span></a><button type="button" data-qcall>${icon("phone", 20)}<span>Call Agent</span></button></div>` : ""}`;
           const q = $("[data-qcall]", th); if (q) q.onclick = () => beginCall(c, "voice");
-          drawChat.paintPlay?.(); if (near || items.length < 3 || drawChat.stick) { th.scrollTop = th.scrollHeight; drawChat.stick = false; $$("img.mx-pic,.mx-lcard img", th).forEach((im) => { if (!im.complete) im.addEventListener("load", () => { th.scrollTop = th.scrollHeight; }, { once: true }); }); }
+          drawChat.paintPlay?.();
+          // the first time a chat opens with unread messages, land on them (like a phone messenger) instead of the very bottom
+          const u0 = firstPaint && ms.length ? $(".mx-unread", th) : null; if (ms.length) firstPaint = false;
+          if (u0) { th.scrollTop += u0.getBoundingClientRect().top - th.getBoundingClientRect().top - 56; return; }
+          if (near || items.length < 3 || drawChat.stick) { th.scrollTop = th.scrollHeight; drawChat.stick = false; $$("img.mx-pic,.mx-lcard img", th).forEach((im) => { if (!im.complete) im.addEventListener("load", () => { th.scrollTop = th.scrollHeight; }, { once: true }); }); }
         };
         unsubM?.(); unsubM = st.watchMessages(cid, (list) => { ms = list; paintThread(); });
         paintThread();
@@ -508,10 +520,10 @@ async function messages(ctx, cid) {
         if (staff && cid && mode === "personal" && !mine.some((x) => x.id === cid) && team.some((x) => x.id === cid)) { mode = "faxton"; try { sessionStorage.setItem("msgMode", mode); } catch {} drawSide(); } else if ($("#convs")) { drawList(); } else drawSide();
         drawChat();
       };
-      const unsubC = st.watchConversations(ctx.S.user, (c) => { base = c; merge(); refresh(); });
+      const unsubC = st.watchConversations(ctx.S.user, (c) => { loaded = true; base = c; merge(); refresh(); });
       const unsubD = staff ? st.watchStaffDMs(me, (c) => { dms = c; merge(); refresh(); }) : null;
       const unsubT = staff ? st.watchStaffConversations((c) => { team = c.length || !team.length ? c : team; teamErr = false; refresh(); }, () => { teamErr = true; refresh(); }) : null;
-      const unsubL = CALLS.watchLogs(me, (l) => { calls = l; if ($("#convs")) drawList(); else drawSide(); paintThread(); });
+      const unsubL = CALLS.watchLogs(me, (l) => { callsLoaded = true; calls = l; if ($("#convs")) drawList(); else drawSide(); paintThread(); });
       drawSide(); drawChat();
       ctx.S.cleanups.push(() => { unsubC(); unsubD?.(); unsubT?.(); unsubL(); unsubM?.(); drawChat.offDoc?.(); drawChat.stopAudio?.(); });
     } };
