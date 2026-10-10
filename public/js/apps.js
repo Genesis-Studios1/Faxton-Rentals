@@ -1,6 +1,6 @@
 // App releases: the admin "Installations" page, the "new version" notification shown inside the installed apps,
 // and the automatic-update helper used by Settings.
-import { $, $$, esc, icon, toast, modal, friendlyErr } from "./ui.js";
+import { $, $$, esc, icon, toast, modal, friendlyErr, logo } from "./ui.js";
 import * as st from "./store.js";
 import { app } from "./firebase.js";
 
@@ -168,10 +168,13 @@ export async function openDownloadModal() {
 export async function downloadPage(ctx) {
   const rel = await Promise.race([loadRelease(), new Promise((r) => setTimeout(() => r(null), 3000))]).catch(() => null);
   const canPwa = ctx.canInstall?.();
-  const html = `<main class="dl-page"><header class="dl-head"><a class="ob-logo" href="#/" aria-label="Faxton Rentals"><span><b>Faxton</b> Rentals</span></a><a class="ob-skip" href="#/">Back to site</a></header>
-    <div class="dl-in"><div class="dl-hero"><h1>Get the Faxton Rentals app</h1><p>Search homes, book viewings and chat with agents from your phone or computer.${rel ? ` Latest version ${esc(rel.version)}.` : ""}</p>
-    ${canPwa ? `<button class="btn primary" id="pwa">${icon("download", 18)} Install from this browser</button>` : ""}</div>
-    <div class="dlx-panel dlx-page"><div class="dlx-grid">${cardsHtml(detectGroup())}</div><div class="dlx-slot"></div></div>
-    <p class="dl-note">Prefer not to download a file? On an iPhone, open this site in Safari, tap Share, then <b>Add to Home Screen</b>. On Android or desktop Chrome and Edge, use the install icon in the address bar.</p></div></main>`;
-  return { full: true, title: "Get the app", html, mount(root) { const b = $("#pwa", root); if (b) b.onclick = () => ctx.installApp(); wirePicker(root, () => rel || undefined); } };
+  const how = [["Android", "download", "Get the app, open it, and allow “install unknown apps” for your browser when Android asks. It takes a minute."], ["iPhone", "share", "Open this site in Safari, tap Share, then choose Add to Home Screen. You get the full app, no store needed."], ["Windows and Mac", "monitor", "Download the installer, open it and follow the steps. The app updates itself when a new version is ready."]];
+  const html = `<main class="rf-dl"><header class="rf-dl-head"><div class="rf-dl-in">${logo()}<a class="btn sm" href="#/">${icon("left", 16)} Back to site</a></div></header>
+    <div class="rf-dl-in"><section class="rf-dl-hero"><div class="rf-dl-copy"><span class="rf-eyebrow">Get Faxton Rentals everywhere</span><h1>Start exploring on your device.</h1><p>Search homes, book viewings, chat with agents and keep your rental papers in one place, on your phone or computer.${rel ? ` Latest version ${esc(rel.version)}.` : ""}</p>
+      <div class="rf-dl-act">${canPwa ? `<button class="btn primary" id="pwa">${icon("download", 18)} Install from this browser</button>` : ""}<a class="btn ${canPwa ? "" : "primary"}" href="#/signup">Continue on the web ${icon("arrow", 16)}</a></div>
+      ${rel ? "" : `<div class="rf-dl-warn" role="status">${icon("info", 18)}<span>We couldn’t reach the download server just now. You can still use the web version, or <button type="button" class="rf-link" id="dlRetry">try again</button>.</span></div>`}</div>
+      <img class="rf-dl-art" src="img/app-devices.webp" alt="Faxton Rentals on a phone and a laptop" width="640" height="440"></section>
+    <section class="dlx-panel dlx-page"><div class="dlx-grid">${cardsHtml(detectGroup())}</div><div class="dlx-slot"></div></section>
+    <section class="rf-dl-how"><h2>How to install</h2><div>${how.map(([t, ic, d]) => `<article><span>${icon(ic, 20)}</span><b>${t}</b><p>${d}</p></article>`).join("")}</div></section></div></main>`;
+  return { full: true, title: "Get the app", html, mount(root) { const b = $("#pwa", root); if (b) b.onclick = () => ctx.installApp(); const rt = $("#dlRetry", root); if (rt) rt.onclick = () => { relP = null; ctx.render(); }; wirePicker(root, () => rel || undefined); } };
 }

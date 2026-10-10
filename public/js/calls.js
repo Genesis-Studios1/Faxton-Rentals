@@ -94,9 +94,10 @@ function run({ id, me, role, kind, other, offer }) {
 
   const media = async () => {
     try { mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false }); }
-    catch (e) { throw new Error(/denied|permission/i.test(String(e?.name + e?.message)) ? "Allow microphone access to make calls." : "No microphone was found."); }
+    catch (e) { throw new Error(/NotAllowed|denied|permission/i.test(String(e?.name + e?.message)) ? "Allow microphone access in your settings to make calls." : /NotReadable|TrackStart|Abort/i.test(String(e?.name)) ? "Your microphone is being used by another app. Close it and try again." : "No microphone was found."); }
     mic.getAudioTracks().forEach((t) => pc.addTrack(t, mic));
   };
+  const camMsg = (e) => (/NotAllowed|Permission|denied/i.test(String(e?.name + e?.message)) ? "Allow camera access in your settings to use video. This will be a voice call." : /NotFound|Overconstrained/i.test(String(e?.name)) ? "No camera was found, so this will be a voice call." : "The camera isn’t available, so this will be a voice call.");
   const useCamera = async () => {
     const s = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } }); cam = s.getVideoTracks()[0];
     if (!screen) { await vtx.sender.replaceTrack(cam); setPreview(cam); } syncLocal();
@@ -106,7 +107,7 @@ function run({ id, me, role, kind, other, offer }) {
   // ---- controls ----
   el("clMute").onclick = () => { const t = mic?.getAudioTracks()[0]; if (!t) return; t.enabled = !t.enabled; el("clMute").setAttribute("aria-pressed", String(!t.enabled)); el("clMute2").setAttribute("aria-pressed", String(!t.enabled)); el("clMute").querySelector("em").textContent = t.enabled ? "Mute" : "Unmute"; };
   el("clCam").onclick = async () => {
-    try { if (!cam) { await useCamera(); return; } cam.enabled = !cam.enabled; if (!screen) { await vtx.sender.replaceTrack(cam.enabled ? cam : null); setPreview(cam.enabled ? cam : null); } syncLocal(); } catch { toast("The camera isn’t available."); }
+    try { if (!cam) { await useCamera(); return; } cam.enabled = !cam.enabled; if (!screen) { await vtx.sender.replaceTrack(cam.enabled ? cam : null); setPreview(cam.enabled ? cam : null); } syncLocal(); } catch (e) { toast(camMsg(e).replace(" This will be a voice call.", "").replace(", so this will be a voice call", "")); }
   };
   const stopShare = async () => { if (!screen) return; screen.onended = null; screen.stop(); screen = null; const back = cam && cam.enabled ? cam : null; await vtx.sender.replaceTrack(back).catch(() => {}); setPreview(back); el("clShare").querySelector("em").textContent = "Share Screen"; };
   el("clShare").onclick = async () => {
@@ -150,9 +151,9 @@ function run({ id, me, role, kind, other, offer }) {
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
     try { unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); pc.close(); } catch {}
-    try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); } catch {}
+    try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); ov.classList.add("ended"); $$(".cs-b,.cs-pb", ov).forEach((b) => { if (b.id !== "clEnd" && b.id !== "clEnd2") b.disabled = true; }); } catch {}
     document.documentElement.classList.remove("dlx-lock"); active = null;
-    setTimeout(() => ov.remove(), 700);
+    setTimeout(() => ov.remove(), 1500);
   }
   el("clEnd").onclick = () => { if (closing) { ov.remove(); document.documentElement.classList.remove("dlx-lock"); active = null; return; } end(isCaller && !startedAt ? "cancelled" : "ended"); };
 
@@ -173,14 +174,14 @@ function run({ id, me, role, kind, other, offer }) {
       unsubs.push(watchIce(id, (d) => { if (d.from !== me) addCand(JSON.parse(d.c)); }));
       if (isCaller) {
         // The call document already exists (created by startCall); attach our offer to it.
-        if (kind === "video") { try { await useCamera(); } catch { toast("The camera isn’t available, so this will be a voice call."); } }
+        if (kind === "video") { try { await useCamera(); } catch (e) { toast(camMsg(e)); } }
         const o = await pc.createOffer(); await pc.setLocalDescription(o); await patchCall(id, { offer: { type: o.type, sdp: o.sdp } });
         ringTO = setTimeout(() => { if (!startedAt) { patchCall(id, { status: "missed" }); toast("No answer."); end("missed"); } }, 45000);
       } else {
         const cur = await getDoc(doc(db, "calls", id)); if (!cur.exists() || cur.data().status !== "ringing") { toast("That call has ended."); return end("ended"); }
         await pc.setRemoteDescription(offer); await flush(); pc.getTransceivers().forEach((t) => { try { t.direction = "sendrecv"; } catch {} });
         vtx = pc.getTransceivers().find((t) => t.receiver.track.kind === "video");
-        if (kind === "video") { try { await useCamera(); } catch { toast("The camera isn’t available, so this will be a voice call."); } }
+        if (kind === "video") { try { await useCamera(); } catch (e) { toast(camMsg(e)); } }
         const a = await pc.createAnswer(); await pc.setLocalDescription(a);
         await patchCall(id, { answer: { type: a.type, sdp: a.sdp }, status: "active", answeredAt: Date.now(), calleeUid: me, members: arrayUnion(me) });
         armConnect();
@@ -214,9 +215,10 @@ const ringOn = () => {
   const ac = audio(); if (!ac) return;
   const note = (f, t, d) => { [[1, 0.13], [2, 0.04], [3, 0.015]].forEach(([m, v]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine"; o.frequency.value = f * m; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.05); }); };
   const tune = () => { const t = ac.currentTime + 0.02; [[659.25, 0], [783.99, 0.16], [1046.5, 0.32], [783.99, 0.55], [880, 0.71], [1174.66, 0.87], [987.77, 1.1], [783.99, 1.26], [659.25, 1.42], [783.99, 1.7]].forEach(([f, d]) => note(f, t + d, 0.5)); };
-  tune(); ringT = setInterval(tune, 3200);
+  const buzz = () => { try { navigator.vibrate?.([450, 200, 450]); } catch {} };
+  tune(); buzz(); ringT = setInterval(() => { tune(); buzz(); }, 3200);
 };
-const ringOff = () => { clearInterval(ringT); ringT = null; };
+const ringOff = () => { clearInterval(ringT); ringT = null; try { navigator.vibrate?.(0); } catch {} };
 const avatar = (c, cls = "") => (c.callerPhoto ? `<img class="cl-ph ${cls}" src="${esc(c.callerPhoto)}" alt="">` : `<span class="cl-av ${cls || "sm"}">${esc(initials(c.callerName || "?"))}</span>`);
 // When the app isn't on screen, ring through the system: a notification with Decline and Accept buttons.
 async function systemRing(c) {
@@ -241,6 +243,8 @@ export async function answerById(ctx, id, accept) {
 let swHooked = false;
 export function watchIncoming(ctx, staff) {
   ensureIce();
+  // Browsers keep sounds muted until the person has tapped something once; unlock them early so a call can ring.
+  const unlock = () => { audio(); }; ["pointerdown", "keydown", "touchend"].forEach((ev) => document.addEventListener(ev, unlock, { once: true, passive: true }));
   const u = ctx.user || ctx.S.user, seen = new Set(), live = new Map(); let box = null, curId = null;
   if (!swHooked && navigator.serviceWorker) { swHooked = true; navigator.serviceWorker.addEventListener("message", (e) => { const d = e.data || {}; if (d.type === "call-accept") answerById(ctx, d.id, true); else if (d.type === "call-decline") answerById(ctx, d.id, false); }); }
   const close = () => { ringOff(); box?.remove(); box = null; if (curId) closeSystem(curId); curId = null; };
