@@ -146,8 +146,8 @@ export function mountViewings(root, ctx, list, redraw) {
 }
 function moveDialog(ctx, v) {
   return new Promise((resolve) => {
-    const min = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
-    const m = modal(`<div class="rf-dlg"><h2>Ask to move your viewing</h2><p class="rf-dlg-p">Currently ${esc(fmtV(v))}. Tell the agent what suits you better. They’ll confirm in Messages.</p><form class="rf-form" id="mvF"><div class="rf-grid2"><label class="rf-fl">New day<input id="mvD" type="date" min="${min}" value="${min}"></label><label class="rf-fl">Time<select id="mvT">${SLOTS.map((t) => `<option>${t}</option>`).join("")}</select></label></div>
+    const nd = new Date(Date.now() + 864e5); const min = nd.toISOString().slice(0, 10); while (nd.getDay() === 0) nd.setDate(nd.getDate() + 1); const first = nd.toISOString().slice(0, 10);
+    const m = modal(`<div class="rf-dlg"><h2>Ask to move your viewing</h2><p class="rf-dlg-p">Currently ${esc(fmtV(v))}. Tell the agent what suits you better. They’ll confirm in Messages.</p><form class="rf-form" id="mvF"><div class="rf-grid2"><label class="rf-fl">New day<input id="mvD" type="date" min="${min}" value="${first}"></label><label class="rf-fl">Time<select id="mvT">${SLOTS.map((t) => `<option>${t}</option>`).join("")}</select></label></div>
       <label class="rf-fl"><span>Reason <span class="rf-optl">(optional)</span></span><textarea id="mvN" rows="2" maxlength="200" placeholder="e.g. I’m at work that morning."></textarea></label><p class="rf-err" id="mvE" role="alert"></p><div class="rf-dlg-act"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary" type="submit">Send request</button></div></form></div>`);
     m.el.addEventListener("close", () => resolve());
     $("[data-x]", m.el).onclick = m.close;

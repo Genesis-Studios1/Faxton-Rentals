@@ -215,10 +215,10 @@ const ringOn = () => {
   const ac = audio(); if (!ac) return;
   const note = (f, t, d) => { [[1, 0.13], [2, 0.04], [3, 0.015]].forEach(([m, v]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = "sine"; o.frequency.value = f * m; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + d + 0.05); }); };
   const tune = () => { const t = ac.currentTime + 0.02; [[659.25, 0], [783.99, 0.16], [1046.5, 0.32], [783.99, 0.55], [880, 0.71], [1174.66, 0.87], [987.77, 1.1], [783.99, 1.26], [659.25, 1.42], [783.99, 1.7]].forEach(([f, d]) => note(f, t + d, 0.5)); };
-  const buzz = () => { try { navigator.vibrate?.([450, 200, 450]); } catch {} };
+  const buzz = () => { try { if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.([450, 200, 450]); } catch {} };
   tune(); buzz(); ringT = setInterval(() => { tune(); buzz(); }, 3200);
 };
-const ringOff = () => { clearInterval(ringT); ringT = null; try { navigator.vibrate?.(0); } catch {} };
+const ringOff = () => { clearInterval(ringT); ringT = null; try { if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(0); } catch {} };
 const avatar = (c, cls = "") => (c.callerPhoto ? `<img class="cl-ph ${cls}" src="${esc(c.callerPhoto)}" alt="">` : `<span class="cl-av ${cls || "sm"}">${esc(initials(c.callerName || "?"))}</span>`);
 // When the app isn't on screen, ring through the system: a notification with Decline and Accept buttons.
 async function systemRing(c) {
