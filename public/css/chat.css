@@ -121,6 +121,7 @@
 .mx-hn{min-width:0;flex:1}
 .mx-hn b{display:flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:16px;font-weight:650;letter-spacing:-.015em;color:var(--head);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
 .mx-hn b .vseal{flex:none}
+.mx-hn b .mx-nm{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .mx-hn span{display:block;margin-top:1px;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mx-acts{display:flex;align-items:center;gap:6px;flex:none}
 .mx-ab{display:inline-grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:none;color:var(--head);font:inherit;cursor:pointer;transition:background .16s,color .16s}

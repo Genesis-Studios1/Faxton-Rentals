@@ -799,3 +799,5 @@ dialog.modal:has(.rf-dlg.big){width:min(760px,calc(100% - 24px))}
 .of-card h3 a{display:inline-block;padding:6px 0}
 .rf.mh .link,.rf .link{display:inline-flex;align-items:center;min-height:36px}
 .rf-lg-doc a.rf-link{padding:8px 0;display:inline-block}
+/* larger invisible tap area for switches without changing their look */
+.rf .switch::after,.rf-set .switch::after,.rf-dlg .switch::after{content:"";position:absolute;inset:-9px -4px}
