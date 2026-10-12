@@ -78,6 +78,7 @@ const CH = {
   relay: { on: ["ok", "Relay on"], off: ["mute", "Not set"] },
   proof: { submitted: ["warn", "Submitted"], confirmed: ["ok", "Confirmed"], rejected: ["bad", "Rejected"] },
   lead: { "new lead": ["info", "New lead"], "viewing scheduled": ["info", "Viewing scheduled"], viewed: ["mute", "Viewed"], application: ["warn", "Application"], closed: ["ok", "Closed"], declined: ["bad", "Declined"] },
+  service: { new: ["warn", "New"], contacted: ["info", "Contacted"], scheduled: ["info", "Scheduled"], done: ["ok", "Done"], cancelled: ["mute", "Cancelled"] },
   sos: { open: ["alert", "Safety alert"], resolved: ["mute", "Alert resolved"] },
 };
 export const chipFor = (entity, value, label) => {

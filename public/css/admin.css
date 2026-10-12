@@ -673,7 +673,9 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 .ax-relay-chip{flex:none;margin-top:2px}
 .ax-relay-or{margin:4px 0 14px;font-size:14px;color:var(--muted)}
 .ax-relay-rev{margin:-4px 0 6px}
+.ax-relay-stat{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin:6px 0 4px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}.ax-relay-stat[hidden]{display:none}.ax-relay-stat small{flex:1 1 220px;min-width:0;font-size:13.5px;line-height:1.4;color:var(--muted)}
 .ax-relay .rf-fl{margin-bottom:14px}.ax-relay .rf-grid2 .rf-fl{margin-bottom:6px}
+@media (max-width:600px){.ax-relay .rf-grid2{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
 .ax-relay .ax-set-f{margin-top:14px}
 .ax-relay.is-flash{animation:axflash 1.6s ease}
 @keyframes axflash{0%,60%{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#13926f) 45%,transparent)}100%{box-shadow:none}}

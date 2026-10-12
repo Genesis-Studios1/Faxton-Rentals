@@ -15,6 +15,7 @@ import { openProfile } from "./profile.js";
 import * as AREA from "./area.js";
 import * as OFFERS from "./offers.js";
 import * as MATCH from "./match.js";
+import * as SVC from "./services.js";
 import * as MYHOME from "./myhome.js";
 import * as LOCK from "./applock.js";
 import * as TENANTS from "./tenants.js";
@@ -63,6 +64,7 @@ export async function route(ctx) {
   if (path === "/myhome" || path.startsWith("/myhome/")) return MYHOME.myHomePage(ctx, path.split("/")[2] || "");
   if (path === "/tenants" || path.startsWith("/tenants/")) return TENANTS.tenantsPage(ctx, path.split("/")[2] || "maintenance");
   if (path === "/match") return MATCH.matchPage(ctx);
+  if (path === "/services") return SVC.servicesPage(ctx);
   if (path === "/offers") return OFFERS.offersPage(ctx, PG.rentalsNav);
   if (path === "/payments") return PG.paymentsPage(ctx);
   if (path === "/applications") return PG.applicationsPage(ctx);
@@ -74,7 +76,7 @@ export async function route(ctx) {
   if ((m = path.match(/^\/accept-call\/([^/]+)$/))) { const id = decodeURIComponent(m[1]); setTimeout(() => { ctx.go("#/"); CALLS.answerById(ctx, id, true); }); return { title: "Call", html: `<div class="empty"><h2>Connecting your call…</h2></div>` }; }
   if ((m = path.match(/^\/call\/([^/]+)$/))) { const cid = decodeURIComponent(m[1]); setTimeout(() => ctx.go("#/messages/" + cid)); return { title: "Calls", html: `<div class="empty"><h2>Opening your conversation…</h2></div>` }; }
   if (path === "/settings" || path.startsWith("/settings/")) return settings(ctx, path.split("/")[2] || "profile");
-  if (path === "/support" || path === "/support/tickets" || path === "/support/suggestions") return (await import("./dash.js")).supportPage(ctx, path.split("/")[2] || "");
+  if (path === "/support" || path === "/support/tickets" || path === "/support/suggestions" || path === "/support/services") return (await import("./dash.js")).supportPage(ctx, path.split("/")[2] || "");
   if (path === "/portfolio") return (await import("./dash.js")).ownerPage(ctx, "landlord");
   if (path === "/agency") return (await import("./dash.js")).ownerPage(ctx, "agency");
   if (path === "/agent-dashboard" || /^\/agent-dashboard\/(leads|clients|viewings|listings)$/.test(path)) return (await import("./dash.js")).ownerPage(ctx, "agent", path.split("/")[2] || "");

@@ -20,6 +20,10 @@ const P = {
   sparkle: '<path d="M12 3l1.800 5.200L19 10l-5.200 1.800L12 17l-1.800-5.200L5 10l5.200-1.800zM19 16l.8 2.200L22 19l-2.200.8L19 22l-.8-2.200L16 19l2.200-.8z"/>',
   refresh: '<path d="M20 11a8 8 0 00-14-4L4 9M4 4v5h5M4 13a8 8 0 0014 4l2-2M20 20v-5h-5"/>',
   checkc: '<circle cx="12" cy="12" r="9"/><path d="M8 12.500l3 3 5-6"/>',
+  tiles: '<rect x="3.500" y="3.500" width="7" height="7" rx="1"/><rect x="13.500" y="3.500" width="7" height="7" rx="1"/><rect x="3.500" y="13.500" width="7" height="7" rx="1"/><rect x="13.500" y="13.500" width="7" height="7" rx="1"/>',
+  paint: '<rect x="4" y="3.500" width="13" height="5.500" rx="1.500"/><path d="M17 6h2.500a1 1 0 011 1v3.500a1 1 0 01-1 1H12v3"/><rect x="10.500" y="14.500" width="3" height="6.500" rx="1"/>',
+  hammer: '<path d="M13 6l5-3 3 3-2.500 4.500-2-1.500M13 6l-1.500 2.500L14 11M12.500 10L4 18.500a1.800 1.800 0 002.500 2.500L15 12.500"/>',
+  roof: '<path d="M2.500 12.500L12 4.500l9.500 8M5.500 10.500V20h13v-9.500M3 16h18M9 20v-4M15 20v-4"/>',
   bolt: '<path d="M13 2L4.500 13.500H11L10 22l8.500-11.500H12z"/>',
   chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.500" y="9.500" width="5" height="5" rx=".8"/><path d="M9 2.500v3M15 2.500v3M9 18.500v3M15 18.500v3M2.500 9h3M2.500 15h3M18.500 9h3M18.500 15h3"/>',
   tree: '<path d="M12 21v-5M12 3l5 6h-2.500l3.500 5H6l3.500-5H7z"/><path d="M8 21h8"/>',
@@ -162,4 +166,4 @@ export const friendlyErr = (e) => {
 
 
 
-export const BUILD = "2026-10-09.97";
+export const BUILD = "2026-10-12.98";
