@@ -61,7 +61,7 @@ jobs:
           sed -i 's/android:allowBackup="true"/android:allowBackup="false"/' "$M"
           sed -i 's/<application/<application android:usesCleartextTraffic="false"/' "$M"
           # Calls (camera, microphone), map location and notifications
-          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" /><uses-permission android:name="android.permission.RECORD_AUDIO" /><uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" /><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /><uses-permission android:name="android.permission.POST_NOTIFICATIONS" /><uses-feature android:name="android.hardware.camera" android:required="false" /><uses-feature android:name="android.hardware.microphone" android:required="false" /><application#' "$M"
+          sed -i 's#<application#<uses-permission android:name="android.permission.CAMERA" /><uses-permission android:name="android.permission.RECORD_AUDIO" /><uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" /><uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" /><uses-permission android:name="android.permission.POST_NOTIFICATIONS" /><uses-permission android:name="android.permission.USE_BIOMETRIC" /><uses-feature android:name="android.hardware.camera" android:required="false" /><uses-feature android:name="android.hardware.microphone" android:required="false" /><application#' "$M"
           sed -i "s/versionCode 1/versionCode ${{ needs.version.outputs.code }}/; s/versionName \"1.0\"/versionName \"${{ needs.version.outputs.v }}\"/" app/build.gradle
           grep -n "versionCode\|versionName" app/build.gradle
       - name: Keep the app below the Android status bar
@@ -238,6 +238,8 @@ jobs:
         run: |
           /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ needs.version.outputs.v }}" App/Info.plist
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ needs.version.outputs.code }}" App/Info.plist
+          # Face ID needs a reason string (the app lock)
+          /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string Unlock Faxton Rentals with Face ID" App/Info.plist || true
       - name: Build an unsigned iPhone app (.ipa)
         working-directory: apps/mobile/ios/App
         run: |
