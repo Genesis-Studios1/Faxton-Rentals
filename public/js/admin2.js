@@ -33,16 +33,19 @@ export async function route(ctx, sub) {
     case "": return (await D()).overview(ctx);
     case "queue": return queue(ctx);
     case "listings": return listings(ctx);
-    case "users": return users(ctx);
+    case "users": return (await import("./ax-sections.js")).usersPage(ctx);
+    case "agents": return (await import("./ax-sections.js")).agents(ctx);
+    case "team": return (await import("./ax-sections.js")).team(ctx);
+    case "feedback": return (await import("./ax-sections.js")).feedback(ctx);
     case "verifications": return verifications(ctx);
     case "applications": return applications(ctx);
     case "viewings": return viewings(ctx);
     case "payments": return (await D()).payments(ctx);
-    case "support": return (await D()).supportInbox(ctx);
+    case "support": return (await import("./ax-sections.js")).ticketCenter(ctx);
     case "suggestions": return (await D()).suggestions(ctx);
     case "user-reports": return (await D()).userReports(ctx);
     case "reports": return (await D()).reports(ctx);
-    case "calls": return (await D()).callSetup(ctx);
+    case "calls": return (await D()).callsRedirect(ctx);
     default: return notFound(ctx);
   }
 }
@@ -53,8 +56,8 @@ export const isPendingL = (l) => ["pending", "flagged"].includes(listingState(l)
 const thumbOf = (l) => l.thumb || l.images?.[0] || "";
 const where = (l) => [l.area, l.city].filter(Boolean).join(", ");
 export const roleOf = (ctx, u) => (u.id === ctx.S.ownerUid ? "owner" : u.role === "owner" ? "admin" : u.role || "renter");
-const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Agency", agent: "Agent", landlord: "Property owner", renter: "Renter" };
-const userVerified = (u) => u.verified === true || u.verification?.status === "verified";
+export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Agency", agent: "Agent", landlord: "Property owner", renter: "Renter" };
+export const userVerified = (u) => u.verified === true || u.verification?.status === "verified";
 
 // ---------- listings ----------
 const REJ_PRESETS = ["Photos too dark", "Missing details", "Price looks wrong"];
@@ -178,7 +181,7 @@ async function bulkListings(rs, c, act, ctx) {
 }
 
 // ---------- users ----------
-function openChat(ctx, u) {
+export function openChat(ctx, u) {
   const me = meName(ctx), photo = ctx.S.profile?.photo || ctx.S.user.photoURL || "";
   const d = dialog({ title: `Message ${u.name || u.email || "this user"}`, size: "sm", icon: "msg", body: `<p class="ax-p">Who should this message come from?</p><div style="display:grid;gap:10px"><button type="button" class="ax-btn" data-v="outline" data-as="faxton" style="height:56px;justify-content:flex-start;padding:0 14px"><img src="assets/mark.svg" alt="" width="28" height="24"><span style="display:grid;text-align:left;gap:2px"><b>Faxton support</b><small style="font-weight:400;color:var(--ax-muted)">They see it from the Faxton team</small></span></button>
     <button type="button" class="ax-btn" data-v="outline" data-as="me" style="height:56px;justify-content:flex-start;padding:0 14px">${avatar(me, ctx.S.user.uid, 28, photo)}<span style="display:grid;text-align:left;gap:2px"><b>${esc(me)}</b><small style="font-weight:400;color:var(--ax-muted)">They see it from you, by name</small></span></button></div>` });
@@ -189,36 +192,36 @@ function openChat(ctx, u) {
     d.close(); ctx.go("#/messages/" + cid);
   }));
 }
-function inviteDialog() {
-  const link = location.origin + "/#/signup";
-  const d = dialog({ title: "Invite a user", size: "sm", icon: "users", body: `<p class="ax-p">Share this link. Once they sign up you can set their role from this page.</p><input class="ax-input" readonly value="${esc(link)}" aria-label="Sign-up link">`, footer: `${btn("Close", { attrs: "data-x" })}${btn("Copy link", { v: "primary", ic: "copy", attrs: "data-ok" })}` });
+export function inviteDialog(role = "") {
+  const link = location.origin + "/#/signup", agent = role === "agent";
+  const d = dialog({ title: agent ? "Add an agent" : "Invite a user", size: "sm", icon: "users", body: `<p class="ax-p">${agent ? "Share this link and ask them to sign up as an agent. Once they have, they appear under Agents and you can verify them." : "Share this link. Once they sign up you can set their role from this page."}</p><input class="ax-input" readonly value="${esc(link)}" aria-label="Sign-up link">`, footer: `${btn("Close", { attrs: "data-x" })}${btn("Copy link", { v: "primary", ic: "copy", attrs: "data-ok" })}` });
   $("[data-ok]", d.el).onclick = () => copy(link, "Link copied.");
 }
-const canBan = (ctx, u) => ctx.S.isAdmin && u.id !== ctx.S.user.uid && roleOf(ctx, u) !== "owner" && (ctx.S.isOwner || roleOf(ctx, u) !== "admin");
-async function banAct(ctx, u, api) {
+export const canBan = (ctx, u) => ctx.S.isAdmin && u.id !== ctx.S.user.uid && roleOf(ctx, u) !== "owner" && (ctx.S.isOwner || roleOf(ctx, u) !== "admin");
+export async function banAct(ctx, u, api) {
   const on = !u.banned;
-  if (on && !(await confirm({ title: `Ban ${u.name || u.email}?`, body: "They will be signed out and can’t sign back in until you unban them.", confirmLabel: "Ban user", tone: "danger", icon: "alert" }))) return;
-  try { await st.setBanned(u.id, on); u.banned = on; changed(); api.refresh(); toast(on ? "User banned." : "User unbanned.", { action: "Undo", onAction: async () => { try { await st.setBanned(u.id, !on); u.banned = !on; changed(); api.refresh(); } catch (e) { bad(e); } } }); } catch (e) { bad(e); }
+  if (on && !(await confirm({ title: `Suspend ${u.name || u.email}?`, body: "They will be signed out and can’t sign back in until you lift the suspension.", confirmLabel: "Suspend", tone: "danger", icon: "alert" }))) return;
+  try { await st.setBanned(u.id, on); u.banned = on; changed(); api.refresh(); toast(on ? "User suspended." : "Suspension lifted.", { action: "Undo", onAction: async () => { try { await st.setBanned(u.id, !on); u.banned = !on; changed(); api.refresh(); } catch (e) { bad(e); } } }); } catch (e) { bad(e); }
 }
-async function transferAct(ctx, u, api) {
+export async function transferAct(ctx, u, api) {
   if (!(await typed({ title: "Transfer ownership", body: `${esc(u.name || u.email)} will become the owner of Faxton Rentals and you will become an admin. Only they will be able to change roles or transfer ownership again.`, expect: u.email, confirmLabel: "Transfer ownership" }))) return;
   try { await st.transferOwnership(ctx.S.user.uid, u.id); data.invalidate(); toast("Ownership transferred."); await ctx.refreshUser?.(); } catch (e) { bad(e); }
 }
-function userStatus(ctx, u) {
-  if (u.banned) return chipFor("user", "banned");
+export function userStatus(ctx, u) {
+  if (u.banned) return chipFor("user", "banned", "Suspended");
   const r = roleOf(ctx, u);
   if (["agent", "agency"].includes(r)) { const v = u.verification?.status; return v === "verified" || u.verified ? chip("ok", "Verified") : v === "pending" ? chip("warn", "Pending verification") : v === "rejected" ? chip("bad", "Not verified") : chip("mute", "Unverified"); }
   return chipFor("user", "active");
 }
-function userDrawer(ctx, u, api) {
+export function userDrawer(ctx, u, api) {
   const r = roleOf(ctx, u), mine = u.id === ctx.S.user.uid, ag = u.agency, gi = u.agentInfo, ban = canBan(ctx, u);
   const ROLES = [["renter", "Renter"], ["agent", "Agent"], ["landlord", "Property owner"], ["agency", "Agency"], ["support", "Support"], ["admin", "Admin"]];
   const body = `<div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">${avatar(u.name || u.email, u.id, 56, u.photo)}<div style="min-width:0"><div style="font:700 18px/22px var(--font-display);color:var(--ax-head)">${esc(u.name || "—")}${mine ? ' <span class="ax-muted" style="font:400 13px var(--font-body)">(you)</span>' : ""}</div><div style="font-size:13px;color:var(--ax-muted);overflow-wrap:anywhere">${esc(u.email || "")}</div><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${chipFor("user", r)}${userStatus(ctx, u)}</div></div></div>
     ${mine ? "" : `<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">${btn("Text", { v: "primary", size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call=voice" })}${btn("Video", { size: "sm", ic: "video", attrs: "data-call=video" })}</div>`}
-    ${section("Details", dl([["Phone", esc(u.phone || ag?.phone || gi?.phone || "")], ["Residence", esc(u.location || [u.city, u.country].filter(Boolean).join(", "))], ["Joined", fmt.date(u.createdAt) === "—" ? "" : fmt.date(u.createdAt)], ["Saved homes", fmt.num((u.saved || []).length)], ...(ag ? [["Business", esc(ag.business)], ["Registrar", esc([ag.registrar, ag.position].filter(Boolean).join(" · "))], ["CAC number", esc(ag.cac)], ["Opened", esc(ag.opened)], ["Support email", esc(ag.supportEmail)], ["Office address", esc(ag.address)], ["Website", ag.website ? esc(ag.website) : ""]] : []), ...(gi ? [["Agency", esc(gi.company)], ["Licence", esc(gi.licence)], ["Experience", esc(gi.experience)], ["Areas", esc(gi.areas)]] : [])]))}
+    ${section("Details", dl([["Phone", esc(u.phone || ag?.phone || gi?.phone || "")], ["Residence", esc(u.location || [u.city, u.country].filter(Boolean).join(", "))], ["Joined", fmt.date(u.createdAt) === "—" ? "" : fmt.date(u.createdAt)], ["Last active", u.lastActive ? fmt.rel(u.lastActive) : ""], ["Sign-in", u.provider === "google" || /googleusercontent\.com/.test(u.photo || "") ? "Google" : "Email"], ["Saved homes", fmt.num((u.saved || []).length)], ...(ag ? [["Business", esc(ag.business)], ["Registrar", esc([ag.registrar, ag.position].filter(Boolean).join(" · "))], ["CAC number", esc(ag.cac)], ["Opened", esc(ag.opened)], ["Support email", esc(ag.supportEmail)], ["Office address", esc(ag.address)], ["Website", ag.website ? esc(ag.website) : ""]] : []), ...(gi ? [["Agency", esc(gi.company)], ["Licence", esc(gi.licence)], ["Experience", esc(gi.experience)], ["Areas", esc(gi.areas)]] : [])]))}
     ${u.verification ? section("Verification", dl([["Status", chipFor("verification", u.verification.status)], ["Reason", esc(u.verification.reason || "")]])) : ""}
     ${section("Role", r === "owner" ? `<p class="ax-muted">The owner account can’t be changed here.</p>` : ctx.S.isOwner && !mine ? `<select class="ax-input" data-role aria-label="Role">${ROLES.map(([v, l]) => `<option value="${v}" ${r === v ? "selected" : ""}>${l}</option>`).join("")}</select><p class="ax-help">Takes effect straight away.</p>` : `<p class="ax-muted">${mine ? "You can’t change your own role." : "Only the owner can change roles."}</p>`)}
-    ${ban || (ctx.S.isOwner && !mine && r !== "owner") ? section("Danger zone", `<div style="display:flex;gap:8px;flex-wrap:wrap">${ban ? btn(u.banned ? "Unban this user" : "Ban this user", { v: u.banned ? "outline" : "danger", attrs: "data-ban" }) : ""}${ctx.S.isOwner && !mine && r !== "owner" ? btn("Transfer ownership", { v: "outline", attrs: "data-xfer" }) : ""}</div>${u.banned ? `<p class="ax-help">Banned users are signed out and can’t sign back in.</p>` : ""}`) : ""}`;
+    ${ban || (ctx.S.isOwner && !mine && r !== "owner") ? section("Danger zone", `<div style="display:flex;gap:8px;flex-wrap:wrap">${ban ? btn(u.banned ? "Lift suspension" : "Suspend this user", { v: u.banned ? "outline" : "danger", attrs: "data-ban" }) : ""}${ctx.S.isOwner && !mine && r !== "owner" ? btn("Transfer ownership", { v: "outline", attrs: "data-xfer" }) : ""}</div>${u.banned ? `<p class="ax-help">Suspended people are signed out and can’t sign back in until you lift it.</p>` : ""}`) : ""}`;
   return { title: u.name || u.email || "User", sub: `<span>${esc(ROLE_LABEL[r] || r)}</span>`, body,
     mount(el) {
       $("[data-text]", el)?.addEventListener("click", () => openChat(ctx, u));
@@ -227,36 +230,6 @@ function userDrawer(ctx, u, api) {
       const rs = $("[data-role]", el); if (rs) rs.onchange = async () => { const prev = u.role; try { await st.setRole(u.id, rs.value); u.role = rs.value; changed(); api.refresh(); toast("Role updated.", { action: "Undo", onAction: async () => { try { await st.setRole(u.id, prev || "renter"); u.role = prev; changed(); api.refresh(); } catch (e) { bad(e); } } }); } catch (e) { rs.value = prev || "renter"; bad(e); } };
     } };
 }
-export function users(ctx) {
-  return pageView(ctx, { title: "Users", eyebrow: "Marketplace", sub: ctx.S.isOwner ? "Set roles, verify agents, message anyone and transfer ownership." : "Look up people, message them and manage bans. Only the owner can change roles.", cols: ["users"], what: "users", actions: btn("Invite user", { v: "primary", ic: "plus", attrs: "data-act=inv" }),
-    async render({ users: us }, { root }) {
-      try { st.syncVerified(us); } catch {}
-      const R = (u) => roleOf(ctx, u);
-      return { html: `<div id="usr"></div>`, mount(el) {
-        const list = createList($("#usr", el), { noun: "users", label: "Users", rows: us, placeholder: "Search by name, email or phone…",
-          tabs: [{ k: "all", label: "All" }, { k: "renter", label: "Renters", test: (u) => R(u) === "renter" }, { k: "agent", label: "Agents", test: (u) => R(u) === "agent" }, { k: "agency", label: "Agencies", test: (u) => R(u) === "agency" }, { k: "landlord", label: "Property owners", test: (u) => R(u) === "landlord" }, { k: "support", label: "Support", test: (u) => R(u) === "support" }, { k: "admin", label: "Admins", test: (u) => ["admin", "owner"].includes(R(u)) }, { k: "banned", label: "Banned", test: (u) => !!u.banned }],
-          sort: { k: "joined", dir: "desc" },
-          facets: [{ k: "ver", label: "Verification", options: [["", "Any"], ["verified", "Verified"], ["pending", "Pending"], ["none", "Not requested"]], test: (u, v) => (v === "verified" ? userVerified(u) : v === "pending" ? u.verification?.status === "pending" : !u.verification && !u.verified) }, { k: "country", label: "Country", options: (r) => [["", "Anywhere"], ...[...new Set(r.map((u) => u.country).filter(Boolean))].sort().map((c) => [c, c])], test: (u, v) => u.country === v }],
-          search: (u) => `${u.name || ""} ${u.email || ""} ${u.phone || ""} ${u.agency?.business || ""}`,
-          cols: [
-            { k: "name", label: "Name", role: "title", sort: (u) => String(u.name || u.email || "").toLowerCase(), cell: (u) => `<div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}${u.id === ctx.S.user.uid ? ' <span class="ax-muted" style="font-weight:400">(you)</span>' : ""}</b><small title="${esc(u.email || "")}">${esc(u.email || "")}</small></div></div>` },
-            { k: "role", label: "Role", pri: 2, cell: (u) => chipFor("user", R(u)) },
-            { k: "status", label: "Status", role: "status", cell: (u) => userStatus(ctx, u) },
-            { k: "loc", label: "Location", pri: 2, cell: (u) => esc(u.location || [u.city, u.country].filter(Boolean).join(", ") || "—") },
-            { k: "joined", label: "Joined", pri: 2, sort: (u) => AX.ms(u.createdAt), cell: (u) => fmt.date(u.createdAt) },
-          ],
-          bulk: [{ label: "Export CSV", icon: "download", free: true, run: (rs) => csv("faxton-users-selected", ["Name", "Email", "Role", "Country", "City", "Joined"], rs.map((u) => [u.name, u.email, R(u), u.country, u.city, fmt.date(u.createdAt)])) }],
-          csv: { name: "faxton-users", head: ["Name", "Email", "Phone", "Role", "Banned", "Country", "City", "Joined"], row: (u) => [u.name, u.email, u.phone, R(u), u.banned ? "yes" : "no", u.country, u.city, fmt.date(u.createdAt)] },
-          quick: (u) => (u.id === ctx.S.user.uid ? "" : btn("Text", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=text" })), onQuick: (k, u) => openChat(ctx, u),
-          menu: (u, api) => [{ label: "Open profile", icon: "user", act: api.open }, ...(u.id === ctx.S.user.uid ? [] : [{ label: "Message", icon: "msg", act: () => openChat(ctx, u) }, { label: "Call", icon: "phone", act: () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: "voice", title: "Faxton team" }) }, { label: "Video", icon: "video", act: () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: "video", title: "Faxton team" }) }]), ...(canBan(ctx, u) ? [{ sep: 1 }, { label: u.banned ? "Unban" : "Ban user", icon: "alert", tone: u.banned ? "" : "bad", act: () => banAct(ctx, u, api) }] : []), ...(ctx.S.isOwner && u.id !== ctx.S.user.uid && R(u) !== "owner" ? [{ label: "Transfer ownership", icon: "refresh", act: () => transferAct(ctx, u, api) }] : [])],
-          onQuery: (q) => { if (q.invite) { setQ({ invite: "" }); inviteDialog(); } },
-          drawer: (u, api) => userDrawer(ctx, u, api), empty: { icon: "users", title: "No users yet", hint: "People appear here as soon as they sign up." } });
-        root.querySelector("[data-act=inv]")?.addEventListener("click", inviteDialog);
-        if (hq().q.invite) { setQ({ invite: "" }); inviteDialog(); }
-      } };
-    } });
-}
-
 // ---------- verifications ----------
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
 const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];

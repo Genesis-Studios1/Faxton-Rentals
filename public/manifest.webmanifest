@@ -1,16 +1,29 @@
 {
+  "id": "/",
   "name": "Faxton Rentals",
   "short_name": "Faxton",
-  "description": "Find, view and rent homes across Nigeria.",
+  "description": "Find, view and rent homes across Nigeria with verified agents and safer viewings.",
+  "lang": "en-NG",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
   "background_color": "#073b2d",
   "theme_color": "#073b2d",
+  "categories": ["lifestyle", "business", "travel"],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
     { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Find a home", "short_name": "Search", "description": "Search homes to rent", "url": "./#/search", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Messages", "short_name": "Messages", "description": "Open your chats and calls", "url": "./#/messages", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Saved homes", "short_name": "Saved", "description": "Homes you have saved", "url": "./#/saved", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "My viewings", "short_name": "Viewings", "description": "Your booked viewings", "url": "./#/bookings", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }

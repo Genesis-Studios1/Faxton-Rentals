@@ -1,22 +1,40 @@
 import { db } from "./firebase.js";
-import { SEED } from "./data.js";
 import { moveIn as costOf } from "./area.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
 // Fill any missing fields so a partial or older Firestore listing can never break a page.
-const norm = (l) => { const seed = SEED.find((x) => x && x.id === l.id) || {}; const o = { ...seed, ...l }; o.agent = { ...(seed.agent || {}), ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
+const norm = (l) => { const o = { ...l }; o.agent = { ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
+
+// ---- demo mode ----
+// Real visitors must never see made-up homes. Sample data exists only for the owner, who switches demo mode on from
+// the address bar (#/admin?demo=on, and #/admin?demo=off to turn it off). It is remembered in this browser only.
+const DEMO_KEY = "faxton_demo";
+export const demoMode = () => { try { return localStorage.getItem(DEMO_KEY) === "1"; } catch { return false; } };
+export const setDemoMode = (on) => { try { on ? localStorage.setItem(DEMO_KEY, "1") : localStorage.removeItem(DEMO_KEY); } catch {} };
+const readDemoFlag = () => { const m = /[?&]demo=(on|off)\b/.exec(location.hash); if (m) setDemoMode(m[1] === "on"); };
+readDemoFlag(); addEventListener("hashchange", readDemoFlag);
+// The sample homes live in data.js and are loaded on demand (tests and demo mode only), never on the normal path.
+export const loadDemoSeed = async () => (await import("./data.js")).SEED;
+
+// Returns the live, active listings. When there are none (or Firestore cannot be reached) the answer is an empty list,
+// never sample homes. A failed load is flagged with `.failed` so a screen can offer a "Try again" button.
 export async function getListings(force = false) {
   if (cache && !force) return cache;
   // Stale-while-revalidate: show the last known listings instantly, then refresh them in the background.
-  let stored = null; try { stored = JSON.parse(localStorage.getItem("lst") || "null"); } catch {}
+  let stored = null; try { localStorage.removeItem("lst"); stored = JSON.parse(localStorage.getItem("lst2") || "null"); } catch {}
   const fetchFresh = async () => {
+    let list;
     try {
       const snap = await getDocs(query(collection(db, "listings"), where("status", "==", "active")));
-      cache = snap.empty ? SEED : snap.docs.map((d) => norm({ ...d.data(), id: d.id }));
-    } catch { cache = SEED; }
-    try { localStorage.setItem("lst", JSON.stringify(cache)); } catch {}
+      list = snap.docs.map((d) => norm({ ...d.data(), id: d.id }));
+    } catch {
+      list = Array.isArray(stored) ? stored.filter(Boolean).map(norm) : []; list.failed = true; // do not cache a failure: the next call retries
+      return list;
+    }
+    cache = list;
+    try { localStorage.setItem("lst2", JSON.stringify(cache.slice(0, 60))); } catch {}
     return cache;
   };
   if (stored?.length && !force) { cache = stored.filter(Boolean).map(norm); fetchFresh(); return cache; }
@@ -54,7 +72,7 @@ export const addTicket = (u, t) => addDoc(collection(db, "tickets"), { ...t, uid
 export const convId = (user, l) => `${user.uid}__${l.id}`;
 export async function ensureConversation(user, l) {
   const ref = doc(db, "conversations", convId(user, l));
-  if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: user.uid, userName: user.displayName || user.email, listingId: l.id, listingTitle: l.title, area: l.area, price: l.price, beds: l.beds, baths: l.baths, image: l.thumb || l.images[0], agent: l.agent, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
+  if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: user.uid, userName: user.displayName || user.email, userPhoto: user.photoURL || "", listingId: l.id, listingTitle: l.title, area: l.area, price: l.price, beds: l.beds, baths: l.baths, image: l.thumb || l.images[0], agent: l.agent, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
   return ref.id;
 }
 export const watchConversations = (user, cb) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
@@ -72,6 +90,8 @@ export async function ensureStaffPersonalConversation(staff, me, u) {
 export const watchStaffDMs = (uid, cb) => onSnapshot(query(collection(db, "conversations"), where("byStaff", "==", uid)),
   (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
 export const getConversation = async (cid) => { try { const s = await getDoc(doc(db, "conversations", cid)); return s.exists() ? { ...s.data(), id: s.id } : null; } catch { return null; } };
+// A small "typing" marker for the other side (the screen shows it for 5 seconds; it is written at most every 4 seconds).
+export const setTyping = (cid, uid) => updateDoc(doc(db, "conversations", cid), { typing: { uid, at: Date.now() } }).catch(() => {});
 export const setStaffUnread = (cid, v) => updateDoc(doc(db, "conversations", cid), { staffUnread: !!v });
 export async function sendMessage(user, cid, text, extra = {}, unread = false, convExtra = {}) {
   const b = writeBatch(db);
@@ -112,9 +132,10 @@ export const saveRelease = (id, data) => (id ? updateDoc(doc(db, "appReleases", 
 export const removeRelease = (id) => deleteDoc(doc(db, "appReleases", id));
 export const setStatus = (col, id, status) => updateDoc(doc(db, col, id), { status });
 export async function seedListings() {
-  const b = writeBatch(db);
-  SEED.forEach((l) => b.set(doc(db, "listings", l.id), l));
-  b.set(doc(db, "listings", "cedar-house"), { ...SEED[1], id: "cedar-house", title: "Cedar House", area: "Wuse 2", city: "Abuja", status: "pending", price: 2800000, lat: 9.0765, lng: 7.4719 });
+  if (!demoMode()) throw new Error("Demo mode is off.");
+  const SEED = await loadDemoSeed(), b = writeBatch(db);
+  SEED.forEach((l) => b.set(doc(db, "listings", l.id), { ...l, demo: true }));
+  b.set(doc(db, "listings", "cedar-house"), { ...SEED[1], id: "cedar-house", title: "Cedar House", area: "Wuse 2", city: "Abuja", status: "pending", price: 2800000, lat: 9.0765, lng: 7.4719, demo: true });
   await b.commit(); cache = null;
 }
 

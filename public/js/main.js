@@ -6,6 +6,7 @@ import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/f
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
 import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile } from "./store.js";
 import * as V from "./views.js";
@@ -220,11 +221,11 @@ export async function render() {
   const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
-  try { view = S.user && G.needsVerify(S.user) && !["/terms", "/privacy", "/license"].includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="empty"><h2>Something went wrong</h2><p>This page couldn’t load. Please refresh, or go back home.</p><p style="margin-top:14px"><a class="btn primary" href="#/">Go home</a></p></div>`); return wire(); }
+  try { view = S.user && G.needsVerify(S.user) && !["/terms", "/privacy", "/license"].includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
   if (id !== renderId) return;
   bar(false);
   if (!AXS && view && !view.full && S.user && (S.isAdmin || ROLE_UI[S.role]) && (view.admin || view.role || path.startsWith("/messages") || isSettings(path))) { try { AXS = await import("./ax-shell.js"); } catch (e) { console.error(e); } if (id !== renderId) return; }
-  if (!view) { app.innerHTML = shell(path, `<div class="empty"><h2>Page not found</h2><p><a class="link" href="#/">Go home</a></p></div>`); return wire(); }
+  if (!view) { app.innerHTML = shell(path, `<div class="fx-state"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8.5 11h5"/></svg></span><span class="fx-st-code">Error 404</span><h1>We couldn’t find that page</h1><p>The link may be old, or the home may have been taken down.</p><div class="fx-st-row"><a class="btn primary" href="#/">Go home</a><a class="btn" href="#/search">Find a home</a></div></div>`); return wire(); }
   app.innerHTML = view.full ? view.html : shell(path, view.html, view);
   document.title = (view.title ? view.title + " · " : "") + "Faxton Rentals";
   wire();
@@ -306,7 +307,7 @@ async function signUp(name, email, pw, role, details, photo, residence) {
 // ---- the notifications panel under the bell (a popover on desktop, a bottom sheet on phones) ----
 const noteUnread = () => (S.notes || []).filter((n) => !n.read).length;
 const noteDot = () => (noteUnread() ? "dot" : "");
-const paintBell = () => $$("[data-bell]").forEach((b) => b.classList.toggle("dot", noteUnread() > 0));
+const paintBell = () => $$("[data-bell]").forEach((b) => { b.classList.toggle("dot", noteUnread() > 0); const n = noteUnread(); if (n) b.dataset.n = n > 99 ? "99+" : n; else delete b.dataset.n; });
 const agoText = (sec) => { if (!sec) return ""; const d = Math.max(0, Date.now() / 1000 - sec); return d < 60 ? "Just now" : d < 3600 ? Math.floor(d / 60) + " min ago" : d < 86400 ? Math.floor(d / 3600) + " h ago" : new Date(sec * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 const NOTE_IC = { verified: "check", rejected: "x", info: "info" };
 // Unread items sit under "New"; the rest are grouped by age.
@@ -415,7 +416,7 @@ async function nativeGoogleToken() {
   if (aud && aud !== GOOGLE_WEB_CLIENT_ID) throw Object.assign(new Error("Google token audience " + aud), { code: "google/audience", gcode: "G-AUD" });
   return { idToken, accessToken: r.credential.accessToken };
 }
-async function signInGoogle(chosen = "renter", details, residence) {
+async function signInGoogle(chosen = "renter", details, residence, photo) {
   if (inAppShell()) {
     const { idToken, accessToken } = await nativeGoogleToken();
     let c;
@@ -426,7 +427,7 @@ async function signInGoogle(chosen = "renter", details, residence) {
       if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
       throw Object.assign(new Error(e?.message), { code: `firebase/${code}${window.__csp ? " | " + window.__csp : ""}` });
     }
-    await ensureProfile(c.user, { role: chosen, details, residence }); return (await rejectIfBanned(c.user))?.role || "renter";
+    await ensureProfile(c.user, { role: chosen, details, residence, photo }); return (await rejectIfBanned(c.user))?.role || "renter";
   }
   const t0 = performance.now();
   let c;
@@ -438,7 +439,7 @@ async function signInGoogle(chosen = "renter", details, residence) {
     const probes = e?.code === "auth/network-request-failed" ? await probeGoogle() : "";
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
   }
-  await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence });
+  await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
   return (await rejectIfBanned(c.user))?.role || "renter";
 }
 const logout = () => signOut(auth);
@@ -484,6 +485,9 @@ async function refreshAuthState(u) {
     { const pr = S.profile || {}; if (pr.name || u.displayName) syncPublic(u.uid, { name: (pr.role === "agency" && pr.agency?.business) || pr.name || u.displayName || "User", photo: pr.photo || "", role: pr.role || "renter", city: pr.city || "", country: pr.country || "", website: pr.agency?.website || "" }); }
     if (S.profile?.deletion?.status === "approved" && Date.now() >= (S.profile.deletion.requestedAt || 0) + 864e5) return finalizeDeletion(u);
     if (!S.profile) { try { await ensureProfile(u); S.profile = await getProfile(u.uid); } catch { /* rules refused; leave signed in without a profile */ } }
+    // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
+    if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
+      if (Date.now() - t0 > 36e5 || S.profile.provider !== prov) patchDoc("users", u.uid, { lastActive: serverTimestamp(), provider: prov }).catch(() => {}); }
     S.unsubProfile?.(); S.unsubProfile = watchProfile(u.uid, (p) => {
       if (S.user?.uid !== u.uid || !p) return;
       if (p.banned) { S.bannedNote = true; signOut(auth); return; }
@@ -540,7 +544,4 @@ export let installPrompt = null;
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; document.dispatchEvent(new Event("installable")); });
 addEventListener("appinstalled", () => { installPrompt = null; toast("Faxton Rentals installed."); });
 export async function installApp() { if (!installPrompt) return false; installPrompt.prompt(); await installPrompt.userChoice; installPrompt = null; return true; }
-if ("serviceWorker" in navigator && location.protocol.startsWith("http")) addEventListener("load", () => {
-  // The service worker is network-first, so new deploys show up on the next load without forcing a reload.
-  navigator.serviceWorker.register("sw.js").then((r) => r.update()).catch(() => {});
-});
+// The service worker is registered and kept up to date by js/robust.js (it also shows the "A new version is ready" prompt).

@@ -1,6 +1,7 @@
 // The profile card that opens when you tap someone's picture: a person or a business, with a green tick when verified.
 import { $, $$, esc, icon, modal, toast, initials, verifiedBadge } from "./ui.js";
 import * as st from "./store.js";
+import { saveFile } from "./safety.js";
 
 const PUSH = '<svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>';
 const fsize = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round((n || 0) / 1024)) + " KB");
@@ -32,21 +33,29 @@ export async function openProfile(ctx, p) {
       ${p.role === "team" ? `<div class="pf-card">${row("site", "globe", "Website", esc(TEAM.site.replace("https://", "")), "")}</div>` : pub?.website ? `<div class="pf-card">${row("site", "globe", "Website", esc(pub.website.replace(/^https?:\/\//, "")), "")}</div>` : ""}
     </div></div>`;
   const ov = document.createElement("div"); ov.className = "pf-ov"; ov.innerHTML = html; document.body.append(ov); document.documentElement.classList.add("dlx-lock");
+  const prevFocus = document.activeElement, focusFirst = () => { try { const sh = $(".pf-sheet", ov) || ov; sh.tabIndex = -1; sh.focus({ preventScroll: true }); } catch {} }; focusFirst();
   // Media, documents and links shared in this chat.
   const showMedia = (tab = "media") => {
+    const onTab = !!document.activeElement?.matches?.("[data-tab]");
     const imgs = (p.media || []).filter((m) => m.image), docs = (p.media || []).filter((m) => m.file), links = p.links || [];
     const tabs = [["media", "Media", imgs.length], ["docs", "Docs", docs.length], ["links", "Links", links.length]];
     const body = tab === "media" ? (imgs.length ? `<div class="pf-mg">${imgs.map((m, i) => `<button type="button" class="pf-mi" data-i="${i}" aria-label="Open photo ${i + 1}"><img src="${esc(m.image)}" alt="" loading="lazy"></button>`).join("")}</div>` : `<p class="pf-none">No photos yet.</p>`)
-      : tab === "docs" ? (docs.length ? `<div class="pf-card">${docs.map((m) => `<a class="pf-r" href="${esc(m.file)}" download="${esc(m.fname || "file")}"><span class="pf-ri">${icon("doc", 18)}</span><span class="pf-rt"><b>${esc(m.fname || "File")}</b><small>${fsize(m.fsize)} · ${esc((String(m.fname || "").split(".").pop() || "file").toUpperCase())}</small></span>${icon("download", 18)}</a>`).join("")}</div>` : `<p class="pf-none">No documents yet.</p>`)
+      : tab === "docs" ? (docs.length ? `<div class="pf-card">${docs.map((m, i) => `<a class="pf-r" href="${esc(m.file)}" download="${esc(m.fname || "file")}" data-dl="${i}"><span class="pf-ri">${icon("doc", 18)}</span><span class="pf-rt"><b>${esc(m.fname || "File")}</b><small>${fsize(m.fsize)} · ${esc((String(m.fname || "").split(".").pop() || "file").toUpperCase())}</small></span>${icon("download", 18)}</a>`).join("")}</div>` : `<p class="pf-none">No documents yet.</p>`)
       : (links.length ? `<div class="pf-card">${links.map((u) => `<a class="pf-r" href="${esc(u)}" target="_blank" rel="noopener noreferrer"><span class="pf-ri">${icon("globe", 18)}</span><span class="pf-rt"><b>${esc(u.replace(/^https?:\/\//, "").slice(0, 60))}</b></span>${icon("share", 16)}</a>`).join("")}</div>` : `<p class="pf-none">No links yet.</p>`);
     ov.innerHTML = `<div class="pf-sheet pf-media" role="dialog" aria-modal="true" aria-label="Media, docs and links"><div class="pf-mh"><button type="button" class="pf-bk" data-k="back" aria-label="Back">${icon("left", 22)}</button><b>Media, docs and links</b></div>
       <div class="pf-seg" role="tablist">${tabs.map(([k, l, n]) => `<button type="button" role="tab" class="${k === tab ? "on" : ""}" aria-selected="${k === tab}" data-tab="${k}">${l} <span>${n}</span></button>`).join("")}</div><div class="pf-mb">${body}</div></div>`;
     $$("[data-tab]", ov).forEach((b) => (b.onclick = () => showMedia(b.dataset.tab)));
+    $$("[data-dl]", ov).forEach((a) => (a.onclick = (e) => { e.preventDefault(); const m = docs[+a.dataset.dl]; if (m) saveFile(m.file, m.fname || "file"); }));
     $$(".pf-mi", ov).forEach((b) => (b.onclick = () => { close(); p.onImage?.(+b.dataset.i); }));
-    const bk = $("[data-k=back]", ov); if (bk) bk.onclick = (e) => { e.stopPropagation(); ov.innerHTML = html; };
+    const bk = $("[data-k=back]", ov); if (bk) bk.onclick = (e) => { e.stopPropagation(); ov.innerHTML = html; focusFirst(); };
+    const tb = $(`[data-tab="${tab}"]`, ov); if (tb && onTab) tb.focus(); else focusFirst();
   };
-  const close = () => { ov.remove(); document.documentElement.classList.remove("dlx-lock"); document.removeEventListener("keydown", key); };
-  const key = (e) => { if (e.key === "Escape") close(); }; document.addEventListener("keydown", key);
+  const close = () => { ov.remove(); document.documentElement.classList.remove("dlx-lock"); document.removeEventListener("keydown", key); try { prevFocus?.isConnected && prevFocus.focus({ preventScroll: true }); } catch {} };
+  const key = (e) => {
+    if (e.key === "Escape") return close();
+    if (e.key !== "Tab") return; const f = $$("button:not([disabled]),a[href]", ov).filter((x) => x.offsetParent !== null && !x.closest("[hidden]")); if (!f.length) return;
+    const first = f[0], last = f[f.length - 1]; if (!ov.contains(document.activeElement)) { e.preventDefault(); first.focus(); } else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }; document.addEventListener("keydown", key);
   ov.addEventListener("click", (e) => {
     if (e.target === ov) return close();
     const menuBtn = e.target.closest(".pf-m"); if (menuBtn) { const m = $(".pf-menu", ov); m.hidden = !m.hidden; return; }

@@ -10,6 +10,7 @@ import * as VS from "./viewsafe.js";
 import { listingCard, bindCards } from "./cards.js";
 import { fxErr, xicon, statusPill, empty, ask, fmtDay, tsMs, longDay, shrinkImage, openStored, supportLine } from "./fx.js";
 import * as PAY from "./paymentinfo.js";
+import * as FB from "./feedback.js";
 
 const bedsLabel = (n) => (n === 0 ? "Studio" : `${n} bed${n > 1 ? "s" : ""}`);
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -344,10 +345,11 @@ export async function helpPage(ctx) {
   const t0 = tickets[0];
   return { title: "Help centre", html: `<div class="rf">${pageHead("Help centre", "How can we help?", "Find a quick answer, or message our team.")}
     <label class="rf-search">${icon("search", 20)}<input id="hq" type="search" placeholder="Search for help, like “receipt” or “viewing”" aria-label="Search for help"></label>
-    <div class="rf-seg" role="tablist" id="hpTabs" style="margin:14px 0 16px"><button type="button" role="tab" class="on" aria-selected="true" data-hp="help">Help and FAQ</button><button type="button" role="tab" aria-selected="false" data-hp="sug">${icon("chatlines", 16)} Send a suggestion</button></div>
+    <div class="rf-seg" role="tablist" id="hpTabs" style="margin:14px 0 16px"><button type="button" role="tab" class="on" aria-selected="true" data-hp="help">Help and FAQ</button><button type="button" role="tab" aria-selected="false" data-hp="sug">${icon("chatlines", 16)} Send a suggestion</button><button type="button" role="tab" aria-selected="false" data-hp="rate">${icon("star", 16)} Rate Faxton</button></div>
     <section class="rf-card" id="hpSug" hidden><div class="rf-card-h"><div><h2>Send us a suggestion</h2><p>Got an idea that would make Faxton Rentals better? Every suggestion is read by the team.</p></div></div>
       <form class="rf-form" id="sf" novalidate><label class="rf-fl">Topic<select id="sgt"><option>New feature</option><option>Design and layout</option><option>Listings and search</option><option>Payments</option><option>Something else</option></select></label>
       <label class="rf-fl">Your suggestion<textarea id="sgx" rows="5" maxlength="2000" placeholder="Describe your idea…"></textarea></label><p class="rf-err" id="sge" role="alert"></p><div class="rf-actions" style="margin:0"><button class="btn primary" type="submit">${icon("send", 18)} Send suggestion</button></div></form></section>
+    <section class="rf-card" id="hpRate" hidden>${FB.formHtml()}</section>
     <div id="hpMain"><div class="rf-cats">${cats.map(([k, ic, t, d]) => `<button type="button" class="rf-cat" data-cat="${k}"><span>${icon(ic, 22)}</span><div><b>${t}</b><small>${d}</small></div></button>`).join("")}</div>
     <div class="rf-grid"><section class="rf-card"><div class="rf-card-h"><div><h2>Frequently asked questions</h2><p>Quick answers for renters.</p></div></div><div id="faq"></div></section>
       <aside class="rf-card"><div class="rf-card-h"><div><h2>Talk to us</h2><p>Still stuck? Our team replies by email.</p></div></div><button class="btn primary block" id="nt">${icon("mail", 18)} New support request</button><button class="btn block" id="vt" style="margin-top:8px">My tickets (${tickets.length})</button><hr><h3 class="rf-h3" style="margin-top:0">Latest ticket</h3>
@@ -361,15 +363,16 @@ export async function helpPage(ctx) {
       };
       $("#hq", root).oninput = (e) => { q = e.target.value.trim().toLowerCase(); open = q ? 0 : -1; draw(); };
       $$("[data-cat]", root).forEach((b) => (b.onclick = () => { cat = cat === b.dataset.cat ? "" : b.dataset.cat; open = -1; draw(); $("#faq", root).scrollIntoView({ behavior: "smooth", block: "center" }); }));
-      const form = () => { const m = modal(`<div class="rf-dlg"><h2>New support request</h2><p class="rf-dlg-p">Tell us what you need help with.</p><form class="rf-form" id="tf2"><label class="rf-fl">Topic<select id="ts"><option>Viewing or booking</option><option>Application</option><option>Payments</option><option>Account</option><option>Something else</option></select></label><label class="rf-fl">Message<textarea id="tm" rows="5" maxlength="2000" placeholder="Describe your issue…"></textarea></label><p class="rf-err" id="te2" role="alert"></p><div class="rf-dlg-act"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Send request</button></div></form></div>`);
+      const form = () => { const m = modal(`<div class="rf-dlg"><h2>New support request</h2><p class="rf-dlg-p">Tell us what you need help with.</p><form class="rf-form" id="tf2"><label class="rf-fl">Topic<select id="ts"><option>Viewing or booking</option><option>Application</option><option>Payments</option><option>Account</option><option>Complaint</option><option>Something else</option></select></label><label class="rf-fl">Message<textarea id="tm" rows="5" maxlength="2000" placeholder="Describe your issue…"></textarea></label><p class="rf-err" id="te2" role="alert"></p><div class="rf-dlg-act"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Send request</button></div></form></div>`);
         $("[data-x]", m.el).onclick = m.close;
         $("#tf2", m.el).onsubmit = async (e) => { e.preventDefault(); const msg = $("#tm", m.el).value.trim(); if (msg.length < 10) return ($("#te2", m.el).textContent = "Please add a little more detail."); const b = e.target.querySelector("button.primary"); b.disabled = true;
           try { await st.addTicket(ctx.S.user, { subject: $("#ts", m.el).value, message: msg }); m.close(); toast("Request sent. We’ll reply by email."); ctx.render(); } catch (x) { $("#te2", m.el).textContent = fxErr(x); b.disabled = false; } }; };
       $("#nt", root).onclick = form;
       $("#vt", root).onclick = () => { if (!tickets.length) return toast("You haven’t opened a ticket yet."); modal(`<div class="rf-dlg"><h2>My tickets</h2>${tickets.map((t) => `<div class="rf-ticket"><div><small class="num">#${esc(t.ref)}</small>${statusPill(t.status)}</div><b>${esc(t.subject)}</b><p>${esc(t.message)}</p><small class="rf-muted">Opened ${esc(fmtDay(t.createdAt))}</small></div>`).join("")}</div>`); };
-      $$("[data-hp]", root).forEach((b) => (b.onclick = () => { const sug = b.dataset.hp === "sug"; $$("[data-hp]", root).forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", x === b); }); $("#hpSug", root).hidden = !sug; $("#hpMain", root).hidden = sug; }));
+      $$("[data-hp]", root).forEach((b) => (b.onclick = () => { const sug = b.dataset.hp === "sug"; $$("[data-hp]", root).forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", x === b); }); const k = b.dataset.hp; $("#hpSug", root).hidden = k !== "sug"; $("#hpRate", root).hidden = k !== "rate"; $("#hpMain", root).hidden = k !== "help"; }));
       $("#sf", root).onsubmit = async (e) => { e.preventDefault(); const text = $("#sgx", root).value.trim(), err = $("#sge", root); err.textContent = ""; if (text.length < 5) return (err.textContent = "Please write a little more."); const btn = e.target.querySelector("button"); btn.disabled = true;
         try { await st.addSuggestion(ctx.S.user, { topic: $("#sgt", root).value, text }); $("#sgx", root).value = ""; toast("Thank you! Your suggestion has been sent."); } catch (x) { err.textContent = fxErr(x); } finally { btn.disabled = false; } };
+      FB.mountForm($("#hpRate", root));
       draw();
     } };
 }

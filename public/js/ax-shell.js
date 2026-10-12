@@ -11,11 +11,11 @@ export const counts = {};
 // [route, icon, label, badge key]
 const ADMIN = [
   { l: "", items: [["/admin", "home", "Overview"], ["/admin/queue", "doccheck", "Review queue", "queue"]] },
-  { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
+  { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users"], ["/admin/agents", "handshake", "Agents"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
   { l: "Activity", items: [["/admin/applications", "doc", "Applications", "apps"], ["/admin/viewings", "calDots", "Viewings", "sos"], ["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"], ["/admin/payments", "card", "Payments", "proofs"]] },
-  { l: "Support", items: [["/admin/support", "chatdots", "Support", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
+  { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
   { l: "Insights", items: [["/admin/reports", "bars3", "Reports"]] },
-  { l: "System", items: [["/admin/calls", "phone", "Call setup", "relay"], ["/admin/get-app", "download", "Installations"], ["/settings", "gear", "Settings"]] },
+  { l: "System", items: [["/admin/team", "crown", "Team access"], ["/admin/get-app", "download", "Installations"], ["/settings", "gear", "Settings"]] },
 ];
 const OWNER = (home) => [{ l: "Portfolio", items: [[home, "home", "Dashboard"]] }, { l: "Rentals", items: [["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"]] }, { l: "Communication", items: [["/messages", "msg", "Messages", "unread"]] }, { l: "Account", items: [["/settings", "gear", "Settings"]] }];
 export const ROLES = {
@@ -31,10 +31,12 @@ export const ROLES = {
 };
 const cfgFor = (role) => ROLES[role] || ROLES.admin;
 const isOn = (path, h, home) => (h === home || h === "/admin" ? path === h : path === h || path.startsWith(h + "/"));
-const BADGE_TONE = { sos: "alert", sugg: "grey", relay: "grey", unread: "mint", proofs: "amber" };
+const BADGE_TONE = { sos: "alert", sugg: "grey", fbk: "grey", unread: "mint", proofs: "amber" };
+// Pages with the new header: a big page title and a search that filters that page ("Search feedback…").
+const BAR = { "/admin/feedback": ["Feedback", "Search feedback…"], "/admin/agents": ["Agents", "Search agents…"], "/admin/team": ["Team access", "Search team access…"], "/admin/support": ["Ticket center", "Search ticket center…"], "/support/tickets": ["Ticket center", "Search ticket center…"], "/admin/users": ["Users", "Search users…"] };
 
 const badge = (key) => { const n = badgeVal(key); return `<b class="ax-badge" data-axb="${key}" data-t="${key === "queue" && counts.sos ? "alert" : BADGE_TONE[key] || "amber"}" ${key === "verif" ? "data-vbadge" : ""} ${key === "unread" ? "data-unread" : ""} ${n ? "" : "hidden"}>${n > 99 ? "99+" : n || ""}</b>`; };
-const badgeVal = (key) => (key === "verif" ? (host?.S.pendingV || 0) + (counts.dels || 0) : key === "unread" ? host?.S.unread || 0 : key === "relay" ? 0 : counts[key] || 0);
+const badgeVal = (key) => (key === "verif" ? (host?.S.pendingV || 0) + (counts.dels || 0) : key === "unread" ? host?.S.unread || 0 : counts[key] || 0);
 
 const flat = (c) => c.groups.flatMap((g) => g.items.map((i) => ({ i, g: g.l })));
 const findItem = (c, path) => flat(c).filter((x) => isOn(path, x.i[0], c.home)).sort((a, b) => b.i[0].length - a.i[0].length)[0];
@@ -46,7 +48,7 @@ export function renderShell(path, inner, view = {}, role = "") {
   const crumbs = [`<a href="#${c.home}">${esc(c.crumb)}</a>`, hit?.g ? `<span>${esc(hit.g)}</span>` : "", `<b aria-current="page">${esc(hit?.i[2] || (path === "/admin/queue" ? "Review queue" : "Page"))}</b>`].filter(Boolean).join(`<i aria-hidden="true">${I("chevR", 12, 2)}</i>`);
   const tabs = c.tabs.map((it) => { const on = isOn(path, it[0], c.home); return `<a class="ax-bt" href="#${it[0]}" ${on ? 'aria-current="page"' : ""}><span class="ax-bi">${I(it[1], 22)}${it[3] ? badge(it[3]) : ""}</span><span>${esc(it[2])}</span></a>`; }).join("");
   const moreOn = !c.tabs.some((it) => isOn(path, it[0], c.home));
-  const create = quickItems(key).length;
+  const bar = BAR[path], create = bar ? 0 : quickItems(key).length, nNotes = (S.notes || []).filter((n) => !n.read).length;
   const dark = host.theme() === "dark";
   return `<div class="ax" data-rail="${rail}" data-role="${key}" ${/^\/messages\//.test(path) ? "data-chat" : ""}>
   <button type="button" class="ax-skip" data-ax="skip">Skip to content</button>
@@ -55,12 +57,14 @@ export function renderShell(path, inner, view = {}, role = "") {
     <div class="ax-sfoot"><a class="ax-nav" href="#/" data-tip="Go back to Faxton">${I("left", 18)}<span class="ax-nl">Go back to Faxton</span></a>
       <button type="button" class="ax-acct me-btn" data-ax="account" aria-haspopup="menu" aria-label="Account menu">${avatar(me, S.user?.uid, 32, S.profile?.photo)}<span class="ax-an"><b>${esc(me)}</b><small>${esc(roleLabel)}</small></span>${I("more", 18)}</button></div></aside>
   <div class="ax-side-scrim" data-ax="rail-close"></div>
-  <div class="ax-frame"><header class="ax-top"><button type="button" class="ax-ib ax-toggle" data-ax="rail" aria-label="Toggle sidebar" aria-expanded="${rail === "0"}" aria-controls="ax-side">${I("panel", 20)}</button>
-      <a class="ax-mlogo" href="#${c.home}" aria-label="${esc(c.title)}">${logoMark()}</a><nav class="ax-crumbs" aria-label="Breadcrumb">${crumbs}<span class="ax-rec" data-crumb-rec></span></nav><div class="ax-ptitle">${esc(hit?.i[2] || c.title)}</div><span class="ax-grow"></span>
+  <div class="ax-frame"><header class="ax-top${bar ? " is-bar" : ""}"><button type="button" class="ax-ib ax-toggle" data-ax="rail" aria-label="Toggle sidebar" aria-expanded="${rail === "0"}" aria-controls="ax-side">${I("panel", 20)}</button>
+      <a class="ax-mlogo" href="#${c.home}" aria-label="${esc(c.title)}">${logoMark()}</a><nav class="ax-crumbs" aria-label="Breadcrumb">${crumbs}<span class="ax-rec" data-crumb-rec></span></nav><div class="ax-ptitle">${esc(bar ? bar[0] : hit?.i[2] || c.title)}</div><span class="ax-grow"></span>
+      ${bar ? `<label class="ax-pbs">${I("search", 18)}<input id="axPS" type="search" placeholder="${esc(bar[1])}" aria-label="${esc(bar[1].replace("…", ""))}" autocomplete="off" spellcheck="false"></label>` : ""}
       <button type="button" class="ax-searchbtn" data-ax="palette" aria-label="Search" aria-keyshortcuts="Control+K Meta+K">${I("search", 18)}<span class="ax-sl">Search listings, users, applications…</span><kbd>${navigator.platform.includes("Mac") ? "⌘K" : "Ctrl K"}</kbd></button>
       ${create ? `<button type="button" class="ax-btn ax-create" data-v="soft" data-ax="create" aria-haspopup="menu" aria-label="Quick create">${I("plus", 18)}<span>New</span></button>` : ""}
       <button type="button" class="ax-ib toggle-theme" data-theme-btn aria-label="Toggle dark mode">${icon(dark ? "sun" : "moon", 20)}</button>
-      <button type="button" class="ax-ib bell ${host.noteDot()}" data-bell aria-label="Notifications" aria-haspopup="true">${icon("bell", 20)}</button></header>
+      <button type="button" class="ax-ib bell ${host.noteDot()}" data-bell ${nNotes ? `data-n="${nNotes > 99 ? "99+" : nNotes}"` : ""} aria-label="Notifications" aria-haspopup="true">${icon("bell", 20)}</button>
+      ${bar ? `<a class="ax-btn ax-openapp" data-v="outline" href="#/">${I("device", 18)}<span>Open app</span></a>` : ""}</header>
     <main class="ax-main ${view.bleed ? "bleed" : ""}" id="main" tabindex="-1">${host.verifyBanner()}${inner}</main></div>
   <nav class="ax-bottom" aria-label="Primary">${tabs}<button type="button" class="ax-bt" data-ax="more" aria-haspopup="dialog" ${moreOn ? 'aria-current="true"' : ""}><span class="ax-bi">${I("grid", 22)}<b class="ax-badge dot" data-axb="more" data-t="${counts.sos ? "alert" : "amber"}" ${counts.sos || host.S.pendingV || counts.reports ? "" : "hidden"}></b></span><span>More</span></button></nav></div>`;
 }
@@ -77,7 +81,7 @@ function quickItems(role) {
 const roleKey = () => (host.S.isAdmin ? "admin" : host.S.role);
 
 // ---------- live counts ----------
-const BADGE_COLS = ["listings", "applications", "viewings", "tickets", "offers", "maintenance", "reports", "suggestions"];
+const BADGE_COLS = ["listings", "applications", "viewings", "tickets", "offers", "maintenance", "reports", "suggestions", "feedback"];
 const OPEN_OFFER = (o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status);
 export function recompute() {
   const S = host?.S; if (!S?.user) return; const g = (c, u) => data.peek(c, u) || [], k = roleKey();
@@ -85,7 +89,7 @@ export function recompute() {
     const ls = g("listings"), ap = g("applications"), vw = g("viewings"), tk = g("tickets"), of = g("offers"), mt = g("maintenance"), rp = g("reports"), sg = g("suggestions"), us = g("users");
     counts.listings = ls.filter((l) => /pending|flag/i.test(l.status || "") && !l.archived).length; counts.dels = us.filter((u) => u.deletion?.status === "pending").length;
     counts.sos = vw.filter((v) => v.sos && !v.sos.resolved).length; counts.apps = ap.filter((a) => /review/i.test(a.status || "")).length; counts.offers = of.filter(OPEN_OFFER).length;
-    counts.maint = mt.filter((m) => m.status === "Open").length; counts.tickets = tk.filter((t) => !/resolved|closed/i.test(t.status || "")).length; counts.reports = rp.filter((r) => (r.status || "New") === "New").length; counts.sugg = sg.filter((s) => (s.status || "New") === "New").length;
+    counts.maint = mt.filter((m) => m.status === "Open").length; counts.tickets = tk.filter((t) => !/resolved|closed/i.test(t.status || "")).length; counts.reports = rp.filter((r) => (r.status || "New") === "New").length; counts.sugg = sg.filter((s) => (s.status || "New") === "New").length; counts.fbk = g("feedback").filter((f) => (f.status || "New") === "New").length;
     counts.proofs = g("paymentProofs").filter((p) => /submitted/i.test(p.status || "")).length;
     counts.queue = counts.listings + (S.pendingV || 0) + counts.dels + counts.sos;
   } else if (k === "support") { counts.tickets = g("tickets").filter((t) => !/resolved|closed/i.test(t.status || "")).length; counts.sugg = g("suggestions").filter((s) => (s.status || "New") === "New").length; }
@@ -103,7 +107,6 @@ export async function loadBadges() {
     if (k === "admin") await Promise.all(BADGE_COLS.map((c) => data.get(c, { maxAge: 300000 }).catch(() => [])));
     else if (k === "support") await Promise.all(["tickets", "suggestions"].map((c) => data.get(c, { maxAge: 300000 }).catch(() => [])));
     else await Promise.all(["offers", "maintenance", "viewings"].map((c) => data.get(c, { uid: S.user.uid, maxAge: 300000 }).catch(() => [])));
-    if (k === "admin") { const ice = await st.getIce().catch(() => null); counts.relayOff = ice ? !(ice.servers.length || ice.credsUrl) : false; $$('[data-axb="relay"]').forEach((b) => { b.hidden = !counts.relayOff; b.textContent = counts.relayOff ? "Not set" : ""; b.dataset.t = "grey"; b.classList.add("txt"); }); }
   } catch {}
   recompute();
 }
@@ -196,6 +199,7 @@ export function wireOnce() {
     if (typing || e.ctrlKey || e.metaKey || e.altKey || document.querySelector(".ax-ov,.ax-pal-ov")) return;
     if (e.key === "[") { e.preventDefault(); setRail($(".ax")?.dataset.rail === "1" ? "0" : "1", true); }
     else if (e.key === "?") { e.preventDefault(); shortcuts(); }
+    else if (e.key === "/" && $("#axPS")) { e.preventDefault(); $("#axPS").focus(); }
     else if (e.key === "/" && !$(".ax-search input")) { e.preventDefault(); openPalette(); }
   });
   if (window.visualViewport) visualViewport.addEventListener("resize", () => document.documentElement.classList.toggle("ax-kb", visualViewport.height < innerHeight * 0.7));

@@ -116,12 +116,13 @@
 .mx-empty p{margin:0;font-size:14px}
 .mx-head{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);flex:none;min-height:64px;background:var(--card);position:relative;z-index:3}
 .mx-back{display:none;color:var(--head)}
-.mx-hav{flex:none;line-height:0}
+.mx-hav{flex:none;line-height:0;padding:0;border:0;background:none;border-radius:50%;cursor:pointer}
+.mx-hav:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 .mx-head .mx-hav img{width:42px;height:42px;border-radius:50%;object-fit:cover;display:block;background:var(--surface)}
 .mx-hn{min-width:0;flex:1}
 .mx-hn b{display:flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:16px;font-weight:650;letter-spacing:-.015em;color:var(--head);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
 .mx-hn b .vseal{flex:none}
-.mx-hn b .mx-nm{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.mx-hn b .mx-nm{display:inline;min-width:0;overflow:hidden;text-overflow:ellipsis;margin:0;font-size:inherit;font-weight:inherit;color:inherit;letter-spacing:inherit}
 .mx-hn span{display:block;margin-top:1px;color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mx-acts{display:flex;align-items:center;gap:6px;flex:none}
 .mx-ab{display:inline-grid;place-items:center;width:38px;height:38px;padding:0;border:0;border-radius:50%;background:none;color:var(--head);font:inherit;cursor:pointer;transition:background .16s,color .16s}
@@ -575,10 +576,18 @@ a.pf-r{text-decoration:none}
 .cs-ov .cs-bsep{margin:4px 4px 22px;background:rgba(255,255,255,.14)}
 .cs-ov .cl-pip{right:20px;bottom:16px;width:clamp(120px,17vw,196px);border-radius:12px;border:2px solid rgba(255,255,255,.35)}
 .cs-ov .cl-rec{font-size:12px}
+/* messages such as "Recording saved" sit at the top while the call screen is open, so they never cover the controls */
+body:has(.cs-ov:not(.min)) #toast{bottom:auto;top:calc(60px + env(safe-area-inset-top))}
+/* a pressed control is a white disc: its icon turns dark green (the recording button turns red) */
+.cs-ov .cs-b[aria-pressed=true] .cs-ic,.cs-ov .cs-b[aria-pressed=true] .cs-ic svg{color:#06251c}
+.cs-ov .cs-b[aria-pressed=true] .cs-ic svg:not([fill=none]){stroke:#06251c}
+.cs-ov #clRecB[aria-pressed=true] .cs-ic,.cs-ov #clRecB[aria-pressed=true] .cs-ic svg{color:#e11d48}
 /* end of call: say so for a moment instead of vanishing */
 .cs-ov.ended .cs-dot{background:#ef4444;box-shadow:none;animation:none}
 .cs-ov.ended .cs-bar,.cs-ov.ended .cs-pill{opacity:.55;pointer-events:none}
 .cs-ov.ended .cs-ring{filter:saturate(.5)}
+.cs-ov.ended .cs-stage>video{display:none!important}
+.cs-ov.ended .cs-voice{display:grid!important}
 .cs-ov.ended .cs-wave{opacity:0}
 /* minimised: a pill in the corner */
 .cs-ov .cs-pill{padding:10px 12px 10px 10px;gap:10px;border-radius:32px;font-size:14px}
@@ -653,3 +662,22 @@ a.pf-r{text-decoration:none}
 @media (prefers-reduced-motion:reduce){
   .cs-ov *,.cl-incoming *,.pf-ov,.pf-sheet{animation-duration:.01ms!important;transition-duration:.01ms!important}
 }
+
+/* "typing…" under the name in the chat header */
+.mx-hn span.mx-sub.typing{color:var(--brand);font-weight:600}
+:root[data-theme=light] .mx-hn span.mx-sub.typing{color:var(--brand-d)}
+.pf-sheet:focus{outline:none}
+
+/* contrast: small text on tinted rows and on the white header strips */
+:root[data-theme=light] .mx-conv.on p,:root[data-theme=light] .mx-conv.on .mx-ct time{color:#4a5a54}
+:root[data-theme=light] .mx-pt b,:root[data-theme=light] .mx-reply b{color:var(--brand-d)}
+:root[data-theme=light] .mx-row:not(.me) .mx-b time.in{opacity:.82}
+:root[data-theme=light] .mx-conv:has(.mx-dot) .mx-ct time{color:var(--brand-d)}
+
+/* "jump to the latest message" button, shown once you have scrolled up in a long chat */
+.mx-jumpw{position:sticky;bottom:12px;height:0;display:flex;justify-content:flex-end;pointer-events:none;z-index:4}
+.mx-jump{pointer-events:auto;width:40px;height:40px;margin-top:0;border-radius:50%;border:1px solid var(--mx-hair);background:var(--card);color:var(--head);display:grid;place-items:center;padding:0;cursor:pointer;box-shadow:0 6px 18px -4px rgba(11,61,46,.35);transform:translateY(-100%) scale(.85);opacity:0;visibility:hidden;transition:opacity .18s,transform .18s,visibility .18s}
+.mx-jump svg{width:20px;height:20px}
+.mx-thread.away .mx-jump{opacity:1;visibility:visible;transform:translateY(-100%) scale(1)}
+.mx-jump:hover{background:var(--surface)}
+:root[data-theme=dark] .mx-jump{background:#173540;box-shadow:0 6px 18px rgba(0,0,0,.5)}

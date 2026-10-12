@@ -24,6 +24,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Stops a broken release (mismatched version numbers, missing files, blocked web addresses) before it reaches visitors.
+      - name: Release check
+        run: node scripts/check-release.mjs
       - name: Deploy hosting
         env:
           KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -32,11 +35,23 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
           GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
       # Not continue-on-error: if the rules can't be published the run turns red, so a stale ruleset is never silent.
-      - name: Deploy Firestore rules (needs the Firestore database to exist)
-        run: npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals --non-interactive
+      - name: Deploy Firestore rules and indexes (needs the Firestore database to exist)
+        run: npx --yes firebase-tools deploy --only firestore:rules,firestore:indexes --project faxton-rentals --non-interactive
       - name: Deploy Storage rules (needs Firebase Storage to be enabled)
         continue-on-error: true
         run: npx --yes firebase-tools deploy --only storage --project faxton-rentals --non-interactive
+      # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
+      - name: Smoke test the live site
+        run: |
+          set -e
+          H=$(curl -fsSI https://faxton-rentals.web.app/)
+          echo "$H" | grep -qi '^content-security-policy:' || { echo "::error::Live site is missing its Content-Security-Policy header"; exit 1; }
+          echo "$H" | grep -qi '^strict-transport-security:' || { echo "::error::Live site is missing HSTS"; exit 1; }
+          curl -fsS https://faxton-rentals.web.app/sw.js -o /dev/null
+          curl -fsS https://faxton-rentals.web.app/manifest.webmanifest -o /dev/null
+          curl -fsS https://faxton-rentals.web.app/.well-known/assetlinks.json -o /dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://faxton-rentals.web.app/this-page-does-not-exist)
+          [ "$code" = "404" ] || { echo "::error::Unknown pages should answer 404, got $code"; exit 1; }
       - name: Remove key
         if: always()
         run: rm -f "$RUNNER_TEMP/sa.json"

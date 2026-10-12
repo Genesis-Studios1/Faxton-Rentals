@@ -7,14 +7,14 @@ export function createList(root, cfg) {
   current?.destroy();
   const cols = cfg.cols, bulk = cfg.bulk || null, hasAct = !!(cfg.menu || cfg.quick), noun = cfg.noun || "items", CAP = 50;
   const tabList = cfg.tabs || null, defTab = tabList ? tabList[0].k : "";
-  let density = "compact"; try { density = localStorage.getItem("axDensity") || "compact"; } catch {}
+  let density = cfg.density || "compact"; if (!cfg.density) try { density = localStorage.getItem("axDensity") || "compact"; } catch {}
   const S = { tab: defTab, q: "", f: {}, sort: cfg.sort ? { ...cfg.sort } : null, page: 1, per: 25, sel: new Set(), id: null, selmode: false };
   let rows = cfg.rows || [], view = [], pushed = false, lastSel = null, alive = true;
   const facets = cfg.facets || [];
   const fopts = (f) => (typeof f.options === "function" ? f.options(rows) : f.options);
   const fLabel = (f, v) => (fopts(f).find((o) => String(o[0]) === String(v)) || [v, v])[1];
 
-  root.innerHTML = `<div class="ax-list" data-noun="${esc(noun)}">
+  root.innerHTML = `<div class="ax-list" data-noun="${esc(noun)}" ${cfg.pills ? "data-pills" : ""} ${cfg.topSearch ? "data-topsearch" : ""}>
     ${tabList ? `<div class="ax-tabbar" data-tabs></div>` : ""}
     <div class="ax-filters"><label class="ax-search">${I("search", 18)}<input type="search" data-q placeholder="${esc(cfg.placeholder || "Search " + noun + "…")}" aria-label="Search ${esc(noun)}" autocomplete="off" spellcheck="false"><button type="button" class="ax-sx" data-qx aria-label="Clear search" hidden>${I("x", 14)}</button></label>
       <div class="ax-facets" data-facets></div>
@@ -22,7 +22,7 @@ export function createList(root, cfg) {
       ${bulk ? `<button type="button" class="ax-btn ax-selbtn" data-v="outline" data-selmode>${I("check", 18)}<span>Select</span></button>` : ""}
       <span class="ax-grow"></span>
       ${cfg.filterExtra || ""}
-      <span class="ax-dens" role="group" aria-label="Row density"><button type="button" class="ax-ib" data-dens="compact" aria-label="Compact rows" aria-pressed="${density === "compact"}">${I("rows", 18)}</button><button type="button" class="ax-ib" data-dens="comfortable" aria-label="Comfortable rows" aria-pressed="${density === "comfortable"}">${I("rowsLg", 18)}</button></span>
+      ${cfg.noDensity ? "" : `<span class="ax-dens" role="group" aria-label="Row density"><button type="button" class="ax-ib" data-dens="compact" aria-label="Compact rows" aria-pressed="${density === "compact"}">${I("rows", 18)}</button><button type="button" class="ax-ib" data-dens="comfortable" aria-label="Comfortable rows" aria-pressed="${density === "comfortable"}">${I("rowsLg", 18)}</button></span>`}
       ${cfg.csv ? `<button type="button" class="ax-btn ax-expbtn" data-v="ghost" data-csv>${I("download", 18)}<span>Export CSV</span></button>` : ""}</div>
     <div class="ax-fchips" data-chips></div>
     <div class="ax-card ax-tablecard"><div class="ax-bulk" data-bulk hidden></div>
@@ -144,7 +144,7 @@ export function createList(root, cfg) {
   const gkey = (e) => {
     if (!alive || e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable) return;
     if ((e.key === "j" || e.key === "k") && drawer.isOpen && S.id) { const i = view.findIndex((x) => x.id === S.id), n = view[i + (e.key === "j" ? 1 : -1)]; if (n) { e.preventDefault(); openRow(n.id, { push: false }); } }
-    else if (e.key === "/" ) { e.preventDefault(); q$("[data-q]")?.focus(); }
+    else if (e.key === "/" ) { e.preventDefault(); (cfg.topSearch ? $("#axPS") : null || q$("[data-q]"))?.focus(); }
   };
   document.addEventListener("keydown", gkey);
 

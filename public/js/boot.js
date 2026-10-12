@@ -1,3 +1,21 @@
+// Safety nets that must run before anything else.
+// 1) Some browsers (private windows, locked-down WebViews) throw when the page even touches localStorage/sessionStorage.
+//    If that happens, swap in an in-memory copy so the app keeps working (nothing is saved for later in that case).
+(function () {
+  ["localStorage", "sessionStorage"].forEach(function (n) {
+    try { window[n].getItem("__t"); return; } catch (e) {}
+    var m = {}, st = { getItem: function (k) { return Object.prototype.hasOwnProperty.call(m, k) ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; }, clear: function () { m = {}; }, key: function (i) { return Object.keys(m)[i] || null; } };
+    Object.defineProperty(st, "length", { get: function () { return Object.keys(m).length; } });
+    try { Object.defineProperty(window, n, { value: st, configurable: true }); } catch (e) {}
+  });
+})();
+// 2) Uncaught errors and unhandled promise rejections are queued here; js/robust.js turns them into a calm, friendly message.
+(function () {
+  var q = (window.__fxq = []), add = function (k, e) { if (window.__fxReport) window.__fxReport(k, e); else if (q.length < 20) q.push([k, e]); };
+  addEventListener("error", function (e) { if (e.error || e.message) add("error", e.error || e.message); });
+  addEventListener("unhandledrejection", function (e) { add("rejection", e.reason); });
+})();
+
 // Runs before first paint. Light is the default; "dark" and "system" apply only if the user chose them.
 try {
   const p = localStorage.getItem("theme");
@@ -9,7 +27,7 @@ setTimeout(function () {
   if (document.documentElement.classList.contains("ready")) return;
   var d = document.createElement("div");
   d.style.cssText = "position:fixed;left:0;right:0;bottom:24px;z-index:2000;display:flex;justify-content:center;padding:0 16px";
-  d.innerHTML = '<button type="button" style="font:600 16px Inter,system-ui,sans-serif;padding:14px 22px;border-radius:12px;border:0;background:#13926f;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.3)">Taking long? Tap to refresh</button>';
+  d.innerHTML = '<button type="button" style="font:600 16px var(--font-body,system-ui),system-ui,sans-serif;padding:14px 22px;border-radius:12px;border:0;background:#13926f;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.3)">Taking long? Tap to refresh</button>';
   d.firstChild.onclick = function () {
     var done = function () { location.reload(); };
     Promise.all([
@@ -20,14 +38,5 @@ setTimeout(function () {
   document.body.appendChild(d);
 }, 12000);
 
-// The house-drawing splash is a pre-rendered video (smooth on every device). If a device refuses to autoplay it, show the finished artwork instead.
-document.addEventListener("DOMContentLoaded", function () {
-  var v = document.getElementById("spv"), sp = document.getElementById("splash");
-  if (!v || !sp) return;
-  var fb = function () { sp.classList.add("fb"); };
-  v.addEventListener("error", fb, true);
-  try { var p = v.play(); if (p && p.catch) p.catch(fb); } catch (e) { fb(); }
-  setTimeout(function () { if (v.paused || v.currentTime === 0) fb(); }, 1500);
-  var retry = function () { if (sp.classList.contains("fb") && v.paused) { v.currentTime = 0; v.play().then(function () { sp.classList.remove("fb"); }, function () {}); } };
-  addEventListener("touchstart", retry, { once: true, passive: true }); addEventListener("click", retry, { once: true });
-});
+// The splash plays once per browser session. A reload (or coming back to the tab) goes straight to the app instead of replaying it.
+try { if (sessionStorage.getItem("splashed") === "1") document.documentElement.classList.add("no-splash", "ready"); } catch (e) {}

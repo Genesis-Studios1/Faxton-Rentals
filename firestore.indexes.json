@@ -1,1 +1,55 @@
-{ "indexes": [], "fieldOverrides": [] }
+{
+  "indexes": [],
+  "fieldOverrides": [
+    {
+      "collectionGroup": "documents",
+      "fieldPath": "data",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "paymentProofs",
+      "fieldPath": "proof",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "maintenance",
+      "fieldPath": "photo",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "image",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "audio",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "messages",
+      "fieldPath": "file",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "users",
+      "fieldPath": "photo",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "profiles",
+      "fieldPath": "photo",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "listings",
+      "fieldPath": "images",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "listings",
+      "fieldPath": "thumb",
+      "indexes": []
+    }
+  ]
+}

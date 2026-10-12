@@ -1,12 +1,20 @@
 {
   "hosting": {
+    "site": "faxton-rentals",
     "public": "public",
     "ignore": [
       "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
+      "**/.DS_Store",
+      "**/.git",
+      "**/.git/**",
+      "**/.gitignore",
+      "**/.env*",
+      "**/node_modules/**",
+      "**/*.map",
+      "**/*.md"
     ],
     "cleanUrls": true,
+    "trailingSlash": false,
     "headers": [
       {
         "source": "**",
@@ -21,11 +29,19 @@
           },
           {
             "key": "Permissions-Policy",
-            "value": "camera=(self), microphone=(self), display-capture=(self), geolocation=(self), fullscreen=(self), payment=(), usb=()"
+            "value": "camera=(self), microphone=(self), geolocation=(self), display-capture=(self), publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-write=(self), payment=(), usb=(), serial=()"
           },
           {
             "key": "Strict-Transport-Security",
             "value": "max-age=63072000; includeSubDomains"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "Cross-Origin-Opener-Policy",
+            "value": "same-origin-allow-popups"
           }
         ]
       },
@@ -34,56 +50,8 @@
         "headers": [
           {
             "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com https://*.googleapis.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://api.github.com https://*.metered.live https://*.metered.ca https://rtc.live.cloudflare.com https://overpass-api.de https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://www.gstatic.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://*.google.com https://*.googleapis.com https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.gstatic.com https://apis.google.com https://accounts.google.com https://faxton-rentals.firebaseapp.com https://overpass-api.de https://api.github.com https://*.metered.live https://*.metered.ca https://rtc.live.cloudflare.com; frame-src 'self' https://faxton-rentals.firebaseapp.com https://accounts.google.com https://*.google.com https://*.googleapis.com https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: blob: data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
           },
-          {
-            "key": "X-Frame-Options",
-            "value": "DENY"
-          },
-          {
-            "key": "Cross-Origin-Opener-Policy",
-            "value": "same-origin-allow-popups"
-          }
-        ]
-      },
-      {
-        "source": "/index.html",
-        "headers": [
-          {
-            "key": "Content-Security-Policy",
-            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com https://*.googleapis.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://api.github.com https://*.metered.live https://*.metered.ca https://rtc.live.cloudflare.com https://overpass-api.de https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.firebaseapp.com https://www.gstatic.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://*.google.com https://*.googleapis.com https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-          },
-          {
-            "key": "X-Frame-Options",
-            "value": "DENY"
-          },
-          {
-            "key": "Cross-Origin-Opener-Policy",
-            "value": "same-origin-allow-popups"
-          }
-        ]
-      },
-      {
-        "source": "**/*.@(webp|svg|woff2|png)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "public, max-age=86400"
-          }
-        ]
-      },
-      {
-        "source": "**/*.@(js|css)",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      },
-      {
-        "source": "sw.js",
-        "headers": [
           {
             "key": "Cache-Control",
             "value": "no-cache"
@@ -94,22 +62,179 @@
         "source": "**/*.html",
         "headers": [
           {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.gstatic.com https://apis.google.com https://accounts.google.com https://faxton-rentals.firebaseapp.com https://overpass-api.de https://api.github.com https://*.metered.live https://*.metered.ca https://rtc.live.cloudflare.com; frame-src 'self' https://faxton-rentals.firebaseapp.com https://accounts.google.com https://*.google.com https://*.googleapis.com https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: blob: data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          },
+          {
             "key": "Cache-Control",
             "value": "no-cache"
           }
         ]
       },
       {
-        "source": "/",
+        "source": "/404",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.gstatic.com https://apis.google.com https://accounts.google.com https://faxton-rentals.firebaseapp.com https://overpass-api.de https://api.github.com https://*.metered.live https://*.metered.ca https://rtc.live.cloudflare.com; frame-src 'self' https://faxton-rentals.firebaseapp.com https://accounts.google.com https://*.google.com https://*.googleapis.com https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: blob: data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/offline",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.gstatic.com https://apis.google.com https://accounts.google.com https://faxton-rentals.firebaseapp.com https://overpass-api.de https://api.github.com https://*.metered.live https://*.metered.ca https://rtc.live.cloudflare.com; frame-src 'self' https://faxton-rentals.firebaseapp.com https://accounts.google.com https://*.google.com https://*.googleapis.com https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https: blob: data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          },
+          {
+            "key": "Service-Worker-Allowed",
+            "value": "/"
+          }
+        ]
+      },
+      {
+        "source": "/js/**",
         "headers": [
           {
             "key": "Cache-Control",
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/css/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "/fonts/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/vendor/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "/img/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400, stale-while-revalidate=604800"
+          }
+        ]
+      },
+      {
+        "source": "/assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400, stale-while-revalidate=604800"
+          }
+        ]
+      },
+      {
+        "source": "/icons/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
+        ]
+      },
+      {
+        "source": "/favicon.ico",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
+      },
+      {
+        "source": "/manifest.webmanifest",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/manifest+json; charset=utf-8"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      },
+      {
+        "source": "/.well-known/**",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=63072000; includeSubDomains"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          },
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          }
+        ]
+      },
+      {
+        "source": "/robots.txt",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      },
+      {
+        "source": "/sitemap.xml",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
       }
-    ],
-    "site": "faxton-rentals"
+    ]
   },
   "firestore": {
     "rules": "firestore.rules",
@@ -117,5 +242,14 @@
   },
   "storage": {
     "rules": "storage.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8089,
+      "host": "127.0.0.1"
+    },
+    "ui": {
+      "enabled": false
+    }
   }
 }

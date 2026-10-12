@@ -23,6 +23,13 @@ service cloud.firestore {
     function ownsListing() { return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
     function short(v, n) { return v is string && v.size() <= n; }
+    // A booking, application or offer can only point at the real owner of the home it is about (no spamming other people's inboxes).
+    function ownerMatchesListing(d) {
+      return d.get('listingId', null) is string
+        && (exists(/databases/$(database)/documents/listings/$(d.listingId))
+          ? d.get('ownerUid', null) == get(/databases/$(database)/documents/listings/$(d.listingId)).data.get('ownerUid', null)
+          : d.get('ownerUid', null) == null);
+    }
     // Optional profile fields must have the right type and size.
     function profileOk(d) {
       return (!('phone' in d) || short(d.phone, 30))
@@ -32,7 +39,9 @@ service cloud.firestore {
         && (!('photo' in d) || short(d.photo, 70000))
         && (!('prefs' in d) || d.prefs is map)
         && (!('notify' in d) || d.notify is map)
-        && (!('privacy' in d) || d.privacy is map);
+        && (!('privacy' in d) || d.privacy is map)
+        && (!('lastActive' in d) || d.lastActive is timestamp)
+        && (!('provider' in d) || short(d.provider, 20));
     }
 
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
@@ -113,7 +122,7 @@ service cloud.firestore {
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'lastActive', 'provider'])
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
           && profileOk(request.resource.data))
@@ -144,13 +153,15 @@ service cloud.firestore {
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
       allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.status == resource.data.status);
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
 
     match /viewings/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'Requested'
+        && ownerMatchesListing(request.resource.data)
         && request.resource.data.keys().size() <= 30
         && short(request.resource.data.title, 200) && short(request.resource.data.name, 200);
       allow read: if owns() || isAdmin() || ownsListing();
@@ -181,6 +192,7 @@ service cloud.firestore {
     match /applications/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
         && request.resource.data.status == 'Under review'
+        && ownerMatchesListing(request.resource.data)
         && request.resource.data.keys().size() <= 30
         && short(request.resource.data.title, 200) && short(request.resource.data.name, 200);
       allow read: if owns() || isAdmin() || ownsListing();
@@ -265,6 +277,7 @@ service cloud.firestore {
     // Rent offers and counter-offers. Each change adds exactly one entry to the history, signed by the person making it.
     match /offers/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Pending'
+        && ownerMatchesListing(request.resource.data)
         && request.resource.data.keys().size() <= 24 && request.resource.data.amount is int && request.resource.data.listPrice is int
         && request.resource.data.amount > 0 && request.resource.data.amount < request.resource.data.listPrice
         && request.resource.data.amount * 2 >= request.resource.data.listPrice
@@ -289,7 +302,7 @@ service cloud.firestore {
     }
     // In-app notifications (for example "you have been verified"). Only admins create them; people read and mark their own.
     match /notifications/{id} {
-      allow create: if (isAdmin() && short(request.resource.data.title, 160) && short(request.resource.data.body, 600)
+      allow create: if ((isAdmin() || isSupport()) && short(request.resource.data.title, 160) && short(request.resource.data.body, 600)
         && request.resource.data.keys().size() <= 8)
         // The two sides of a rent offer can notify each other.
         || (signedIn() && request.resource.data.kind == 'offer' && short(request.resource.data.title, 160) && short(request.resource.data.body, 600)
@@ -302,6 +315,24 @@ service cloud.firestore {
       allow read: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
       allow update: if signedIn() && resource.data.uid == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+    }
+    // Ratings and feedback: renters and realtors rate the app, realtors, listings and calls. Staff read, answer and tidy them up.
+    match /feedback/{id} {
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'role', 'rating', 'topic', 'message', 'status', 'createdAt', 'callId', 'peer'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && request.resource.data.topic in ['The app', 'Realtors', 'Listings', 'Chat & calls', 'Other']
+        && request.resource.data.status == 'New'
+        && request.resource.data.createdAt == request.time
+        && short(request.resource.data.get('message', ''), 1000) && short(request.resource.data.get('name', ''), 120)
+        && short(request.resource.data.get('email', ''), 160) && short(request.resource.data.get('role', ''), 20)
+        && short(request.resource.data.get('callId', ''), 80) && short(request.resource.data.get('peer', ''), 120);
+      allow read: if owns() || isAdmin() || isSupport();
+      allow update: if (isAdmin() || isSupport())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reply', 'repliedAt', 'repliedBy'])
+        && request.resource.data.status in ['New', 'Answered']
+        && short(request.resource.data.get('reply', ''), 1000) && short(request.resource.data.get('repliedBy', ''), 120);
+      allow delete: if isAdmin() || isSupport();
     }
     // Suggestion box on the Contact us page.
     match /suggestions/{id} {
