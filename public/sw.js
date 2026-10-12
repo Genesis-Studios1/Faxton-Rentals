@@ -24,7 +24,7 @@ const EXTRA = [
   "assets/mark.svg", "img/splash-final.webp", "icons/icon-192.png", "icons/favicon.svg?v=2",
   "fonts/inter-latin-400-normal.woff2", "fonts/inter-latin-500-normal.woff2", "fonts/inter-latin-600-normal.woff2", "fonts/inter-latin-700-normal.woff2",
   "fonts/inter-tight-latin-600-normal.woff2", "fonts/inter-tight-latin-700-normal.woff2", "fonts/inter-tight-latin-800-normal.woff2",
-  ...["applock", "apps", "area", "authkit", "authviews", "calls", "cards", "countries", "dd", "feedback", "firebase", "footer", "fx", "gate", "home", "legal", "maps", "match", "myhome", "offers", "onboard", "pages", "paymentinfo", "pdp", "profile", "safety", "services", "store", "tenants", "tour", "ui", "views", "viewsafe"].map((n) => "js/" + n + ".js"),
+  ...["admin2", "applock", "ax-list", "ax-sections", "ax-shell", "dash", "installs", "paymentspage", "apps", "area", "authkit", "authviews", "calls", "cards", "countries", "dd", "feedback", "firebase", "footer", "fx", "gate", "home", "legal", "maps", "match", "myhome", "offers", "onboard", "pages", "paymentinfo", "pdp", "profile", "safety", "services", "store", "tenants", "tour", "ui", "views", "viewsafe"].map((n) => "js/" + n + ".js"),
 ];
 
 self.addEventListener("install", (e) => {
