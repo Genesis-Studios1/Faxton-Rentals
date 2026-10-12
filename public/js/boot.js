@@ -9,7 +9,7 @@ setTimeout(function () {
   if (document.documentElement.classList.contains("ready")) return;
   var d = document.createElement("div");
   d.style.cssText = "position:fixed;left:0;right:0;bottom:24px;z-index:2000;display:flex;justify-content:center;padding:0 16px";
-  d.innerHTML = '<button type="button" style="font:600 16px "Reddit Sans",system-ui,sans-serif;padding:14px 22px;border-radius:12px;border:0;background:#13926f;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.3)">Taking long? Tap to refresh</button>';
+  d.innerHTML = '<button type="button" style="font:600 16px Inter,system-ui,sans-serif;padding:14px 22px;border-radius:12px;border:0;background:#13926f;color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.3)">Taking long? Tap to refresh</button>';
   d.firstChild.onclick = function () {
     var done = function () { location.reload(); };
     Promise.all([
