@@ -18,18 +18,38 @@ function ringback() {
 
 const STUN = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] }];
 let ICE = { iceServers: STUN }, iceP = null;
-// A TURN relay (needed when two people are on networks that block direct calls) is set by an admin under Admin > Call setup.
+// A credentials URL may answer with a bare list (Metered, Xirsys style) or { iceServers: [...] } / { iceServers: {...} } (Cloudflare style).
+const asServers = (j) => { const v = Array.isArray(j) ? j : j && j.iceServers ? [].concat(j.iceServers) : []; return v.filter((x) => x && x.urls); };
+// Turns what the admin saved (hand-entered servers and/or a credentials URL) into a list the browser can use. The URL wins when it answers.
+export async function resolveIce(d = {}) {
+  let servers = Array.isArray(d.servers) ? d.servers.filter((x) => x && x.urls) : [], via = servers.length ? "address" : "", error = "";
+  if (d.credsUrl) {
+    try { const r = await fetch(d.credsUrl, { cache: "no-store", signal: AbortSignal.timeout(6000) }); if (!r.ok) throw new Error("HTTP " + r.status); const v = asServers(await r.json()); if (v.length) { servers = v; via = "url"; } else error = "The credentials URL answered, but with no relay servers in it."; }
+    catch (e) { error = /HTTP 40[13]/.test(String(e.message)) ? "The provider rejected the credentials URL (" + e.message + "). Check the API key." : "Couldn’t read the credentials URL (" + (e.message || "network error") + "). Check the address, and that the provider is one the site allows."; }
+  }
+  return { servers, via, error };
+}
+// Everyone who places or answers a call reads the saved relay once per page load.
 const ensureIce = () => (iceP ||= getDoc(doc(db, "config", "ice")).then(async (s) => {
-  const d = s.exists() ? s.data() : {}; let v = Array.isArray(d.servers) && d.servers.length ? d.servers : null;
-  if (d.credsUrl) { try { const r = await fetch(d.credsUrl, { cache: "no-store", signal: AbortSignal.timeout(4000) }); const j = await r.json(); if (Array.isArray(j) && j.length) v = j; } catch {} }
-  if (v) ICE = { iceServers: [...v, ...STUN] };
+  const { servers } = await resolveIce(s.exists() ? s.data() : {});
+  if (servers.length) ICE = { iceServers: [...servers, ...STUN] };
 }).catch(() => {}));
-// Used by the Call setup page to check that a relay really works: gather candidates through it alone.
+// After an admin saves a new relay, the next call on this page should use it.
+export const resetIce = () => { iceP = null; ICE = { iceServers: STUN }; };
+// Used by the Settings relay card: a real test. Opens a connection that may only use the relay and waits for a "relay" candidate,
+// which exists only if the relay accepted our credentials and allocated an address for us.
 export async function testRelay(servers) {
-  return new Promise((res) => { let pc; try { pc = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: "relay" }); } catch (e) { return res({ ok: false, why: "That relay isn’t valid." }); }
-    const done = (r) => { try { pc.close(); } catch {} res(r); }; const t = setTimeout(() => done({ ok: false, why: "No answer from the relay. Check the address, user name and password." }), 9000);
-    pc.onicecandidate = (e) => { if (e.candidate && / typ relay /.test(e.candidate.candidate)) { clearTimeout(t); done({ ok: true }); } };
-    pc.createDataChannel("t"); pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => done({ ok: false, why: "The browser couldn’t test the relay." })); });
+  const turn = servers.flatMap((s) => [].concat(s.urls)).filter((u) => /^turns?:/i.test(u));
+  if (!turn.length) return { ok: false, why: "These are STUN addresses only. A relay address starts with turn: or turns:." };
+  if (typeof RTCPeerConnection === "undefined") return { ok: false, why: "This browser can’t make calls, so it can’t test the relay." };
+  return new Promise((res) => { let pc; const t0 = Date.now(), seen = []; let code = 0, text = "";
+    try { pc = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: "relay" }); } catch (e) { return res({ ok: false, why: "The browser rejected these relay details: " + (e.message || "not valid") + "." }); }
+    let finished = false; const done = (r) => { if (finished) return; finished = true; clearTimeout(t); try { pc.close(); } catch {} res({ ms: Date.now() - t0, urls: turn.length, ...r }); };
+    const fail = () => done({ ok: false, why: code === 401 || code === 403 ? "The relay answered but refused the user name or password." : code === 701 ? "Couldn’t reach the relay. Check the address and port (and that this network allows it)." : code ? `The relay reported an error (${code}${text ? ": " + text : ""}). Check the address and port.` : "No relay address came back. Check the address and port, and that the account is active." });
+    const t = setTimeout(fail, 10000);
+    pc.onicecandidateerror = (e) => { if (e.errorCode) { code = e.errorCode; text = e.errorText || ""; } };
+    pc.onicecandidate = (e) => { if (e.candidate) { seen.push(e.candidate.candidate); if (/ typ relay /.test(e.candidate.candidate)) done({ ok: true, proto: (/ (udp|tcp) /i.exec(e.candidate.candidate) || [])[1]?.toUpperCase() }); } else fail(); };
+    pc.createDataChannel("t"); pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(() => done({ ok: false, why: "The browser couldn’t start the test." })); });
 }
 export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
 

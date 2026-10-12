@@ -4,6 +4,7 @@ import * as CALLS from "./calls.js";
 import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
 import * as VS from "./viewsafe.js";
+import * as SVC from "./services.js";
 import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 
@@ -40,6 +41,7 @@ export async function route(ctx, sub) {
     case "verifications": return verifications(ctx);
     case "applications": return applications(ctx);
     case "viewings": return viewings(ctx);
+    case "services": return serviceRequests(ctx);
     case "payments": return (await D()).payments(ctx);
     case "support": return (await import("./ax-sections.js")).ticketCenter(ctx);
     case "suggestions": return (await D()).suggestions(ctx);
@@ -406,6 +408,46 @@ export function queue(ctx) {
             else if (type === "del") { const u = us.find((x) => x.id === id), ok = q === "deldo"; if (ok && !(await confirm({ title: `Approve deleting ${u.name || u.email}?`, body: "Their account will be removed the next time it’s opened after the one-day review.", confirmLabel: "Approve deletion", tone: "danger", icon: "trash" }))) return; busy(b, true); const nd = { ...u.deletion, status: ok ? "approved" : "denied", decidedAt: Date.now() }; await st.decideDeletion(u.id, nd); u.deletion = nd; changed(); st.notify(u.id, { kind: "info", title: ok ? "Deletion approved" : "Account kept", body: ok ? "Your account will be removed after the one-day review period." : "We’ve kept your account as it is." }).catch(() => {}); toast(ok ? "Deletion approved." : "Account kept."); leave(c); }
           } catch (x) { busy(b, false); bad(x); }
         });
+      } };
+    } });
+}
+
+// ---------- service requests (from the /services page) ----------
+const SV_STATUS = ["New", "Contacted", "Scheduled", "Done", "Cancelled"];
+export function serviceRequests(ctx) {
+  const setSt = async (r, status, api) => { const prev = r.status; try { await SVC.updateRequest(r.id, { status }); r.status = status; data.invalidate("serviceRequests"); changed(); api?.refresh?.(); toast(`Marked ${status.toLowerCase()}.`, { action: "Undo", onAction: async () => { try { await SVC.updateRequest(r.id, { status: prev }); r.status = prev; data.invalidate("serviceRequests"); changed(); api?.refresh?.(); } catch (e) { bad(e); } } }); } catch (e) { bad(e); } };
+  return pageView(ctx, { title: "Service requests", eyebrow: "Activity", sub: "Tiling, plumbing, painting and other home-service jobs that people asked for.", cols: ["serviceRequests"], what: "service requests",
+    async render({ serviceRequests: rs }) {
+      return { html: `<div id="sv"></div>`, mount(el) {
+        createList($("#sv", el), { noun: "requests", label: "Service requests", rows: rs, placeholder: "Search name, phone, service or area…",
+          tabs: [{ k: "all", label: "All" }, ...SV_STATUS.map((s) => ({ k: s, label: s, test: (r) => r.status === s }))], defaultTab: (r) => (r.some((x) => x.status === "New") ? "New" : "all"), sort: null,
+          compare: (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
+          facets: [{ k: "cat", label: "Service", options: (all) => [["", "Any service"], ...[...new Set(all.map((r) => r.category))].filter(Boolean).sort().map((c) => [c, c])], test: (r, f) => r.category === f }],
+          search: (r) => `${r.name || ""} ${r.phone || ""} ${r.category || ""} ${r.area || ""} ${r.description || ""}`,
+          cols: [
+            { k: "who", label: "Requester", role: "title", sort: (r) => String(r.name || "").toLowerCase(), cell: (r) => `<div class="ax-id">${avatar(r.name, r.uid, 32)}<div><b>${esc(r.name || "User")}</b><small>${esc(r.phone || "")}</small></div></div>` },
+            { k: "cat", label: "Service", cell: (r) => esc(r.category || "—") },
+            { k: "area", label: "Area", pri: 2, cell: (r) => esc(r.area || "—") },
+            { k: "when", label: "Wanted on", pri: 2, sort: (r) => r.preferredDate || "", cell: (r) => esc(r.preferredDate ? fmt.day(r.preferredDate) : "Any day") },
+            { k: "sent", label: "Sent", pri: 2, sort: (r) => r.createdAt?.seconds || 0, cell: (r) => esc(fmt.date(r.createdAt)) },
+            { k: "status", label: "Status", role: "status", cell: (r) => `<button type="button" class="ax-chipbtn" data-cell="status" aria-haspopup="menu" aria-label="Change status, now ${esc(r.status)}">${chipFor("service", r.status)}${I("chevD", 14)}</button>` },
+          ],
+          onCell: (k, r, b, api) => menu(b, SV_STATUS.map((s) => ({ label: s, checked: s === r.status, act: () => s !== r.status && setSt(r, s, api) })), { label: "Request status", align: "left" }),
+          csv: { name: "faxton-service-requests", head: ["Name", "Phone", "Email", "Service", "Area", "Wanted on", "Status", "Description", "Sent"], row: (r) => [r.name, r.phone, r.email || "", r.category, r.area || "", r.preferredDate || "", r.status, r.description, fmt.date(r.createdAt)] },
+          quick: (r) => (r.status === "New" ? btn("Mark contacted", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=contact" }) : ""),
+          onQuick: (k, r, b, api) => setSt(r, "Contacted", api),
+          menu: (r, api) => [{ label: "Open", icon: "eye", act: api.open }, { sep: 1 }, ...SV_STATUS.map((s) => ({ label: `Mark ${s.toLowerCase()}`, icon: "clock", disabled: s === r.status, act: () => setSt(r, s, api) }))],
+          drawer: (r, api) => ({ title: r.name || "Request", sub: `${chipFor("service", r.status)}<span>${esc(r.category || "")}</span>`,
+            body: `${section("Job", dl([["Service", esc(r.category)], ["Area", esc(r.area || "—")], ["Wanted on", esc(r.preferredDate ? fmt.day(r.preferredDate) : "Any day")], ["Sent", esc(fmt.dateTime(r.createdAt))]]))}<p style="white-space:pre-wrap;margin:10px 0 16px">${esc(r.description)}</p>
+              ${section("Contact", dl([["Name", esc(r.name)], ["Phone", `<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>`], ["Email", esc(r.email || "—")]]))}
+              <label class="ax-field full"><span>Note for the requester (shown on their Home services page)</span><textarea class="ax-input" id="svNote" rows="3" maxlength="1000">${esc(r.note || "")}</textarea></label>
+              <div class="ax-row" style="margin-top:10px;gap:8px;flex-wrap:wrap">${btn("Save note", { v: "primary", size: "sm", attrs: "data-note" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}${btn("Status", { size: "sm", attrs: "data-status" })}</div>`,
+            mount(d) {
+              $("[data-note]", d).onclick = async (e) => { busy(e.currentTarget, true); try { await SVC.updateRequest(r.id, { note: $("#svNote", d).value.trim() }); r.note = $("#svNote", d).value.trim(); data.invalidate("serviceRequests"); toast("Note saved."); } catch (x) { bad(x); } busy(e.currentTarget, false); };
+              $("[data-call]", d).onclick = () => { location.href = "tel:" + r.phone; };
+              $("[data-status]", d).onclick = (e) => menu(e.currentTarget, SV_STATUS.map((s) => ({ label: s, checked: s === r.status, act: () => s !== r.status && setSt(r, s, api) })), { align: "left" });
+            } }),
+          empty: { icon: "wrench", title: "No service requests yet", hint: "When someone asks for tiling, plumbing or another home service from the Home services page, it shows up here." } });
       } };
     } });
 }

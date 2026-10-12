@@ -7,6 +7,7 @@ import * as MYHOME from "./myhome.js";
 import * as APPS from "./apps.js";
 import { AREAS, BUDGETS, CATS, catOf, matchType, listingCard, skeletonCards, emptyState, noHomesState, bindCards, bedsLabel, bathsLabel, placeOf, photosOf, priceOf } from "./cards.js";
 import { ddSelect, ddPanel, mountDd } from "./dd.js";
+import * as SVC from "./services.js";
 
 const opts = (list) => list.map(([v, l]) => [String(v), l]);
 const inRange = (price, r) => { if (!r) return true; const [lo, hi] = String(r).split("-").map(Number); return price >= lo && (!hi || price <= hi); };
@@ -52,6 +53,8 @@ export function discover(ctx) {
       <div class="hx-grid" id="hxGrid" role="tabpanel" aria-labelledby="hxt0" aria-live="polite">${skeletonCards(6)}</div>
     </section>
     ${MATCH.matchBanner("wide")}
+    ${SVC.homeServices()}
+    ${SVC.ownerBanner()}
     <section class="hx-app" id="hxApp" aria-labelledby="hxAppH">
       <div class="hx-app-top"><div><p class="hx-eyebrow light">Get Faxton Rentals everywhere</p><h2 id="hxAppH">Start exploring on your device.</h2><p class="hx-app-p">Download the Faxton Rentals app or continue on web.</p>
         <button type="button" class="hx-dl" data-dlnow>${icon("download", 18)} Download now</button></div>
@@ -65,6 +68,7 @@ export function discover(ctx) {
     mountDd(root, { cleanups: S.cleanups });
     $("#sb", root).onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); go(p); };
     $("#sbm", root).onsubmit = (e) => { e.preventDefault(); const t = e.target.area.value.trim().toLowerCase(), p = new URLSearchParams(); if (t) p.set("area", t); go(p); };
+    SVC.bindOwnerBanner(root, ctx);
     $$("[data-dlnow]", root).forEach((b) => (b.onclick = () => APPS.openDownloadModal()));
     // "Get the app" links land on the app section
     if (ctx.q.to === "app") setTimeout(() => $("#hxApp", root)?.scrollIntoView({ behavior: "smooth", block: "center" }), 450);

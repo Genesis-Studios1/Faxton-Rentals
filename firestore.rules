@@ -47,9 +47,11 @@ service cloud.firestore {
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
     match /config/bootstrap { allow read, write: if false; }
 
-    // Optional TURN relay for calls: an admin pastes the servers under Admin > Call setup. Everyone signed in can read it.
+    // Optional TURN relay for calls: an admin saves it in Settings > Call relay. The call screen of every user needs these details to
+    // place a call, so they are readable by signed-in users whose email is verified (not by signed-out visitors or unverified sign-ups).
+    // See LAUNCH.md "Call relay" for the trade-off. Only admins and the owner can write.
     match /config/ice {
-      allow read: if signedIn();
+      allow read: if signedIn() && request.auth.token.email_verified == true;
       allow write: if isAdmin() && request.resource.data.keys().hasOnly(['servers', 'credsUrl', 'updatedAt'])
         && request.resource.data.servers is list && request.resource.data.servers.size() <= 8
         && (!('credsUrl' in request.resource.data) || (request.resource.data.credsUrl is string && request.resource.data.credsUrl.size() <= 400));
@@ -209,6 +211,23 @@ service cloud.firestore {
         && request.resource.data.keys().size() <= 12;
       allow read: if owns() || isAdmin() || isSupport();
       allow update: if isAdmin() || isSupport();
+    }
+    // Home-service requests (tiling, plumbing, ...) from the /services page. A signed-in user creates their own; the person who made it can
+    // read it and cancel it; admins and support read all of them and update the status and a note for the requester.
+    match /serviceRequests/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'New'
+        && request.resource.data.keys().hasAll(['uid', 'name', 'phone', 'category', 'description', 'status', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'email', 'area', 'category', 'description', 'preferredDate', 'status', 'createdAt'])
+        && short(request.resource.data.name, 120) && request.resource.data.name.size() > 0
+        && short(request.resource.data.phone, 30) && request.resource.data.phone.size() >= 6
+        && short(request.resource.data.get('email', ''), 120) && short(request.resource.data.get('area', ''), 80)
+        && short(request.resource.data.category, 60) && request.resource.data.category.size() > 0
+        && short(request.resource.data.description, 1500) && request.resource.data.description.size() > 0
+        && short(request.resource.data.get('preferredDate', ''), 20);
+      allow read: if owns() || isAdmin() || isSupport();
+      allow update: if ((isAdmin() || isSupport()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note', 'updatedAt'])
+          && request.resource.data.status in ['New', 'Contacted', 'Scheduled', 'Done', 'Cancelled'] && short(request.resource.data.get('note', ''), 1000))
+        || (owns() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']) && request.resource.data.status == 'Cancelled');
     }
     // App releases managed from Admin > Installations. Signed-in users can read published ones; only admins write.
     match /appReleases/{id} {

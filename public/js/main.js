@@ -59,7 +59,7 @@ function shell(path, inner, o = {}) {
 }
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
-  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
+  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
   landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },

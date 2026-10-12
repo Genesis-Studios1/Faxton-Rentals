@@ -12,7 +12,7 @@ export const counts = {};
 const ADMIN = [
   { l: "", items: [["/admin", "home", "Overview"], ["/admin/queue", "doccheck", "Review queue", "queue"]] },
   { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users"], ["/admin/agents", "handshake", "Agents"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
-  { l: "Activity", items: [["/admin/applications", "doc", "Applications", "apps"], ["/admin/viewings", "calDots", "Viewings", "sos"], ["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"], ["/admin/payments", "card", "Payments", "proofs"]] },
+  { l: "Activity", items: [["/admin/applications", "doc", "Applications", "apps"], ["/admin/viewings", "calDots", "Viewings", "sos"], ["/admin/services", "wrench", "Service requests", "svc"], ["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"], ["/admin/payments", "card", "Payments", "proofs"]] },
   { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
   { l: "Insights", items: [["/admin/reports", "bars3", "Reports"]] },
   { l: "System", items: [["/admin/team", "crown", "Team access"], ["/admin/get-app", "download", "Installations"], ["/settings", "gear", "Settings"]] },
@@ -26,12 +26,12 @@ export const ROLES = {
     groups: [{ l: "Work", items: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings", "views"], ["/agent-dashboard/clients", "user", "Clients"]] }, { l: "Deals", items: [["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"]] }, { l: "Communication", items: [["/messages", "msg", "Messages", "unread"]] }, { l: "Account", items: [["/settings", "gear", "Settings"]] }],
     tabs: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/viewings", "calDots", "Viewings", "views"]] },
   support: { title: "Support console", crumb: "Support console", home: "/support",
-    groups: [{ l: "Work", items: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"], ["/messages", "msg", "Messages", "unread"]] }, { l: "Help", items: [["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] }],
+    groups: [{ l: "Work", items: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"], ["/support/services", "wrench", "Service requests", "svc"], ["/messages", "msg", "Messages", "unread"]] }, { l: "Help", items: [["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] }],
     tabs: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"]] },
 };
 const cfgFor = (role) => ROLES[role] || ROLES.admin;
 const isOn = (path, h, home) => (h === home || h === "/admin" ? path === h : path === h || path.startsWith(h + "/"));
-const BADGE_TONE = { sos: "alert", sugg: "grey", fbk: "grey", unread: "mint", proofs: "amber" };
+const BADGE_TONE = { sos: "alert", svc: "amber", sugg: "grey", fbk: "grey", unread: "mint", proofs: "amber" };
 // Pages with the new header: a big page title and a search that filters that page ("Search feedback…").
 const BAR = { "/admin/feedback": ["Feedback", "Search feedback…"], "/admin/agents": ["Agents", "Search agents…"], "/admin/team": ["Team access", "Search team access…"], "/admin/support": ["Ticket center", "Search ticket center…"], "/support/tickets": ["Ticket center", "Search ticket center…"], "/admin/users": ["Users", "Search users…"] };
 
@@ -81,7 +81,7 @@ function quickItems(role) {
 const roleKey = () => (host.S.isAdmin ? "admin" : host.S.role);
 
 // ---------- live counts ----------
-const BADGE_COLS = ["listings", "applications", "viewings", "tickets", "offers", "maintenance", "reports", "suggestions", "feedback"];
+const BADGE_COLS = ["listings", "applications", "viewings", "tickets", "offers", "maintenance", "reports", "suggestions", "feedback", "serviceRequests"];
 const OPEN_OFFER = (o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status);
 export function recompute() {
   const S = host?.S; if (!S?.user) return; const g = (c, u) => data.peek(c, u) || [], k = roleKey();
@@ -90,9 +90,9 @@ export function recompute() {
     counts.listings = ls.filter((l) => /pending|flag/i.test(l.status || "") && !l.archived).length; counts.dels = us.filter((u) => u.deletion?.status === "pending").length;
     counts.sos = vw.filter((v) => v.sos && !v.sos.resolved).length; counts.apps = ap.filter((a) => /review/i.test(a.status || "")).length; counts.offers = of.filter(OPEN_OFFER).length;
     counts.maint = mt.filter((m) => m.status === "Open").length; counts.tickets = tk.filter((t) => !/resolved|closed/i.test(t.status || "")).length; counts.reports = rp.filter((r) => (r.status || "New") === "New").length; counts.sugg = sg.filter((s) => (s.status || "New") === "New").length; counts.fbk = g("feedback").filter((f) => (f.status || "New") === "New").length;
-    counts.proofs = g("paymentProofs").filter((p) => /submitted/i.test(p.status || "")).length;
+    counts.svc = g("serviceRequests").filter((r) => r.status === "New").length; counts.proofs = g("paymentProofs").filter((p) => /submitted/i.test(p.status || "")).length;
     counts.queue = counts.listings + (S.pendingV || 0) + counts.dels + counts.sos;
-  } else if (k === "support") { counts.tickets = g("tickets").filter((t) => !/resolved|closed/i.test(t.status || "")).length; counts.sugg = g("suggestions").filter((s) => (s.status || "New") === "New").length; }
+  } else if (k === "support") { counts.tickets = g("tickets").filter((t) => !/resolved|closed/i.test(t.status || "")).length; counts.sugg = g("suggestions").filter((s) => (s.status || "New") === "New").length; counts.svc = g("serviceRequests").filter((r) => r.status === "New").length; }
   else { const u = S.user.uid; counts.offers = g("offers", u).filter(OPEN_OFFER).length; counts.maint = g("maintenance", u).filter((m) => m.status === "Open").length; counts.views = g("viewings", u).filter((v) => v.status === "Requested").length; }
   paintBadges();
 }
@@ -105,7 +105,7 @@ export async function loadBadges() {
   const S = host?.S; if (!S?.user) return; const k = roleKey();
   try {
     if (k === "admin") await Promise.all(BADGE_COLS.map((c) => data.get(c, { maxAge: 300000 }).catch(() => [])));
-    else if (k === "support") await Promise.all(["tickets", "suggestions"].map((c) => data.get(c, { maxAge: 300000 }).catch(() => [])));
+    else if (k === "support") await Promise.all(["tickets", "suggestions", "serviceRequests"].map((c) => data.get(c, { maxAge: 300000 }).catch(() => [])));
     else await Promise.all(["offers", "maintenance", "viewings"].map((c) => data.get(c, { uid: S.user.uid, maxAge: 300000 }).catch(() => [])));
   } catch {}
   recompute();

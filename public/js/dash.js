@@ -209,9 +209,9 @@ export async function mountRelayCard(host, ctx) {
     <label class="rf-fl">Relay address(es), comma separated<input id="cr_addr" autocomplete="off" spellcheck="false" placeholder="turn:global.relay.metered.ca:80, turns:global.relay.metered.ca:443?transport=tcp"></label>
     <div class="rf-grid2"><label class="rf-fl">User name<input id="cr_user" autocomplete="off" spellcheck="false" data-mask="user"></label><label class="rf-fl">Password<input id="cr_pass" type="password" autocomplete="new-password" data-mask="pass"></label></div>
     <p class="ax-relay-rev"><button type="button" class="ax-btn" data-v="ghost" data-size="sm" id="crReveal">${I("eye", 16)}<span>Reveal saved values</span></button></p>
-    <p class="ax-err" id="crE" role="alert"></p><div class="ax-banner" data-t="ok" id="crOk" hidden>${I("checkc", 20)}<div><b id="crOkT"></b></div></div>
+    <p class="ax-err" id="crE" role="alert"></p><div class="ax-relay-stat" id="crOk" role="status" aria-live="polite" hidden><span id="crSt"></span><small id="crOkT"></small></div>
     <div class="ax-set-f">${btn("Save", { v: "primary", attrs: "id=crSave" })}${btn("Save and test", { attrs: "id=crTest" })}<span class="ax-grow"></span>${btn("Remove relay", { v: "danger", attrs: `id=crX ${on() ? "" : "disabled"}` })}</div>
-    <p class="ax-help" style="margin-top:14px">Signed-in users’ apps read these details when they place a call, so use a relay account made for this and keep its usage limit low.</p></section>
+    <p class="ax-help" style="margin-top:14px">Signed-in users with a verified email can read these details (their apps need them to place a call), so use a relay account made for this, set a low usage limit with the provider, and change the password if it is ever misused. A credentials URL must be on metered.live, metered.ca or rtc.live.cloudflare.com.</p></section>
     <div class="ax-savebar" id="crBar" hidden><span>Unsaved changes</span>${btn("Discard", { v: "ghost", size: "sm", attrs: "id=crDisc" })}${btn("Save", { v: "primary", size: "sm", attrs: "id=crBarSave" })}</div>`;
   const el = host, inp = (k) => $(`#cr_${k}`, el), err = $("#crE", el), okB = $("#crOk", el), bar = $("#crBar", el);
   const maskVal = (k) => (!real[k] ? "" : k === "url" ? maskUrl(real.url) : k === "pass" ? "••••••••" : real.user ? real.user.slice(0, 2) + "••••••" : "");
@@ -231,15 +231,16 @@ export async function mountRelayCard(host, ctx) {
     if (addr && !list.every((x) => /^(turns?|stuns?):/i.test(x))) { err.textContent = "Each relay address must start with turn: or turns:"; return null; }
     if (addr && list.some((x) => /^turns?:/i.test(x)) && (!user || !pass)) { err.textContent = "Enter the user name and password."; return null; }
     return { servers: addr ? [{ urls: list, username: user, credential: pass }] : [], credsUrl: url }; };
-  const save = async (test) => { const v = build(); if (!v) return; const btns = $$("button", el); btns.forEach((b) => (b.disabled = true)); busy($(test ? "#crTest" : "#crSave", el), true);
-    try { await st.saveIce(v.servers, v.credsUrl); real = { url: v.credsUrl, addr: [].concat(v.servers[0]?.urls || []).join(", "), user: v.servers[0]?.username || "", pass: v.servers[0]?.credential || "" }; cfg.servers = v.servers; cfg.credsUrl = v.credsUrl; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); revealed = false; paintVals(); $("#crChip", el).innerHTML = chipH(); toast("Saved. New calls will use the relay."); changed();
-      if (test) { okB.hidden = false; $("#crOkT", el).textContent = "Testing the relay…"; let servers = v.servers;
-        if (v.credsUrl) { try { const r = await fetch(v.credsUrl, { cache: "no-store" }), j = await r.json(); if (Array.isArray(j) && j.length) servers = j; } catch { servers = []; err.textContent = "Couldn’t read the credentials URL. Check it and try again."; } }
-        if (servers.length) { const r = await CALLS.testRelay(servers); if (r.ok) $("#crOkT", el).textContent = "The relay works. Calls will connect through it when needed."; else { okB.hidden = true; err.textContent = r.why; } } else okB.hidden = true; }
-    } catch (e) { err.textContent = fe(e); }
+  const stat = (tone, head, sub = "") => { okB.hidden = !head; $("#crSt", el).innerHTML = head ? chip(tone, head) : ""; $("#crOkT", el).textContent = sub; };
+  const save = async (test) => { const v = build(); if (!v) { stat(); return; } const btns = $$("button", el); btns.forEach((b) => (b.disabled = true)); busy($(test ? "#crTest" : "#crSave", el), true); stat();
+    try { await st.saveIce(v.servers, v.credsUrl); CALLS.resetIce(); real = { url: v.credsUrl, addr: [].concat(v.servers[0]?.urls || []).join(", "), user: v.servers[0]?.username || "", pass: v.servers[0]?.credential || "" }; cfg.servers = v.servers; cfg.credsUrl = v.credsUrl; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); revealed = false; paintVals(); $("#crChip", el).innerHTML = chipH(); toast("Saved. New calls will use the relay."); changed();
+      if (test) { stat("info", "Testing…", "Asking the relay for an address. This takes a few seconds."); const rs = await CALLS.resolveIce({ servers: v.servers, credsUrl: v.credsUrl });
+        if (rs.error && !rs.servers.length) stat("bad", "Test failed", rs.error);
+        else { const r = await CALLS.testRelay(rs.servers); if (r.ok) stat("ok", "Relay works", `Got a relay address in ${(r.ms / 1000).toFixed(1)}s${r.proto ? " over " + r.proto : ""}${rs.via === "url" ? " using your credentials URL" : ""}. Calls will use it when a direct connection is blocked.${rs.error ? " (The URL had a problem, so the typed address was tested: " + rs.error + ")" : ""}`); else stat("bad", "Test failed", r.why); } }
+    } catch (e) { err.textContent = fe(e); stat(); }
     btns.forEach((b) => (b.disabled = false)); $("#crX", el).disabled = !on(); busy($("#crTest", el), false); busy($("#crSave", el), false); };
   $("#crSave", el).onclick = () => save(false); $("#crTest", el).onclick = () => save(true); $("#crBarSave", el).onclick = () => save(false); $("#crDisc", el).onclick = () => { Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); paintVals(); err.textContent = ""; };
-  $("#crX", el).onclick = async () => { if (!(await confirm({ title: "Remove the call relay?", body: "Calls between some networks may stay on “Connecting…” until you add a relay again.", confirmLabel: "Remove relay", tone: "danger" }))) return; try { await st.saveIce([], ""); real = { url: "", addr: "", user: "", pass: "" }; cfg.servers = []; cfg.credsUrl = ""; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); paintVals(); $("#crChip", el).innerHTML = chipH(); $("#crX", el).disabled = true; toast("Relay removed."); changed(); } catch (e) { bad(e); } };
+  $("#crX", el).onclick = async () => { if (!(await confirm({ title: "Remove the call relay?", body: "Calls between some networks may stay on “Connecting…” until you add a relay again.", confirmLabel: "Remove relay", tone: "danger" }))) return; try { await st.saveIce([], ""); CALLS.resetIce(); stat(); real = { url: "", addr: "", user: "", pass: "" }; cfg.servers = []; cfg.credsUrl = ""; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); paintVals(); $("#crChip", el).innerHTML = chipH(); $("#crX", el).disabled = true; toast("Relay removed."); changed(); } catch (e) { bad(e); } };
   if (ctx.q?.relay) requestAnimationFrame(() => { const c = $("#relayCard", el); c?.scrollIntoView({ block: "start", behavior: "smooth" }); c?.classList.add("is-flash"); setTimeout(() => c?.classList.remove("is-flash"), 1800); });
 }
 
@@ -378,6 +379,6 @@ async function supportDash(ctx) {
 }
 export async function supportPage(ctx, sub) {
   if (!allowed(ctx, "support")) return denied(ctx);
-  const v = sub === "suggestions" ? suggestions(ctx) : sub === "tickets" ? await (await import("./ax-sections.js")).ticketCenter(ctx) : await supportDash(ctx);
+  const v = sub === "suggestions" ? suggestions(ctx) : sub === "services" ? await (await import("./admin2.js")).serviceRequests(ctx) : sub === "tickets" ? await (await import("./ax-sections.js")).ticketCenter(ctx) : await supportDash(ctx);
   return { ...v, role: "support", admin: undefined };
 }
