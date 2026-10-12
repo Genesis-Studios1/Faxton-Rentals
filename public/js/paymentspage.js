@@ -12,7 +12,7 @@ const COST_ROWS = (l, rent) => { const m = AREA.moveIn(l, rent); return { m, htm
 export async function paymentsPage(ctx, rentalsNav) {
   const u = ctx.S.user;
   const [apps, listings, info] = await Promise.all([st.myApplications(u), st.getListings(), PAY.getPaymentInfo()]);
-  const live = apps.filter((a) => !/withdr|reject|declin/i.test(a.status)).map((a) => ({ ...a, l: listings.find((x) => x.id === a.listingId) || { id: a.listingId, title: a.title, area: a.area, city: "", images: [a.image], thumb: a.image, price: a.rent || 0, service: 0, deposit: 0, beds: 0, baths: 0, agent: { name: "Your agent" } } }));
+  const live = apps.filter((a) => !/withdr|reject|declin/i.test(a.status)).map((a) => ({ ...a, l: listings.find((x) => x.id === a.listingId) || { id: a.listingId, title: a.title, area: a.area, city: "", images: [a.image], thumb: a.image, price: a.rent || 0, service: 0, deposit: 0, beds: 0, baths: 0, agent: { name: "Your agent" }, gone: true } }));
   live.sort((a, b) => (/approved|active/i.test(b.status) ? 1 : 0) - (/approved|active/i.test(a.status) ? 1 : 0));
   let sel = (ctx.q.app && live.find((a) => a.id === ctx.q.app)?.id) || live[0]?.id || "", proofs = [];
   const cur = () => live.find((a) => a.id === sel) || null;
@@ -23,10 +23,11 @@ export async function paymentsPage(ctx, rentalsNav) {
       const body = $("#payBody", root);
       const draw = () => {
         const a = cur(), l = a?.l, rent = a ? a.rent || l.price : 0, { m, html: costHtml } = l ? COST_ROWS(l, rent) : { m: null, html: "" };
-        const confirmed = l ? sumFor(l.id, "Confirmed") : 0, waiting = l ? sumFor(l.id, "Submitted") : 0, left = m ? Math.max(0, m.total - confirmed) : 0;
-        const pct = m ? Math.min(100, Math.round((confirmed / Math.max(1, m.total)) * 100)) : 0;
+        const total = m ? (l.gone ? a.amount || 0 : m.total) : 0;
+        const confirmed = l ? sumFor(l.id, "Confirmed") : 0, waiting = l ? sumFor(l.id, "Submitted") : 0, left = m ? Math.max(0, total - confirmed) : 0;
+        const pct = m ? Math.min(100, Math.round((confirmed / Math.max(1, total)) * 100)) : 0;
         const homeCard = a ? `<section class="rf-card"><div class="rf-pay-home"><img src="${esc(l.thumb || l.images?.[0] || "")}" alt=""><div><h2>${esc(l.title)}</h2><p class="rf-loc">${icon("pin", 15)} ${esc(l.area)}${l.city && !String(l.area).includes(l.city) ? ", " + esc(l.city) : ""}</p><div class="rf-pay-meta">${statusPill(a.status)}${live.length > 1 ? `<label class="rf-pay-sw"><span class="sr">Choose a home</span><select id="payHome" aria-label="Choose a home">${live.map((x) => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(x.l.title)}</option>`).join("")}</select></label>` : ""}</div></div></div>
-          <div class="rf-pay-prog" role="img" aria-label="${pct}% of the move-in cost is confirmed"><i style="width:${pct}%"></i></div><p class="rf-meta">${naira(confirmed)} confirmed of ${naira(m.total)}</p></section>`
+          <div class="rf-pay-prog" role="img" aria-label="${pct}% of the move-in cost is confirmed"><i style="width:${pct}%"></i></div><p class="rf-meta">${naira(confirmed)} confirmed of ${naira(total)}</p></section>`
           : `<section class="rf-card">${empty({ ic: "wallet", title: "Nothing to pay yet", hint: "When you apply for a home and your agent approves it, the amount due and your payment details appear here.", action: `<div class="rf-btns"><a class="btn primary" href="#/search">Find a home</a><a class="btn" href="#/applications">My applications</a></div>` })}</section>`;
         const stats = a ? `<div class="rf-stats"><div class="rf-stat"><span>${xicon("checkc", 20)}</span><div><small>Confirmed paid</small><b>${naira(confirmed)}</b><p>${confirmed ? "Receipts are ready below." : "Nothing confirmed yet."}</p></div></div>
           <div class="rf-stat"><span>${xicon("clock", 20)}</span><div><small>Waiting to be confirmed</small><b>${naira(waiting)}</b><p>${waiting ? "We’re matching it to the bank account." : "Nothing waiting."}</p></div></div>
@@ -37,7 +38,7 @@ export async function paymentsPage(ctx, rentalsNav) {
             <td class="main" data-l="What for"><b>${esc(p.forLabel || "Rental payment")}</b><small>${esc(p.title || "")}</small></td><td class="r num" data-l="Amount"><b>${naira(p.amount)}</b></td><td class="num ref" data-l="Reference">${esc(p.reference || "—")}</td><td class="sent" data-l="Sent">${esc(fmtDay(p.createdAt))}</td><td class="end" data-l="Status">${statusPill(p.status)}</td>
             <td class="rf-row-act"><div class="rf-act">${p.status === "Confirmed" ? `<button type="button" class="btn sm primary" data-rc>${xicon("receipt", 15)} Receipt</button>` : ""}${p.status === "Rejected" ? `<button type="button" class="btn sm" data-again>Send again</button>` : ""}<button type="button" class="btn sm" data-tl>Track</button>${p.proof ? `<button type="button" class="rf-iconbtn" data-pf aria-label="View your proof">${xicon("image", 18)}</button>` : ""}</div></td></tr>`).join("")}</tbody></table></div>`
             : empty({ ic: "receipt", title: "No payments yet", hint: "After you pay, tap “I’ve paid” and add your bank reference. It shows up here.", action: a ? `<button type="button" class="btn primary" data-paid>${icon("check", 18)} I’ve paid</button>` : "" })}</section>`;
-        const costs = a ? `<section class="rf-card"><div class="rf-card-h"><div><h2>What you pay to move in</h2><p>The agent confirms the final figures in your agreement.</p></div></div>${costHtml}</section>` : "";
+        const costs = a && !l.gone ? `<section class="rf-card"><div class="rf-card-h"><div><h2>What you pay to move in</h2><p>The agent confirms the final figures in your agreement.</p></div></div>${costHtml}</section>` : "";
         const side = `<div class="rf-col rf-pay-side"><section class="rf-card"><div class="rf-card-h"><div><h2>Pay by bank transfer</h2><p>No card needed. Send the money from your bank app.</p></div></div>${PAY.bankCardHtml(info)}
           <ol class="rf-steps-mini" style="margin-top:14px"><li><span><b>Transfer the amount</b> to the account above and keep your bank’s receipt.</span></li><li><span><b>Tap “I’ve paid”</b> and add the reference, plus a screenshot if you can.</span></li><li><span><b>We confirm it</b> against the account, usually within one working day. You’ll get a receipt.</span></li></ol>
           <button type="button" class="btn primary block" id="paidSide" style="margin-top:14px" ${a ? "" : "disabled"}>${icon("check", 18)} I’ve paid</button>
@@ -78,7 +79,7 @@ export async function paymentsPage(ctx, rentalsNav) {
       function paidDialog(prev) {
         if (!live.length) return toast("Apply for a home first. Then you can send a payment.");
         const a0 = (prev && live.find((x) => x.listingId === prev.listingId)) || cur();
-        const outstanding = (a) => { const r = AREA.moveIn(a.l, a.rent || a.l.price).total; return Math.max(0, r - sumFor(a.l.id, "Confirmed") - sumFor(a.l.id, "Submitted")); };
+        const outstanding = (a) => { const r = a.l.gone ? a.amount || 0 : AREA.moveIn(a.l, a.rent || a.l.price).total; return Math.max(0, r - sumFor(a.l.id, "Confirmed") - sumFor(a.l.id, "Submitted")); };
         let proof = prev?.proof || "", proofName = prev?.proofName || "";
         const m = modal(`<div class="rf-dlg wide"><h2>Tell us you’ve paid</h2><p class="rf-dlg-p">Add the details from your bank’s transfer receipt. We’ll confirm it against the account.</p><form class="rf-form" id="pdF" novalidate>
           ${live.length > 1 ? `<label class="rf-fl">Which home is this for?<select id="pdHome">${live.map((x) => `<option value="${esc(x.id)}" ${x.id === a0.id ? "selected" : ""}>${esc(x.l.title)}</option>`).join("")}</select></label>` : `<div class="rf-note">${xicon("home", 20)}<div><b>${esc(a0.l.title)}</b><p>${esc(a0.l.area)}</p></div></div>`}
