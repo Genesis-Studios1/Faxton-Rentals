@@ -1,0 +1,13 @@
+{
+  "name": "faxton-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Security-rule tests for firestore.rules. Developer tool only: nothing here ships to visitors.",
+  "scripts": {
+    "test": "echo \"Run from the project folder: npm run test:rules\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0"
+  }
+}

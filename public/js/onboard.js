@@ -1,6 +1,7 @@
 // Sign-up extras for agencies and agents: the business details form and the "verification is on its way" pop-ups.
 import { $, esc, icon, modal } from "./ui.js";
 import { countryOptions } from "./countries.js";
+import { fieldHtml } from "./authkit.js";
 
 const thisYear = new Date().getFullYear();
 const emailOk = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
@@ -26,37 +27,74 @@ const AGENT = () => `<h2>A few details about you</h2><p class="muted" style="mar
     ${f("areas", "Areas you cover", "e.g. Lekki, Ikoyi, Victoria Island", 'required maxlength="160"')}
     <p class="err" id="obe" role="alert"></p><div class="a2-act"><button class="btn primary" type="submit">Create my agent account</button></div></form>`;
 
+// ---- shared by the pop-up below and by the inline section on the sign-up page ----
+// Checks the raw values for an agency or agent. Returns { details } when fine, or { id, msg, all } where id/msg is the first
+// thing to fix and all maps every field that needs fixing to its message (so a form can mark them all at once).
+export function checkDetails(role, raw) {
+  const v = {}; Object.keys(raw).forEach((k) => (v[k] = String(raw[k] ?? "").trim()));
+  const L = role === "agency" ? [
+    ["business", v.business.length < 2, "Enter the agency’s name."],
+    ["cac", !/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(v.cac), "Enter your CAC number, for example RC 1234567."],
+    ["supportEmail", !emailOk(v.supportEmail), "Enter a valid support email."],
+    ["phone", !phoneOk(v.phone), "Enter a valid business phone number."],
+    ["address", v.address.length < 5, "Enter the office address."],
+    ["registrar", v.registrar.length < 3, "Enter the registrar’s full name."],
+    ["position", !v.position, "Enter your role in the company."],
+    ["opened", !(+v.opened >= 1900 && +v.opened <= thisYear), `Year opened must be between 1900 and ${thisYear}.`],
+    ["dob", !v.dob || age(v.dob) < 18, v.dob ? "The registrar must be at least 18 years old." : "Enter the registrar’s date of birth."],
+    ["website", v.website && !/^https?:\/\//i.test(v.website), "The website must start with https://"],
+    ["country", !v.country, "Choose your country of residence."],
+    ["city", v.city.length < 2, "Enter your city."],
+  ] : [
+    ["phone", !phoneOk(v.phone), "Enter a valid phone number."],
+    ["experience", !(v.experience !== "" && +v.experience >= 0), "Enter your years of experience."],
+    ["licence", v.licence.length < 4, "Enter an ID or licence number."],
+    ["areas", v.areas.length < 3, "Tell us the areas you cover."],
+    ["country", !v.country, "Choose your country of residence."],
+    ["city", v.city.length < 2, "Enter your city."],
+  ];
+  const all = {}; L.forEach(([id, bad, msg]) => { if (bad) all[id] = msg; });
+  const first = L.find(([id]) => all[id]);
+  if (first) return { id: first[0], msg: all[first[0]], all };
+  return { details: role === "agency"
+    ? { business: v.business, registrar: v.registrar, position: v.position, supportEmail: v.supportEmail, phone: v.phone, cac: v.cac.toUpperCase(), opened: +v.opened, dob: v.dob, address: v.address, website: v.website, country: v.country, city: v.city }
+    : { phone: v.phone, experience: +v.experience, company: v.company, licence: v.licence, areas: v.areas, country: v.country, city: v.city } };
+}
+// What each account type is, and exactly what extra information it needs (shown before anyone presses Create account).
+export const ROLE_INFO = {
+  renter: { name: "Renter", blurb: "Browse homes, book viewings and apply to rent.", ask: [] },
+  landlord: { name: "Home owner", blurb: "List your own homes. Our team reviews each listing before it goes live.", ask: [] },
+  agency: { name: "Agency", blurb: "Run a registered business and list homes for your clients.", ask: ["Business name", "CAC registration number", "Support email", "Office address"], more: "plus a few details about the registrar" },
+  agent: { name: "Agent", blurb: "List and manage homes as an individual agent.", ask: ["ID or licence number", "Agency you work for", "Areas you cover"], more: "plus your phone number and experience" },
+};
+// The inline detail fields for the sign-up page (country and city are asked once, in the residence row).
+export function detailsFields(role, name = "") {
+  const f = (id, label, o = {}) => fieldHtml(id, label, o);
+  if (role === "agency") return `<div class="au-2">${f("business", "Agency or business name", { ph: "e.g. Faxton Properties Ltd", attrs: 'maxlength="120" autocomplete="organization"' })}${f("cac", "CAC registration number", { ph: "RC 1234567", attrs: 'maxlength="30" autocapitalize="characters" autocomplete="off"', hint: "As shown on your CAC certificate." })}</div>
+    <div class="au-2">${f("supportEmail", "Support email", { type: "email", ph: "support@youragency.com", attrs: 'maxlength="120" inputmode="email" autocapitalize="none" spellcheck="false"' })}${f("phone", "Business phone number", { type: "tel", ph: "+234 …", attrs: 'maxlength="30" inputmode="tel" autocomplete="tel"' })}</div>
+    ${f("address", "Office address", { ph: "Street, area, city", attrs: 'maxlength="200" autocomplete="street-address"' })}
+    <div class="au-2">${f("registrar", "Registrar’s full name", { attrs: `maxlength="120" value="${esc(name)}" autocomplete="name"` })}${f("position", "Your role in the company", { ph: "e.g. Managing Director", attrs: 'maxlength="80"' })}</div>
+    <div class="au-2">${f("opened", "Year the agency opened", { type: "number", ph: String(thisYear - 5), attrs: `min="1900" max="${thisYear}" inputmode="numeric"` })}${f("dob", "Registrar’s date of birth", { type: "date", attrs: 'autocomplete="bday"' })}</div>
+    ${f("website", "Website", { type: "url", ph: "https://", req: false, attrs: 'maxlength="160" inputmode="url" autocapitalize="none"' })}`;
+  return `<div class="au-2">${f("phone", "Phone number", { type: "tel", ph: "+234 …", attrs: 'maxlength="30" inputmode="tel" autocomplete="tel"' })}${f("experience", "Years of experience", { type: "number", ph: "2", attrs: 'min="0" max="60" inputmode="numeric"' })}</div>
+    <div class="au-2">${f("licence", "ID or licence number", { ph: "NIN, driver’s licence or ESVARBON no.", attrs: 'maxlength="40" autocomplete="off"' })}${f("company", "Agency you work for", { req: false, attrs: 'maxlength="120" autocomplete="organization"' })}</div>
+    ${f("areas", "Areas you cover", { ph: "e.g. Lekki, Ikoyi, Victoria Island", attrs: 'maxlength="160"' })}`;
+}
+// Country and city of residence, asked inline for everyone (it used to be a pop-up after pressing Create account).
+export function residenceFields(country = "Nigeria", city = "") {
+  return `<div class="au-2 au-res"><div class="au-f" data-f="country"><label for="country">Country</label><div class="au-in"><select id="country" name="country" required aria-describedby="country-e" autocomplete="country-name">${countryOptions(country)}</select></div><p class="au-fe" id="country-e" hidden></p></div>
+    ${fieldHtml("city", "City", { ph: "e.g. Lagos", attrs: `maxlength="60" autocomplete="address-level2" value="${esc(city)}"` })}</div>`;
+}
+
 // Resolves with the details, or null when the person closes the form.
 export function collectDetails(role, fullName = "") {
   return new Promise((resolve) => {
     const m = modal(role === "agency" ? AGENCY(fullName) : AGENT()); m.el.classList.add("ob-modal");
     let sent = false; m.el.addEventListener("close", () => { if (!sent) resolve(null); });
     $("#ob", m.el).onsubmit = (e) => {
-      e.preventDefault(); const v = Object.fromEntries(new FormData(e.target)); Object.keys(v).forEach((k) => (v[k] = String(v[k]).trim()));
-      const bad = (msg, id) => { $("#obe", m.el).textContent = msg; $("#" + id, m.el)?.focus(); };
-      if (role === "agency") {
-        if (v.business.length < 2) return bad("Enter the agency’s name.", "business");
-        if (v.registrar.length < 3) return bad("Enter the registrar’s full name.", "registrar");
-        if (!v.position) return bad("Enter your role in the company.", "position");
-        if (!emailOk(v.supportEmail)) return bad("Enter a valid support email.", "supportEmail");
-        if (!phoneOk(v.phone)) return bad("Enter a valid business phone number.", "phone");
-        if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(v.cac)) return bad("Enter your CAC number, for example RC 1234567.", "cac");
-        if (!(+v.opened >= 1900 && +v.opened <= thisYear)) return bad(`Year opened must be between 1900 and ${thisYear}.`, "opened");
-        if (age(v.dob) < 18) return bad("The registrar must be at least 18 years old.", "dob");
-        if (v.address.length < 5) return bad("Enter the office address.", "address");
-        if (!v.country) return bad("Choose your country of residence.", "country");
-        if (v.city.length < 2) return bad("Enter your city.", "city");
-        if (v.website && !/^https?:\/\//i.test(v.website)) return bad("The website must start with https://", "website");
-        sent = true; m.close(); resolve({ business: v.business, registrar: v.registrar, position: v.position, supportEmail: v.supportEmail, phone: v.phone, cac: v.cac.toUpperCase(), opened: +v.opened, dob: v.dob, address: v.address, website: v.website, country: v.country, city: v.city });
-      } else {
-        if (!phoneOk(v.phone)) return bad("Enter a valid phone number.", "phone");
-        if (!(+v.experience >= 0)) return bad("Enter your years of experience.", "experience");
-        if (v.licence.length < 4) return bad("Enter an ID or licence number.", "licence");
-        if (!v.country) return bad("Choose your country of residence.", "country");
-        if (v.city.length < 2) return bad("Enter your city.", "city");
-        if (v.areas.length < 3) return bad("Tell us the areas you cover.", "areas");
-        sent = true; m.close(); resolve({ phone: v.phone, experience: +v.experience, company: v.company, licence: v.licence, areas: v.areas, country: v.country, city: v.city });
-      }
+      e.preventDefault(); const r = checkDetails(role, Object.fromEntries(new FormData(e.target)));
+      if (r.msg) { $("#obe", m.el).textContent = r.msg; $("#" + r.id, m.el)?.focus(); return; }
+      sent = true; m.close(); resolve(r.details);
     };
   });
 }
@@ -74,13 +112,22 @@ export function verifiedPopup(title, body, ctaText, onCta) {
   $("#vfok", m.el).onclick = () => m.close(); const g = $("#vfgo", m.el); if (g) g.onclick = () => { m.close(); onCta?.(); };
 }
 
-// Crops a chosen picture to a small square so it fits in the profile.
-export const resizePhoto = (file) => new Promise((res, rej) => {
-  if (!/^image\//.test(file.type)) return rej(new Error("Choose an image file."));
-  const img = new Image(), url = URL.createObjectURL(file);
-  img.onload = () => { const S = 192, c = document.createElement("canvas"); c.width = c.height = S; const m = Math.min(img.width, img.height); c.getContext("2d").drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S); URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.82)); };
-  img.onerror = () => rej(new Error("That picture couldn’t be read.")); img.src = url;
-});
+// Crops a chosen picture to a small round-ready square so it fits in the profile. Phones often save sideways photos
+// with a rotation flag; createImageBitmap applies it so the preview matches what the person saw.
+export const resizePhoto = async (file) => {
+  if (!file || !/^image\//.test(file.type || "") && !/\.(jpe?g|png|webp|gif|avif)$/i.test(file.name || "")) throw new Error("Choose a picture (JPG or PNG).");
+  if (file.size > 25e6) throw new Error("That picture is very large. Choose one under 25 MB.");
+  let src, w, h, url = "";
+  try { if (window.createImageBitmap) { src = await createImageBitmap(file, { imageOrientation: "from-image" }); w = src.width; h = src.height; } } catch { src = null; }
+  if (!src) {
+    src = await new Promise((res, rej) => { const img = new Image(); url = URL.createObjectURL(file); img.onload = () => res(img); img.onerror = () => rej(new Error("That picture couldn’t be opened. Try a JPG or PNG.")); img.src = url; });
+    w = src.naturalWidth || src.width; h = src.naturalHeight || src.height;
+  }
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S; const m = Math.min(w, h), g = c.getContext("2d");
+  g.fillStyle = "#fff"; g.fillRect(0, 0, S, S); g.imageSmoothingQuality = "high"; g.drawImage(src, (w - m) / 2, (h - m) / 2, m, m, 0, 0, S, S);
+  if (url) URL.revokeObjectURL(url); if (src.close) src.close();
+  return c.toDataURL("image/jpeg", 0.84);
+};
 
 // Everyone gives the country and city they live in. The window only closes once it's filled in and submitted
 // (during sign-up there's also a Cancel button).

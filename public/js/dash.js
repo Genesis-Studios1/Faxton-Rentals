@@ -46,8 +46,8 @@ export function overview(ctx) {
   return { ...pageView(ctx, { title: "Overview", head: false, kpis: true, cols: ["listings", "applications", "viewings", "users", "tickets"], what: "the overview",
     async render({ listings: ls, applications: ap, viewings: vw, users: us, tickets: tk }) {
       const date = new Date().toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-      const canSeed = ctx.S.isOwner && !ls.length;
-      const head = `<header class="ax-ph"><div class="ax-ph-t"><span class="ax-eyebrow">Overview · ${esc(date)}</span><h1>${esc(hello)}</h1><p class="ax-sub">Here is what needs you today.</p></div><div class="ax-ph-a"><label class="ax-sr" for="ovp">Period</label><select class="ax-input" id="ovp" style="width:auto">${PERIODS.map(([v, l]) => `<option value="${v}" ${v === period ? "selected" : ""}>${l}</option>`).join("")}</select>${btn("Export report", { ic: "download", attrs: "data-act=export" })}${canSeed ? btn("Add sample listings", { attrs: "data-act=seed" }) : ""}<button type="button" class="ax-ib ax-refresh" data-ax="refresh" aria-label="Refresh">${I("refresh", 18)}</button></div></header>`;
+      const canSeed = ctx.S.isOwner && !ls.length && st.demoMode();
+      const head = `<header class="ax-ph"><div class="ax-ph-t"><span class="ax-eyebrow">Overview · ${esc(date)}</span><h1>${esc(hello)}</h1><p class="ax-sub">Here is what needs you today.</p></div><div class="ax-ph-a"><label class="ax-sr" for="ovp">Period</label><select class="ax-input" id="ovp" style="width:auto">${PERIODS.map(([v, l]) => `<option value="${v}" ${v === period ? "selected" : ""}>${l}</option>`).join("")}</select>${btn("Export report", { ic: "download", attrs: "data-act=export" })}${canSeed ? btn("Add demo listings (sample data)", { attrs: "data-act=seed" }) : ""}<button type="button" class="ax-ib ax-refresh" data-ax="refresh" aria-label="Refresh">${I("refresh", 18)}</button></div></header>`;
       const build = () => {
         const bs = buckets(period), a = bs[0].start, b = bs[bs.length - 1].end, pa = a - (b - a), n = period === "365" ? "12 months" : period + " days", vs = "vs previous " + n;
         const uS = per(us, bs), lS = per(ls, bs), aS = per(ap, bs), vS = per(vw, bs), tS = per(tk, bs), sU = within(us, a, b), pU = within(us, pa, a), sL = within(ls, a, b), pL = within(ls, pa, a), sA = within(ap, a, b), pA = within(ap, pa, a), sV = within(vw, a, b), pV = within(vw, pa, a), sT = within(tk, a, b);
@@ -75,7 +75,7 @@ export function overview(ctx) {
         bindPending(host);
         $("#ovp", el).onchange = (e) => { period = e.target.value; try { sessionStorage.setItem("axPeriod", period); } catch {} paint(); };
         $("[data-act=export]", el).onclick = () => { const m = months6(); csv("faxton-platform-report", ["Month", "New users", "New listings", "Applications", "Viewings", "Tickets"], m.map((x) => [x.full, within(us, x.start, x.end), within(ls, x.start, x.end), within(ap, x.start, x.end), within(vw, x.start, x.end), within(tk, x.start, x.end)])); };
-        const seed = $("[data-act=seed]", el); if (seed) seed.onclick = async () => { if (!(await confirm({ title: "Add sample listings?", body: "This adds a few demo homes so you can see how the site looks. Remove them before you launch.", confirmLabel: "Add samples" }))) return; busy(seed, true); try { await st.seedListings(); data.invalidate("listings"); toast("Sample listings added."); ctx.render(); } catch (e) { busy(seed, false); bad(e); } };
+        const seed = $("[data-act=seed]", el); if (seed) seed.onclick = async () => { if (!(await confirm({ title: "Add demo listings?", body: "This adds made-up sample homes (fake agents and prices) so you can see how the site looks. Visitors will see them too. Delete them all before you launch.", confirmLabel: "Add demo data" }))) return; busy(seed, true); try { await st.seedListings(); data.invalidate("listings"); toast("Demo listings added. Remember to delete them before launch."); ctx.render(); } catch (e) { busy(seed, false); bad(e); } };
       } };
     } }) };
 }
@@ -118,56 +118,6 @@ function proofTable(host, proofs, ctx) {
 
 // ---------- support inbox ----------
 const groupOf = (t) => (isRes(t) ? "Resolved" : /progress/i.test(t.status || "") ? "In progress" : "Open");
-export function supportInbox(ctx) {
-  const role = !ctx.S.isAdmin;
-  return pageView(ctx, { title: role ? "Tickets" : "Support", eyebrow: role ? "Support console" : "Support", sub: "Reply to renters and agents, leave notes for your team and keep the queue short.", cols: ["tickets"], what: "the inbox", skeleton: `<div class="ax-card" style="height:420px;padding:16px">${AX.skeleton.rows(5)}</div>`,
-    async render({ tickets }) {
-      const by = [...tickets].sort((a, b) => ms(b.createdAt) - ms(a.createdAt));
-      return { html: `<div class="ax-card ax-inbox" id="inb" data-view="list"></div>`, mount(el) {
-        const box = $("#inb", el); let tab = "Open", cur = hq().q.id || null, note = false, q = "", live = true; const mobile = () => matchMedia("(max-width:899px)").matches;
-        if (cur) { const t = by.find((x) => x.id === cur); if (t) tab = groupOf(t); else cur = null; }
-        const unread = (t) => groupOf(t) === "Open" && !(t.replies || []).some((r) => !r.internal);
-        const rows = () => by.filter((t) => groupOf(t) === tab && (!q || `${t.subject} ${t.name} ${t.ref} ${t.message}`.toLowerCase().includes(q)));
-        const pick = (id, push = true) => { cur = id; if (push && mobile()) { if (!hq().q.id) setQ({ id }, "push"); } else setQ({ id }); paint(); };
-        const paint = () => {
-          const rs = rows(); if (!cur && rs.length && !mobile()) cur = rs[0].id; if (cur && !by.some((t) => t.id === cur)) cur = null;
-          const t = by.find((x) => x.id === cur);
-          box.dataset.view = mobile() && t && hq().q.id ? "thread" : "list";
-          const keepQ = $("#iq", box)?.value;
-          box.innerHTML = `<section class="ax-ilist" aria-label="Tickets">${tabs(["Open", "In progress", "Resolved"].map((k) => ({ k, label: k, count: by.filter((x) => groupOf(x) === k).length })), tab, { label: "Ticket status" })}<div class="ax-isearch"><label class="ax-search">${I("search", 18)}<input id="iq" type="search" placeholder="Search tickets…" value="${esc(keepQ ?? q)}" autocomplete="off" aria-label="Search tickets"></label></div>
-            <div class="ax-irows" role="list">${rs.map((x) => `<button type="button" class="ax-ir" role="listitem" data-t="${esc(x.id)}" aria-current="${x.id === cur}">${avatar(x.name, x.uid, 36)}<b>${esc(x.subject || "Ticket")}</b><time>${fmt.rel(x.createdAt)}</time><small>${esc(x.name || "")} · ${esc(String(x.message || "").slice(0, 60))}</small><span class="ax-pd" data-p="${(x.priority || "") === "High" ? "high" : unread(x) ? "new" : "none"}" title="${(x.priority || "") === "High" ? "High priority" : unread(x) ? "No reply yet" : ""}"></span></button>`).join("") || empty({ icon: "inbox", title: `No ${tab.toLowerCase()} tickets`, hint: "Tickets from the Contact us page appear here." })}</div></section>
-            <section class="ax-ithread" aria-label="Conversation">${t ? thread(t) : `<div class="ax-pane-empty">${empty({ icon: "chatdots", title: "Select a ticket", hint: "Choose a ticket on the left to read the conversation." })}</div>`}</section>
-            <aside class="ax-idet" aria-label="Ticket details">${t ? details(t) : ""}</aside>`;
-          const ik = $("#iq", box); if (keepQ != null && document.activeElement === document.body) { /* keep typing state */ }
-          mountTabs(box, (k) => { tab = k; cur = null; q = ""; setQ({ id: "" }); paint(); });
-          if (t) wire(t);
-        };
-        const thread = (t) => { const reps = t.replies || []; return `<header class="ax-ith"><button type="button" class="ax-ib back" data-back aria-label="Back to tickets">${I("left", 20)}</button><div class="ax-ith-t"><h2>${esc(t.subject || "Ticket")}</h2><small>#${esc(t.ref || "")} · opened ${fmt.rel(t.createdAt)} by ${esc(t.name || "—")}</small></div><button type="button" class="ax-ib det" data-det aria-label="Ticket details">${I("info", 20)}</button><span class="ax-ith-a">${chipFor("ticket", groupOf(t))}${btn(groupOf(t) === "Resolved" ? "Reopen" : "Resolve", { v: groupOf(t) === "Resolved" ? "outline" : "soft", size: "sm", attrs: "data-resolve" })}</span></header>
-          <div class="ax-msgs" id="msgs" tabindex="0" aria-label="Messages"><div class="ax-bub"><b>${esc(t.name || "Customer")}</b>${esc(t.message || "")}<small>${fmt.dateTime(t.createdAt)}</small></div>${reps.map((r) => r.internal ? `<div class="ax-bub note"><b>${I("lock", 14)} Internal note · ${esc(r.by || "Support")}</b>${esc(r.text)}<small>Only your team sees this · ${fmt.dateTime(r.at)}</small></div>` : `<div class="ax-bub out"><b>${esc(r.by || "Support")}</b>${esc(r.text)}<small>${fmt.dateTime(r.at)}</small></div>`).join("")}</div>
-          <form class="ax-comp" id="rf" data-note="${note}"><div class="ax-comp-t"><div class="ax-segs" role="group" aria-label="Message type"><button type="button" data-m="reply" aria-pressed="${!note}">Reply</button><button type="button" data-m="note" aria-pressed="${note}">${I("lock", 13)} Internal note</button></div></div><textarea class="ax-input" id="rt" rows="3" maxlength="1500" placeholder="${note ? "Write a private note for your team…" : "Write your reply…"}" aria-label="${note ? "Internal note" : "Reply"}"></textarea><div class="ax-comp-r"><span id="cc">0 / 1,500 · Ctrl+Enter to send</span>${btn(note ? "Add note" : "Send reply", { v: "primary", type: "submit", attrs: "disabled id=sendb" })}</div></form>`; };
-        const details = (t) => `<div><label class="ax-lbl" for="ts">Status</label><select class="ax-input" id="ts">${["Open", "In progress", "Resolved"].map((s) => `<option ${groupOf(t) === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div><label class="ax-lbl" for="tp">Priority</label><select class="ax-input" id="tp">${["Low", "Medium", "High"].map((s) => `<option ${(t.priority || "Medium") === s ? "selected" : ""}>${s}</option>`).join("")}</select></div><div><label class="ax-lbl" for="ta">Assignee</label><select class="ax-input" id="ta"><option value="">Unassigned</option><option value="${esc(meName(ctx))}" ${t.assignee ? "selected" : ""}>${esc(meName(ctx))} (me)</option></select></div>${dl([["From", esc(t.name || "—")], ["Reference", "#" + esc(t.ref || "")], ["Opened", fmt.dateTime(t.createdAt)]])}`;
-        const wire = (t) => {
-          const save = async (p, msg) => { try { await st.patch("tickets", t.id, p); Object.assign(t, p); changed(); toast(msg); if (p.status) tab = groupOf(t); paint(); } catch (e) { bad(e); } };
-          $("#ts", box)?.addEventListener("change", (e) => save({ status: e.target.value }, "Status updated.")); $("#tp", box)?.addEventListener("change", (e) => save({ priority: e.target.value }, "Priority updated.")); $("#ta", box)?.addEventListener("change", (e) => save({ assignee: e.target.value }, "Assignee updated."));
-          $("[data-resolve]", box)?.addEventListener("click", () => save({ status: groupOf(t) === "Resolved" ? "Open" : "Resolved" }, groupOf(t) === "Resolved" ? "Ticket reopened." : "Ticket resolved."));
-          $("[data-back]", box)?.addEventListener("click", () => { cur = null; if (hq().q.id && mobile()) history.back(); else { setQ({ id: "" }); paint(); } });
-          $("[data-det]", box)?.addEventListener("click", () => dialog({ title: "Ticket details", sheet: mobile(), size: "sm", body: details(t) }).el.addEventListener("change", async (e) => { const m = { ts: { status: e.target.value }, tp: { priority: e.target.value }, ta: { assignee: e.target.value } }[e.target.id]; if (m) { try { await st.patch("tickets", t.id, m); Object.assign(t, m); changed(); toast("Updated."); } catch (x) { bad(x); } } }));
-          $$("[data-m]", box).forEach((b) => (b.onclick = () => { note = b.dataset.m === "note"; const v = $("#rt", box).value; paint(); $("#rt", box).value = v; $("#rt", box).dispatchEvent(new Event("input")); $("#rt", box).focus(); }));
-          const ta = $("#rt", box), sb = $("#sendb", box), msgs = $("#msgs", box); if (msgs) msgs.scrollTop = msgs.scrollHeight;
-          ta.oninput = () => { sb.disabled = !ta.value.trim(); $("#cc", box).textContent = `${ta.value.length.toLocaleString("en-NG")} / 1,500 · Ctrl+Enter to send`; ta.style.height = "auto"; ta.style.height = Math.min(200, ta.scrollHeight) + "px"; };
-          ta.onkeydown = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); $("#rf", box).requestSubmit(); } };
-          $("#rf", box).onsubmit = async (e) => { e.preventDefault(); const text = ta.value.trim(); if (!text) return; busy(sb, true); const next = [...(t.replies || []), { by: meName(ctx), text, internal: note, at: Date.now() }];
-            try { const p = { replies: next, ...(note || /progress/i.test(t.status || "") ? {} : { status: "In progress" }) }; await st.patch("tickets", t.id, p); Object.assign(t, p); changed(); toast(note ? "Note added." : "Reply sent."); tab = groupOf(t); const keep = note; paint(); note = keep; } catch (x) { busy(sb, false); bad(x); } };
-        };
-        box.addEventListener("click", (e) => { const b = e.target.closest("[data-t]"); if (b && b.classList.contains("ax-ir")) pick(b.dataset.t); });
-        box.addEventListener("input", (e) => { if (e.target.id === "iq") { q = e.target.value.trim().toLowerCase(); const pos = e.target.selectionStart; const rs = rows(); const host = $(".ax-irows", box); host.innerHTML = rs.map((x) => `<button type="button" class="ax-ir" role="listitem" data-t="${esc(x.id)}" aria-current="${x.id === cur}">${avatar(x.name, x.uid, 36)}<b>${esc(x.subject || "Ticket")}</b><time>${fmt.rel(x.createdAt)}</time><small>${esc(x.name || "")} · ${esc(String(x.message || "").slice(0, 60))}</small><span class="ax-pd" data-p="none"></span></button>`).join("") || empty({ icon: "search", title: "No tickets match", hint: "Try another word." }); } });
-        const key = (e) => { if (!live || e.ctrlKey || e.metaKey || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || document.querySelector(".ax-ov")) return; const rs = rows(), i = rs.findIndex((x) => x.id === cur); if (e.key === "j" && rs[i + 1]) { e.preventDefault(); pick(rs[i + 1].id, false); } else if (e.key === "k" && rs[i - 1]) { e.preventDefault(); pick(rs[i - 1].id, false); } else if (e.key === "Enter" && cur && !e.target.closest?.("button,a")) { e.preventDefault(); $("#rt", box)?.focus(); } };
-        document.addEventListener("keydown", key); ctx.S.cleanups.push(() => { live = false; document.removeEventListener("keydown", key); });
-        AX.page.path = hq().path; AX.page.onSoft = (qq) => { if (qq.id) { cur = qq.id; const t = by.find((x) => x.id === cur); if (t) tab = groupOf(t); } else if (mobile()) cur = null; paint(); };
-        paint();
-      } };
-    } });
-}
 
 // ---------- suggestions ----------
 const SG = ["New", "Reviewed", "Planned", "Done"];
@@ -238,51 +188,59 @@ export function reports(ctx) {
     } });
 }
 
-// ---------- call setup ----------
+// ---------- call relay ----------
+// The card lives on the Settings page for owners and admins (views.js mounts it first). /admin/calls only redirects there.
 const maskUrl = (x) => { try { const u = new URL(x); return u.origin + u.pathname + (u.search ? "?" + [...u.searchParams.keys()].map((k) => k + "=••••••").join("&") : ""); } catch { return x ? "••••••••" : ""; } };
-export function callSetup(ctx) {
-  return pageView(ctx, { title: "Call setup", eyebrow: "System", sub: "Make calls connect between any two networks.", cols: [["cfg", () => st.getIce()]], what: "call setup", skeleton: AX.skeleton.card(320),
-    async render({ cfg }) {
-      let real = { url: cfg.credsUrl || "", addr: [].concat(cfg.servers?.[0]?.urls || []).join(", "), user: cfg.servers?.[0]?.username || "", pass: cfg.servers?.[0]?.credential || "" }, revealed = false;
-      const dirty = {}, on = () => !!(cfg.servers?.length || cfg.credsUrl);
-      const val = (k) => (dirty[k] ? $(`#cr_${k}`).value.trim() : real[k]);
-      return { html: `<div class="ax-set"><div><h2>Call relay</h2><p>If calls often stay on “Connecting…”, the phone or Wi-Fi is blocking direct connections and needs a relay.</p><p style="margin-top:10px"><span id="crChip">${chipFor("relay", on() ? "on" : "off")}</span></p></div>
-        <div class="ax-card"><div class="ax-sec"><h3 class="ax-eyebrow">Recommended</h3><label class="ax-lbl" for="cr_url">Credentials URL</label><input class="ax-input" id="cr_url" autocomplete="off" spellcheck="false" placeholder="https://yourapp.metered.live/api/v1/turn/credentials?apiKey=…" data-mask="url"><p class="ax-help">Create a free account at metered.ca (or Twilio, Cloudflare, Xirsys) and paste its credentials URL. It is the easiest way.</p></div>
-        <div class="ax-sec"><h3 class="ax-eyebrow">Or enter it by hand</h3><div class="ax-form"><label class="ax-field full"><span>Relay address(es), comma separated</span><input class="ax-input" id="cr_addr" autocomplete="off" spellcheck="false" placeholder="turn:global.relay.metered.ca:80, turns:global.relay.metered.ca:443?transport=tcp"></label><label class="ax-field"><span>User name</span><input class="ax-input" id="cr_user" autocomplete="off" spellcheck="false" data-mask="user"></label><label class="ax-field"><span>Password</span><input class="ax-input" id="cr_pass" type="password" autocomplete="new-password" data-mask="pass"></label></div>
-        <p style="margin-top:8px"><button type="button" class="ax-btn" data-v="ghost" data-size="sm" id="crReveal">${I("eye", 16)}<span>Reveal saved values</span></button></p></div>
-        <p class="ax-err" id="crE" role="alert"></p><div class="ax-banner" data-t="ok" id="crOk" hidden>${I("checkc", 20)}<div><b id="crOkT"></b></div></div>
-        <div class="ax-set-f">${btn("Save", { v: "primary", attrs: "id=crSave" })}${btn("Save and test", { attrs: "id=crTest" })}<span class="ax-grow"></span>${btn("Remove relay", { v: "danger", attrs: `id=crX ${on() ? "" : "disabled"}` })}</div>
-        <p class="ax-help" style="margin-top:14px">Signed-in users’ apps read these details when they place a call, so use a relay account made for this and keep its usage limit low.</p></div></div>
-        <div class="ax-savebar" id="crBar" hidden><span>Unsaved changes</span>${btn("Discard", { v: "ghost", size: "sm", attrs: "id=crDisc" })}${btn("Save", { v: "primary", size: "sm", attrs: "id=crBarSave" })}</div>`,
-      mount(el) {
-        const inp = (k) => $(`#cr_${k}`, el), err = $("#crE", el), okB = $("#crOk", el), bar = $("#crBar", el);
-        const maskVal = (k) => (!real[k] ? "" : k === "url" ? maskUrl(real.url) : k === "pass" ? "••••••••" : real.user ? real.user.slice(0, 2) + "••••••" : "");
-        const paintVals = () => { ["url", "addr", "user", "pass"].forEach((k) => { if (dirty[k]) return; inp(k).value = k === "addr" ? real.addr : revealed ? real[k] : maskVal(k); inp(k).type = k === "pass" ? (revealed ? "text" : "password") : "text"; }); };
-        const anyDirty = () => Object.values(dirty).some(Boolean); const flag = () => (bar.hidden = !anyDirty());
-        ["url", "addr", "user", "pass"].forEach((k) => { const i = inp(k);
-          i.addEventListener("focus", () => { if (!dirty[k] && i.dataset.mask && real[k] && !revealed) i.value = ""; });
-          i.addEventListener("input", () => { dirty[k] = true; flag(); });
-          i.addEventListener("blur", () => { if (dirty[k] && !i.value.trim() && real[k]) { dirty[k] = false; flag(); paintVals(); } }); });
-        paintVals();
-        $("#crReveal", el).onclick = (e) => { revealed = !revealed; e.currentTarget.querySelector("span").textContent = revealed ? "Hide saved values" : "Reveal saved values"; paintVals(); };
-        const build = () => { err.textContent = ""; okB.hidden = true; const url = val("url"), addr = val("addr"), user = val("user"), pass = val("pass");
-          if (url && !/^https:\/\//i.test(url)) { err.textContent = "The credentials URL must start with https://"; return null; }
-          if (!url && !addr) { err.textContent = "Enter a credentials URL, or the relay address with user name and password."; return null; }
-          const list = addr.split(",").map((x) => x.trim()).filter(Boolean);
-          if (addr && !list.every((x) => /^(turns?|stuns?):/i.test(x))) { err.textContent = "Each relay address must start with turn: or turns:"; return null; }
-          if (addr && list.some((x) => /^turns?:/i.test(x)) && (!user || !pass)) { err.textContent = "Enter the user name and password."; return null; }
-          return { servers: addr ? [{ urls: list, username: user, credential: pass }] : [], credsUrl: url }; };
-        const save = async (test) => { const v = build(); if (!v) return; const btns = $$("button", el); btns.forEach((b) => (b.disabled = true)); busy($(test ? "#crTest" : "#crSave", el), true);
-          try { await st.saveIce(v.servers, v.credsUrl); real = { url: v.credsUrl, addr: [].concat(v.servers[0]?.urls || []).join(", "), user: v.servers[0]?.username || "", pass: v.servers[0]?.credential || "" }; cfg.servers = v.servers; cfg.credsUrl = v.credsUrl; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); revealed = false; paintVals(); $("#crChip", el).innerHTML = chipFor("relay", "on"); toast("Saved. New calls will use the relay."); changed();
-            if (test) { okB.hidden = false; $("#crOkT", el).textContent = "Testing the relay…"; let servers = v.servers;
-              if (v.credsUrl) { try { const r = await fetch(v.credsUrl, { cache: "no-store" }), j = await r.json(); if (Array.isArray(j) && j.length) servers = j; } catch { servers = []; err.textContent = "Couldn’t read the credentials URL. Check it and try again."; } }
-              if (servers.length) { const r = await CALLS.testRelay(servers); if (r.ok) $("#crOkT", el).textContent = "The relay works. Calls will connect through it when needed."; else { okB.hidden = true; err.textContent = r.why; } } else okB.hidden = true; }
-          } catch (e) { err.textContent = fe(e); }
-          btns.forEach((b) => (b.disabled = false)); $("#crX", el).disabled = !on(); busy($("#crTest", el), false); busy($("#crSave", el), false); };
-        $("#crSave", el).onclick = () => save(false); $("#crTest", el).onclick = () => save(true); $("#crBarSave", el).onclick = () => save(false); $("#crDisc", el).onclick = () => { Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); paintVals(); err.textContent = ""; };
-        $("#crX", el).onclick = async () => { if (!(await confirm({ title: "Remove the call relay?", body: "Calls between some networks may stay on “Connecting…” until you add a relay again.", confirmLabel: "Remove relay", tone: "danger" }))) return; try { await st.saveIce([], ""); real = { url: "", addr: "", user: "", pass: "" }; cfg.servers = []; cfg.credsUrl = ""; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); paintVals(); $("#crChip", el).innerHTML = chipFor("relay", "off"); $("#crX", el).disabled = true; toast("Relay removed."); changed(); } catch (e) { bad(e); } };
-      } };
-    } });
+export function callsRedirect(ctx) {
+  setTimeout(() => { try { history.replaceState(history.state, "", location.pathname + location.search + "#/settings?relay=1"); } catch {} ctx.render(); }, 0);
+  return { title: "Settings", ...staffFlags(ctx), html: `<div class="ax-body">${AX.skeleton.card(220)}</div>` };
+}
+export async function mountRelayCard(host, ctx) {
+  if (!host) return;
+  let cfg; try { cfg = await st.getIce(); } catch { host.innerHTML = `<section class="rf-card ax-relay" id="relayCard"><div class="rf-card-h"><div><h3>Call relay</h3><p>We couldn’t load the relay settings. Check your connection and refresh the page.</p></div></div></section>`; return; }
+  if (!host.isConnected) return;
+  let real = { url: cfg.credsUrl || "", addr: [].concat(cfg.servers?.[0]?.urls || []).join(", "), user: cfg.servers?.[0]?.username || "", pass: cfg.servers?.[0]?.credential || "" }, revealed = false;
+  const dirty = {}, on = () => !!(cfg.servers?.length || cfg.credsUrl);
+  const val = (k) => (dirty[k] ? $(`#cr_${k}`, host).value.trim() : real[k]);
+  const chipH = () => (on() ? chip("ok", "Your relay") : chip("mute", "Not set"));
+  host.innerHTML = `<section class="rf-card ax-relay" id="relayCard" aria-labelledby="relayT"><div class="rf-card-h"><div><h3 id="relayT">Call relay</h3><p>If calls often stay on “Connecting…”, the phone or Wi-Fi is blocking direct connections and needs a relay. Create a free account at metered.ca (or Twilio, Cloudflare, Xirsys) and paste its credentials URL below. It is the easiest way.</p></div><span id="crChip" class="ax-relay-chip">${chipH()}</span></div>
+    <label class="rf-fl">Credentials URL (recommended)<input id="cr_url" autocomplete="off" spellcheck="false" placeholder="https://yourapp.metered.live/api/v1/turn/credentials?apiKey=…" data-mask="url"></label>
+    <p class="ax-relay-or">or enter the relay by hand:</p>
+    <label class="rf-fl">Relay address(es), comma separated<input id="cr_addr" autocomplete="off" spellcheck="false" placeholder="turn:global.relay.metered.ca:80, turns:global.relay.metered.ca:443?transport=tcp"></label>
+    <div class="rf-grid2"><label class="rf-fl">User name<input id="cr_user" autocomplete="off" spellcheck="false" data-mask="user"></label><label class="rf-fl">Password<input id="cr_pass" type="password" autocomplete="new-password" data-mask="pass"></label></div>
+    <p class="ax-relay-rev"><button type="button" class="ax-btn" data-v="ghost" data-size="sm" id="crReveal">${I("eye", 16)}<span>Reveal saved values</span></button></p>
+    <p class="ax-err" id="crE" role="alert"></p><div class="ax-banner" data-t="ok" id="crOk" hidden>${I("checkc", 20)}<div><b id="crOkT"></b></div></div>
+    <div class="ax-set-f">${btn("Save", { v: "primary", attrs: "id=crSave" })}${btn("Save and test", { attrs: "id=crTest" })}<span class="ax-grow"></span>${btn("Remove relay", { v: "danger", attrs: `id=crX ${on() ? "" : "disabled"}` })}</div>
+    <p class="ax-help" style="margin-top:14px">Signed-in users’ apps read these details when they place a call, so use a relay account made for this and keep its usage limit low.</p></section>
+    <div class="ax-savebar" id="crBar" hidden><span>Unsaved changes</span>${btn("Discard", { v: "ghost", size: "sm", attrs: "id=crDisc" })}${btn("Save", { v: "primary", size: "sm", attrs: "id=crBarSave" })}</div>`;
+  const el = host, inp = (k) => $(`#cr_${k}`, el), err = $("#crE", el), okB = $("#crOk", el), bar = $("#crBar", el);
+  const maskVal = (k) => (!real[k] ? "" : k === "url" ? maskUrl(real.url) : k === "pass" ? "••••••••" : real.user ? real.user.slice(0, 2) + "••••••" : "");
+  const paintVals = () => { ["url", "addr", "user", "pass"].forEach((k) => { if (dirty[k]) return; inp(k).value = k === "addr" ? real.addr : revealed ? real[k] : maskVal(k); inp(k).type = k === "pass" ? (revealed ? "text" : "password") : "text"; }); };
+  const anyDirty = () => Object.values(dirty).some(Boolean); const flag = () => (bar.hidden = !anyDirty());
+  ["url", "addr", "user", "pass"].forEach((k) => { const i = inp(k);
+    i.addEventListener("focus", () => { if (!dirty[k] && i.dataset.mask && real[k] && !revealed) i.value = ""; });
+    i.addEventListener("input", () => { dirty[k] = true; flag(); });
+    i.addEventListener("blur", () => { if (dirty[k] && !i.value.trim() && real[k]) { dirty[k] = false; flag(); paintVals(); } }); });
+  paintVals();
+  ctx.S.cleanups.push(() => { bar.remove(); });
+  $("#crReveal", el).onclick = (e) => { revealed = !revealed; e.currentTarget.querySelector("span").textContent = revealed ? "Hide saved values" : "Reveal saved values"; paintVals(); };
+  const build = () => { err.textContent = ""; okB.hidden = true; const url = val("url"), addr = val("addr"), user = val("user"), pass = val("pass");
+    if (url && !/^https:\/\//i.test(url)) { err.textContent = "The credentials URL must start with https://"; return null; }
+    if (!url && !addr) { err.textContent = "Enter a credentials URL, or the relay address with user name and password."; return null; }
+    const list = addr.split(",").map((x) => x.trim()).filter(Boolean);
+    if (addr && !list.every((x) => /^(turns?|stuns?):/i.test(x))) { err.textContent = "Each relay address must start with turn: or turns:"; return null; }
+    if (addr && list.some((x) => /^turns?:/i.test(x)) && (!user || !pass)) { err.textContent = "Enter the user name and password."; return null; }
+    return { servers: addr ? [{ urls: list, username: user, credential: pass }] : [], credsUrl: url }; };
+  const save = async (test) => { const v = build(); if (!v) return; const btns = $$("button", el); btns.forEach((b) => (b.disabled = true)); busy($(test ? "#crTest" : "#crSave", el), true);
+    try { await st.saveIce(v.servers, v.credsUrl); real = { url: v.credsUrl, addr: [].concat(v.servers[0]?.urls || []).join(", "), user: v.servers[0]?.username || "", pass: v.servers[0]?.credential || "" }; cfg.servers = v.servers; cfg.credsUrl = v.credsUrl; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); revealed = false; paintVals(); $("#crChip", el).innerHTML = chipH(); toast("Saved. New calls will use the relay."); changed();
+      if (test) { okB.hidden = false; $("#crOkT", el).textContent = "Testing the relay…"; let servers = v.servers;
+        if (v.credsUrl) { try { const r = await fetch(v.credsUrl, { cache: "no-store" }), j = await r.json(); if (Array.isArray(j) && j.length) servers = j; } catch { servers = []; err.textContent = "Couldn’t read the credentials URL. Check it and try again."; } }
+        if (servers.length) { const r = await CALLS.testRelay(servers); if (r.ok) $("#crOkT", el).textContent = "The relay works. Calls will connect through it when needed."; else { okB.hidden = true; err.textContent = r.why; } } else okB.hidden = true; }
+    } catch (e) { err.textContent = fe(e); }
+    btns.forEach((b) => (b.disabled = false)); $("#crX", el).disabled = !on(); busy($("#crTest", el), false); busy($("#crSave", el), false); };
+  $("#crSave", el).onclick = () => save(false); $("#crTest", el).onclick = () => save(true); $("#crBarSave", el).onclick = () => save(false); $("#crDisc", el).onclick = () => { Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); paintVals(); err.textContent = ""; };
+  $("#crX", el).onclick = async () => { if (!(await confirm({ title: "Remove the call relay?", body: "Calls between some networks may stay on “Connecting…” until you add a relay again.", confirmLabel: "Remove relay", tone: "danger" }))) return; try { await st.saveIce([], ""); real = { url: "", addr: "", user: "", pass: "" }; cfg.servers = []; cfg.credsUrl = ""; Object.keys(dirty).forEach((k) => (dirty[k] = false)); flag(); paintVals(); $("#crChip", el).innerHTML = chipH(); $("#crX", el).disabled = true; toast("Relay removed."); changed(); } catch (e) { bad(e); } };
+  if (ctx.q?.relay) requestAnimationFrame(() => { const c = $("#relayCard", el); c?.scrollIntoView({ block: "start", behavior: "smooth" }); c?.classList.add("is-flash"); setTimeout(() => c?.classList.remove("is-flash"), 1800); });
 }
 
 // ---------- add property (landlords, agencies and agents) ----------
@@ -420,6 +378,6 @@ async function supportDash(ctx) {
 }
 export async function supportPage(ctx, sub) {
   if (!allowed(ctx, "support")) return denied(ctx);
-  const v = sub === "suggestions" ? suggestions(ctx) : sub === "tickets" ? supportInbox(ctx) : await supportDash(ctx);
+  const v = sub === "suggestions" ? suggestions(ctx) : sub === "tickets" ? await (await import("./ax-sections.js")).ticketCenter(ctx) : await supportDash(ctx);
   return { ...v, role: "support", admin: undefined };
 }

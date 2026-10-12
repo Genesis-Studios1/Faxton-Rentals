@@ -1,0 +1,23 @@
+import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
+import { readFileSync } from "fs";
+import { setDoc, doc, addDoc, collection, serverTimestamp, updateDoc, getDoc, deleteDoc } from "firebase/firestore";
+const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
+await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" }); await setDoc(doc(d, "users/own"), { role: "renter" }); await setDoc(doc(d, "users/adm"), { role: "admin" }); await setDoc(doc(d, "users/u2"), { role: "renter" }); });
+const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
+const own = env.authenticatedContext("own").firestore(), u2 = env.authenticatedContext("u2").firestore(), adm = env.authenticatedContext("adm").firestore();
+const call = (to) => ({ convId: "", title: "", kind: "voice", status: "ringing", callerUid: "own", callerName: "O", callerPhoto: "", callerRole: "x", image: "", area: "", calleeUid: to, calleeName: "U2", members: ["own", to], createdAt: serverTimestamp() });
+const r = await addDocSafe(own, call("u2")); async function addDocSafe(db, d) { return addDoc(collection(db, "calls"), d); }
+await t("callee marks delivered", updateDoc(doc(u2, "calls", r.id), { delivered: true }));
+await t("callee cannot change other fields", updateDoc(doc(u2, "calls", r.id), { callerUid: "u2" }), false);
+await t("u2 blocks own", setDoc(doc(u2, "blocks", "u2_own"), { blocker: "u2", blocked: "own", name: "O", at: serverTimestamp() }));
+await t("cannot forge a block as someone else", setDoc(doc(own, "blocks", "u2_zzz"), { blocker: "u2", blocked: "zzz", at: serverTimestamp() }), false);
+await t("blocked caller can read the block", getDoc(doc(own, "blocks", "u2_own")));
+await t("call to someone who blocked you is denied", addDoc(collection(own, "calls"), call("u2")), false);
+await t("call to staff still allowed", addDoc(collection(own, "calls"), { ...call("staff"), members: ["own"] }));
+await t("u2 unblocks", deleteDoc(doc(u2, "blocks", "u2_own")));
+await t("call allowed again", addDoc(collection(own, "calls"), call("u2")));
+await t("user files a report", addDoc(collection(u2, "reports"), { reporterUid: "u2", reporterName: "U", targetUid: "own", targetName: "O", convId: "c", reason: "Spam or scam", details: "x", status: "New", createdAt: serverTimestamp() }));
+await t("cannot report as someone else", addDoc(collection(u2, "reports"), { reporterUid: "own", reason: "x", details: "y" }), false);
+await t("user cannot read reports", getDoc(doc(u2, "reports", "nope")), false);
+await t("admin reads reports", getDoc(doc(adm, "reports", "nope")));
+await env.cleanup();

@@ -33,6 +33,10 @@ const X = {
   mapPin: '<path d="M12 21s-7-6-7-11a7 7 0 0114 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   checkc: '<circle cx="12" cy="12" r="9"/><path d="M8 12.500l3 3 5-6"/>',
   receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  crown: '<path d="M3.5 8l4.500 4 4.500-6.500L16.500 12 20.500 8l-1.500 10h-14z"/><path d="M5 21h14"/>',
+  device: '<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.500h2"/>',
+  reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h9a7 7 0 017 7v2"/>',
+  starF: '<path d="M12 3.400l2.700 5.600 6.100.9-4.400 4.300 1 6.100L12 17.400 6.600 20.300l1-6.100L3.200 9.900l6.100-.9z" fill="currentColor"/>',
   tool: '<path d="M14.700 6.300a4 4 0 00-5.400 5.100L3 17.700 6.300 21l6.300-6.300a4 4 0 005.100-5.400l-2.500 2.500-2.300-.4-.4-2.300z"/>',
 };
 export const I = (n, s = 18, sw = 1.75) => (X[n] ? `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${X[n]}</svg>` : baseIcon(n, s, sw));

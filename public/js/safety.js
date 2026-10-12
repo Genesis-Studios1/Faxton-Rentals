@@ -30,3 +30,15 @@ export function blockDialog(ctx, { uid, name = "this user" }) {
     $("#bkYes", m.el).onclick = async () => { try { await st.blockUser(ctx.S.user, uid, name); done = true; m.close(); toast(`${name} is blocked.`); } catch (x) { toast(friendlyErr(x)); } };
   });
 }
+
+// ---------- saving a file that was sent in a chat ----------
+// Files live inside the message as data URLs. Browsers and the desktop app save them with a download link; phone apps
+// (Android and iOS web views) ignore download links, so there the phone's share sheet is used when it exists.
+const toBlob = (url) => { const [h, b = ""] = String(url).split(","), mime = (h.match(/data:([^;]+)/) || [])[1] || "application/octet-stream"; const bin = /;base64/.test(h) ? atob(b) : decodeURIComponent(b), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return new Blob([u8], { type: mime }); };
+export async function saveFile(dataUrl, name = "file") {
+  let blob; try { blob = toBlob(dataUrl); } catch { return toast("That file couldn’t be opened."); }
+  const native = !!window.Capacitor?.isNativePlatform?.();
+  try { const f = new File([blob], name, { type: blob.type }); if (native && navigator.canShare?.({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; } } catch (e) { if (e?.name === "AbortError") return; }
+  const a = document.createElement("a"), href = URL.createObjectURL(blob); a.href = href; a.download = name; a.rel = "noopener"; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(href), 8000);
+  if (native) toast("If the file doesn’t open, sign in on faxton-rentals.web.app in your phone’s browser to save it.");
+}

@@ -2,7 +2,7 @@
 import { db } from "./firebase.js";
 import { collection, doc, addDoc, getDoc, updateDoc, onSnapshot, query, where, serverTimestamp, arrayUnion }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { $, $$, esc, icon, toast, initials } from "./ui.js";
+import { $, $$, esc, icon, toast, initials, modal } from "./ui.js";
 
 // ---------- sounds (made with the browser, no audio files) ----------
 let toneCtx = null;
@@ -143,7 +143,9 @@ function run({ id, me, role, kind, other, offer }) {
     recorder.start(1000); patchCall(id, { [recKey]: true, recorded: true }); showRec(true); el("clRecB").querySelector("em").textContent = "Stop";
   };
   const stopRec = () => { if (!recorder) return; const r = recorder; recorder = null; try { r.stop(); } catch {} patchCall(id, { [recKey]: false }); showRec(false); el("clRecB").querySelector("em").textContent = "Record"; };
-  el("clRecB").onclick = () => { if (!startedAt) return toast("You can record once the call is connected."); recorder ? stopRec() : (confirm("Everyone on the call will see that it’s being recorded. The recording is saved to this device only. Start recording?") && startRec()); };
+  // (a window of our own: phone web views often block the browser's built-in confirm box)
+  const askRecord = () => new Promise((res) => { let yes = false; const m = modal(`<div class="so-pop"><span class="vf-ic ok">${icon("mic", 30)}</span><h2>Record this call?</h2><p class="muted">Everyone on the call will see that it’s being recorded. The recording is saved on this device only.</p><div class="so-act"><button type="button" class="btn" id="rcNo">Not now</button><button type="button" class="btn primary" id="rcYes">Start recording</button></div></div>`); m.el.addEventListener("close", () => res(yes)); $("#rcNo", m.el).onclick = () => m.close(); $("#rcYes", m.el).onclick = () => { yes = true; m.close(); }; });
+  el("clRecB").onclick = async () => { if (!startedAt) return toast("You can record once the call is connected."); if (recorder) return stopRec(); if (await askRecord() && !ended && !recorder) startRec(); };
 
   // ---- ending ----
   function end(status) {
@@ -154,6 +156,7 @@ function run({ id, me, role, kind, other, offer }) {
     try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); ov.classList.add("ended"); $$(".cs-b,.cs-pb", ov).forEach((b) => { if (b.id !== "clEnd" && b.id !== "clEnd2") b.disabled = true; }); } catch {}
     document.documentElement.classList.remove("dlx-lock"); active = null;
     setTimeout(() => ov.remove(), 1500);
+    if (dur >= 5) setTimeout(() => { try { import("./feedback.js").then((m) => m.rateCall({ callId: id, peer: name, seconds: dur })).catch(() => {}); } catch {} }, 1700); // ask for a rating once the call window has gone
   }
   el("clEnd").onclick = () => { if (closing) { ov.remove(); document.documentElement.classList.remove("dlx-lock"); active = null; return; } end(isCaller && !startedAt ? "cancelled" : "ended"); };
 

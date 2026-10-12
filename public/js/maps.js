@@ -1,8 +1,19 @@
 // Map helpers: Leaflet loader, "hold Ctrl and scroll to zoom", and the property location picker.
 import { $, icon, modal, toast } from "./ui.js";
 
+// Leaflet is self-hosted (vendor/leaflet) and loaded only when a map is opened, so normal pages never download it.
+let leafletP = null;
 export function loadLeaflet() {
-  return window.L ? Promise.resolve() : new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; s.onload = res; s.onerror = rej; document.head.append(s); });
+  if (window.L) return Promise.resolve();
+  if (leafletP) return leafletP;
+  const css = new Promise((res) => {
+    if (document.querySelector("link[data-leaflet]")) return res();
+    const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "vendor/leaflet/leaflet.css"; l.dataset.leaflet = "1"; l.onload = l.onerror = () => res();
+    const first = document.querySelector('link[rel=stylesheet][href*="css/app.css"]'); first ? first.before(l) : document.head.append(l); // before app.css so our map styles still win
+  });
+  const js = new Promise((res, rej) => { const s = document.createElement("script"); s.src = "vendor/leaflet/leaflet.js"; s.onload = res; s.onerror = () => rej(new Error("map-script")); document.head.append(s); });
+  leafletP = Promise.all([css, js]).then(() => {}, (e) => { leafletP = null; throw e; });
+  return leafletP;
 }
 // Scrolling the page never zooms the map by accident: zoom only while Ctrl (or ⌘) is held.
 export function ctrlZoom(map, el = map.getContainer()) {

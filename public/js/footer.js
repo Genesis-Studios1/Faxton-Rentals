@@ -1,5 +1,5 @@
 // The footer shown at the bottom of the site: social links, legal links, privacy choices and the brand.
-import { $, esc, icon, modal, toast, logoMark } from "./ui.js";
+import { $, esc, icon, modal, toast, logoMark, BUILD } from "./ui.js";
 
 // Add the real page address for each network here and its icon opens it; until then it shows "coming soon".
 const SOCIALS = [
@@ -20,14 +20,14 @@ export function siteFooter() {
       <nav class="sf-links" aria-label="Legal and help"><a href="#/help">Support ${ext}</a><a href="#/privacy">Privacy ${ext}</a><a href="#/terms">Terms of Use ${ext}</a><a href="#/license">License ${ext}</a></nav>
       <nav class="sf-links sf-links2" aria-label="Privacy"><button type="button" class="sf-choices" data-choices><span class="sf-tog" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span>Your Privacy Choices ${ext}</button><a href="#/?to=app">Get the app ${ext}</a></nav>
     </div>
-    <div class="sf-brand"><span class="sf-mark">${logoMark()}</span><b>FAXTON <span>RENTALS</span></b><small>© ${year} Faxton Rentals Inc. All rights reserved.</small></div>
+    <div class="sf-brand"><span class="sf-mark">${logoMark()}</span><b>FAXTON <span>RENTALS</span></b><small>© ${year} Faxton Rentals Inc. All rights reserved. <span class="sf-ver">Version ${esc(BUILD)}</span></small></div>
   </div></footer>`;
 }
 
 // Opens the privacy choices window. The notification switch reflects the browser's real permission.
 function privacyChoices() {
   const can = "Notification" in window, perm = can ? Notification.permission : "denied";
-  const m = modal(`<h2>Your privacy choices</h2><p class="muted" style="margin:4px 0 14px">Faxton Rentals doesn’t show ads and doesn’t use advertising or tracking cookies. We store only what is needed to keep you signed in and to remember your theme.</p>
+  const m = modal(`<h2>Your privacy choices</h2><p class="muted" style="margin:4px 0 14px">Faxton Rentals doesn’t show ads and doesn’t use advertising or tracking cookies. We store only what is needed to keep you signed in and to remember your theme. <b>We don’t run any analytics today</b>, so there is nothing to switch off; if that ever changes, the choice will appear here first.</p>
     <label class="pc-row"><span><b>Device notifications</b><small>${can ? (perm === "granted" ? "On for this browser. Turn them off in your browser’s site settings." : perm === "denied" ? "Blocked in this browser. Change it in the browser’s site settings." : "Alerts for new messages, viewings and account updates.") : "Not supported on this device."}</small></span><input type="checkbox" role="switch" id="pcN" ${perm === "granted" ? "checked" : ""} ${!can || perm !== "default" ? "disabled" : ""}></label>
     <div class="pc-links"><a class="link" href="#/privacy">Read the Privacy Policy</a><a class="link" href="#/settings">Edit my profile or delete my account</a></div><div class="a2-act"><button class="btn primary" id="pcOk">Done</button></div>`);
   const n = $("#pcN", m.el); if (n) n.onchange = async () => { try { const r = await Notification.requestPermission(); n.checked = r === "granted"; n.disabled = r !== "default"; toast(r === "granted" ? "Notifications are on." : "Notifications stay off."); } catch {} };

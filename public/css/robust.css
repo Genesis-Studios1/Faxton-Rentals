@@ -1,0 +1,43 @@
+/* robust.css: toasts for errors/updates, offline banner, friendly empty/failed/404 screens.
+   Loads after app.css. Uses only theme tokens (with fallbacks) so it works in light and dark. */
+
+/* ---------- toast stack ---------- */
+.fxr-host{position:fixed;left:0;right:0;bottom:calc(20px + var(--fx-bar-h,0px) + env(safe-area-inset-bottom));z-index:2100;display:grid;justify-items:center;gap:8px;padding:0 16px;pointer-events:none}
+.fxr-toast{pointer-events:auto;display:flex;align-items:center;gap:10px;max-width:min(94vw,480px);padding:10px 8px 10px 16px;border-radius:14px;background:#0f2f26;color:#f1f8f5;font:500 var(--fs-sm,.875rem)/1.4 var(--font-body,system-ui,sans-serif);box-shadow:0 14px 34px -10px rgba(5,25,19,.55);animation:fxrIn .22s ease-out both}
+:root[data-theme=dark] .fxr-toast{background:#1b3a33;border:1px solid rgba(110,231,183,.18)}
+.fxr-dot{flex:none;width:8px;height:8px;border-radius:50%;background:#34d399}
+.fxr-toast[data-kind=error] .fxr-dot{background:#ff6b73}
+.fxr-toast[data-kind=warn] .fxr-dot{background:#f3a712}
+.fxr-msg{min-width:0}
+.fxr-act{flex:none;min-height:36px;padding:0 12px;border:0;border-radius:10px;background:#34d399;color:#04281d;font:700 var(--fs-sm,.875rem)/1 var(--font-body,system-ui,sans-serif);cursor:pointer}
+.fxr-act:hover{background:#6ee7b7}
+.fxr-x{flex:none;width:36px;height:36px;border:0;border-radius:10px;background:transparent;color:#a9d9c6;font-size:20px;line-height:1;cursor:pointer}
+.fxr-x:hover{background:rgba(255,255,255,.08)}
+.fxr-act:focus-visible,.fxr-x:focus-visible,.fxr-retry:focus-visible{outline:2px solid #6ee7b7;outline-offset:2px}
+@keyframes fxrIn{from{opacity:0;transform:translateY(8px)}}
+
+/* ---------- offline banner ---------- */
+.fxr-offline{position:fixed;left:0;right:0;top:0;z-index:2090;display:flex;align-items:center;justify-content:center;gap:12px;padding:calc(8px + env(safe-area-inset-top)) 16px 8px;background:#3a2d10;color:#fdf1d6;font:500 var(--fs-sm,.875rem)/1.35 var(--font-body,system-ui,sans-serif);text-align:center}
+.fxr-offline[hidden]{display:none}
+.fxr-retry{flex:none;min-height:32px;padding:0 12px;border:1px solid rgba(253,241,214,.45);border-radius:10px;background:transparent;color:inherit;font:600 var(--fs-sm,.875rem)/1 var(--font-body,system-ui,sans-serif);cursor:pointer}
+.fxr-retry:hover{background:rgba(253,241,214,.12)}
+
+/* ---------- friendly full-page states (404, failed to load) ---------- */
+.fx-state{display:grid;justify-items:center;text-align:center;gap:6px;max-width:440px;margin:clamp(32px,9vh,96px) auto;padding:32px 20px}
+.fx-state .fx-st-ic{display:grid;place-items:center;width:56px;height:56px;border-radius:16px;background:var(--soft,#e4f3ec);color:var(--soft-t,#0b6e53);margin-bottom:10px}
+.fx-state .fx-st-ic svg{width:26px;height:26px}
+.fx-state .fx-st-code{font:700 var(--fs-xs,.75rem)/1 var(--font-body,system-ui,sans-serif);letter-spacing:.14em;text-transform:uppercase;color:var(--brand,#13926f)}
+.fx-state h1,.fx-state h2{font-family:var(--font-display,system-ui,sans-serif);font-size:var(--fs-2xl,1.75rem);font-weight:800;letter-spacing:-.03em;line-height:1.15;margin:6px 0 0;color:var(--head,inherit)}
+.fx-state p{color:var(--muted,#6b7772);font-size:var(--fs-base,1rem);max-width:34ch;margin:0 auto 14px}
+.fx-state .fx-st-row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+
+@media (prefers-reduced-motion:reduce){.fxr-toast{animation:none}}
+
+/* app version in the footer */
+.sf-brand .sf-ver{white-space:nowrap;opacity:.85}
+.sf-brand .sf-ver::before{content:"\00b7";margin:0 .4em 0 .1em}
+
+/* People who ask their device for less motion get (almost) none, everywhere. Events still fire, so nothing gets stuck. */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
+}

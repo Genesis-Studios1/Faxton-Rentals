@@ -1,0 +1,9 @@
+# Faxton Rentals
+# The app lives behind hash routes (#/...), which search engines do not crawl, so only the front page is indexable.
+User-agent: *
+Allow: /
+Disallow: /__/
+Disallow: /offline
+Disallow: /404
+
+Sitemap: https://faxton-rentals.web.app/sitemap.xml

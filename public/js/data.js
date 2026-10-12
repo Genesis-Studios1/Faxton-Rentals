@@ -1,4 +1,5 @@
-// Sample listings, used when Firestore has no listings yet. Admins can copy them into Firestore from the console.
+// DEMO DATA ONLY. These made-up homes are never shown to visitors. They are loaded on demand by store.js (loadDemoSeed)
+// for the owner's demo mode (Admin > Add demo listings) and for tests. Real listings come from Firestore.
 const agent = (id, name) => ({ id, name, avatar: `img/av-${id}.webp`, photo: id === "daniel" ? "img/agent-daniel.webp" : `img/av-${id}.webp` });
 const daniel = agent("daniel", "Daniel Okafor"), ngozi = agent("ngozi", "Ngozi Adeyemi"),
   tunde = agent("tunde", "Tunde Salami"), amara = agent("amara", "Amara Bello"), ibrahim = agent("ibrahim", "Ibrahim Musa");
@@ -31,3 +32,4 @@ export const SEED = [
     images: ["img/detached-5bed.webp"], amenities: ["Parking", "Security", "Generator", "Balcony"],
     desc: "A modern waterfront apartment block in Victoria Island with glass balconies and secure parking. Currently unavailable." }
 ];
+export const DEMO_SEED = SEED;
