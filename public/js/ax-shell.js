@@ -68,7 +68,7 @@ export function renderShell(path, inner, view = {}, role = "") {
     <main class="ax-main ${view.bleed ? "bleed" : ""}" id="main" tabindex="-1">${host.verifyBanner()}${inner}</main></div>
   <nav class="ax-bottom" aria-label="Primary">${tabs}<button type="button" class="ax-bt" data-ax="more" aria-haspopup="dialog" ${moreOn ? 'aria-current="true"' : ""}><span class="ax-bi">${I("grid", 22)}<b class="ax-badge dot" data-axb="more" data-t="${counts.sos ? "alert" : "amber"}" ${counts.sos || host.S.pendingV || counts.reports ? "" : "hidden"}></b></span><span>More</span></button></nav></div>`;
 }
-const railFor = () => { if (innerWidth < 1280) return "1"; try { const v = localStorage.getItem("axRail"); if (v === "0" || v === "1") return v; } catch {} return "0"; };
+const railFor = () => (innerWidth < 1280 ? "1" : "0"); // wide screens: the sidebar is always open; narrower screens: a slide-in drawer
 
 function quickItems(role) {
   const S = host.S;
@@ -172,18 +172,18 @@ export async function openPalette() {
 }
 
 function shortcuts() {
-  dialog({ title: "Keyboard shortcuts", size: "md", icon: "kbd", body: `<dl class="ax-keys">${[["Ctrl / ⌘ + K", "Search everything"], ["/", "Search this page"], ["[", "Collapse or expand the sidebar"], ["J / K", "Next or previous record"], ["X", "Select the focused row"], ["Enter", "Open the focused row"], ["Ctrl / ⌘ + Enter", "Send or save"], ["Esc", "Close the top layer"], ["?", "Show this list"]].map(([k, v]) => `<div><dt>${k.split(" + ").map((x) => `<kbd>${esc(x)}</kbd>`).join("+")}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` });
+  dialog({ title: "Keyboard shortcuts", size: "md", icon: "kbd", body: `<dl class="ax-keys">${[["Ctrl / ⌘ + K", "Search everything"], ["/", "Search this page"], ["J / K", "Next or previous record"], ["X", "Select the focused row"], ["Enter", "Open the focused row"], ["Ctrl / ⌘ + Enter", "Send or save"], ["Esc", "Close the top layer"], ["?", "Show this list"]].map(([k, v]) => `<div><dt>${k.split(" + ").map((x) => `<kbd>${esc(x)}</kbd>`).join("+")}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>` });
 }
 
 // ---------- one-time global wiring ----------
 let wired = false;
-function setRail(v, store) { const ax = $(".ax"); if (!ax) return; ax.dataset.rail = v; $$("[data-ax=rail]").forEach((b) => b.setAttribute("aria-expanded", v === "0")); if (store && innerWidth >= 1280) try { localStorage.setItem("axRail", v); } catch {} }
+function setRail(v, store) { const ax = $(".ax"); if (!ax) return; ax.dataset.rail = v; $$("[data-ax=rail]").forEach((b) => b.setAttribute("aria-expanded", v === "0")); }
 export function wireOnce() {
   if (wired) return; wired = true;
   document.addEventListener("click", (e) => {
     const a = e.target.closest?.("[data-ax]"); if (!a) { if (e.target.closest?.(".ax-snav .ax-nav") && innerWidth < 1280) setRail("1"); return; }
     const k = a.dataset.ax;
-    if (k === "rail") setRail($(".ax")?.dataset.rail === "1" ? "0" : "1", true);
+    if (k === "rail") setRail($(".ax")?.dataset.rail === "1" ? "0" : "1");
     else if (k === "rail-close") setRail("1");
     else if (k === "palette") openPalette();
     else if (k === "more") openMore();
@@ -197,7 +197,6 @@ export function wireOnce() {
     if (!$(".ax")) return; const t = document.activeElement, typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t?.tagName) || t?.isContentEditable;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); pal ? pal.close() : openPalette(); return; }
     if (typing || e.ctrlKey || e.metaKey || e.altKey || document.querySelector(".ax-ov,.ax-pal-ov")) return;
-    if (e.key === "[") { e.preventDefault(); setRail($(".ax")?.dataset.rail === "1" ? "0" : "1", true); }
     else if (e.key === "?") { e.preventDefault(); shortcuts(); }
     else if (e.key === "/" && $("#axPS")) { e.preventDefault(); $("#axPS").focus(); }
     else if (e.key === "/" && !$(".ax-search input")) { e.preventDefault(); openPalette(); }
@@ -205,7 +204,7 @@ export function wireOnce() {
   if (window.visualViewport) visualViewport.addEventListener("resize", () => document.documentElement.classList.toggle("ax-kb", visualViewport.height < innerHeight * 0.7));
   hooks.changed.push(() => recompute());
   setInterval(() => { if (document.visibilityState === "visible" && $(".ax")) loadBadges(); }, 300000);
-  addEventListener("resize", () => { const ax = $(".ax"); if (ax && innerWidth < 1280 && ax.dataset.rail === "0" && !ax.dataset.keep) setRail("1"); });
+  addEventListener("resize", () => { const ax = $(".ax"); if (!ax) return; if (innerWidth >= 1280) { if (ax.dataset.rail !== "0") setRail("0"); } else if (ax.dataset.rail === "0" && !ax.dataset.keep) setRail("1"); });
 }
 // Called by main.js right after the console HTML is in the page.
 export function afterRender() {
