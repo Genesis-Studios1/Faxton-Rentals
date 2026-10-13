@@ -88,7 +88,7 @@ echo "::endgroup::"
 GEN=""
 while IFS= read -r f; do
   if grep 'default_web_client_id' "$f" 2>/dev/null | grep -F "$WEB_ID" >/dev/null; then GEN="$f"; break; fi
-done < <(find app/build -path '*google-services*' -name '*.xml' 2>/dev/null)
+done < <(find app/build -path '*oogle*ervices*' -name '*.xml' 2>/dev/null)
 if [ -z "$GEN" ]; then
   echo "::error::default_web_client_id was not generated from google-services.json. The google-services Gradle plugin did not run, so Google sign-in cannot work."; exit 1
 fi
