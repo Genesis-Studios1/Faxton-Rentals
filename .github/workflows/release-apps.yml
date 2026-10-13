@@ -69,6 +69,7 @@ jobs:
         run: bash ../ci/build_android.sh
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 1
           name: android
           path: Faxton-Rentals-Android*
           if-no-files-found: error
@@ -90,6 +91,7 @@ jobs:
           ls dist
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 1
           name: windows
           path: |
             apps/desktop/dist/Faxton-Rentals-Windows-*.exe
@@ -115,6 +117,7 @@ jobs:
           ls dist
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 1
           name: mac
           path: |
             apps/desktop/dist/Faxton-Rentals-Mac-*.dmg
@@ -139,6 +142,7 @@ jobs:
           ls
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 1
           name: linux
           path: |
             apps/desktop/dist/Faxton-Rentals-Linux-*.AppImage
@@ -198,6 +202,7 @@ jobs:
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Faxton-Rentals-iPhone-unsigned.ipa" Payload)
       - uses: actions/upload-artifact@v4
         with:
+          retention-days: 1
           name: ios
           path: Faxton-Rentals-iPhone-unsigned.ipa
           if-no-files-found: error
