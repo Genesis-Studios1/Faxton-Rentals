@@ -37,7 +37,7 @@ rw("variables.gradle", lambda s: sub1(s, "ext {", "ext {\n    rgcfaIncludeGoogle
 PERMS = [
     "android.permission.CAMERA", "android.permission.RECORD_AUDIO", "android.permission.MODIFY_AUDIO_SETTINGS",
     "android.permission.ACCESS_FINE_LOCATION", "android.permission.ACCESS_COARSE_LOCATION",
-    "android.permission.ACCESS_NETWORK_STATE", "android.permission.POST_NOTIFICATIONS",
+    "android.permission.ACCESS_NETWORK_STATE", "android.permission.POST_NOTIFICATIONS", "android.permission.USE_BIOMETRIC",
 ]
 LINKS = (
     '<intent-filter android:autoVerify="true">'
