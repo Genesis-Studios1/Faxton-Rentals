@@ -692,3 +692,6 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 .fbk-form .fbk-row{margin-bottom:8px}
 .fbk-dlg .fbk-pick{justify-content:center}.fbk-dlg .fbk-word{text-align:center}
 @media (prefers-reduced-motion:reduce){.fbk-s{transition:none}}
+
+/* The sidebar is always open on wide screens, so its toggle button only exists where the sidebar is a drawer. */
+@media (min-width:1280px){.ax-toggle{display:none!important}}
