@@ -4,6 +4,10 @@ import { $, esc, icon, toast, logoMark } from "./ui.js";
 import { errText } from "./authkit.js";
 
 const CUTOFF = Date.parse("2026-10-09T00:00:00Z"); // accounts made before this keep working as they did
+// Admin side: a profile counts as pending until the person verifies their email. The app writes emailVerified to the profile on sign-in;
+// a missing value means pending only for password accounts made after the gate date (older accounts count as verified).
+const tms = (c) => (c?.toMillis ? c.toMillis() : c?.seconds ? c.seconds * 1000 : +c || 0);
+export const emailPending = (d) => { if (!d || d.emailVerified === true) return false; const made = tms(d.createdAt); return made >= CUTOFF && d.provider !== "google"; };
 export const needsVerify = (u) => !!u && !u.emailVerified && u.providerData.some((p) => p.providerId === "password") && Date.parse(u.metadata?.creationTime || 0) >= CUTOFF;
 
 export function verifyView(ctx) {

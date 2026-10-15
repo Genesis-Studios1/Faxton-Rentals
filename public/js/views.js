@@ -22,6 +22,7 @@ import * as TENANTS from "./tenants.js";
 import * as VS from "./viewsafe.js";
 import * as HOME from "./home.js";
 import { fxErr, shrinkImage, ask } from "./fx.js";
+import { playSound, soundsOn, setSounds } from "./sound.js";
 import { openViewer, detail } from "./pdp.js";
 // A damaged address (for example #/home/%E0%A4) is treated as a normal unknown page instead of throwing.
 const decodeURIComponent = (s) => { try { return globalThis.decodeURIComponent(s); } catch { return s; } };
@@ -382,7 +383,7 @@ async function messages(ctx, cid) {
           if (u0) { th.scrollTop += u0.getBoundingClientRect().top - th.getBoundingClientRect().top - 56; return; }
           if (near || items.length < 3 || drawChat.stick) { th.scrollTop = th.scrollHeight; drawChat.stick = false; $$("img.mx-pic,.mx-lcard img", th).forEach((im) => { if (!im.complete) im.addEventListener("load", () => { th.scrollTop = th.scrollHeight; }, { once: true }); }); }
         };
-        unsubM?.(); unsubM = st.watchMessages(cid, (list) => { ms = list; paintThread(); });
+        let n0 = -1; unsubM?.(); unsubM = st.watchMessages(cid, (list) => { const lm = list[list.length - 1]; if (n0 >= 0 && list.length > n0 && lm && lm.at && lm.from !== me) playSound("message"); n0 = list.length; ms = list; paintThread(); });
         paintThread();
       };
       const refresh = () => {
@@ -445,7 +446,7 @@ function settings(ctx, section) {
       ${card("Signed in on other devices?", "", `<p class="rf-muted" style="margin:0 0 12px">Sign out here at any time. If you think someone else has access, reset your password: that signs your account out on your other devices.${google && !pwd ? " For a Google account, also review security in your Google account." : ""}</p><div class="rf-actions" style="margin-top:0"><button class="btn" id="out2">${icon("logout", 17)} Sign out on this device</button>${pwd ? `<button class="btn" id="resetPw2">Reset password to sign out other devices</button>` : ""}</div>`)}
       ${(() => { const d = ctx.S.profile?.deletion; return d?.status === "pending" ? card("Account deletion requested", "", `<p class="rf-muted" style="margin:0 0 12px">You asked to delete your account on ${new Date(d.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. Our team reviews every request, which takes about a day. Nothing is deleted until then, and you can cancel now.</p><div class="rf-actions" style="margin-top:0"><button class="btn" id="cancelDel">Cancel deletion</button></div>`, "rf-danger") : d?.status === "approved" ? card("Account scheduled for deletion", "", `<p class="rf-muted" style="margin:0">Your request was approved. Your account will be removed the next time it’s opened after the one-day review period ends.</p>`, "rf-danger") : card("Delete account", "Remove your account and its data.", `<p class="rf-muted" style="margin:0 0 12px">Our team reviews every request, which takes about a day, and you can cancel before it’s approved. Some records, like payment confirmations, may be kept where the law requires.</p><div class="rf-actions" style="margin-top:0"><button class="btn red-o" id="delAcct">${icon("trash", 17)} Delete my account</button></div>`, "rf-danger"); })()}
       ${ctx.S.isAdmin ? card("Admin console", "Manage listings, users, applications and viewings.", `<div class="rf-actions" style="margin-top:0"><a class="btn" href="#/admin">Open admin console</a></div>`) : ""}</div>`;
-  else if (section === "notifications") body = `<div class="rf-col">${ntCard}<p class="rf-meta">Saved to your account as you switch them. Important account and security messages are always sent.</p></div>`;
+  else if (section === "notifications") body = `<div class="rf-col">${ntCard}${card("Sounds", "A short, soft sound for new messages and calls ending.", `<div class="rf-sw first"><span class="rf-sw-ic">${icon("bell", 20, 1.7)}</span><div><b>Notification sounds</b><p>Play a sound when something new arrives while the app is open.</p></div><button type="button" class="switch ${soundsOn() ? "on" : ""}" role="switch" aria-checked="${soundsOn()}" id="sndSw" aria-label="Notification sounds"><i></i></button></div>`)}<p class="rf-meta">Saved to your account as you switch them. Important account and security messages are always sent.</p></div>`;
   else if (section === "appearance") body = `<div class="rf-col">${apCard}</div>`;
   else if (section === "privacy") body = `<div class="rf-col">${card("What agents can see", "Your contact details are only shared when you choose.", PRIVACY.map(([k, ic, t, d], i) => swRow("privacy", k, ic, t, d, privacy[k]).replace('class="rf-sw"', i ? 'class="rf-sw"' : 'class="rf-sw first"')).join(""))}
       ${card("Your data", "Under Nigeria’s data protection law you can ask to see, correct or delete the personal data we hold about you.", `<div class="rf-actions" style="margin-top:0"><button class="btn" id="dataReq">${icon("download", 17)} Ask for a copy of my data</button><a class="btn ghost" href="#/privacy">Read the Privacy Policy</a></div>`)}</div>`;
@@ -467,6 +468,7 @@ function settings(ctx, section) {
       const signOut = async () => { if (await ctx.confirmSignOut()) { await ctx.logout(); ctx.go("#/login"); } };
       $("#out").onclick = signOut; const o2 = $("#out2"); if (o2) o2.onclick = signOut;
       $$("[data-theme-pref]").forEach((b) => (b.onclick = () => { ctx.setThemePref(b.dataset.themePref); $$("[data-theme-pref]").forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on); }); }));
+      const sn = $("#sndSw"); if (sn) sn.onclick = async () => { const next = !sn.classList.contains("on"); sn.classList.toggle("on", next); sn.setAttribute("aria-checked", next); setSounds(next); if (next) { playSound("message"); } try { await save({ prefs: { ...(ctx.S.profile?.prefs || {}), sounds: next } }, next ? "Sounds are on." : "Sounds are off."); } catch { sn.classList.toggle("on", !next); sn.setAttribute("aria-checked", !next); setSounds(!next); } };
       $$("[data-sw]").forEach((b) => (b.onclick = async () => {
         const [g, k] = b.dataset.sw.split("."), cur = ctx.S.profile?.[g] || {}, base = g === "notify" ? notify : privacy, next = !(cur[k] ?? base[k]);
         b.classList.toggle("on", next); b.setAttribute("aria-checked", next);

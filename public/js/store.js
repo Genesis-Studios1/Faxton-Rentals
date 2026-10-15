@@ -1,6 +1,6 @@
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
-import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
@@ -187,3 +187,10 @@ export const syncVerified = (users) => Promise.all(users.filter((u) => u.verifie
 
 // React to a message with an emoji (null removes my reaction).
 export const reactToMessage = (cid, mid, uid, emoji) => updateDoc(doc(db, "conversations", cid, "messages", mid), { ["reactions." + uid]: emoji || deleteField() });
+
+// ---- staff events: a signed-in person records that they signed up or in; admins and support see them live (no cloud functions on this plan) ----
+export const logStaffEvent = (user, p, type) => {
+  const d = { type, uid: user.uid, name: String((p?.role === "agency" && p?.agency?.business) || p?.name || user.displayName || "Someone").slice(0, 120), role: String(p?.role || "renter").slice(0, 20), at: serverTimestamp() };
+  return (type === "signup" ? setDoc(doc(db, "staffEvents", "signup_" + user.uid), d) : addDoc(collection(db, "staffEvents"), d)).catch(() => {});
+};
+export const watchStaffEvents = (cb) => onSnapshot(query(collection(db, "staffEvents"), orderBy("at", "desc"), limit(30)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })), s.docChanges().filter((c) => c.type === "added").map((c) => c.doc.id)), () => {});

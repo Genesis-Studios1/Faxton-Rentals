@@ -10,7 +10,7 @@
 //  - A new release waits until the person taps "Reload" in the "A new version is ready" message (see js/robust.js).
 //
 // RELEASE: BUILD below must equal BUILD in js/ui.js and the ?v= in index.html. Run `node scripts/check-release.mjs` before deploying.
-const BUILD = "2026-10-13.01";
+const BUILD = "2026-10-15.01";
 const PRE = "faxton-" + BUILD;   // saved on install, thrown away on the next release
 const RT = "faxton-rt";          // pictures, fonts, SDK scripts picked up while browsing (size-capped, survives releases)
 const RT_MAX = 160;
@@ -24,7 +24,7 @@ const EXTRA = [
   "assets/mark.svg", "img/splash-final.webp", "icons/icon-192.png", "icons/favicon.svg?v=2",
   "fonts/inter-latin-400-normal.woff2", "fonts/inter-latin-500-normal.woff2", "fonts/inter-latin-600-normal.woff2", "fonts/inter-latin-700-normal.woff2",
   "fonts/inter-tight-latin-600-normal.woff2", "fonts/inter-tight-latin-700-normal.woff2", "fonts/inter-tight-latin-800-normal.woff2",
-  ...["admin2", "applock", "ax-list", "ax-sections", "ax-shell", "dash", "installs", "paymentspage", "apps", "area", "authkit", "authviews", "calls", "cards", "countries", "dd", "feedback", "firebase", "footer", "fx", "gate", "home", "legal", "maps", "match", "myhome", "offers", "onboard", "pages", "paymentinfo", "pdp", "profile", "safety", "services", "store", "tenants", "tour", "ui", "views", "viewsafe"].map((n) => "js/" + n + ".js"),
+  ...["admin2", "applock", "ax-list", "ax-sections", "ax-shell", "dash", "installs", "paymentspage", "apps", "area", "authkit", "authviews", "calls", "cards", "countries", "dd", "feedback", "firebase", "footer", "fx", "gate", "sound", "home", "legal", "maps", "match", "myhome", "offers", "onboard", "pages", "paymentinfo", "pdp", "profile", "safety", "services", "store", "tenants", "tour", "ui", "views", "viewsafe"].map((n) => "js/" + n + ".js"),
 ];
 
 self.addEventListener("install", (e) => {

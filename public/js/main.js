@@ -8,10 +8,11 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
+import { playSound, setSounds } from "./sound.js";
 import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
 import { watchIncoming } from "./calls.js";
 import { siteFooter, wireFooter } from "./footer.js";
@@ -68,7 +69,7 @@ const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console and staff portals: grouped sidebar, top bar, four-icon phone bar and More sheet (ax-shell.js, loaded for staff only).
 let AXS = null;
 function adminShell(path, inner, view, role = "") {
-  AXS.setHost({ S, go, render, theme, themePref, setThemePref, toggleTheme, logout, confirmSignOut, noteDot, verifyBanner, userName });
+  AXS.setHost({ S, go, render, theme, themePref, setThemePref, toggleTheme, logout, confirmSignOut, noteDot, verifyBanner, userName, noteCount: noteUnread });
   setTimeout(() => AXS.afterRender(), 0);
   return AXS.renderShell(path, inner, view || {}, role);
 }
@@ -221,7 +222,7 @@ export async function render() {
   const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
-  try { view = S.user && G.needsVerify(S.user) && !["/terms", "/privacy", "/license"].includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
+  try { view = S.user && G.needsVerify(S.user) && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
   if (id !== renderId) return;
   bar(false);
   if (!AXS && view && !view.full && S.user && (S.isAdmin || ROLE_UI[S.role]) && (view.admin || view.role || path.startsWith("/messages") || isSettings(path))) { try { AXS = await import("./ax-shell.js"); } catch (e) { console.error(e); } if (id !== renderId) return; }
@@ -232,7 +233,9 @@ export async function render() {
   scrollTo(0, 0);
   view.mount?.(app, ctx);
   if (S.user) { startUpdateWatch(S); syncShellAutoUpdate(S.profile?.prefs?.autoUpdate); } else stopUpdateWatch();
-  const tk = !S.user ? null : path === "/" ? (S.isAdmin || ROLE_UI[S.role] ? null : "renter") : S.isAdmin && path === "/admin" ? "admin" : ROLE_UI[S.role]?.home === path ? S.role : null;
+  // Never start a tour on top of the "Check your email" screen or a legal page; it starts once the account is verified and the real home shows.
+  const gated = !!S.user && (G.needsVerify(S.user) || LEGAL_PATHS.includes(path));
+  const tk = !S.user || gated ? null : path === "/" ? (S.isAdmin || ROLE_UI[S.role] ? null : "renter") : S.isAdmin && path === "/admin" ? "admin" : ROLE_UI[S.role]?.home === path ? S.role : null;
   // After the splash, on the home page (or a staff member's dashboard), anyone without an area of residence is asked once.
   const homeish = path === "/" || path === roleHome();
   if (S.user && S.profile && !S.profile.country && homeish) whenReady(() => {
@@ -240,8 +243,9 @@ export async function render() {
     askResidence({ required: true }).then(async (r) => { if (!r) { S.askingRes = false; return; } try { await saveProfile(S.user.uid, { country: r.country, city: r.city, location: `${r.city}, ${r.country}` }); S.profile = { ...S.profile, ...r }; toast("Thanks! Your area of residence is saved."); setTimeout(askNotifications, 800); } catch (e) { toast(friendlyErr(e)); } finally { S.askingRes = false; } });
   });
   else if (S.user && homeish) whenReady(() => setTimeout(askNotifications, 600));
-  if (tk && !tourSeen(S.user, tk)) whenReady(() => { if (parse().path === path) startTour(S.user, (S.user.displayName || "").split(" ")[0], tk); });
+  if (tk && !tourSeen(S.user, tk)) whenReady(() => { if (parse().path === path && S.user && !G.needsVerify(S.user)) startTour(S.user, (S.user.displayName || "").split(" ")[0], tk); });
 }
+const LEGAL_PATHS = ["/terms", "/privacy", "/license"];
 const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
 function wire() {
   wireFooter(); wireNotes(); wireChrome(); closeNotes(true); closeSheet(true); paintBell();
@@ -292,6 +296,7 @@ async function signIn(email, pw, remember = true) {
   }
   const p = await rejectIfBanned(c.user);
   writeAccountMarker(email);
+  announce(c.user, p, "login");
   return p?.role || "renter";
 }
 async function signUp(name, email, pw, role, details, photo, residence) {
@@ -303,26 +308,57 @@ async function signUp(name, email, pw, role, details, photo, residence) {
   try { await sendEmailVerification(c.user); } catch {}
   // Load the new profile now so the app opens signed in on the home page.
   await refreshAuthState(auth.currentUser);
+  announce(c.user, S.profile, "signup");
+}
+// Tells the Faxton team (admins and support see it live) that someone signed up or in. Logins are sent at most once per person per 30 minutes.
+function announce(user, profile, type) {
+  try {
+    if (type === "login") { const k = "evl_" + user.uid, last = +localStorage.getItem(k) || 0; if (Date.now() - last < 18e5) return; localStorage.setItem(k, String(Date.now())); }
+  } catch {}
+  logStaffEvent(user, profile, type);
 }
 // ---- the notifications panel under the bell (a popover on desktop, a bottom sheet on phones) ----
-const noteUnread = () => (S.notes || []).filter((n) => !n.read).length;
+const allNotes = () => [...(S.evNotes || []), ...(S.notes || [])].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+const noteUnread = () => allNotes().filter((n) => !n.read).length;
 const noteDot = () => (noteUnread() ? "dot" : "");
 const paintBell = () => $$("[data-bell]").forEach((b) => { b.classList.toggle("dot", noteUnread() > 0); const n = noteUnread(); if (n) b.dataset.n = n > 99 ? "99+" : n; else delete b.dataset.n; });
 const agoText = (sec) => { if (!sec) return ""; const d = Math.max(0, Date.now() / 1000 - sec); return d < 60 ? "Just now" : d < 3600 ? Math.floor(d / 60) + " min ago" : d < 86400 ? Math.floor(d / 3600) + " h ago" : new Date(sec * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" }); };
 const NOTE_IC = { verified: "check", rejected: "x", info: "info" };
 // Unread items sit under "New"; the rest are grouped by age.
 const noteGroup = (n) => { if (!n.read) return "New"; const d = new Date(); d.setHours(0, 0, 0, 0); const t = d.getTime() / 1000, s = n.createdAt?.seconds || 0; return s >= t ? "Today" : s >= t - 6 * 86400 ? "This week" : "Earlier"; };
+const markRead = (n) => (n.ev ? markEvRead(n.id) : markNotificationRead(n.id));
+// ---- live "someone signed up / signed in" entries for admins and support (one small listener on the newest 30 staffEvents) ----
+const evKey = (u, w) => `staffEv${w}_${u.uid}`;
+const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const ROLE_NAME = { owner: "Owner", admin: "Admin", agent: "Agent", landlord: "Property owner", agency: "Agency", support: "Support", renter: "Renter" };
+function markEvRead(id) { const u = S.user; if (!u) return; const r = lsGet(evKey(u, "Read"), []); if (!r.includes(id)) lsSet(evKey(u, "Read"), [...r, id].slice(-120)); }
+function startStaffEvents(u) {
+  let base = lsGet(evKey(u, "Base"), 0); if (!base) { base = Date.now(); lsSet(evKey(u, "Base"), base); }
+  const staffHref = S.isAdmin ? "/admin/users" : undefined;
+  let first = true;
+  return watchStaffEvents((list, added) => {
+    if (S.user?.uid !== u.uid) return;
+    const read = new Set(lsGet(evKey(u, "Read"), []));
+    S.evNotes = list.filter((e) => e.at?.seconds && e.uid !== u.uid).map((e) => {
+      const nm = e.name || "Someone", rl = ROLE_NAME[e.role] || "Renter", su = e.type === "signup";
+      return { id: e.id, ev: true, kind: su ? "verified" : "info", title: su ? `New sign-up: ${nm} (${rl})` : `${nm} signed in`, body: "", href: staffHref, createdAt: e.at, read: read.has(e.id) || e.at.seconds * 1000 <= base };
+    });
+    if (!first) { const fresh = S.evNotes.filter((n) => added.includes(n.id) && !n.read); if (fresh.length) { toast(fresh[0].title + (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : "")); playSound("staff"); } }
+    first = false; paintBell(); if ($("#notePanel")) drawNotes();
+  });
+}
 function drawNotes() {
-  const box = $("#notePanel"); if (!box) return; const list = S.notes || [], un = noteUnread(), groups = {};
+  const box = $("#notePanel"); if (!box) return; const list = allNotes(), un = noteUnread(), groups = {};
   list.forEach((n) => (groups[noteGroup(n)] ||= []).push(n));
   const item = (n) => `<div class="fxn-item ${n.read ? "" : "new"}" data-id="${esc(n.id)}" ${n.href ? `data-href="${esc(n.href)}" role="link"` : 'role="button"'} tabindex="0"><span class="fxn-ic ${esc(n.kind || "")}">${icon(NOTE_IC[n.kind] || "bell", 18)}</span><span class="fxn-tx"><b>${esc(n.title || "")}</b>${n.body ? `<span class="fxn-b">${esc(n.body)}</span>` : ""}<small>${agoText(n.createdAt?.seconds)}</small></span>${n.read ? "" : `<i class="fxn-dot" title="Unread"></i><span class="sr">Unread</span>`}</div>`;
   box.innerHTML = `<div class="fxn-grab" aria-hidden="true"><i></i></div>
     <div class="fxn-head"><h2>Notifications</h2>${un ? `<span class="fxn-count num">${un} new</span>` : ""}<span class="fxn-sp"></span>${un ? `<button type="button" class="fxn-all" id="npAll">Mark all as read</button>` : ""}<button type="button" class="fxn-x" data-npclose aria-label="Close notifications">${icon("x", 18)}</button></div>
     <div class="fxn-list">${list.length ? ["New", "Today", "This week", "Earlier"].filter((g) => groups[g]).map((g) => `<section class="fxn-sec"><h3 class="fxn-gh">${g}</h3>${groups[g].map(item).join("")}</section>`).join("") : `<div class="fxn-empty"><span class="fxn-eic">${icon("bell", 26)}</span><b>You’re all caught up</b><p>Replies, viewing updates and account news will show up here.</p></div>`}</div>
     <a class="fxn-foot" href="#/messages">Open messages${S.unread ? ` <b class="num">${unreadTxt(S.unread)}</b>` : ""}</a>`;
-  const open = (x) => { const n = list.find((m) => m.id === x.dataset.id); if (n && !n.read) { n.read = true; markNotificationRead(n.id); paintBell(); } if (x.dataset.href) { closeNotes(); go("#" + x.dataset.href); } else drawNotes(); };
+  const open = (x) => { const n = list.find((m) => m.id === x.dataset.id); if (n && !n.read) { n.read = true; markRead(n); paintBell(); } if (x.dataset.href) { closeNotes(); go("#" + x.dataset.href); } else drawNotes(); };
   $$(".fxn-item", box).forEach((x) => { x.onclick = () => open(x); x.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(x); } }; });
-  const all = $("#npAll", box); if (all) all.onclick = () => { (S.notes || []).filter((n) => !n.read).forEach((n) => { n.read = true; markNotificationRead(n.id); }); paintBell(); drawNotes(); };
+  const all = $("#npAll", box); if (all) all.onclick = () => { allNotes().filter((n) => !n.read).forEach((n) => { n.read = true; markRead(n); }); paintBell(); drawNotes(); };
   const x = $("[data-npclose]", box); if (x) x.onclick = () => closeNotes();
   dragClose($(".fxn-grab", box), box, () => closeNotes());
 }
@@ -427,7 +463,7 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
       if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
       throw Object.assign(new Error(e?.message), { code: `firebase/${code}${window.__csp ? " | " + window.__csp : ""}` });
     }
-    await ensureProfile(c.user, { role: chosen, details, residence, photo }); return (await rejectIfBanned(c.user))?.role || "renter";
+    const was = S.justCreated; S.justCreated = null; await ensureProfile(c.user, { role: chosen, details, residence, photo }); const p = await rejectIfBanned(c.user); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
   }
   const t0 = performance.now();
   let c;
@@ -439,8 +475,10 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
     const probes = e?.code === "auth/network-request-failed" ? await probeGoogle() : "";
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
   }
+  const was = S.justCreated; S.justCreated = null;
   await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
-  return (await rejectIfBanned(c.user))?.role || "renter";
+  const p = await rejectIfBanned(c.user); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
+  return p?.role || "renter";
 }
 const logout = () => signOut(auth);
 // "Are you sure?" before signing out, with a red button.
@@ -474,7 +512,7 @@ async function setSaved(id, on) {
 export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 async function refreshAuthState(u) {
-  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; }
+  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; S.unsubStaffEv?.(); S.unsubStaffEv = null; S.evNotes = []; }
   S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
@@ -487,7 +525,10 @@ async function refreshAuthState(u) {
     if (!S.profile) { try { await ensureProfile(u); S.profile = await getProfile(u.uid); } catch { /* rules refused; leave signed in without a profile */ } }
     // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
     if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
-      if (Date.now() - t0 > 36e5 || S.profile.provider !== prov) patchDoc("users", u.uid, { lastActive: serverTimestamp(), provider: prov }).catch(() => {}); }
+      // emailVerified lets the admin Users list show unverified sign-ups as Pending; it is written only when it changes.
+      if (Date.now() - t0 > 36e5 || S.profile.provider !== prov) patchDoc("users", u.uid, { lastActive: serverTimestamp(), provider: prov }).catch(() => {});
+      if (S.profile.emailVerified !== !!u.emailVerified) (async () => { try { if (u.emailVerified) await u.getIdToken(true); await patchDoc("users", u.uid, { emailVerified: !!u.emailVerified }); if (S.profile) S.profile.emailVerified = !!u.emailVerified; } catch {} })();
+      if (typeof S.profile.prefs?.sounds === "boolean") setSounds(S.profile.prefs.sounds); }
     S.unsubProfile?.(); S.unsubProfile = watchProfile(u.uid, (p) => {
       if (S.user?.uid !== u.uid || !p) return;
       if (p.banned) { S.bannedNote = true; signOut(auth); return; }
@@ -508,6 +549,8 @@ async function refreshAuthState(u) {
     S.tenant = null; if (!S.isAdmin && S.role === "renter") S.tenant = await Promise.race([detectTenant(u).catch(() => null), new Promise((r) => setTimeout(() => r(null), 2500))]);
     S.unsubCalls?.(); S.unsubCalls = watchIncoming({ S, user: u }, S.isAdmin || S.role === "support");
     S.unsubVerif?.(); S.unsubVerif = null;
+    S.unsubStaffEv?.(); S.unsubStaffEv = null; S.evNotes = [];
+    if (S.isAdmin || S.role === "support") S.unsubStaffEv = startStaffEvents(u);
     if (S.isAdmin) { let first = true; S.unsubVerif = watchPendingVerifications((list) => { const n = list.length, grew = n > (S.pendingV || 0); S.pendingV = n; $$("[data-vbadge]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
       if (first && n) toast(`${n} verification request${n > 1 ? "s" : ""} waiting for you.`); else if (!first && grew) toast("New verification request: an agency or agent is waiting for you."); first = false; }); }
   }
@@ -515,8 +558,9 @@ async function refreshAuthState(u) {
   if (u) { if (S.lockedFor !== u.uid) { S.lockedFor = u.uid; LOCK.arm(u, logout); } else LOCK.refreshArm(u, logout); } else S.lockedFor = null;
   S.saved = new Set(u ? S.profile?.saved || [] : await getSaved(u));
   S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0;
+  let firstConv = true;
   if (u) S.unsubConvs = watchConversations(u, (c) => {
-    const n = c.filter((x) => x.unread).length; if (n === S.unread) return; if (n > S.unread) sysNotify("New message", "You have a new message on Faxton Rentals."); S.unread = n;
+    const n = c.filter((x) => x.unread).length; const wasFirst = firstConv; firstConv = false; if (n === S.unread) return; if (n > S.unread) { sysNotify("New message", "You have a new message on Faxton Rentals."); if (!wasFirst) playSound("message"); } S.unread = n;
     $$("[data-unread]").forEach((b) => { b.textContent = unreadTxt(n); b.hidden = !n; });
   });
 }
