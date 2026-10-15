@@ -268,7 +268,8 @@ form[aria-busy=true] .au-tab{pointer-events:none}
 
 /* ============================ app lock (.lk-ov) ============================ */
 .lk-ov{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:24px;overflow:auto;color:#fff;background:radial-gradient(70% 55% at 50% 26%,#036b4a 0%,#02402d 42%,#01130e 100%)}
-html.locked body>*:not(.lk-ov){visibility:hidden}
+html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
+.lk-ov.lk-wait{z-index:900}.lk-ov.lk-wait .lk-card{animation:none;opacity:0}.lk-ov.lk-fade{animation:lk-fade .28s ease-out both}@keyframes lk-fade{from{opacity:0}}
 .lk-card{width:min(360px,100%);text-align:center;display:grid;gap:14px;justify-items:center;animation:au-in .5s var(--a-rise,cubic-bezier(.2,.8,.2,1)) both}
 .lk-logo{display:grid;place-items:center;width:92px;height:92px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);box-shadow:0 0 0 10px rgba(52,211,153,.06)}
 .lk-logo .logo-svg{height:44px;width:auto}.lk-logo .lg-a{fill:#34d399}.lk-logo .lg-b{fill:#fff}
@@ -278,4 +279,4 @@ html.locked body>*:not(.lk-ov){visibility:hidden}
 .lk-ov .lk-go:hover{filter:brightness(1.06);transform:translateY(-1px)}.lk-go:active{transform:none}.lk-go:focus-visible,.lk-out:focus-visible{outline:2px solid #fff;outline-offset:3px}
 .lk-err{min-height:1.4em;color:#ffb3c0!important;font-size:.9rem!important}
 .lk-out{min-height:44px;padding:0 14px;border:0;background:none;color:#b9d8cb;text-decoration:underline;text-underline-offset:3px;font-size:.9rem}.lk-out:hover{color:#fff}
-@media (prefers-reduced-motion:reduce){.lk-card,.vg-card{animation:none!important}}
+@media (prefers-reduced-motion:reduce){.lk-card,.vg-card,.lk-ov.lk-fade{animation:none!important}}
