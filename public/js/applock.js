@@ -41,13 +41,20 @@ export const disable = (uid) => write(uid, null);
 let armed = null, hiddenAt = 0, showing = false;
 function lockScreen(user, logout) {
   if (showing) return; showing = true;
-  const el = document.createElement("div"); el.className = "lk-ov"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
+  // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
+  const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
+  const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
   el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
-  const done = () => { el.remove(); showing = false; document.documentElement.classList.remove("locked"); };
+  const done = () => { el.remove(); showing = false; document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
   const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
   $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
-  setTimeout(go, 250);
+  if (!waitSplash) return void setTimeout(go, 250);
+  let freed = false;
+  const free = () => { if (freed || !el.isConnected) return; freed = true; el.classList.remove("lk-wait"); setTimeout(go, 300); };
+  if (sp.classList.contains("leave")) setTimeout(free, 1000);
+  else { document.addEventListener("splash-done", () => setTimeout(free, 1000), { once: true }); setTimeout(free, 12000); }
 }
 // Call after sign-in: locks now (the app was just opened) and again whenever the app comes back after being away.
 export function arm(user, logout) {

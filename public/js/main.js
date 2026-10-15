@@ -246,7 +246,8 @@ export async function render() {
   if (tk && !tourSeen(S.user, tk)) whenReady(() => { if (parse().path === path && S.user && !G.needsVerify(S.user)) startTour(S.user, (S.user.displayName || "").split(" ")[0], tk); });
 }
 const LEGAL_PATHS = ["/terms", "/privacy", "/license"];
-const whenReady = (fn) => (document.documentElement.classList.contains("ready") ? setTimeout(fn, 900) : document.addEventListener("splash-done", () => setTimeout(fn, 1100), { once: true }));
+// Prompts and tours wait for the splash, and for the app lock to be opened (a dialog under the lock screen would block it).
+const whenReady = (f) => { const run = () => (document.documentElement.classList.contains("locked") ? document.addEventListener("applock-open", () => setTimeout(run, 900), { once: true }) : f()); return document.documentElement.classList.contains("ready") ? setTimeout(run, 900) : document.addEventListener("splash-done", () => setTimeout(run, 1100), { once: true }); };
 function wire() {
   wireFooter(); wireNotes(); wireChrome(); closeNotes(true); closeSheet(true); paintBell();
   // Tab strips that scroll sideways open with the current tab in view.

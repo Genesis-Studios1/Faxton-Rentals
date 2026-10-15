@@ -39,4 +39,9 @@ setTimeout(function () {
 }, 12000);
 
 // The splash plays once per browser session. A reload (or coming back to the tab) goes straight to the app instead of replaying it.
-try { if (sessionStorage.getItem("splashed") === "1") document.documentElement.classList.add("no-splash", "ready"); } catch (e) {}
+// Exception: when someone has app lock on, the splash always plays on open, and the lock screen follows it (see js/applock.js).
+try {
+  var lockOn = false;
+  try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf("applock_") === 0 && /"on"\s*:\s*1/.test(localStorage.getItem(k) || "")) { lockOn = true; break; } } } catch (e) {}
+  if (!lockOn && sessionStorage.getItem("splashed") === "1") document.documentElement.classList.add("no-splash", "ready");
+} catch (e) {}
