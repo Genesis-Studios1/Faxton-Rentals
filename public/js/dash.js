@@ -8,6 +8,7 @@ import { pickLocation } from "./maps.js";
 import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { listingState, isPendingL, roleOf, emailPending } from "./admin2.js";
+import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, csv, pageView, pageHead, kpi, mini, attn, spark, areaChart, barChart, donut, rank, progress, pctDelta, mountCharts, animateCounts, bulkRun, ms, staffFlags } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -251,7 +252,7 @@ export function addProperty(ctx, done) {
   const amen = ["Parking", "Water supply", "Security", "Generator", "Solar / inverter", "Balcony", "Gym", "Pool", "Garden", "Wi-Fi"];
   const d = dialog({ title: "Add a property", size: "lg", icon: "home", body: `<p class="ax-p ax-muted">New listings are reviewed by the Faxton team before they go live.</p><form id="np" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
-    <label class="ax-field"><span>Area</span><input class="ax-input" name="area" required maxlength="60" placeholder="Lekki Phase 1"></label><label class="ax-field"><span>City</span><input class="ax-input" name="city" value="Lagos" required maxlength="40"></label>
+    ${locFields({ style: "ax", flow: true, ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "npCity" })}
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label><label class="ax-field"><span>Type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
     <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="20" value="2" required></label><label class="ax-field"><span>Bathrooms</span><input class="ax-input" name="baths" type="number" min="1" max="20" value="2" required></label>
     <label class="ax-field"><span>Year built</span><input class="ax-input" name="yearBuilt" type="number" min="1900" max="2100" placeholder="2022"></label><label class="ax-field"><span>Parking spaces</span><input class="ax-input" name="parking" type="number" min="0" max="50" placeholder="2"></label>
@@ -264,17 +265,19 @@ export function addProperty(ctx, done) {
     <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px">${btn("Set location on map", { size: "sm", ic: "pin", attrs: "id=npLoc" })}<span class="ax-muted" id="npLocT">Not set yet</span></div></div>
     <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label><label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
     <p class="ax-err full" id="npe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Submit for review", { v: "primary", attrs: "data-ok" })}` });
+  const loc = mountLoc(d.el, { ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea" }, cityId: "npCity" });
   $("#npLoc", d.el).onclick = async () => { const r = await pickLocation({ lat: where?.lat, lng: where?.lng }); if (r) { where = r; $("#npLocT", d.el).textContent = `Saved (${r.lat.toFixed(4)}, ${r.lng.toFixed(4)})`; } };
   $("[data-ok]", d.el).onclick = async (e) => {
-    const fd = new FormData($("#np", d.el)), f = Object.fromEntries(fd), err = $("#npe", d.el), am = fd.getAll("am").map(String).slice(0, 12), ln = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean); err.textContent = "";
-    if (!f.title.trim() || !f.area.trim() || !f.city.trim()) return (err.textContent = "Add a title, area and city.");
+    const L = loc.commit(), fd = new FormData($("#np", d.el)), f = Object.fromEntries(fd), err = $("#npe", d.el), am = fd.getAll("am").map(String).slice(0, 12), ln = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean); err.textContent = "";
+    if (!f.title.trim()) return (err.textContent = "Add a title."); { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
+    const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
     const im = ln(f.im), vd = ln(f.vd);
     if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const imgs = im.slice(0, 20); if (!imgs.length) imgs.push("img/palm-court.webp");
     const u = ctx.S.user, id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4); busy(e.currentTarget, true);
     try {
-      await st.createListing({ id, title: f.title.trim(), area: f.area.trim(), city: f.city.trim(), price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
+      await st.createListing({ id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
       data.invalidate("listings"); d.close(); toast("Property submitted for review."); done?.();
     } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
   };

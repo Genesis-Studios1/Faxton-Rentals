@@ -5,6 +5,7 @@ import { db } from "./firebase.js";
 import { collection, doc, addDoc, getDocs, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, icon, logoMark, toast, modal, friendlyErr } from "./ui.js";
 import { AREAS } from "./cards.js";
+import { comboHtml, mountCombo, allAreaOpts } from "./loc.js";
 
 // id (used in the address), label, icon, tile colour, one line for the services page
 export const SERVICES = [
@@ -70,7 +71,7 @@ export function servicesPage(ctx) {
         <label class="rf-fl full">Service<select name="category" id="svCat" required>${SERVICES.map(([id, l]) => `<option value="${id}" ${cat && cat[0] === id ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
         <label class="rf-fl">Your name<input name="name" autocomplete="name" required maxlength="120" value="${esc(prof.name || u?.displayName || "")}"></label>
         <label class="rf-fl">Phone number<input name="phone" type="tel" inputmode="tel" autocomplete="tel" required maxlength="30" placeholder="0801 234 5678" value="${esc(prof.phone || "")}"></label>
-        <label class="rf-fl">Area<input name="area" list="svAreas" autocomplete="off" maxlength="80" placeholder="Lekki Phase 1"><datalist id="svAreas">${AREAS.filter((a) => a[0]).map((a) => `<option value="${esc(a[1])}">`).join("")}</datalist></label>
+        ${comboHtml({ style: "rf", id: "svArea", name: "area", label: "Area", ph: "Lekki Phase 1", cls: "", maxlength: 80 })}
         <label class="rf-fl">Preferred date<input name="preferredDate" type="date" min="${today}"></label>
         <label class="rf-fl full">What needs doing?<textarea name="description" required maxlength="1500" rows="4" placeholder="For example: two bathrooms to retile, about 12 square metres each."></textarea></label>
       </div>
@@ -96,9 +97,10 @@ export function servicesPage(ctx) {
     };
     const wire = () => {
       const f = $("#svForm", root); if (!f) return;
+      const areaBox = mountCombo(root, "svArea", { free: true, options: () => [...AREAS.filter((a) => a[0]).map((a) => ({ t: a[1] })), ...allAreaOpts()] });
       $("#svCat", root).onchange = (e) => { const s = byId(e.target.value); if (s) { const i = $("#svFI", root); i.setAttribute("style", `--c:${s[3]}`); i.innerHTML = icon(s[2], 24, 1.6); } };
       f.onsubmit = async (e) => {
-        e.preventDefault(); const fd = Object.fromEntries(new FormData(f)), s = byId(fd.category), name = fd.name.trim(), phone = fd.phone.trim(), description = fd.description.trim();
+        e.preventDefault(); areaBox?.commit(); const fd = Object.fromEntries(new FormData(f)), s = byId(fd.category), name = fd.name.trim(), phone = fd.phone.trim(), description = fd.description.trim();
         if (!name) return (err().textContent = "Enter your name.");
         if (phone.replace(/\D/g, "").length < 7) return (err().textContent = "Enter a phone number we can call.");
         if (!description) return (err().textContent = "Tell us a little about the job.");
