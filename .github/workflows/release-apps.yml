@@ -14,9 +14,12 @@ concurrency:
   group: release-apps
   cancel-in-progress: false
 permissions:
-  contents: read
+  contents: write
 env:
   VERSION: ${{ github.event.inputs.version || github.ref_name }}
+  # Installers go to the public downloads repo when RELEASES_TOKEN exists, else to this repo's Releases page.
+  REL_REPO: ${{ secrets.RELEASES_TOKEN && 'musazaneerah4-crypto/Faxton-Rentals-Downloads' || github.repository }}
+  GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
 
 jobs:
   version:
@@ -31,6 +34,11 @@ jobs:
           [[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Version must look like 1.2.3"; exit 1; }
           echo "v=$V" >> "$GITHUB_OUTPUT"
           echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+      # Each build uploads straight to this release (no Actions artifacts, which fill the free storage allowance).
+      - name: Create the release
+        run: |
+          V="${VERSION#v}"
+          gh release view "v$V" --repo "$REL_REPO" >/dev/null 2>&1 || gh release create "v$V" --repo "$REL_REPO" --title "Faxton Rentals $V" --latest --notes "Faxton Rentals $V - Android: Faxton-Rentals-Android.apk (phones), Faxton-Rentals-Android-x64.apk (Intel/x86), Faxton-Rentals-Android.aab (Play Store bundle). iPhone: Faxton-Rentals-iPhone-unsigned.ipa (AltStore or Sideloadly). Windows: Faxton-Rentals-Windows-x64.exe / -arm64.exe. Mac: Faxton-Rentals-Mac-arm64.dmg / -x64.dmg. Linux: Faxton-Rentals-Linux-x64 / -arm64 as .AppImage or .deb."
 
   android:
     needs: version
@@ -67,12 +75,9 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: bash ../ci/build_android.sh
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: android
-          path: Faxton-Rentals-Android*
-          if-no-files-found: error
+      - name: Upload android files to the release
+        shell: bash
+        run: gh release upload "v${VERSION#v}" Faxton-Rentals-Android* --repo "$REL_REPO" --clobber
 
   windows:
     needs: version
@@ -89,15 +94,9 @@ jobs:
           npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
           npx electron-builder --win --publish never
           ls dist
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: windows
-          path: |
-            apps/desktop/dist/Faxton-Rentals-Windows-*.exe
-            apps/desktop/dist/Faxton-Rentals-Windows-*.exe.blockmap
-            apps/desktop/dist/latest.yml
-          if-no-files-found: error
+      - name: Upload windows files to the release
+        shell: bash
+        run: gh release upload "v${VERSION#v}" apps/desktop/dist/Faxton-Rentals-Windows-*.exe apps/desktop/dist/Faxton-Rentals-Windows-*.exe.blockmap apps/desktop/dist/latest.yml --repo "$REL_REPO" --clobber
 
   mac:
     needs: version
@@ -115,14 +114,9 @@ jobs:
           npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
           npx electron-builder --mac --publish never
           ls dist
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: mac
-          path: |
-            apps/desktop/dist/Faxton-Rentals-Mac-*.dmg
-            apps/desktop/dist/Faxton-Rentals-Mac-*.zip
-          if-no-files-found: error
+      - name: Upload mac files to the release
+        shell: bash
+        run: gh release upload "v${VERSION#v}" apps/desktop/dist/Faxton-Rentals-Mac-*.dmg apps/desktop/dist/Faxton-Rentals-Mac-*.zip --repo "$REL_REPO" --clobber
 
   linux:
     needs: version
@@ -140,14 +134,9 @@ jobs:
           cd dist
           for f in Faxton-Rentals-Linux-amd64.deb; do [ -f "$f" ] && mv "$f" Faxton-Rentals-Linux-x64.deb; done || true
           ls
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: linux
-          path: |
-            apps/desktop/dist/Faxton-Rentals-Linux-*.AppImage
-            apps/desktop/dist/Faxton-Rentals-Linux-*.deb
-          if-no-files-found: error
+      - name: Upload linux files to the release
+        shell: bash
+        run: gh release upload "v${VERSION#v}" apps/desktop/dist/Faxton-Rentals-Linux-*.AppImage apps/desktop/dist/Faxton-Rentals-Linux-*.deb --repo "$REL_REPO" --clobber
 
   ios:
     needs: version
@@ -200,39 +189,6 @@ jobs:
           # Firebase reads this file from the app bundle when the app starts (the .ipa is unsigned, so adding it here is safe).
           cp "$RUNNER_TEMP/GoogleService-Info.plist" "$RUNNER_TEMP/ipa/Payload/App.app/GoogleService-Info.plist"
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Faxton-Rentals-iPhone-unsigned.ipa" Payload)
-      - uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: ios
-          path: Faxton-Rentals-iPhone-unsigned.ipa
-          if-no-files-found: error
-
-  release:
-    needs: [version, android, windows, mac, linux, ios]
-    if: ${{ !cancelled() && needs.version.result == 'success' && (needs.android.result == 'success' || needs.windows.result == 'success' || needs.mac.result == 'success' || needs.linux.result == 'success' || needs.ios.result == 'success') }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with: { path: out, merge-multiple: true }
-      - run: ls -la out
-      # Installers are published to the public downloads repo when the RELEASES_TOKEN secret exists
-      # (the app itself stays private); without it they go to this repo's own Releases page.
-      - uses: softprops/action-gh-release@v2
-        with:
-          repository: ${{ secrets.RELEASES_TOKEN && 'musazaneerah4-crypto/Faxton-Rentals-Downloads' || github.repository }}
-          token: ${{ secrets.RELEASES_TOKEN || github.token }}
-          tag_name: v${{ needs.version.outputs.v }}
-          name: Faxton Rentals ${{ needs.version.outputs.v }}
-          target_commitish: ${{ secrets.RELEASES_TOKEN && 'main' || github.sha }}
-          make_latest: true
-          fail_on_unmatched_files: false
-          files: out/*
-          body: |
-            Faxton Rentals ${{ needs.version.outputs.v }}
-            - Android: Faxton-Rentals-Android.apk (phones), Faxton-Rentals-Android-x64.apk (Intel/x86), Faxton-Rentals-Android.aab (Play Store upload bundle). Uninstall any older Faxton Rentals before installing: the signing key changed.
-            - iPhone: Faxton-Rentals-iPhone-unsigned.ipa (install with AltStore or Sideloadly)
-            - Windows: Faxton-Rentals-Windows-x64.exe / Faxton-Rentals-Windows-arm64.exe
-            - Mac: Faxton-Rentals-Mac-arm64.dmg (Apple Silicon) / Faxton-Rentals-Mac-x64.dmg (Intel)
-            - Linux: Faxton-Rentals-Linux-x64 / -arm64 as .AppImage or .deb
+      - name: Upload ios files to the release
+        shell: bash
+        run: gh release upload "v${VERSION#v}" Faxton-Rentals-iPhone-unsigned.ipa --repo "$REL_REPO" --clobber
