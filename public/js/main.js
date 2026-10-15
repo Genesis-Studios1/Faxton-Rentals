@@ -14,6 +14,7 @@ import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.j
 import { startTour, tourSeen, resetTour } from "./tour.js";
 import { playSound, setSounds } from "./sound.js";
 import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
+import { resFields } from "./loc.js";
 import { watchIncoming } from "./calls.js";
 import { siteFooter, wireFooter } from "./footer.js";
 import { syncPublic } from "./store.js";
@@ -240,7 +241,7 @@ export async function render() {
   const homeish = path === "/" || path === roleHome();
   if (S.user && S.profile && !S.profile.country && homeish) whenReady(() => {
     if (S.askingRes || S.profile?.country || !(parse().path === "/" || parse().path === roleHome())) return; S.askingRes = true;
-    askResidence({ required: true }).then(async (r) => { if (!r) { S.askingRes = false; return; } try { await saveProfile(S.user.uid, { country: r.country, city: r.city, location: `${r.city}, ${r.country}` }); S.profile = { ...S.profile, ...r }; toast("Thanks! Your area of residence is saved."); setTimeout(askNotifications, 800); } catch (e) { toast(friendlyErr(e)); } finally { S.askingRes = false; } });
+    askResidence({ required: true }).then(async (r) => { if (!r) { S.askingRes = false; return; } try { const rf = resFields(r); await saveProfile(S.user.uid, rf); S.profile = { ...S.profile, ...rf }; toast("Thanks! Your area of residence is saved."); setTimeout(askNotifications, 800); } catch (e) { toast(friendlyErr(e)); } finally { S.askingRes = false; } });
   });
   else if (S.user && homeish) whenReady(() => setTimeout(askNotifications, 600));
   if (tk && !tourSeen(S.user, tk)) whenReady(() => { if (parse().path === path && S.user && !G.needsVerify(S.user)) startTour(S.user, (S.user.displayName || "").split(" ")[0], tk); });
@@ -275,8 +276,8 @@ async function ensureProfile(u, extra = {}) {
     else if (role === "agent" && extra.details) { d.agentInfo = extra.details; d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() }; }
     else if (role === "agency" || role === "agent") role = "renter";
     d.role = role; if (extra.photo) d.photo = extra.photo; else if (u.photoURL) d.photo = bigPhoto(u.photoURL);
-    const res = extra.residence || (extra.details?.country ? { country: extra.details.country, city: extra.details.city } : null);
-    if (res?.country) { d.country = res.country; d.city = res.city; d.location = `${res.city}, ${res.country}`; }
+    const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
+    if (res?.country) Object.assign(d, resFields(res));
     await setDoc(ref, d); S.justCreated = role;
   }
   if (u.email) writeAccountMarker(u.email);

@@ -3,7 +3,7 @@
 // ids #f #err #email #password #name #terms #remember #forgot #google #avBtn #avFile, [data-role] tabs, the signupDraft in sessionStorage.
 import { $, $$, esc, icon, logoMark } from "./ui.js";
 import { GOOGLE, EMAIL_RE, authErr, strength, fieldHtml, fieldError } from "./authkit.js";
-import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence } from "./onboard.js";
+import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence, mountResidence } from "./onboard.js";
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
@@ -73,7 +73,7 @@ export function authPage(ctx, mode) {
       ${fieldHtml("email", "Email address", { ic: "mail", type: "email", ph: "you@example.com", attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next"' })}
       <div class="au-pw">${pwField}<p class="au-caps" id="caps" hidden>${icon("info", 16, 1.8)} Caps Lock is on</p>${strengthUi}</div>
       <details class="au-xtra" id="xtra" hidden><summary><span class="au-xt-ic">${icon("shield", 20, 1.6)}</span><span class="au-xt-t"><b id="xtraT"></b><small>Only the Faxton team sees these. We use them to verify you.</small></span><span class="au-xt-chev">${icon("chevd", 18, 1.8)}</span></summary><div class="au-xtra-body" id="xtraBody"></div></details>
-      <div class="au-res-wrap"><p class="au-sec">Where do you live?</p>${residenceFields(draft.country || "Nigeria", draft.city || "")}</div>
+      <div class="au-res-wrap"><p class="au-sec">Where do you live?</p>${residenceFields(draft.country || "Nigeria", draft.city || "", draft.state || "")}</div>
       <div class="au-f au-terms" data-f="terms"><label class="au-chk"><input type="checkbox" id="terms" aria-describedby="terms-e"><span>I agree to the <a class="au-link" href="#/terms">Terms</a> and <a class="au-link" href="#/privacy">Privacy Policy</a></span></label><p class="au-fe" id="terms-e" hidden></p></div>`;
   const html = `<div class="au au-${mode}">
     <aside class="au-photo"><img src="img/${login ? "login-hero" : "signup-hero"}.webp" alt="" decoding="async">${logoLink("au-logo")}
@@ -140,7 +140,10 @@ export function authPage(ctx, mode) {
     });
 
     // ----- remembering what was typed (never the password) -----
-    const keep = () => { if (login) return; const v = (id) => $("#" + id, root)?.value || ""; if (!xtra.hidden) store[role] = gatherDetails(); safeSet("signupDraft", JSON.stringify({ name: v("name"), email: v("email"), role, terms: !!$("#terms", root)?.checked, country: v("country"), city: v("city"), photo: photo || undefined, d: store })); };
+    const LOC = login ? null : mountResidence(root);
+    const resNow = () => { const country = $("#country", root).value, state = $("#state", root).value, city = $("#city", root).value.trim(); return { country, state, city, lga: country === "Nigeria" ? city : "" }; };
+    const pickRes = (d) => ({ country: d.country, state: d.state || "", city: d.city, lga: d.lga || "" });
+    const keep = () => { if (login) return; const v = (id) => $("#" + id, root)?.value || ""; if (!xtra.hidden) store[role] = gatherDetails(); safeSet("signupDraft", JSON.stringify({ name: v("name"), email: v("email"), role, terms: !!$("#terms", root)?.checked, country: v("country"), state: v("state"), city: v("city"), photo: photo || undefined, d: store })); };
     let keepT = 0; const keepSoon = () => { clearTimeout(keepT); keepT = setTimeout(keep, 120); };
 
     // ----- inline validation -----
@@ -148,13 +151,14 @@ export function authPage(ctx, mode) {
       name: (v) => (v.trim().length < 2 ? "Enter your full name." : ""),
       email: (v) => (!v.trim() ? "Enter your email address." : !EMAIL_RE.test(v.trim()) ? "That email address doesn’t look right. Check it for typos." : ""),
       password: (v) => (login ? (v ? "" : "Enter your password.") : v.length < 8 ? "Use at least 8 characters." : strength(v, { email: $("#email", root)?.value }).weak ? "That password is too easy to guess. Try mixing words and numbers." : ""),
-      city: (v) => (v.trim().length < 2 ? "Enter your city." : ""),
+      state: (v) => (!v && $("#country", root)?.value === "Nigeria" ? "Choose your state." : ""),
+      city: (v) => (v.trim().length < 2 ? ($("#country", root)?.value === "Nigeria" ? "Choose your local government area (LGA)." : "Enter your city or district.") : ""),
       country: (v) => (v ? "" : "Choose your country."),
     };
     const one = (id) => { const i = $("#" + id, root); if (!i) return ""; const m = rules[id] ? rules[id](i.value) : ""; fieldError(root, id, m); return m; };
     const bindField = (i) => { i.addEventListener("blur", () => { if (i.value || i.dataset.touched) { i.dataset.touched = "1"; if (rules[i.id]) one(i.id); else if (!login && $("#xtraBody", root)?.contains(i)) detailOne(i.id); } }); i.addEventListener("input", () => { if (i.closest(".au-f")?.classList.contains("bad")) { if (rules[i.id]) one(i.id); else fieldError(root, i.id, ""); } say(""); }); };
     const DK = ["business", "cac", "supportEmail", "phone", "address", "registrar", "position", "opened", "dob", "website", "experience", "licence", "company", "areas"];
-    const rawDetails = () => { const raw = {}; DK.forEach((k) => (raw[k] = $("#" + k, root)?.value ?? "")); raw.country = $("#country", root)?.value || ""; raw.city = $("#city", root)?.value.trim().length >= 2 ? $("#city", root).value : "ok"; return raw; };
+    const rawDetails = () => { const raw = {}; DK.forEach((k) => (raw[k] = $("#" + k, root)?.value ?? "")); raw.country = $("#country", root)?.value || ""; raw.state = $("#state", root)?.value || (raw.country === "Nigeria" ? "ok" : ""); raw.city = $("#city", root)?.value.trim().length >= 2 ? $("#city", root).value : "ok"; return raw; };
     const detailOne = (id) => { const r = checkDetails(role, rawDetails()); fieldError(root, id, r.all?.[id] || ""); };
     $$(".au-fields input, .au-fields select", root).forEach(bindField);
     form.addEventListener("input", keepSoon); form.addEventListener("change", keepSoon); addEventListener("pagehide", keep);
@@ -235,25 +239,26 @@ export function authPage(ctx, mode) {
 
     // Returns the details + residence when everything is fine; otherwise marks every problem and moves to the first one.
     const validateSignup = ({ google: g = false } = {}) => {
+      LOC?.commit();
       const bad = [], isBiz = role === "agency" || role === "agent";
       const chk = (id) => { if (one(id)) bad.push(id); };
       if (!g) ["name", "email", "password"].forEach(chk);
       let details;
       if (isBiz) {
-        const raw = { ...rawDetails(), city: $("#city", root).value }, r = checkDetails(role, raw);
+        const raw = { ...rawDetails(), state: $("#state", root).value || ($("#country", root).value === "Nigeria" ? "ok" : ""), city: $("#city", root).value }, r = checkDetails(role, raw);
         $$("#xtraBody input", root).forEach((i) => { const m = r.all?.[i.id] || ""; fieldError(root, i.id, m); if (m) bad.push(i.id); });
         details = r.details;
       }
       const resBlank = g && !isBiz && !$("#city", root).value.trim();
-      if (!resBlank) { chk("country"); chk("city"); }
+      if (!resBlank) { chk("country"); chk("state"); chk("city"); }
       if (!g) { const t = $("#terms", root), te = $("#terms-e", root); te.textContent = t.checked ? "" : "Please accept the Terms and Privacy Policy to continue."; te.hidden = t.checked; if (!t.checked) bad.push("terms"); }
       if (bad.length) {
         say(bad.length > 1 ? "A few things need another look. We’ve marked them below." : "One thing needs another look. We’ve marked it below.");
-        const order = ["name", "email", "password", ...$$("#xtraBody input", root).map((i) => i.id), "country", "city", "terms"], id = order.find((x) => bad.includes(x)), i = $("#" + id, root);
+        const order = ["name", "email", "password", ...$$("#xtraBody input", root).map((i) => i.id), "country", "state", "city", "terms"], id = order.find((x) => bad.includes(x)), i = $("#" + id, root);
         const d = i.closest("details"); if (d && !d.open) d.open = true; i.focus(); i.scrollIntoView?.({ block: "center", behavior: "smooth" });
         return null;
       }
-      return { details, residence: resBlank ? null : { country: $("#country", root).value, city: $("#city", root).value.trim() } };
+      return { details, residence: resBlank ? null : resNow() };
     };
 
     form.onsubmit = (e) => {
@@ -265,7 +270,7 @@ export function authPage(ctx, mode) {
         return run(() => ctx.signIn(v.email.trim(), v.password, $("#remember", root).checked));
       }
       const ok = validateSignup(); if (!ok) return;
-      const residence = ok.details ? { country: ok.details.country, city: ok.details.city } : ok.residence;
+      const residence = ok.details ? pickRes(ok.details) : ok.residence;
       run(() => ctx.signUp(v.name.trim(), v.email.trim(), v.password, role, ok.details, photo, residence));
     };
     google.onclick = async () => {
@@ -274,7 +279,7 @@ export function authPage(ctx, mode) {
       let details, residence;
       if (!login) {
         const ok = validateSignup({ google: true }); if (!ok) return;
-        details = ok.details; residence = ok.details ? { country: ok.details.country, city: ok.details.city } : ok.residence;
+        details = ok.details; residence = ok.details ? pickRes(ok.details) : ok.residence;
         if (!residence) { residence = await askResidence(); if (!residence) return; }
       }
       run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, details, residence, photo || undefined), "google");

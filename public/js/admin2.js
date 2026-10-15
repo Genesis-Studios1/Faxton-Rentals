@@ -8,6 +8,7 @@ import * as SVC from "./services.js";
 import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
+import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -82,8 +83,7 @@ async function addListingDialog(ctx, ls, list) {
   const agents = users.filter((u) => ["agent", "agency", "landlord"].includes(u.role) || u.id === me).sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : String(a.name).localeCompare(String(b.name))));
   const d = dialog({ title: "Add listing", size: "md", icon: "clipList", body: `<form id="nl" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
-    <label class="ax-field"><span>Area</span><input class="ax-input" name="area" required maxlength="60" placeholder="Lekki Phase 1"></label>
-    <label class="ax-field"><span>City</span><input class="ax-input" name="city" value="Lagos" required maxlength="40"></label>
+    ${locFields({ style: "ax", flow: true, ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "nlCity" })}
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
     <label class="ax-field"><span>Type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
     <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="20" value="2" required></label>
@@ -93,16 +93,17 @@ async function addListingDialog(ctx, ls, list) {
     <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label>
     <label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
     <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
+  const loc = mountLoc(d.el, { ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea" }, cityId: "nlCity" });
   $("[data-ok]", d.el).onclick = async (e) => {
-    const f = Object.fromEntries(new FormData($("#nl", d.el))), err = $("#nle", d.el); err.textContent = "";
-    const im = lines(f.im), vd = lines(f.vd);
-    if (!f.title.trim() || !f.area.trim() || !f.city.trim()) return (err.textContent = "Add a title, area and city.");
+    const L = loc.commit(), f = Object.fromEntries(new FormData($("#nl", d.el))), err = $("#nle", d.el); err.textContent = "";
+    const im = lines(f.im), vd = lines(f.vd), P = listingLoc(L, f.area);
+    if (!f.title.trim()) return (err.textContent = "Add a title."); { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
     if (im.length > 20 || vd.length > 6) return (err.textContent = "Use up to 20 photos and 6 videos.");
     if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const u = users.find((x) => x.id === f.agent), self = !u || u.id === me, name = (u?.name || u?.email || meName(ctx)), photo = u?.photo || (self ? ctx.S.profile?.photo : "") || "";
     const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
-    const doc = { id, title: f.title.trim(), area: f.area.trim(), city: f.city.trim(), price: +f.price, beds: +f.beds, baths: Math.max(1, +f.baths), sqm: 0, type: f.type, desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images: im, thumb: im[0] || "", videos: vd, amenities: [], ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
+    const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: Math.max(1, +f.baths), sqm: 0, type: f.type, desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images: im, thumb: im[0] || "", videos: vd, amenities: [], ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
     busy(e.currentTarget, true);
     try { await st.createListing(doc); ls.unshift({ ...doc, createdAt: { seconds: Math.floor(Date.now() / 1000) } }); changed(); list.repaint(); d.close(); toast("Listing created."); } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
   };

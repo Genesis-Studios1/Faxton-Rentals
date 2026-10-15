@@ -1,6 +1,6 @@
 // Sign-up extras for agencies and agents: the business details form and the "verification is on its way" pop-ups.
 import { $, esc, icon, modal } from "./ui.js";
-import { countryOptions } from "./countries.js";
+import { locFields, mountLoc, NIGERIA } from "./loc.js";
 import { fieldHtml } from "./authkit.js";
 
 const thisYear = new Date().getFullYear();
@@ -16,14 +16,14 @@ const AGENCY = (name) => `<h2>Tell us about your agency</h2><p class="muted" sty
     <div class="f2">${f("supportEmail", "Support email", "support@youragency.com", 'type="email" required maxlength="120"')}${f("phone", "Business phone number", "+234 …", 'type="tel" required maxlength="30"')}</div>
     <div class="f2">${f("cac", "CAC registration number", "RC 1234567", 'required maxlength="30"', "As shown on your CAC certificate.")}${f("opened", "Year the agency opened", String(thisYear - 5), `type="number" required min="1900" max="${thisYear}"`)}</div>
     <div class="f2">${f("dob", "Registrar’s date of birth", "", 'type="date" required')}${f("address", "Office address", "Street, area, city", 'required maxlength="200"')}</div>
-    <div class="f2"><div class="field"><label for="country">Country of residence</label><select id="country" name="country" required>${countryOptions("Nigeria")}</select></div>${f("city", "City", "e.g. Lagos", 'required maxlength="60" autocomplete="address-level2"')}</div>
+    ${locFields({ style: "field", flow: true, ids: { country: "country", state: "state", lga: "city" } })}
     ${f("website", "Website (optional)", "https://", 'type="url" maxlength="160"')}
     <p class="err" id="obe" role="alert"></p><div class="a2-act"><button class="btn primary" type="submit">Create my agency account</button></div></form>`;
 const AGENT = () => `<h2>A few details about you</h2><p class="muted" style="margin-bottom:12px">We use these to verify you as an agent. Only the Faxton team can see them.</p>
   <form id="ob" class="a2-form ob-form" novalidate>
     <div class="f2">${f("phone", "Phone number", "+234 …", 'type="tel" required maxlength="30"')}${f("experience", "Years of experience", "2", 'type="number" required min="0" max="60"')}</div>
     <div class="f2">${f("company", "Agency you work for (optional)", "", 'maxlength="120"')}${f("licence", "ID or licence number", "NIN, driver’s licence or ESVARBON no.", 'required maxlength="40"')}</div>
-    <div class="f2"><div class="field"><label for="country">Country of residence</label><select id="country" name="country" required>${countryOptions("Nigeria")}</select></div>${f("city", "City", "e.g. Lagos", 'required maxlength="60" autocomplete="address-level2"')}</div>
+    ${locFields({ style: "field", flow: true, ids: { country: "country", state: "state", lga: "city" } })}
     ${f("areas", "Areas you cover", "e.g. Lekki, Ikoyi, Victoria Island", 'required maxlength="160"')}
     <p class="err" id="obe" role="alert"></p><div class="a2-act"><button class="btn primary" type="submit">Create my agent account</button></div></form>`;
 
@@ -44,21 +44,23 @@ export function checkDetails(role, raw) {
     ["dob", !v.dob || age(v.dob) < 18, v.dob ? "The registrar must be at least 18 years old." : "Enter the registrar’s date of birth."],
     ["website", v.website && !/^https?:\/\//i.test(v.website), "The website must start with https://"],
     ["country", !v.country, "Choose your country of residence."],
-    ["city", v.city.length < 2, "Enter your city."],
+    ["state", v.country === NIGERIA && !v.state, "Choose your state."],
+    ["city", v.city.length < 2, v.country === NIGERIA ? "Choose your local government area (LGA)." : "Enter your city or district."],
   ] : [
     ["phone", !phoneOk(v.phone), "Enter a valid phone number."],
     ["experience", !(v.experience !== "" && +v.experience >= 0), "Enter your years of experience."],
     ["licence", v.licence.length < 4, "Enter an ID or licence number."],
     ["areas", v.areas.length < 3, "Tell us the areas you cover."],
     ["country", !v.country, "Choose your country of residence."],
-    ["city", v.city.length < 2, "Enter your city."],
+    ["state", v.country === NIGERIA && !v.state, "Choose your state."],
+    ["city", v.city.length < 2, v.country === NIGERIA ? "Choose your local government area (LGA)." : "Enter your city or district."],
   ];
   const all = {}; L.forEach(([id, bad, msg]) => { if (bad) all[id] = msg; });
   const first = L.find(([id]) => all[id]);
   if (first) return { id: first[0], msg: all[first[0]], all };
   return { details: role === "agency"
-    ? { business: v.business, registrar: v.registrar, position: v.position, supportEmail: v.supportEmail, phone: v.phone, cac: v.cac.toUpperCase(), opened: +v.opened, dob: v.dob, address: v.address, website: v.website, country: v.country, city: v.city }
-    : { phone: v.phone, experience: +v.experience, company: v.company, licence: v.licence, areas: v.areas, country: v.country, city: v.city } };
+    ? { business: v.business, registrar: v.registrar, position: v.position, supportEmail: v.supportEmail, phone: v.phone, cac: v.cac.toUpperCase(), opened: +v.opened, dob: v.dob, address: v.address, website: v.website, country: v.country, state: v.state || "", lga: v.country === NIGERIA ? v.city : "", city: v.city }
+    : { phone: v.phone, experience: +v.experience, company: v.company, licence: v.licence, areas: v.areas, country: v.country, state: v.state || "", lga: v.country === NIGERIA ? v.city : "", city: v.city } };
 }
 // What each account type is, and exactly what extra information it needs (shown before anyone presses Create account).
 export const ROLE_INFO = {
@@ -80,19 +82,20 @@ export function detailsFields(role, name = "") {
     <div class="au-2">${f("licence", "ID or licence number", { ph: "NIN, driver’s licence or ESVARBON no.", attrs: 'maxlength="40" autocomplete="off"' })}${f("company", "Agency you work for", { req: false, attrs: 'maxlength="120" autocomplete="organization"' })}</div>
     ${f("areas", "Areas you cover", { ph: "e.g. Lekki, Ikoyi, Victoria Island", attrs: 'maxlength="160"' })}`;
 }
-// Country and city of residence, asked inline for everyone (it used to be a pop-up after pressing Create account).
-export function residenceFields(country = "Nigeria", city = "") {
-  return `<div class="au-2 au-res"><div class="au-f" data-f="country"><label for="country">Country</label><div class="au-in"><select id="country" name="country" required aria-describedby="country-e" autocomplete="country-name">${countryOptions(country)}</select></div><p class="au-fe" id="country-e" hidden></p></div>
-    ${fieldHtml("city", "City", { ph: "e.g. Lagos", attrs: `maxlength="60" autocomplete="address-level2" value="${esc(city)}"` })}</div>`;
+// Country, state and local government (LGA) of residence, asked inline for everyone. The LGA field keeps the id "city" (outside Nigeria it is the city or district).
+export function residenceFields(country = "Nigeria", city = "", state = "") {
+  return `<div class="au-res">${locFields({ style: "au", ids: { country: "country", state: "state", lga: "city" }, country, state, lga: city })}</div>`;
 }
+export const mountResidence = (root, onChange) => mountLoc(root, { ids: { country: "country", state: "state", lga: "city" }, onChange });
 
 // Resolves with the details, or null when the person closes the form.
 export function collectDetails(role, fullName = "") {
   return new Promise((resolve) => {
     const m = modal(role === "agency" ? AGENCY(fullName) : AGENT()); m.el.classList.add("ob-modal");
+    const loc = mountLoc(m.el, { ids: { country: "country", state: "state", lga: "city" } });
     let sent = false; m.el.addEventListener("close", () => { if (!sent) resolve(null); });
     $("#ob", m.el).onsubmit = (e) => {
-      e.preventDefault(); const r = checkDetails(role, Object.fromEntries(new FormData(e.target)));
+      e.preventDefault(); loc?.commit(); const r = checkDetails(role, Object.fromEntries(new FormData(e.target)));
       if (r.msg) { $("#obe", m.el).textContent = r.msg; $("#" + r.id, m.el)?.focus(); return; }
       sent = true; m.close(); resolve(r.details);
     };
@@ -131,11 +134,18 @@ export const resizePhoto = async (file) => {
 
 // Everyone gives the country and city they live in. The window only closes once it's filled in and submitted
 // (during sign-up there's also a Cancel button).
-export function askResidence({ required = false, country = "Nigeria", city = "" } = {}) {
+export function askResidence({ required = false, country = "Nigeria", state = "", city = "" } = {}) {
   return new Promise((resolve) => {
-    const m = modal(`<h2>Area of residence</h2><p class="muted" style="margin:4px 0 12px">Enter the country and city where you live. We use it to show you the right homes and keep your account secure.</p><form id="rs" class="a2-form" novalidate><div class="field"><label for="rc">Country</label><select id="rc" required>${countryOptions(country)}</select></div><div class="field"><label for="rt">City</label><input id="rt" required maxlength="60" placeholder="e.g. Lagos" value="${esc(city)}" autocomplete="address-level2"></div><p class="err" id="rse" role="alert"></p><div class="a2-act">${required ? "" : `<button type="button" class="btn" id="rsNo">Cancel</button>`}<button class="btn primary" type="submit">Save</button></div></form>`, { sticky: true });
+    const m = modal(`<h2>Area of residence</h2><p class="muted" style="margin:4px 0 12px">Choose the country, state and local government area where you live. We use it to show you the right homes and keep your account secure.</p><form id="rs" class="a2-form" novalidate>${locFields({ style: "field", flow: true, ids: { country: "rc", state: "rs2", lga: "rt" }, country, state, lga: city })}<p class="err" id="rse" role="alert"></p><div class="a2-act">${required ? "" : `<button type="button" class="btn" id="rsNo">Cancel</button>`}<button class="btn primary" type="submit">Save</button></div></form>`, { sticky: true });
+    const loc = mountLoc(m.el, { ids: { country: "rc", state: "rs2", lga: "rt" } });
     let sent = false; m.el.addEventListener("close", () => { if (!sent) resolve(null); });
     const no = $("#rsNo", m.el); if (no) no.onclick = () => m.close();
-    $("#rs", m.el).onsubmit = (e) => { e.preventDefault(); const c = $("#rc", m.el).value, t = $("#rt", m.el).value.trim(); if (!c) return ($("#rse", m.el).textContent = "Choose your country."); if (t.length < 2) return ($("#rse", m.el).textContent = "Enter your city."); sent = true; m.close(); resolve({ country: c, city: t }); };
+    $("#rs", m.el).onsubmit = (e) => {
+      e.preventDefault(); const r = loc.commit(), err = $("#rse", m.el), ng = r.country === NIGERIA;
+      if (!r.country) return (err.textContent = "Choose your country.");
+      if (ng && !r.state) return (err.textContent = "Choose your state.");
+      if (r.lga.length < 2) return (err.textContent = ng ? "Choose your local government area (LGA)." : "Enter your city or district.");
+      sent = true; m.close(); resolve({ country: r.country, state: r.state, lga: ng ? r.lga : "", city: r.lga });
+    };
   });
 }

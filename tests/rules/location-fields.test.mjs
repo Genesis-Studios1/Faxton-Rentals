@@ -1,0 +1,15 @@
+import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
+import { readFileSync } from "fs";
+import { setDoc, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
+await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" });
+  await setDoc(doc(d, "users/loclord"), { role: "landlord", name: "L", email: "l@x.com", saved: [], country: "Nigeria", city: "Ikeja" }); });
+const t = async (n, p, want = true) => { let ok = true; try { await p; } catch (e) { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
+const ren = env.authenticatedContext("locren", { email: "r@x.com" }).firestore(), lord = env.authenticatedContext("loclord", { email: "l@x.com" }).firestore();
+const P = (o) => ({ name: "R", email: "r@x.com", role: "renter", saved: [], createdAt: serverTimestamp(), ...o });
+await t("sign-up with country, state, lga and city", setDoc(doc(ren, "users/locren"), P({ country: "Nigeria", state: "Lagos", lga: "Ikeja", city: "Ikeja", location: "Ikeja, Lagos, Nigeria" })));
+await t("sign-up with an over-long state denied", setDoc(doc(ren, "users/locren"), P({ state: "x".repeat(80) })), false);
+await t("sign-up with an over-long lga denied", setDoc(doc(ren, "users/locren"), P({ lga: "x".repeat(80) })), false);
+await t("profile update saves state and lga", updateDoc(doc(lord, "users/loclord"), { state: "Lagos", lga: "Eti-Osa", city: "Eti-Osa" }));
+await t("profile update with a non-string state denied", updateDoc(doc(lord, "users/loclord"), { state: { a: 1 } }), false);
+await t("legacy profile update (country and city only) still works", updateDoc(doc(lord, "users/loclord"), { country: "Ghana", city: "Accra" }));

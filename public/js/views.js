@@ -8,7 +8,7 @@ import * as CALLS2 from "./calls.js";
 import { loadLeaflet, ctrlZoom, tiles } from "./maps.js";
 import * as CALLS from "./calls.js";
 import * as AV from "./authviews.js";
-import { countryOptions } from "./countries.js";
+import { locFields, mountLoc, legacyLoc, resFields } from "./loc.js";
 import * as APPS from "./apps.js";
 import * as SAFE from "./safety.js";
 import { openProfile } from "./profile.js";
@@ -432,7 +432,7 @@ function settings(ctx, section) {
           <label class="rf-fl">Email address<span class="rf-input-wrap"><input value="${esc(u.email)}" disabled>${verified.replace('class="rf-pill', 'class="rf-tag rf-pill')}</span></label>
           <label class="rf-fl">Phone number<input id="ph" type="tel" inputmode="tel" placeholder="e.g. 0803 000 0000" value="${esc(p.phone || "")}" autocomplete="tel" maxlength="30"></label>
           <label class="rf-fl">About you <span class="rf-help">Shown on your profile card</span><input id="ab" maxlength="160" placeholder="A short line about you" autocomplete="off"></label>
-          <label class="rf-fl">Country of residence<select id="lcc">${countryOptions(p.country || "Nigeria")}</select></label><label class="rf-fl">City<input id="lct" maxlength="60" value="${esc(p.city || "")}" placeholder="e.g. Lagos" autocomplete="address-level2"></label></div>
+          ${locFields({ style: "rf", ids: { country: "lcc", state: "lcs", lga: "lct" }, ...legacyLoc(p) })}</div>
         <p class="rf-meta">Your phone number is only shared when you choose. See Privacy.</p></div>`)}
       ${card("Rental preferences", "Helps us show you homes that fit.", `<div class="rf-grid3"><label class="rf-fl">Where<select id="pl">${AREAS.filter((a) => a[0]).map(([c, l]) => `<option value="${c}" ${c === (pr.area || "lekki") ? "selected" : ""}>${l}</option>`).join("")}</select></label>
         <label class="rf-fl">Home type<select id="pt"><option value="">Any type</option>${typeOptions(pr.type)}</select></label>
@@ -478,6 +478,7 @@ function settings(ctx, section) {
       const cu = $("#chkUpd"); if (cu) cu.onclick = () => { const r = APPS.checkNow(ctx.S); if (r === "current") toast("You’re on the latest version."); };
       const pf = $("#pf");
       if (pf) {
+        const loc = mountLoc(pf, { ids: { country: "lcc", state: "lcs", lga: "lct" } });
         st.getPublic(ctx.S.user.uid).then((pp) => { const a = $("#ab"); if (a && pp?.about) a.value = pp.about; });
         $("#cancel").onclick = () => ctx.render();
         pf.onsubmit = async (e) => {
@@ -485,8 +486,8 @@ function settings(ctx, section) {
           if (!nm) return (err.textContent = "Enter your full name.");
           const ph = $("#ph").value.trim(); if (ph && !/^[+\d][\d\s-]{6,}$/.test(ph)) return (err.textContent = "That phone number doesn’t look right. Use digits, like 0803 000 0000.");
           const btn = pf.querySelector("button[type=submit]"); btn.disabled = true;
-          try { await updateProfile(auth.currentUser, { displayName: nm }); const city = $("#lct").value.trim(), country = $("#lcc").value, about = ($("#ab")?.value || "").trim();
-            await save({ name: nm, phone: ph, country, city, location: `${city}${city ? ", " : ""}${country}`, prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile saved.");
+          try { await updateProfile(auth.currentUser, { displayName: nm }); const L = loc.commit(), country = L.country, city = L.lga.trim() || L.city, about = ($("#ab")?.value || "").trim();
+            await save({ name: nm, phone: ph, ...resFields({ country, state: L.state, lga: L.lga, city }), prefs: { ...(ctx.S.profile?.prefs || {}), area: $("#pl").value, type: $("#pt").value, budget: $("#pb").value } }, "Profile saved.");
             st.syncPublic(ctx.S.user.uid, { name: nm, about, city, country, ...(ctx.S.profile?.photo ? { photo: ctx.S.profile.photo } : {}) }); ctx.render(); } catch {} finally { btn.disabled = false; }
         };
         const pick = () => $("#photo").click(); $("#photoBtn").onclick = pick; $("#photoBtn2").onclick = pick;

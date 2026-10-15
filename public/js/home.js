@@ -8,12 +8,22 @@ import * as APPS from "./apps.js";
 import { AREAS, BUDGETS, CATS, catOf, matchType, listingCard, skeletonCards, emptyState, noHomesState, bindCards, bedsLabel, bathsLabel, placeOf, photosOf, priceOf } from "./cards.js";
 import { ddSelect, ddPanel, mountDd } from "./dd.js";
 import * as SVC from "./services.js";
+import { comboHtml, mountCombo, locFields, mountLoc, placeOpts, stateOpts, matchPlace, findState, norm, NIGERIA } from "./loc.js";
 
 const opts = (list) => list.map(([v, l]) => [String(v), l]);
 const inRange = (price, r) => { if (!r) return true; const [lo, hi] = String(r).split("-").map(Number); return price >= lo && (!hi || price <= hi); };
 const knownArea = (slug) => AREAS.some((a) => a[0] === slug);
 const areaLabel = (slug) => (slug ? AREAS.find((a) => a[0] === slug)?.[1] || `“${slug}”` : "Lagos");
 const hit = (l, area) => !area || (l.area + " " + l.city).toLowerCase().includes(area);
+// The home page "Location" box: popular areas, states and LGAs. Typing anything else searches that text.
+const popAreas = () => AREAS.filter((a) => a[0] && a[0] !== "ikeja").map(([v, t]) => ({ t, sub: "Popular area", area: v }));
+const locOptions = () => [...popAreas(), ...placeOpts()];
+const locBrowse = () => [...popAreas(), ...stateOpts().map((o) => ({ ...o, sub: "State" }))];
+const placeParams = (text, o) => {
+  const t = String(text || "").trim(); if (!t) return {};
+  if (o && o.t === t) return o.area ? { area: o.area } : o.lga ? { state: o.st, lga: o.lga } : o.st ? { state: o.st } : { area: t.toLowerCase() };
+  const st = findState(t); return st ? { state: st } : { area: t.toLowerCase() };
+};
 
 // ============================================================ HOME
 const TABS = [["", "All homes"], ["Apartment", "Apartments"], ["House", "Houses"], ["Studio", "Studios"]];
@@ -35,13 +45,13 @@ export function discover(ctx) {
       <div class="hx-hero-img"><img src="img/hero-hd.webp" alt="A modern white and timber home with palm trees in Lagos" width="1718" height="1386" fetchpriority="high" decoding="async"></div>
     </section>
     <form class="hx-search" id="sb" role="search" aria-label="Search homes">
-      ${ddSelect({ name: "area", label: "Location", ic: "pin", options: opts(AREAS), value: pr.area || "", cls: "dd-field" })}
+      ${comboHtml({ style: "hx", id: "hxLoc", name: "area", label: "Location", ph: "Area, LGA or state", value: AREAS.find((a) => a[0] && a[0] === pr.area)?.[1] || "" })}
       ${ddSelect({ name: "type", label: "Property type", ic: "home", options: [["", "Any type"], ...CATS], value: pr.type || "", cls: "dd-field" })}
       ${ddSelect({ name: "max", label: "Yearly budget", ic: "coins", options: opts(BUDGETS), value: "0", cls: "dd-field" })}
       <button class="btn primary hx-go">${icon("search", 20)} <span>Search homes</span></button>
     </form>
     <form class="hx-search-m" id="sbm" role="search" aria-label="Search homes">
-      <span class="hx-sm-ic">${icon("search", 20)}</span><input name="area" type="search" enterkeyhint="search" placeholder="Search area or city" aria-label="Search area or city" autocomplete="off">
+      <span class="hx-sm-ic">${icon("search", 20)}</span>${comboHtml({ style: "hxm", id: "hxLocM", name: "area", label: "Search area, LGA or state", ph: "Search area, LGA or state" })}
       <button class="hx-sm-go" aria-label="Search">${icon("arrow", 20, 2)}</button>
     </form>
     <div class="hx-pop rise" style="--d:.2s"><span class="hx-pop-l">Popular locations</span><div class="hx-pop-row">${POP.map(([v, l], i) => `<a class="hx-chip" href="#/search?area=${v}" data-area="${v}">${i === 0 ? icon("pin", 15) : ""}${l}<em></em></a>`).join("")}</div></div>
@@ -66,8 +76,10 @@ export function discover(ctx) {
   return { title: "Home", html, mount(root) {
     const go = (p) => ctx.go("#/search" + (p.toString() ? "?" + p : ""));
     mountDd(root, { cleanups: S.cleanups });
-    $("#sb", root).onsubmit = (e) => { e.preventDefault(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && p.set(k, v)); go(p); };
-    $("#sbm", root).onsubmit = (e) => { e.preventDefault(); const t = e.target.area.value.trim().toLowerCase(), p = new URLSearchParams(); if (t) p.set("area", t); go(p); };
+    let o1 = null, o2 = null;
+    const c1 = mountCombo(root, "hxLoc", { free: true, options: locOptions, browse: locBrowse, onPick: (o) => (o1 = o) }), c2 = mountCombo(root, "hxLocM", { free: true, options: locOptions, browse: locBrowse, onPick: (o) => (o2 = o) });
+    $("#sb", root).onsubmit = (e) => { e.preventDefault(); c1.commit(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && k !== "area" && p.set(k, v)); Object.entries(placeParams(c1.get(), o1)).forEach(([k, v]) => p.set(k, v)); go(p); };
+    $("#sbm", root).onsubmit = (e) => { e.preventDefault(); c2.commit(); const p = new URLSearchParams(); Object.entries(placeParams(c2.get(), o2)).forEach(([k, v]) => p.set(k, v)); go(p); };
     SVC.bindOwnerBanner(root, ctx);
     $$("[data-dlnow]", root).forEach((b) => (b.onclick = () => APPS.openDownloadModal()));
     // "Get the app" links land on the app section
@@ -103,18 +115,18 @@ const SORTS = [["recommended", "Recommended"], ["newest", "Newest first"], ["low
 
 export function search(ctx) {
   const q = ctx.q, S = ctx.S;
-  const f = { area: q.area || "", max: +q.max || 0, beds: +q.beds || 0, type: q.type || "", sort: SORTS.some((s) => s[0] === q.sort) ? q.sort : "recommended", am: (q.am || "").split(",").filter(Boolean), avail: q.avail !== "0" };
+  const f = { area: q.area || "", state: findState(q.state) || "", lga: String(q.lga || "").slice(0, 60), country: q.country || "", max: +q.max || 0, beds: +q.beds || 0, type: q.type || "", sort: SORTS.some((s) => s[0] === q.sort) ? q.sort : "recommended", am: (q.am || "").split(",").filter(Boolean), avail: q.avail !== "0" };
   const areaOpts = AREAS.some((a) => a[0] === f.area) ? AREAS : [[f.area, `“${f.area}”`], ...AREAS];
   const maxOpts = BUDGETS.some((b) => b[0] === f.max) || !f.max ? BUDGETS : [...BUDGETS, [f.max, "Up to " + naira(f.max)]];
-  const where = areaLabel(f.area);
+  const where = f.lga || f.state || areaLabel(f.area);
   const html = `<div class="wrap hx hx-s">
-    <header class="hx-s-head rise"><div><h1 id="hxsT">${knownArea(f.area) || !f.area ? `Homes for rent in ${esc(where)}` : `Homes matching ${esc(where)}`}</h1><p id="hxsC" class="hx-count" aria-live="polite">Finding homes…</p></div></header>
+    <header class="hx-s-head rise"><div><h1 id="hxsT">${knownArea(f.area) || !f.area || f.state || f.lga ? `Homes for rent in ${esc(where)}` : `Homes matching ${esc(where)}`}</h1><p id="hxsC" class="hx-count" aria-live="polite">Finding homes…</p></div></header>
     <form class="hx-filters" id="ff" aria-label="Filters" onsubmit="return false">
       ${ddSelect({ name: "area", label: "Location", ic: "pin", options: opts(areaOpts), value: f.area, bare: true, cls: "dd-chipbtn", title: "Where in Lagos?" })}
       ${ddSelect({ name: "max", label: "Budget", ic: "wallet", options: opts(maxOpts), value: f.max, bare: true, cls: "dd-chipbtn", title: "Yearly budget" })}
       ${ddSelect({ name: "beds", label: "Bedrooms", ic: "bed", options: [["0", "Any bedrooms"], ["1", "1+ bedroom"], ["2", "2+ bedrooms"], ["3", "3+ bedrooms"], ["4", "4+ bedrooms"], ["5", "5+ bedrooms"]], value: f.beds, bare: true, cls: "dd-chipbtn", title: "Bedrooms" })}
       ${ddSelect({ name: "type", label: "Property type", ic: "home", options: [["", "Any type"], ...CATS], value: f.type, bare: true, cls: "dd-chipbtn", title: "Property type" })}
-      ${ddPanel({ name: "more", label: "More filters", ic: "sliders", badge: f.am.length, cls: "dd-chipbtn", title: "More filters", body: `<p class="dd-lab">Amenities</p><div class="hx-am">${AMEN.map((x) => `<label class="hx-amc"><input type="checkbox" value="${esc(x)}" ${f.am.includes(x) ? "checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>
+      ${ddPanel({ name: "more", label: "More filters", ic: "sliders", badge: f.am.length + (f.state ? 1 : 0) + (f.lga ? 1 : 0) + (f.country ? 1 : 0), cls: "dd-chipbtn", title: "More filters", body: `<p class="dd-lab">Location</p>${locFields({ style: "rf", flow: true, req: false, ids: { country: "sfC", state: "sfS", lga: "sfL" }, country: f.country || NIGERIA, state: f.state, lga: f.lga })}<p class="dd-lab">Amenities</p><div class="hx-am">${AMEN.map((x) => `<label class="hx-amc"><input type="checkbox" value="${esc(x)}" ${f.am.includes(x) ? "checked" : ""}><span>${esc(x)}</span></label>`).join("")}</div>
         <label class="hx-sw"><input type="checkbox" id="fAvail" ${f.avail ? "checked" : ""}><span>Only show homes that are available</span></label>
         <div class="dd-foot"><button type="button" class="btn ghost sm" id="moreClear">Clear</button><button type="button" class="btn primary sm" id="applyMore">Show homes</button></div>` })}
       <span class="hx-sortsp"></span>
@@ -128,8 +140,9 @@ export function search(ctx) {
     const nav = (patch) => { const next = { ...q, ...patch }, p = new URLSearchParams(); Object.entries(next).forEach(([k, v]) => { if (v == null || v === "" || v === 0 || (v === "0" && k !== "avail")) return; p.set(k, v); }); ctx.go("#/search" + (p.toString() ? "?" + p : "")); };
     mountDd(root, { cleanups: S.cleanups, onSelect: (name, v) => nav({ [name]: v === "recommended" ? "" : v }) });
     const more = $('.dd[data-dd="more"]', root);
-    $("#applyMore", root).onclick = () => nav({ am: $$(".hx-am input:checked", more).map((i) => i.value).join(","), avail: $("#fAvail", root).checked ? "" : "0" });
-    $("#moreClear", root).onclick = () => { $$(".hx-am input", more).forEach((i) => (i.checked = false)); $("#fAvail", root).checked = true; };
+    const loc = mountLoc(root, { ids: { country: "sfC", state: "sfS", lga: "sfL" } });
+    $("#applyMore", root).onclick = () => { const L = loc.commit(); nav({ country: L.country === NIGERIA ? "" : L.country, state: L.country === NIGERIA ? L.state : "", lga: L.lga, am: $$(".hx-am input:checked", more).map((i) => i.value).join(","), avail: $("#fAvail", root).checked ? "" : "0" }); };
+    $("#moreClear", root).onclick = () => { $$(".hx-am input", more).forEach((i) => (i.checked = false)); $("#fAvail", root).checked = true; loc.set({}); };
     paintSearch(ctx, root, f, nav);
   } };
 }
@@ -139,16 +152,16 @@ async function paintSearch(ctx, root, f, nav) {
   let all;
   try { all = await st.getListings(); } catch { res.innerHTML = emptyState({ ic: "info", title: "We couldn’t load homes", text: "Check your internet and try again.", actions: [["#/search", "Try again", true]] }); $("#hxsC", root).textContent = ""; return; }
   if (!res.isConnected) return;
-  let list = all.filter((l) => hit(l, f.area) && (!f.max || l.price <= f.max) && (l.beds ?? 0) >= f.beds && matchType(l, f.type) && (!f.avail || l.available !== false) && f.am.every((x) => (l.amenities || []).includes(x)));
+  let list = all.filter((l) => hit(l, f.area) && matchPlace(l, f) && (!f.country || (l.country || NIGERIA) === f.country) && (!f.max || l.price <= f.max) && (l.beds ?? 0) >= f.beds && matchType(l, f.type) && (!f.avail || l.available !== false) && f.am.every((x) => (l.amenities || []).includes(x)));
   if (f.sort === "low") list = [...list].sort((a, b) => a.price - b.price);
   else if (f.sort === "high") list = [...list].sort((a, b) => b.price - a.price);
   else if (f.sort === "newest") list = [...list].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
   $("#hxsC", root).textContent = all.length ? `${list.length} home${list.length === 1 ? "" : "s"} match your search` : "";
   // removable filter chips
-  const chips = [f.area && ["area", areaLabel(f.area)], !f.avail && ["avail", "Including rented homes"], f.max && ["max", BUDGETS.find((b) => b[0] === f.max)?.[1] || "Up to " + naira(f.max)], f.beds && ["beds", f.beds + "+ bedrooms"], f.type && ["type", CATS.find((c) => c[0] === f.type)?.[1] || f.type], ...f.am.map((x) => ["am:" + x, x])].filter(Boolean);
+  const chips = [f.area && ["area", areaLabel(f.area)], f.country && ["country", f.country], f.state && ["state", f.state], f.lga && ["lga", f.lga + " LGA"], !f.avail && ["avail", "Including rented homes"], f.max && ["max", BUDGETS.find((b) => b[0] === f.max)?.[1] || "Up to " + naira(f.max)], f.beds && ["beds", f.beds + "+ bedrooms"], f.type && ["type", CATS.find((c) => c[0] === f.type)?.[1] || f.type], ...f.am.map((x) => ["am:" + x, x])].filter(Boolean);
   const act = $("#hxAct", root);
   act.innerHTML = chips.length ? chips.map(([k, t]) => `<button type="button" class="hx-fc" data-rm="${esc(k)}" aria-label="Remove filter ${esc(t)}">${esc(t)} ${icon("x", 14, 2.2)}</button>`).join("") + `<a class="hx-clear" href="#/search">Clear all</a>` : "";
-  $$("[data-rm]", act).forEach((b) => (b.onclick = () => { const k = b.dataset.rm; if (k.startsWith("am:")) nav({ am: f.am.filter((x) => x !== k.slice(3)).join(",") }); else nav({ [k]: "" }); }));
+  $$("[data-rm]", act).forEach((b) => (b.onclick = () => { const k = b.dataset.rm; if (k.startsWith("am:")) nav({ am: f.am.filter((x) => x !== k.slice(3)).join(",") }); else nav(k === "state" ? { state: "", lga: "" } : k === "country" ? { country: "", state: "", lga: "" } : { [k]: "" }); }));
   if (!all.length) { res.innerHTML = noHomesState(ctx.S); return; }
   if (!list.length) {
     const near = AREAS.filter((a) => a[0] && a[0] !== f.area && all.some((l) => hit(l, a[0]))).slice(0, 4);
