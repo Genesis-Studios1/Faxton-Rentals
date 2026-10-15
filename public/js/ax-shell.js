@@ -48,7 +48,7 @@ export function renderShell(path, inner, view = {}, role = "") {
   const crumbs = [`<a href="#${c.home}">${esc(c.crumb)}</a>`, hit?.g ? `<span>${esc(hit.g)}</span>` : "", `<b aria-current="page">${esc(hit?.i[2] || (path === "/admin/queue" ? "Review queue" : "Page"))}</b>`].filter(Boolean).join(`<i aria-hidden="true">${I("chevR", 12, 2)}</i>`);
   const tabs = c.tabs.map((it) => { const on = isOn(path, it[0], c.home); return `<a class="ax-bt" href="#${it[0]}" ${on ? 'aria-current="page"' : ""}><span class="ax-bi">${I(it[1], 22)}${it[3] ? badge(it[3]) : ""}</span><span>${esc(it[2])}</span></a>`; }).join("");
   const moreOn = !c.tabs.some((it) => isOn(path, it[0], c.home));
-  const bar = BAR[path], create = bar ? 0 : quickItems(key).length, nNotes = (S.notes || []).filter((n) => !n.read).length;
+  const bar = BAR[path], create = bar ? 0 : quickItems(key).length, nNotes = host.noteCount();
   const dark = host.theme() === "dark";
   return `<div class="ax" data-rail="${rail}" data-role="${key}" ${/^\/messages\//.test(path) ? "data-chat" : ""}>
   <button type="button" class="ax-skip" data-ax="skip">Skip to content</button>

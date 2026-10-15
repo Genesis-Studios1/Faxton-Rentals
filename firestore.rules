@@ -41,7 +41,8 @@ service cloud.firestore {
         && (!('notify' in d) || d.notify is map)
         && (!('privacy' in d) || d.privacy is map)
         && (!('lastActive' in d) || d.lastActive is timestamp)
-        && (!('provider' in d) || short(d.provider, 20));
+        && (!('provider' in d) || short(d.provider, 20))
+        && (!('emailVerified' in d) || d.emailVerified is bool);
     }
 
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
@@ -124,7 +125,8 @@ service cloud.firestore {
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'lastActive', 'provider'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'lastActive', 'provider', 'emailVerified'])
+          && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
           && profileOk(request.resource.data))
@@ -138,6 +140,20 @@ service cloud.firestore {
       // A person can delete their own profile only after an admin approved the request and a day has passed.
       allow delete: if signedIn() && request.auth.uid == uid && resource.data.get('deletion', {}).get('status', '') == 'approved'
         && request.time.toMillis() >= resource.data.deletion.requestedAt + 86400000;
+    }
+
+    // Live "someone signed up / signed in" entries for the team. A person may only record an event about themselves; the app sends a sign-up once
+    // (the id is fixed per person, so it cannot be repeated) and a sign-in at most once per 30 minutes. Only admins, the owner and support read them.
+    match /staffEvents/{id} {
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['type', 'uid', 'name', 'role', 'at'])
+        && request.resource.data.type in ['signup', 'login']
+        && request.resource.data.uid == request.auth.uid
+        && short(request.resource.data.name, 120) && short(request.resource.data.role, 20)
+        && request.resource.data.at == request.time
+        && (request.resource.data.type != 'signup' || id == 'signup_' + request.auth.uid);
+      allow read: if isAdmin() || isSupport();
+      allow update: if (isAdmin() || isSupport()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen']);
+      allow delete: if false;
     }
 
     // One marker per registered email (keyed by a SHA-256 of the email) so sign-in can say "no account found".

@@ -3,6 +3,7 @@ import { db } from "./firebase.js";
 import { collection, doc, addDoc, getDoc, updateDoc, onSnapshot, query, where, serverTimestamp, arrayUnion }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, icon, toast, initials, modal } from "./ui.js";
+import { playSound } from "./sound.js";
 
 // ---------- sounds (made with the browser, no audio files) ----------
 let toneCtx = null;
@@ -169,7 +170,7 @@ function run({ id, me, role, kind, other, offer }) {
 
   // ---- ending ----
   function end(status) {
-    if (closing) return; closing = true; ended = true; quiet(); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
+    if (closing) return; closing = true; ended = true; quiet(); playSound("callEnd"); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
     try { unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); pc.close(); } catch {}
