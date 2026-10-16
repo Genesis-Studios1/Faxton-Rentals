@@ -139,6 +139,24 @@ export function suggestions(ctx) {
     } });
 }
 
+// ---------- data requests (people who downloaded their own data) ----------
+const DR = ["Downloaded", "Reviewed"], drSt = (x) => (x.status === "reviewed" ? "Reviewed" : "Downloaded");
+export function dataRequests(ctx) {
+  return pageView(ctx, { title: "Data requests", eyebrow: ctx.S.isAdmin ? "Support" : "Support console", sub: "People who confirmed it was them and downloaded a copy of their own data. Only who and when is kept here, never the data itself.", cols: ["dataRequests"], what: "data requests",
+    async render({ dataRequests: items }) {
+      const set = async (x, s, api) => { try { await st.patch("dataRequests", x.id, { status: s === "Reviewed" ? "reviewed" : "verified-downloaded" }); x.status = s === "Reviewed" ? "reviewed" : "verified-downloaded"; changed(); api.refresh(); toast(`Marked ${s.toLowerCase()}.`); } catch (e) { bad(e); } };
+      return { html: `<div id="dr"></div>`, mount(el) {
+        createList($("#dr", el), { noun: "data requests", label: "Data requests", rows: items, placeholder: "Search by name or role…", tabs: [{ k: "all", label: "All" }, ...DR.map((s) => ({ k: s, label: s, test: (x) => drSt(x) === s }))], sort: { k: "date", dir: "desc" }, search: (x) => `${x.name || ""} ${x.role || ""} ${x.uid || ""} ${x.note || ""}`,
+          cols: [{ k: "from", label: "Person", role: "title", cell: (x) => `<div class="ax-id">${avatar(x.name, x.uid, 32)}<div><b>${esc(x.name || "—")}</b><small>${esc(x.role || "")}</small></div></div>` }, { k: "date", label: "Downloaded", pri: 2, sort: (x) => ms(x.at), cell: (x) => fmt.dateTime(x.at) }, { k: "note", label: "Note", pri: 3, cell: (x) => `<div class="ax-clamp" style="-webkit-line-clamp:1;max-width:260px">${esc(x.note || "")}</div>` }, { k: "status", label: "Status", role: "status", cell: (x) => `<button type="button" class="ax-chipbtn" data-cell="s" aria-haspopup="menu" aria-label="Change status, now ${esc(drSt(x))}">${chipFor("dataRequest", x.status || "verified-downloaded", drSt(x))}${I("chevD", 14)}</button>` }],
+          onCell: (k, x, b, api) => menu(b, DR.map((s) => ({ label: s, checked: s === drSt(x), act: () => s !== drSt(x) && set(x, s, api) })), { align: "left", label: "Status" }),
+          csv: { name: "faxton-data-requests", head: ["Person", "Role", "Downloaded", "Status", "Note"], row: (x) => [x.name, x.role, fmt.dateTime(x.at), drSt(x), x.note] },
+          drawer: (x, api) => ({ title: x.name || "Data request", sub: `${chipFor("dataRequest", x.status || "verified-downloaded", drSt(x))}<span>${esc(x.role || "")}</span>`, body: `<p class="ax-p">This person confirmed it was them (email link, password or Google) and downloaded a copy of their own data on ${esc(fmt.dateTime(x.at))}. We don't keep the file or what was in it.</p>${section("Details", dl([["Name", esc(x.name || "—")], ["Role", esc(x.role || "—")], ["Account id", `<span class="num">${esc(x.uid || "")}</span>`]]))}${section("Internal note", `<textarea class="ax-input" id="drNote" rows="3" maxlength="1000" aria-label="Internal note">${esc(x.note || "")}</textarea><div style="margin-top:8px">${btn("Save note", { size: "sm", attrs: "data-drsave" })}</div>`)}${section("Status", `<div class="ax-seg2">${DR.map((s) => `<button type="button" class="ax-pre" data-s="${s}" aria-pressed="${drSt(x) === s}">${s}</button>`).join("")}</div>`)}`,
+            mount: (d) => { $$("[data-s]", d).forEach((b) => (b.onclick = () => b.dataset.s !== drSt(x) && set(x, b.dataset.s, api))); $("[data-drsave]", d).onclick = async (e) => { busy(e.currentTarget, true); try { const note = $("#drNote", d).value.trim(); await st.patch("dataRequests", x.id, { note }); x.note = note; changed(); api.refresh(); toast("Note saved."); } catch (y) { bad(y); } busy(e.currentTarget, false); }; } }),
+          empty: { icon: "download", title: "No data downloads yet", hint: "When someone downloads their own data from Settings, it appears here." } });
+      } };
+    } });
+}
+
 // ---------- user reports ----------
 const RP = ["New", "Reviewing", "Action taken", "Dismissed"];
 export function userReports(ctx) {
@@ -383,6 +401,6 @@ async function supportDash(ctx) {
 }
 export async function supportPage(ctx, sub) {
   if (!allowed(ctx, "support")) return denied(ctx);
-  const v = sub === "suggestions" ? suggestions(ctx) : sub === "services" ? await (await import("./admin2.js")).serviceRequests(ctx) : sub === "tickets" ? await (await import("./ax-sections.js")).ticketCenter(ctx) : await supportDash(ctx);
+  const v = sub === "suggestions" ? suggestions(ctx) : sub === "data-requests" ? dataRequests(ctx) : sub === "services" ? await (await import("./admin2.js")).serviceRequests(ctx) : sub === "tickets" ? await (await import("./ax-sections.js")).ticketCenter(ctx) : await supportDash(ctx);
   return { ...v, role: "support", admin: undefined };
 }

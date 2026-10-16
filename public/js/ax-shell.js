@@ -13,7 +13,7 @@ const ADMIN = [
   { l: "", items: [["/admin", "home", "Overview"], ["/admin/queue", "doccheck", "Review queue", "queue"]] },
   { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users"], ["/admin/agents", "handshake", "Agents"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
   { l: "Activity", items: [["/admin/applications", "doc", "Applications", "apps"], ["/admin/viewings", "calDots", "Viewings", "sos"], ["/admin/services", "wrench", "Service requests", "svc"], ["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"], ["/admin/payments", "card", "Payments", "proofs"]] },
-  { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
+  { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/data-requests", "download", "Data requests"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
   { l: "Insights", items: [["/admin/reports", "bars3", "Reports"]] },
   { l: "System", items: [["/admin/team", "crown", "Team access"], ["/admin/get-app", "download", "Installations"], ["/settings", "gear", "Settings"]] },
 ];
@@ -26,7 +26,7 @@ export const ROLES = {
     groups: [{ l: "Work", items: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings", "views"], ["/agent-dashboard/clients", "user", "Clients"]] }, { l: "Deals", items: [["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"]] }, { l: "Communication", items: [["/messages", "msg", "Messages", "unread"]] }, { l: "Account", items: [["/settings", "gear", "Settings"]] }],
     tabs: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/viewings", "calDots", "Viewings", "views"]] },
   support: { title: "Support console", crumb: "Support console", home: "/support",
-    groups: [{ l: "Work", items: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"], ["/support/services", "wrench", "Service requests", "svc"], ["/messages", "msg", "Messages", "unread"]] }, { l: "Help", items: [["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] }],
+    groups: [{ l: "Work", items: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests", "svc"], ["/messages", "msg", "Messages", "unread"]] }, { l: "Help", items: [["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] }],
     tabs: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"]] },
 };
 const cfgFor = (role) => ROLES[role] || ROLES.admin;
