@@ -1,7 +1,7 @@
 import { detectTenant } from "./myhome.js";
 import * as G from "./gate.js";
 import * as LOCK from "./applock.js";
-import { auth, db, google } from "./firebase.js";
+import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup } from "./firebase.js";
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -61,7 +61,7 @@ function shell(path, inner, o = {}) {
 }
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
-  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
+  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
   landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
@@ -220,7 +220,7 @@ export async function render() {
   // Staff accounts open their own dashboard first, once per visit.
   if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
 
-  const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, logout, setSaved, resetPassword };
+  const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, reauthGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
   try { view = S.user && G.needsVerify(S.user) && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
@@ -481,6 +481,12 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
   await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
   const p = await rejectIfBanned(c.user); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
   return p?.role || "renter";
+}
+// Proves the signed-in person still controls their Google account (used by "Download my data"). In the Android / iPhone app the native Google
+// plugin gives the token; on the web a pop-up does. Firebase refuses it if the Google account is not the one signed in.
+async function reauthGoogle(user) {
+  if (inAppShell()) { const { idToken, accessToken } = await nativeGoogleToken(); await reauthenticateWithCredential(user, GoogleAuthProvider.credential(idToken, accessToken || undefined)); return; }
+  await reauthenticateWithPopup(user, google);
 }
 const logout = () => signOut(auth);
 // "Are you sure?" before signing out, with a red button.

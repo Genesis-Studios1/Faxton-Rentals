@@ -158,6 +158,25 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // "Download my data" records. After a person confirms it's them and downloads their own data (all in their browser), the app files one entry here
+    // so staff can see the request was served. It holds no data content. Only the person can create it for themselves; owner, admin and support read it and
+    // mark it reviewed (status) or add a note. Nobody deletes.
+    match /dataRequests/{id} {
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid', 'name', 'role', 'status', 'at'])
+        && request.resource.data.keys().hasAll(['uid', 'name', 'role', 'status', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'verified-downloaded'
+        && short(request.resource.data.name, 120) && short(request.resource.data.role, 20)
+        && request.resource.data.role == myRole()
+        && request.resource.data.at == request.time;
+      allow read: if isAdmin() || isSupport();
+      allow update: if (isAdmin() || isSupport())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note'])
+        && request.resource.data.status in ['verified-downloaded', 'reviewed']
+        && short(request.resource.data.get('note', ''), 1000);
+      allow delete: if false;
+    }
+
     // One marker per registered email (keyed by a SHA-256 of the email) so sign-in can say "no account found".
     match /accountEmails/{h} {
       allow get: if true;

@@ -47,6 +47,7 @@ export async function route(ctx, sub) {
     case "payments": return (await D()).payments(ctx);
     case "support": return (await import("./ax-sections.js")).ticketCenter(ctx);
     case "suggestions": return (await D()).suggestions(ctx);
+    case "data-requests": return (await D()).dataRequests(ctx);
     case "user-reports": return (await D()).userReports(ctx);
     case "reports": return (await D()).reports(ctx);
     case "calls": return (await D()).callsRedirect(ctx);

@@ -71,6 +71,7 @@ const CH = {
   ticket: { open: ["warn", "Open"], "in progress": ["info", "In progress"], resolved: ["ok", "Resolved"], closed: ["ok", "Resolved"] },
   priority: { low: ["mute", "Low"], medium: ["info", "Medium"], high: ["bad", "High"], overdue: ["bad", "Overdue"] },
   report: { new: ["warn", "New"], reviewing: ["info", "Reviewing"], "action taken": ["ok", "Action taken"], dismissed: ["mute", "Dismissed"] },
+  dataRequest: { "verified-downloaded": ["info", "Downloaded"], downloaded: ["info", "Downloaded"], reviewed: ["ok", "Reviewed"] },
   suggestion: { new: ["warn", "New"], reviewed: ["info", "Reviewed"], planned: ["info", "Planned"], done: ["ok", "Done"] },
   maintenance: { open: ["warn", "Open"], "in progress": ["info", "In progress"], resolved: ["ok", "Resolved"], done: ["ok", "Done"] },
   charge: { due: ["warn", "Due"], paid: ["ok", "Paid"], overdue: ["bad", "Overdue"], confirmed: ["ok", "Confirmed"] },
