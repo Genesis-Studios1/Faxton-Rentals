@@ -2,7 +2,14 @@
 // Android and iPhone apps use the system biometric prompt (Capacitor plugin). On the web the browser's platform authenticator (WebAuthn) is used.
 import { $, esc, icon, toast, logoMark } from "./ui.js";
 
-const KEY = (uid) => "applock_" + uid, AFTER_MS = 30000;
+const KEY = (uid) => "applock_" + uid;
+// When the lock asks again: "open" = every time you come back to the app, "after" = once you have been away for a chosen time, "session" = once per launch (until the app is closed and opened again).
+export const MODES = { open: "Every time I open the app", after: "After I leave the app for a while", session: "Only once, until I close the app" };
+export const AFTER_CHOICES = [[30, "30 seconds"], [60, "1 minute"], [120, "2 minutes"], [300, "5 minutes"], [900, "15 minutes"], [1800, "30 minutes"]];
+export const settings = (uid) => { const v = read(uid) || {}; return { mode: MODES[v.mode] ? v.mode : "after", secs: AFTER_CHOICES.some((c) => c[0] === v.secs) ? v.secs : 30 }; };
+const setSettings = (uid, patch) => { const v = read(uid); if (v) write(uid, { ...v, ...patch }); };
+const SKEY = (uid) => "applock_s_" + uid;
+const unlockedThisLaunch = (uid) => { try { return sessionStorage.getItem(SKEY(uid)) === "1"; } catch { return false; } };
 const isApp = () => /FaxtonApp\/mobile/.test(navigator.userAgent) && !!window.Capacitor?.registerPlugin;
 let native = null;
 const plugin = () => (native ||= window.Capacitor.registerPlugin("BiometricAuthNative"));
@@ -38,7 +45,7 @@ export async function enable(user) {
 export const disable = (uid) => write(uid, null);
 
 // ---- the lock screen ----
-let armed = null, hiddenAt = 0, showing = false;
+let armed = null, hiddenAt = 0, showing = false, unlockedAt = 0;
 function lockScreen(user, logout) {
   if (showing) return; showing = true;
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
@@ -47,7 +54,7 @@ function lockScreen(user, logout) {
   el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
-  const done = () => { el.remove(); showing = false; document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
+  const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
   const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
   $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
   if (!waitSplash) return void setTimeout(go, 250);
@@ -56,11 +63,20 @@ function lockScreen(user, logout) {
   if (sp.classList.contains("leave")) setTimeout(free, 1000);
   else { document.addEventListener("splash-done", () => setTimeout(free, 1000), { once: true }); setTimeout(free, 12000); }
 }
-// Call after sign-in: locks now (the app was just opened) and again whenever the app comes back after being away.
+// Call after sign-in: locks now (the app was just opened), then again as the chosen option says.
 export function arm(user, logout) {
   armed = enabled(user?.uid) ? { user, logout } : null;
-  if (armed) lockScreen(user, logout);
-  if (!arm.wired) { arm.wired = true; document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); else if (armed && hiddenAt && Date.now() - hiddenAt > AFTER_MS) lockScreen(armed.user, armed.logout); }); }
+  if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
+  if (!arm.wired) {
+    arm.wired = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { if (!showing) hiddenAt = Date.now(); return; }
+      if (!armed || !hiddenAt || showing) return;
+      const away = Date.now() - hiddenAt, st = settings(armed.user.uid); hiddenAt = 0;
+      if (Date.now() - unlockedAt < 2000) return; // the system fingerprint prompt itself briefly hides the page
+      if (st.mode === "open" || (st.mode === "after" && away > st.secs * 1000)) lockScreen(armed.user, armed.logout);
+    });
+  }
 }
 export const refreshArm = (user, logout) => { armed = enabled(user?.uid) ? { user, logout } : null; };
 
@@ -68,14 +84,18 @@ export const refreshArm = (user, logout) => { armed = enabled(user?.uid) ? { use
 export async function mountCard(box, user, logout) {
   const ok = await available(), on = enabled(user.uid);
   box.innerHTML = `<section class="set-card"><h3>App lock</h3><p class="sub">Ask for your fingerprint, face or screen lock when the app opens or you come back to it.</p>
-    <div class="sw-row"><span class="sw-ic">${icon("lock", 26, 1.7)}</span><div><b>Unlock with fingerprint</b><p>${ok ? (isApp() ? "Uses your phone’s fingerprint, face or screen lock." : "Uses this device’s fingerprint, face or screen lock.") : "Not available on this device. Set up a fingerprint or screen lock in your phone’s settings."}</p></div><button type="button" class="switch ${on ? "on" : ""}" id="lockSw" role="switch" aria-checked="${on}" aria-label="Unlock with fingerprint" ${ok ? "" : "disabled"}><i></i></button></div></section>`;
-  const sw = $("#lockSw", box);
+    <div class="sw-row"><span class="sw-ic">${icon("lock", 26, 1.7)}</span><div><b>Unlock with fingerprint</b><p>${ok ? (isApp() ? "Uses your phone’s fingerprint, face or screen lock." : "Uses this device’s fingerprint, face or screen lock.") : "Not available on this device. Set up a fingerprint or screen lock in your phone’s settings."}</p></div><button type="button" class="switch ${on ? "on" : ""}" id="lockSw" role="switch" aria-checked="${on}" aria-label="Unlock with fingerprint" ${ok ? "" : "disabled"}><i></i></button></div>
+    <div class="lk-opts" id="lkOpts" ${on ? "" : "hidden"}><b>Ask me to unlock</b>${Object.entries(MODES).map(([k, v]) => `<label class="lk-opt"><input type="radio" name="lkMode" value="${k}" ${settings(user.uid).mode === k ? "checked" : ""}><span>${v}</span></label>`).join("")}
+      <label class="lk-after" id="lkAfterRow" ${settings(user.uid).mode === "after" ? "" : "hidden"}>Leave for <select id="lkAfter" aria-label="Lock after being away for">${AFTER_CHOICES.map(([n, t]) => `<option value="${n}" ${settings(user.uid).secs === n ? "selected" : ""}>${t}</option>`).join("")}</select> or more</label></div></section>`;
+  const sw = $("#lockSw", box), opts = $("#lkOpts", box), afterRow = $("#lkAfterRow", box);
+  box.querySelectorAll("input[name=lkMode]").forEach((r) => (r.onchange = () => { setSettings(user.uid, { mode: r.value }); afterRow.hidden = r.value !== "after"; toast("Saved."); }));
+  $("#lkAfter", box).onchange = (e) => { setSettings(user.uid, { secs: +e.target.value }); toast("Saved."); };
   sw.onclick = async () => {
     sw.disabled = true;
     try {
       if (enabled(user.uid)) { await challenge(user, "Turn off unlock"); disable(user.uid); refreshArm(user, logout); toast("App lock is off."); }
       else { await enable(user); refreshArm(user, logout); toast("App lock is on. You’ll be asked to unlock when you open the app."); }
     } catch (e) { if (e.message !== "cancelled") toast(e.message); }
-    sw.disabled = false; const now = enabled(user.uid); sw.classList.toggle("on", now); sw.setAttribute("aria-checked", now);
+    sw.disabled = false; const now = enabled(user.uid); opts.hidden = !now; sw.classList.toggle("on", now); sw.setAttribute("aria-checked", now);
   };
 }
