@@ -77,7 +77,7 @@ export async function ensureConversation(user, l) {
 }
 export const watchConversations = (user, cb) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
   (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
-export const watchMessages = (cid, cb) => onSnapshot(query(collection(db, "conversations", cid, "messages"), orderBy("at")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => cb([]));
+export const watchMessages = (cid, cb, onErr) => onSnapshot(query(collection(db, "conversations", cid, "messages"), orderBy("at")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), (e) => { if (onErr) onErr(e); else cb([]); });
 // Every conversation the Faxton team has with users (admins, the owner and support see all of them).
 export const watchStaffConversations = (cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("listingId", "==", "direct")),
   (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).filter((c) => !c.byStaff).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), (e) => { cb([]); onErr?.(e); });
@@ -93,13 +93,26 @@ export const getConversation = async (cid) => { try { const s = await getDoc(doc
 // A small "typing" marker for the other side (the screen shows it for 5 seconds; it is written at most every 4 seconds).
 export const setTyping = (cid, uid) => updateDoc(doc(db, "conversations", cid), { typing: { uid, at: Date.now() } }).catch(() => {});
 export const setStaffUnread = (cid, v) => updateDoc(doc(db, "conversations", cid), { staffUnread: !!v });
-export async function sendMessage(user, cid, text, extra = {}, unread = false, convExtra = {}) {
+// side: "u" when the person whose inbox it is writes, "s" when the Faxton team side writes (stored as lastBy for the ticks).
+export async function sendMessage(user, cid, text, extra = {}, unread = false, convExtra = {}, side = "u") {
   const b = writeBatch(db);
   b.set(doc(collection(db, "conversations", cid, "messages")), { from: user.uid, text, at: serverTimestamp(), ...extra });
-  b.update(doc(db, "conversations", cid), { last: text || (extra.image ? "📷 Photo" : extra.audio ? "🎤 Voice message" : extra.file ? "📎 " + (extra.fname || "File") : ""), lastAt: serverTimestamp(), unread, ...convExtra });
+  b.update(doc(db, "conversations", cid), { last: text || (extra.image ? "📷 Photo" : extra.audio ? "🎤 Voice message" : extra.file ? "📎 " + (extra.fname || "File") : ""), lastAt: serverTimestamp(), lastBy: side, unread, ...convExtra });
   await b.commit();
 }
 export const markRead = (cid) => updateDoc(doc(db, "conversations", cid), { unread: false });
+// "I have the thread open": clears my unread flag and stamps rd.<side> (the blue ticks on the other side).
+export const ackRead = (cid, side) => updateDoc(doc(db, "conversations", cid), side === "s" ? { staffUnread: false, "rd.s": serverTimestamp() } : { unread: false, "rd.u": serverTimestamp() });
+// "My app received it": one batched write for every conversation that has news from the other side (dv.<side>).
+export async function ackDelivered(ids, side) {
+  if (!ids.length) return;
+  const b = writeBatch(db);
+  ids.slice(0, 400).forEach((id) => b.update(doc(db, "conversations", id), { ["dv." + side]: serverTimestamp() }));
+  await b.commit();
+}
+// Presence: presence/<uid> = { online, lastSeen (server time), show }. Only the person writes their own.
+export const setPresence = (uid, online, show = true) => setDoc(doc(db, "presence", uid), { online: !!online && show, show: !!show, lastSeen: serverTimestamp() });
+export const watchPresence = (uid, cb, onErr) => onSnapshot(doc(db, "presence", uid), (s) => cb(s.exists() ? s.data() : null), (e) => { cb(null); onErr?.(e); });
 
 // ---- ownership & roles ----
 export async function getOwnerUid() { try { const s = await getDoc(doc(db, "config", "owner")); return s.exists() ? s.data().uid : null; } catch { return null; } }

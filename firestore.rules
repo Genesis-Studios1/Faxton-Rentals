@@ -481,6 +481,20 @@ service cloud.firestore {
       }
     }
 
+    // Presence for the message ticks and "Last seen": a tiny heartbeat document per person, written only by that person.
+    // lastSeen must be the server clock. A person can read it when it is theirs, when they are staff, or when they have a
+    // staff-started chat with that person (the chat is named <their uid>__dm_<staff uid>, so the rule can check it exists).
+    match /presence/{uid} {
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['online', 'show', 'lastSeen'])
+        && request.resource.data.keys().hasAll(['online', 'lastSeen'])
+        && request.resource.data.online is bool && request.resource.data.get('show', true) is bool
+        && request.resource.data.lastSeen == request.time;
+      allow delete: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin() || isSupport()
+        || exists(/databases/$(database)/documents/conversations/$(request.auth.uid + '__dm_' + uid)));
+    }
+
     // Everything else is closed.
     match /{document=**} { allow read, write: if false; }
   }
