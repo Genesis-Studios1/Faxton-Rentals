@@ -280,3 +280,12 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 .lk-err{min-height:1.4em;color:#ffb3c0!important;font-size:.9rem!important}
 .lk-out{min-height:44px;padding:0 14px;border:0;background:none;color:#b9d8cb;text-decoration:underline;text-underline-offset:3px;font-size:.9rem}.lk-out:hover{color:#fff}
 @media (prefers-reduced-motion:reduce){.lk-card,.vg-card,.lk-ov.lk-fade{animation:none!important}}
+
+/* app lock options in Settings (when the lock asks again) */
+.lk-opts{display:grid;gap:4px;padding:14px 0 2px;border-top:1px solid var(--border)}
+.lk-opts>b{color:var(--head);font-size:1rem;margin-bottom:6px}
+.lk-opt{display:flex;align-items:center;gap:12px;min-height:44px;padding:6px 2px;cursor:pointer;color:var(--head)}
+.lk-opt input{width:22px;height:22px;accent-color:var(--brand,#0e7a5c);flex:none}
+.lk-after{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 4px 34px;color:var(--head);font-size:.95rem}
+.lk-after select{min-height:44px;padding:6px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface,#fff);color:var(--head);font:inherit}
+.lk-opts[hidden],.lk-after[hidden]{display:none}
