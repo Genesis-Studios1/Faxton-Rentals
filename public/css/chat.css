@@ -13,6 +13,7 @@
 .mx-shell{
   --mx-me:#0b4a37;--mx-me-t:#fff;--mx-in:#fff;--mx-in-t:var(--text);
   --mx-tick:#7fe0b9;--mx-tick-in:var(--brand);
+  --mx-read:#5aaeff;--mx-read-out:#2f80ed;
   --mx-hair:rgba(11,61,46,.10);
   --mx-wall:url(../img/chat-wall-light.svg);
   --mx-wall-bg:#f4f5ee;
@@ -22,6 +23,7 @@
 :root[data-theme=dark] .mx-shell{
   --mx-me:#0f5f47;--mx-in:#172a33;--mx-in-t:#e6edf0;
   --mx-tick:#8ff0c8;--mx-tick-in:#34d399;
+  --mx-read:#62b4ff;--mx-read-out:#5aa9ff;
   --mx-hair:rgba(255,255,255,.08);
   --mx-wall:linear-gradient(rgba(3,14,11,.28),rgba(3,14,11,.28)),url(../img/chat-wall-wide.webp);
   --mx-wall-bg:#06150f;
@@ -35,6 +37,8 @@
 .mx-side{display:flex;flex-direction:column;padding:16px 12px 8px}
 .mx-chat{position:relative;display:flex;flex-direction:column;min-width:0}
 /* staff console: the page is edge to edge, so the chat frames itself */
+/* the console's main column is a flex item (flex:1 1 0%), which ignores its own height; bleed pages need a real height or the whole page scrolls and the composer drops off screen */
+.ax-main.bleed{flex:0 0 auto}
 .ax-main.bleed .mx-shell{margin:0;padding:12px;height:100%;box-sizing:border-box}
 .ax-main.bleed .mx-side,.ax-main.bleed .mx-chat{height:100%}
 
@@ -188,12 +192,17 @@
 .mx-b time.in{float:right;margin:7px 0 -3px 12px;font-size:11px;line-height:1;opacity:.72;display:inline-flex;gap:3px;align-items:center;white-space:nowrap;font-variant-numeric:tabular-nums}
 .mx-row.me .mx-b time.in{opacity:.85}
 .mx-bw time.out{display:none}
-.ticks{display:inline-flex;align-items:center;color:inherit}
-.ticks svg{width:14px;height:14px}
-.ticks svg+svg{margin-left:-9px}
-.mx-row.me .ticks{color:rgba(255,255,255,.7)}
-.mx-row.me .ticks.read{color:var(--mx-tick)}
-.ticks.pend svg+svg{display:none}
+/* receipts: clock = sending, one tick = sent, two = delivered, two blue = read (colours picked for 3:1 on the bubble) */
+.ticks{display:inline-flex;align-items:center;color:inherit;line-height:0;flex:none}
+.ticks svg{width:16px;height:15px;display:block}
+.mx-row.me .mx-b .ticks{color:rgba(255,255,255,.72)}
+.mx-row.me .mx-b .ticks.st-read{color:var(--mx-read)}
+.ticks.st-pending{opacity:.8}
+.mx-conv p{display:flex;align-items:center;gap:4px;min-width:0}
+.mx-conv p .mx-lp1{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mx-conv p .ticks{color:var(--muted)}.mx-conv p .ticks svg{width:15px;height:14px}
+.mx-conv p .ticks.st-read{color:var(--mx-read-out)}
+.mx-sub.online{color:var(--brand);font-weight:600}
 .mx-b:has(.mx-pic) time.in{margin-right:4px}
 .mx-row.flash .mx-b{animation:mxFlash 1.4s ease}
 @keyframes mxFlash{0%,60%{box-shadow:0 0 0 3px var(--brand)}100%{box-shadow:0 1px 1.5px rgba(11,61,46,.12)}}
@@ -397,7 +406,7 @@
   .mx-bw time.out{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);margin:2px 4px 0;font-variant-numeric:tabular-nums}
   .mx-row.me .mx-bw time.out{justify-self:end}
   .mx-row.me .mx-bw time.out .ticks{color:var(--muted)}
-  .mx-row.me .mx-bw time.out .ticks.read{color:var(--brand)}
+  .mx-row.me .mx-bw time.out .ticks.st-read{color:var(--mx-read-out)}
   .mx-bw time.out{background:var(--mx-chip);border-radius:999px;padding:1px 7px;width:max-content;backdrop-filter:blur(4px)}
   .mx-row:not(.me) .mx-bw time.out{justify-self:start}
   .mx-rx{margin:3px 6px 0}
@@ -681,3 +690,54 @@ body:has(.cs-ov:not(.min)) #toast{bottom:auto;top:calc(60px + env(safe-area-inse
 .mx-thread.away .mx-jump{opacity:1;visibility:visible;transform:translateY(-100%) scale(1)}
 .mx-jump:hover{background:var(--surface)}
 :root[data-theme=dark] .mx-jump{background:#173540;box-shadow:0 6px 18px rgba(0,0,0,.5)}
+
+/* placeholders while a chat loads, and the load-error card */
+.mx-skb{display:flex;padding:4px 14px}.mx-skb.me{justify-content:flex-end}
+.mx-skb i{display:block;height:38px;border-radius:14px;background:var(--surface);border:1px solid var(--border);animation:mxPulse 1.2s ease-in-out infinite}
+.mx-skb.me i{background:var(--soft)}
+.mx-head .mx-hav.sk{width:40px;height:40px;border-radius:50%;background:var(--surface);flex:none}
+.mx-sk-l{display:block;height:12px;width:120px;border-radius:6px;background:var(--surface);animation:mxPulse 1.2s ease-in-out infinite}.mx-sk-l.s{width:70px;height:10px;margin-top:6px}
+.mx-comp.ghost{height:60px;flex:none}
+.mx-err{margin:auto;text-align:center;padding:24px;max-width:300px}.mx-err p{color:var(--muted);margin:4px 0 14px}
+@keyframes mxPulse{50%{opacity:.55}}
+
+/* ============================================================ voice messages: a soft mint pill, round play button, bar waveform, big time */
+.mx-shell{--vn-bg:#e3f3ea;--vn-bg-me:#cde8da;--vn-btn:#1b6b4a;--vn-on:#1b6b4a;--vn-off:rgba(27,107,74,.34);--vn-t:#0f3d2c}
+:root[data-theme=dark] .mx-shell{--vn-bg:#17382d;--vn-bg-me:#1f4f3d;--vn-btn:#2fa57a;--vn-on:#8ff0c8;--vn-off:rgba(143,240,200,.32);--vn-t:#d9f6e9}
+.mx-row .mx-b.has-vn,.mx-row:not(.me) .mx-b.has-vn{background:var(--vn-bg);color:var(--vn-t);padding:6px 18px 6px 6px;border-radius:999px;box-shadow:none;min-height:60px;display:flex;align-items:center}
+.mx-row.me .mx-b.has-vn{background:var(--vn-bg-me);color:var(--vn-t)}
+.mx-b.has-vn:before{display:none}
+.mx-b.has-vn time.in{display:none}
+.mx-bw:has(.has-vn) time.out{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);margin:2px 8px 0;background:none;padding:0;backdrop-filter:none;width:auto}
+.mx-row.me .mx-bw:has(.has-vn) time.out{justify-self:end}
+.mx-vn{gap:12px;width:min(300px,64vw);align-items:center}
+.mx-play{width:48px;height:48px;background:var(--vn-btn);color:#fff;box-shadow:none}
+:root[data-theme=dark] .mx-play{color:#06281d}
+.mx-play:focus-visible,.mx-wv:focus-visible{outline:2px solid var(--vn-on);outline-offset:2px}
+.mx-play svg{width:20px;height:20px;margin-left:2px;fill:currentColor}
+.mx-vn.playing .mx-play:after{width:12px;height:16px;border-left:4px solid currentColor;border-right:4px solid currentColor;border-radius:1px}
+.mx-wv{height:40px;gap:3px;cursor:pointer;border-radius:8px;touch-action:pan-y}
+.mx-wv i,.mx-row.me .mx-wv i{flex:0 0 3px;max-width:3px;min-width:3px;width:3px;border-radius:3px;background:var(--vn-off);opacity:1;min-height:3px}
+.mx-wv i.on,.mx-row.me .mx-wv i.on{background:var(--vn-on)}
+.mx-wv{justify-content:space-between}
+.mx-vd{font-size:17px;font-weight:500;opacity:1;color:var(--vn-t);align-self:center;margin:0;min-width:34px;text-align:right}
+@media (max-width:420px){.mx-vn{width:min(272px,66vw);gap:10px}.mx-play{width:44px;height:44px}.mx-wv{gap:2px}.mx-wv i,.mx-row.me .mx-wv i{flex-basis:2.5px;max-width:2.5px;min-width:2.5px;width:2.5px}.mx-vd{font-size:15px}}
+/* recording in the composer uses the same pill */
+.mx-rec{background:var(--vn-bg);border-radius:999px;padding:6px 8px;min-height:60px;color:var(--vn-t)}
+.mx-rec>button{background:rgba(27,107,74,.12);color:var(--vn-t)}
+.mx-rec .mx-recsend,:root[data-theme=light] .mx-rec .mx-recsend{background:var(--vn-btn);color:#fff;width:48px;height:48px}
+:root[data-theme=dark] .mx-rec .mx-recsend{color:#06281d}
+#recT{font-size:17px;font-weight:500;font-variant-numeric:tabular-nums;min-width:36px}
+.mx-live{gap:3px;height:36px}.mx-live i{background:var(--vn-on);width:3px;border-radius:3px;min-height:3px}
+
+/* staff console: the denser admin scale (14px text, 36px controls) */
+.ax-main.bleed .mx-shell{font-size:14px;gap:12px}
+.ax-main.bleed .mx-newi{width:36px;height:36px;border-radius:10px}.ax-main.bleed .mx-newi svg{width:18px;height:18px}
+.ax-main.bleed .mx-sidehead h1,.ax-main.bleed .mx-hrow h1{font-size:22px}
+.ax-main.bleed .mx-search{height:36px;border-radius:10px;margin-bottom:8px}.ax-main.bleed .mx-search input{font-size:14px}
+.ax-main.bleed .mx-mode button{height:30px;font-size:13px}
+.ax-main.bleed .mx-b{font-size:14px}
+.ax-main.bleed .mx-head{padding:10px 16px}.ax-main.bleed .mx-ab,.ax-main.bleed .mx-dots{width:36px;height:36px}
+.ax-main.bleed .mx-comp{padding:10px 16px}.ax-main.bleed .mx-comp #ci{height:38px;font-size:14px}
+.ax-main.bleed .mx-send{width:40px;height:40px}.ax-main.bleed .mx-ib.mx-circ{width:36px;height:36px}
+@media (min-width:861px){.ax-main.bleed .mx-b.has-vn{min-height:56px}}

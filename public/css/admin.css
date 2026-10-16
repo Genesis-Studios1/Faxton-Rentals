@@ -613,7 +613,8 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 .ax-tc .ax-bub.out{align-self:flex-end;background:var(--ax-tint);border-color:color-mix(in srgb,var(--ax-accent) 28%,transparent)}
 .ax-tc .ax-bub.note{align-self:stretch;max-width:none;background:var(--ax-warn-bg);border:1px dashed var(--ax-warn)}.ax-tc .ax-bub.note em{display:block;margin-top:4px;font-size:12px;color:var(--ax-muted);font-style:normal}
 .ax-tc .ax-comp{padding:12px 16px 12px;border-top:1px solid var(--ax-border);gap:8px;background:var(--ax-surface)}.ax-tc .ax-comp[data-note=true]{background:var(--ax-warn-bg)}
-.ax-tc .ax-comp-r{display:flex;align-items:flex-end;gap:10px}.ax-tc .ax-comp-r textarea{flex:1;min-height:40px;max-height:160px;border-radius:10px;padding:9px 12px;font-size:14px;resize:none}
+.ax-tc .ax-comp-r{display:flex;align-items:flex-end;gap:10px}.ax .ax-tc .ax-comp-r textarea.ax-input{flex:1;box-sizing:border-box;min-height:40px;max-height:160px;border-radius:10px;padding:9px 12px;font-size:14px;line-height:20px;resize:none;overflow-y:auto;display:block}
+/* a single line sits in the vertical middle of the 40px box (padding 9 + 20 line + 9 + 1px borders); more lines grow the box and the Send button stays on the bottom edge */
 .ax-tc .ax-comp-r .ax-btn{height:40px;padding:0 16px;border-radius:10px;font-size:14px}
 .ax-tc .ax-comp .ax-help{margin:0}
 .ax-pane-empty{flex:1;display:grid;place-items:center;padding:24px}
@@ -713,7 +714,7 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 @media (max-width:899px){
   .ax-list[data-pills] .ax-tabs .ax-tab,.ax-tcl .ax-tab{height:44px;font-size:14px}
   .ax-sel,.ax-tm-c .ax-sel,.ax-add-s input,.ax-add-r{height:44px;font-size:16px}
-  .ax-tc .ax-comp-r textarea{min-height:44px;font-size:16px}.ax-tc .ax-comp-r .ax-btn{height:44px}
+  .ax .ax-tc .ax-comp-r textarea.ax-input{min-height:44px;font-size:16px;padding-top:11px;padding-bottom:11px}.ax-tc .ax-comp-r .ax-btn{height:44px}
   .ax-tmb,.ax-qm{width:44px;height:44px}
   .ax-tch-r .ax-btn,.ax-agtop .ax-btn,.ax-agb .ax-btn,.ax-fbc>footer .ax-btn{height:44px}
   .ax-pbs input,.ax-mps .ax-search input{font-size:16px}

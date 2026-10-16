@@ -18,6 +18,7 @@ import { resFields } from "./loc.js";
 import { watchIncoming } from "./calls.js";
 import { siteFooter, wireFooter } from "./footer.js";
 import { syncPublic } from "./store.js";
+import * as PRES from "./presence.js";
 
 export const S = { notes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
@@ -488,7 +489,7 @@ async function reauthGoogle(user) {
   if (inAppShell()) { const { idToken, accessToken } = await nativeGoogleToken(); await reauthenticateWithCredential(user, GoogleAuthProvider.credential(idToken, accessToken || undefined)); return; }
   await reauthenticateWithPopup(user, google);
 }
-const logout = () => signOut(auth);
+const logout = () => { PRES.stop(); return signOut(auth); };
 // "Are you sure?" before signing out, with a red button.
 function confirmSignOut() {
   return new Promise((res) => {
@@ -565,15 +566,22 @@ async function refreshAuthState(u) {
   // App lock: ask for the fingerprint once when the app opens (and again after being away; see applock.js).
   if (u) { if (S.lockedFor !== u.uid) { S.lockedFor = u.uid; LOCK.arm(u, logout); } else LOCK.refreshArm(u, logout); } else S.lockedFor = null;
   S.saved = new Set(u ? S.profile?.saved || [] : await getSaved(u));
-  S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0;
+  S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0; S.hasConvs = false; S.openChat = "";
+  PRES.stop(false);
+  if (u) PRES.start(u.uid, { shows: () => S.profile?.privacy?.showOnline !== false, wanted: () => S.hasConvs || S.isAdmin || S.role === "support" });
   let firstConv = true;
   if (u) S.unsubConvs = watchConversations(u, (c) => {
-    const n = c.filter((x) => x.unread).length; const wasFirst = firstConv; firstConv = false; if (n === S.unread) return; if (n > S.unread) { sysNotify("New message", "You have a new message on Faxton Rentals."); if (!wasFirst) playSound("message"); } S.unread = n;
+    // A conversation that is open and on screen is being read right now: it never counts as unread and never pings.
+    const open = document.visibilityState === "visible" ? S.openChat : "";
+    const has = c.length > 0; if (has !== S.hasConvs) { S.hasConvs = has; PRES.refresh(); }
+    PRES.ackDelivery(c, "u");
+    const n = c.filter((x) => x.unread && x.id !== open).length; const wasFirst = firstConv; firstConv = false; if (n === S.unread) return; if (n > S.unread) { sysNotify("New message", "You have a new message on Faxton Rentals."); if (!wasFirst) playSound("message"); } S.unread = n;
     $$("[data-unread]").forEach((b) => { b.textContent = unreadTxt(n); b.hidden = !n; });
   });
 }
 onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
-addEventListener("hashchange", () => { if (AXS?.softNav()) return; S.nav++; render(); });
+// Opening or leaving a chat inside Messages swaps the thread in place (no new page, no new listeners); see views.js messages().
+addEventListener("hashchange", () => { if (AXS?.softNav() || S.msgNav?.(parse().path)) { S.nav++; return; } S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
 render();
 // Give every table cell its column name, so phones can show tables as stacked cards.
