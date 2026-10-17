@@ -764,3 +764,9 @@ body:has(.cs-ov:not(.min)) #toast{bottom:auto;top:calc(60px + env(safe-area-inse
 .cl-avw>img.cl-ph{width:100%;height:100%;position:relative;z-index:1}
 .cl-incoming .cl-mini .cl-avw.sm{width:54px;height:54px;border-radius:50%;box-shadow:0 0 0 5px rgba(52,211,153,.13),0 0 20px rgba(52,211,153,.4);overflow:visible}
 .cl-incoming .cl-mini .cl-avw .cl-ph.sm,.cl-incoming .cl-mini .cl-avw .cl-av.sm{width:100%;height:100%;box-shadow:none}
+
+/* Google photo offer */
+.gp-pop{justify-items:center}
+.gp-pv{display:block;width:112px;height:112px;border-radius:50%;overflow:hidden;box-shadow:0 0 0 4px var(--card),0 0 0 7px rgba(19,146,111,.35);background:var(--surface)}
+.gp-pv img{width:100%;height:100%;object-fit:cover;display:block}
+.gp-pop .so-act{width:100%}

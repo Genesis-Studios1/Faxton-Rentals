@@ -117,6 +117,7 @@ async function payments(ctx) {
 
 // ---------- messages ----------
 // Kept for the whole visit (not per screen), so opening a chat again is instant: thread messages, decoded photos, public photos, listings.
+const GPH = (u) => !!u?.providerData?.some((x) => x.providerId === "google.com" && (x.photoURL || u.photoURL));
 const MSG_CACHE = new Map(); // conversation id -> messages (newest snapshot)
 const BLOBS = new Map(); // data: URL -> blob: URL (a 40 KB photo is parsed and decoded once, not on every repaint)
 const PUB_PHOTO = {}, ASKED = new Set(), LISTINGS = new Map();
@@ -557,7 +558,7 @@ function settings(ctx, section) {
   const avatar = p.photo ? `<img class="rf-avatar" src="${esc(p.photo)}" alt="">` : `<span class="rf-avatar">${esc(initials(name || u.email))}</span>`;
   let body;
   if (section === "profile") body = `<form id="pf" class="rf-col" novalidate>
-      ${card("Your profile", "", `<div class="rf-pd"><div class="rf-avwrap">${avatar}<button type="button" class="rf-avcam" id="photoBtn" aria-label="Change photo">${icon("camera", 16)}</button><input type="file" id="photo" accept="image/*" hidden></div><div><b class="rf-pd-name">${esc(name || "Your name")}</b><p class="rf-meta">${esc(u.email)}</p><div class="rf-pd-btns"><button type="button" class="btn sm" id="photoBtn2">${icon("camera", 15)} ${p.photo ? "Change photo" : "Add a photo"}</button>${p.photo ? `<button type="button" class="btn sm ghost" id="photoRm">Remove</button>` : ""}</div></div></div>
+      ${card("Your profile", "", `<div class="rf-pd"><div class="rf-avwrap">${avatar}<button type="button" class="rf-avcam" id="photoBtn" aria-label="Change photo">${icon("camera", 16)}</button><input type="file" id="photo" accept="image/*" hidden></div><div><b class="rf-pd-name">${esc(name || "Your name")}</b><p class="rf-meta">${esc(u.email)}</p><div class="rf-pd-btns"><button type="button" class="btn sm" id="photoBtn2">${icon("camera", 15)} ${p.photo ? "Change photo" : "Add a photo"}</button>${GPH(u) ? `<button type="button" class="btn sm" id="photoG">Use my Google photo</button>` : ""}${p.photo ? `<button type="button" class="btn sm ghost" id="photoRm">Remove</button>` : ""}</div></div></div>
         <div class="rf-form"><div class="rf-grid2"><label class="rf-fl">Full name<input id="nm" value="${esc(name)}" autocomplete="name" maxlength="120"></label>
           <label class="rf-fl">Email address<span class="rf-input-wrap"><input value="${esc(u.email)}" disabled>${verified.replace('class="rf-pill', 'class="rf-tag rf-pill')}</span></label>
           <label class="rf-fl">Phone number<input id="ph" type="tel" inputmode="tel" placeholder="e.g. 0803 000 0000" value="${esc(p.phone || "")}" autocomplete="tel" maxlength="30"></label>
@@ -626,6 +627,7 @@ function settings(ctx, section) {
           const f = e.target.files[0]; e.target.value = ""; if (!f) return;
           try { const data = await shrinkImage(f, { square: 192, bytes: 40000 }); await save({ photo: data }, "Photo updated."); st.syncPublic(ctx.S.user.uid, { photo: data }); ctx.render(); } catch (x) { if (x.userMessage) toast(x.userMessage); }
         };
+        const gb = $("#photoG"); if (gb) gb.onclick = async () => { gb.disabled = true; try { const GP = await import("./gphoto.js"); await GP.useGooglePhoto(ctx.S); toast("Photo updated."); ctx.render(); } catch (x) { toast(x.userMessage || "We couldn’t use your Google photo. Choose one from your device instead."); gb.disabled = false; } };
         const rm = $("#photoRm"); if (rm) rm.onclick = async () => { try { await save({ photo: "" }, "Photo removed."); st.syncPublic(ctx.S.user.uid, { photo: "" }); ctx.render(); } catch {} };
       }
       const rs = $("#resendV"); if (rs) rs.onclick = async () => { try { await ctx.resendVerification(); toast("Verification email sent."); } catch (x) { toast(fxErr(x)); } };

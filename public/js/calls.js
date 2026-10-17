@@ -245,7 +245,7 @@ export async function startCall(ctx, { convId, to, toName, toPhoto = "", kind = 
   }
   audio(); await ensureIce(); // the call button counts as a tap, so the ringing sound may play
   try {
-    const peerPic = smallPhoto(toPhoto), myPic = smallPhoto(ctx.S.profile?.photo) || smallPhoto(u.photoURL);
+    const peerPic = smallPhoto(toPhoto), myPic = smallPhoto(ctx.S.profile?.photo);
     const ref = await addDoc(collection(db, "calls"), { convId: convId || "", title, kind, status: "ringing", callerUid: u.uid, callerName: u.displayName || ctx.S.profile?.name || u.email, callerPhoto: myPic, calleePhoto: peerPic, callerRole: ROLE[ctx.S.isOwner ? "owner" : ctx.S.profile?.role || "renter"] || "Tenant", image, area, calleeUid: to, calleeName: toName || "Faxton team", members: to === "staff" ? [u.uid] : [u.uid, to], createdAt: serverTimestamp() });
     run({ id: ref.id, me: u.uid, role: "caller", kind, other: { uid: to, name: toName || "Faxton team", photo: toPhoto } });
   } catch (e) { toast(/permission/i.test(String(e?.code || e)) ? "You can’t place calls from this account." : "The call couldn’t be placed."); }
