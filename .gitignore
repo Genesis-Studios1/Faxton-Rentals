@@ -7,3 +7,6 @@ node_modules/
 .firebase/
 node_modules
 dist
+
+# local emulator logs
+*-debug.log
