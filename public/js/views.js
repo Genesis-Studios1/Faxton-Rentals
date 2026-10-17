@@ -190,10 +190,10 @@ async function messages(ctx, cid) {
       const drawList = () => {
         const f = FILTERS(), list = vis();
         f.forEach(([k, , , n]) => { const c = $(`[data-cnt="${k}"]`); if (c) c.textContent = n; });
-        const box = $("#convs"); if (!box) return;
+        const box = $("#convs"); if (!box) return; CALLS.imgFallback(box);
         const nothing = (ic, title, hint, act = "") => `<div class="mx-none"><span class="mx-noi">${icon(ic, 24)}</span><b>${title}</b><p>${hint}</p>${act}</div>`;
         const skel = `<div class="mx-sks" aria-hidden="true">${"<div class=\"mx-sk\"><i></i><div><b></b><p></p></div></div>".repeat(4)}</div>`;
-        const h = tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me)).join("") || nothing("phone", "No calls match", "Try a different search.") : callsLoaded ? nothing("phone", "No calls yet", "Open a conversation and tap Call or Video call.") : skel)
+        const h = tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me, (x) => light(CALLS.peerPhoto(x, me)))).join("") || nothing("phone", "No calls match", "Try a different search.") : callsLoaded ? nothing("phone", "No calls yet", "Open a conversation and tap Call or Video call.") : skel)
           : list.length ? list.map((c) => { const o = other(c), tick = RC.tickHtml(RC.listStatus(c, sideOf(c)), "mini"); return `<a class="mx-conv" data-cid="${esc(c.id)}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer" decoding="async"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${tick}<span class="mx-lp1">${lastLine(c)}</span></p></div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
           : (!loaded || !listsReady()) && !convs().length ? skel
           : faxton() && teamErr ? nothing("chatdots", "Couldn’t load the inbox", "Check your connection and try again. If it keeps happening, the database rules may not be published yet.")
@@ -520,7 +520,7 @@ async function messages(ctx, cid) {
       const unsubC = st.watchConversations(ctx.S.user, (c) => { loaded = true; base = c; merge(); remember(); refresh(); });
       const unsubD = staff ? st.watchStaffDMs(me, (c) => { dmsLoaded = true; dms = c; merge(); remember(); refresh(); }) : null;
       const unsubT = staff ? st.watchStaffConversations((c) => { teamLoaded = true; team = c.length || !team.length ? c : team; teamErr = false; remember(); refresh(); }, () => { teamLoaded = true; teamErr = true; refresh(); }) : null;
-      const unsubL = CALLS.watchLogs(me, (l) => { callsLoaded = true; calls = l; if ($("#convs")) drawList(); else drawSide(); paintThread(); });
+      const unsubL = CALLS.watchLogs(me, (l) => { callsLoaded = true; calls = l; CALLS.warmPeers(l, me, () => { if ($("#convs") && tab === "calls") drawList(); }); if ($("#convs")) drawList(); else drawSide(); paintThread(); });
       drawSide(); drawChat();
       ctx.S.cleanups.push(() => { unsubC(); unsubD?.(); unsubT?.(); unsubL(); closeThread(); ctx.S.msgNav = null; ctx.S.openChat = ""; root.classList.remove("in-chat"); root.style.removeProperty("--mx-vvh"); vv?.removeEventListener("resize", fitVV); vv?.removeEventListener("scroll", fitVV); });
     } };

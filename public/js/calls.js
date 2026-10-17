@@ -4,6 +4,7 @@ import { collection, doc, addDoc, getDoc, updateDoc, onSnapshot, query, where, s
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, icon, toast, initials, modal } from "./ui.js";
 import { playSound } from "./sound.js";
+import { getPublic } from "./store.js";
 
 // ---------- sounds (made with the browser, no audio files) ----------
 let toneCtx = null;
@@ -61,13 +62,28 @@ const addIce = (id, from, c) => addDoc(collection(db, "calls", id, "ice"), { fro
 const watchIce = (id, cb) => onSnapshot(collection(db, "calls", id, "ice"), (s) => s.docChanges().forEach((ch) => { if (ch.type === "added") cb(ch.doc.data()); }), () => {});
 export const watchLogs = (uid, cb) => onSnapshot(query(collection(db, "calls"), where("members", "array-contains", uid)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))), () => cb([]));
 
+// ---------- who is on the other end: names and photos ----------
+// The call document carries only a tiny photo (a web address); a real picture is looked up once per person from their public profile, the same cached lookup the chat list uses.
+const smallPhoto = (p) => (typeof p === "string" && p.length <= 2000 ? p : "");
+const PHOTO = {}, ASKED = new Set();
+export const peerOf = (c, me) => { const out = c.callerUid === me; return { uid: out ? c.calleeUid : c.callerUid, name: out ? c.calleeName : c.callerName, photo: (out ? c.calleePhoto : c.callerPhoto) || "" }; };
+export const peerPhoto = (c, me) => { const p = peerOf(c, me); return p.photo || PHOTO[p.uid] || ""; };
+// Ask for the photos the call rows are missing; `done` runs when one arrives so the list can repaint.
+export function warmPeers(list, me, done) {
+  list.forEach((c) => { const p = peerOf(c, me); if (!p.uid || p.uid === "staff" || p.photo || ASKED.has(p.uid)) return; ASKED.add(p.uid); getPublic(p.uid).then((pb) => { if (pb?.photo) { PHOTO[p.uid] = pb.photo; done?.(); } }).catch(() => {}); });
+}
+export const lookupPhoto = async (uid) => { if (!uid || uid === "staff") return ""; if (PHOTO[uid]) return PHOTO[uid]; try { const pb = await getPublic(uid); if (pb?.photo) PHOTO[uid] = pb.photo; return pb?.photo || ""; } catch { return ""; } };
+// A photo that fails to load falls back to the initials underneath it.
+export function imgFallback(root) { if (root.__fb) return; root.__fb = 1; root.addEventListener("error", (e) => { const t = e.target; if (t?.tagName === "IMG" && t.closest(".mx-av.ini,.cs-pic,.cl-avw")) t.remove(); }, true); }
+const photoImg = (src, cls = "") => `<img${cls ? ` class="${cls}"` : ""} src="${esc(src)}" alt="" decoding="async" referrerpolicy="no-referrer">`;
+
 // ---------- the call window ----------
 let active = null;
 function run({ id, me, role, kind, other, offer }) {
   if (active) { toast("You’re already on a call."); return null; }
   const isCaller = role === "caller", name = other.name || "Faxton", recKey = isCaller ? "recCaller" : "recCallee";
   const ov = document.createElement("div"); ov.className = "cl-ov cs-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Call with " + name);
-  const pic = other.photo ? `<img src="${esc(other.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(name));
+  const pic = (other.photo ? photoImg(other.photo) : "") + `<span class="cs-ini">${esc(initials(name))}</span>`;
   const canShare = !!navigator.mediaDevices?.getDisplayMedia, recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
   ov.innerHTML = `<header class="cs-top"><span class="cs-logo"><img src="assets/mark.svg" alt="" width="32" height="28"><b>Faxton</b></span><i class="cs-sep"></i><span class="cs-state"><i class="cs-dot"></i><span id="clSt">${isCaller ? "Calling " + esc(name) + "…" : "Connecting…"}</span></span><div class="cs-tn"><b>${esc(name)}</b><span id="clVt2">${isCaller ? "Calling…" : "Connecting…"}</span></div><span class="cl-rec" id="clRec" hidden><i></i> Recording</span><button type="button" class="cs-minb" id="clMin" aria-label="Minimise the call" title="Minimise">${icon("dchev", 22)}</button></header>
     <div class="cs-stage"><video id="clRemote" autoplay playsinline></video><div class="cs-voice" id="clVoice"><div class="cs-ring"><span class="cs-pic">${pic}</span></div><h2>${esc(name)}</h2><p id="clVt">${isCaller ? "Calling…" : "Connecting…"}</p><div class="cs-wave" id="clWave" aria-hidden="true">${"<i></i>".repeat(29)}</div></div><video id="clLocal" class="cl-pip" autoplay playsinline muted hidden></video></div>
@@ -77,7 +93,8 @@ function run({ id, me, role, kind, other, offer }) {
       <button type="button" class="cs-b" id="clRecB" aria-pressed="false" aria-label="Record call"><span class="cs-ic">${recIc}</span><em>Record</em></button><i class="cs-bsep"></i>
       <button type="button" class="cs-b end" id="clEnd" aria-label="End call"><span class="cs-ic">${icon("phone", 28)}</span><em>End Call</em></button></div>
     <div class="cs-pill" id="clPill" role="button" tabindex="0" aria-label="Open the call"><span class="cs-pring"><span class="cs-pic sm">${pic}</span></span><div class="cs-pw"><b>${esc(name)}</b><small id="clPs">${isCaller ? "Calling…" : "Connecting…"}</small></div><i class="cs-sep"></i><button type="button" class="cs-pb" id="clMute2" aria-pressed="false" aria-label="Mute">${icon("mic", 20)}</button>${canShare ? `<button type="button" class="cs-pb" id="clShare2" aria-label="Share screen">${icon("upload", 20)}</button>` : ""}<button type="button" class="cs-pb end" id="clEnd2" aria-label="End call">${icon("phone", 22)}</button></div>`;
-  document.body.append(ov); document.documentElement.classList.add("dlx-lock");
+  document.body.append(ov); document.documentElement.classList.add("dlx-lock"); imgFallback(ov);
+  if (!other.photo && other.uid) lookupPhoto(other.uid).then((src) => { if (src) $$(".cs-pic", ov).forEach((p) => p.insertAdjacentHTML("afterbegin", photoImg(src))); });
   const el = (i) => $("#" + i, ov), remoteV = el("clRemote"), localV = el("clLocal");
   const say = (t) => { el("clSt").textContent = /^(Calling|Ringing)…$/.test(t) ? t.replace("…", " " + name + "…") : t; el("clVt").textContent = t; el("clVt2").textContent = t; el("clPs").textContent = t; };
   const pc = new RTCPeerConnection(ICE), remote = new MediaStream(), preview = new MediaStream();
@@ -228,8 +245,9 @@ export async function startCall(ctx, { convId, to, toName, toPhoto = "", kind = 
   }
   audio(); await ensureIce(); // the call button counts as a tap, so the ringing sound may play
   try {
-    const ref = await addDoc(collection(db, "calls"), { convId: convId || "", title, kind, status: "ringing", callerUid: u.uid, callerName: u.displayName || ctx.S.profile?.name || u.email, callerPhoto: ctx.S.profile?.photo || "", callerRole: ROLE[ctx.S.isOwner ? "owner" : ctx.S.profile?.role || "renter"] || "Tenant", image, area, calleeUid: to, calleeName: toName || "Faxton team", members: to === "staff" ? [u.uid] : [u.uid, to], createdAt: serverTimestamp() });
-    run({ id: ref.id, me: u.uid, role: "caller", kind, other: { name: toName || "Faxton team", photo: toPhoto } });
+    const peerPic = smallPhoto(toPhoto), myPic = smallPhoto(ctx.S.profile?.photo) || smallPhoto(u.photoURL);
+    const ref = await addDoc(collection(db, "calls"), { convId: convId || "", title, kind, status: "ringing", callerUid: u.uid, callerName: u.displayName || ctx.S.profile?.name || u.email, callerPhoto: myPic, calleePhoto: peerPic, callerRole: ROLE[ctx.S.isOwner ? "owner" : ctx.S.profile?.role || "renter"] || "Tenant", image, area, calleeUid: to, calleeName: toName || "Faxton team", members: to === "staff" ? [u.uid] : [u.uid, to], createdAt: serverTimestamp() });
+    run({ id: ref.id, me: u.uid, role: "caller", kind, other: { uid: to, name: toName || "Faxton team", photo: toPhoto } });
   } catch (e) { toast(/permission/i.test(String(e?.code || e)) ? "You can’t place calls from this account." : "The call couldn’t be placed."); }
 }
 
@@ -243,12 +261,12 @@ const ringOn = () => {
   tune(); buzz(); ringT = setInterval(() => { tune(); buzz(); }, 3200);
 };
 const ringOff = () => { clearInterval(ringT); ringT = null; try { if (navigator.userActivation?.hasBeenActive) navigator.vibrate?.(0); } catch {} };
-const avatar = (c, cls = "") => (c.callerPhoto ? `<img class="cl-ph ${cls}" src="${esc(c.callerPhoto)}" alt="">` : `<span class="cl-av ${cls || "sm"}">${esc(initials(c.callerName || "?"))}</span>`);
+const avatar = (c, cls = "") => { const src = c.callerPhoto || PHOTO[c.callerUid] || ""; return `<span class="cl-avw ${cls || "sm"}" data-u="${esc(c.callerUid || "")}"><span class="cl-av ${cls || "sm"}">${esc(initials(c.callerName || "?"))}</span>${src ? photoImg(src, "cl-ph " + (cls || "sm")) : ""}</span>`; };
 // When the app isn't on screen, ring through the system: a notification with Decline and Accept buttons.
 async function systemRing(c) {
   try {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
-    const opts = { body: `Faxton Rentals · incoming ${c.kind === "video" ? "video" : "voice"} call…`, icon: c.callerPhoto || "assets/mark.svg", badge: "assets/mark.svg", tag: "call-" + c.id, requireInteraction: true, renotify: true, vibrate: [300, 150, 300, 150, 300], actions: [{ action: "decline", title: "Decline" }, { action: "accept", title: "Accept" }], data: { id: c.id } };
+    const opts = { body: `Faxton Rentals · incoming ${c.kind === "video" ? "video" : "voice"} call…`, icon: c.callerPhoto || PHOTO[c.callerUid] || "assets/mark.svg", badge: "assets/mark.svg", tag: "call-" + c.id, requireInteraction: true, renotify: true, vibrate: [300, 150, 300, 150, 300], actions: [{ action: "decline", title: "Decline" }, { action: "accept", title: "Accept" }], data: { id: c.id } };
     const reg = await navigator.serviceWorker?.ready;
     if (reg?.showNotification) await reg.showNotification(c.callerName || "Incoming call", opts);
     else { const n = new Notification(c.callerName || "Incoming call", opts); n.onclick = () => { window.focus(); n.close(); }; }
@@ -262,7 +280,7 @@ export async function answerById(ctx, id, accept) {
   const c = { ...s.data(), id }; if (c.status !== "ringing" || !c.offer) return toast("That call has ended.");
   closeSystem(id);
   if (!accept) return patchCall(id, { status: "declined", endedAt: Date.now() });
-  run({ id, me: u.uid, role: "callee", kind: c.kind, other: { name: c.callerName, photo: c.callerPhoto }, offer: c.offer });
+  run({ id, me: u.uid, role: "callee", kind: c.kind, other: { uid: c.callerUid, name: c.callerName, photo: c.callerPhoto || PHOTO[c.callerUid] || "" }, offer: c.offer });
 }
 let swHooked = false;
 export function watchIncoming(ctx, staff) {
@@ -295,11 +313,12 @@ export function watchIncoming(ctx, staff) {
           <div class="cl-act"><button type="button" class="no">${icon("phone", 22)} Decline</button><button type="button" class="yes">${icon(video ? "video" : "phone", 22)} Accept</button></div>
           <div class="cl-sec"><button type="button" class="cl-s msg">${icon("msg", 22)}<span>Message</span></button><button type="button" class="cl-s mute">${icon("mic", 22)}<span>Mute</span></button></div></div>
         <div class="cl-mini" tabindex="0" role="button" aria-label="Open call details">${avatar(c, "sm")}<div><b>${esc(c.callerName || "Someone")}</b><small>${video ? "Video call…" : "Calling…"}</small></div><button type="button" class="cl-round no" aria-label="Decline">${icon("phone", 22)}</button><button type="button" class="cl-round yes" aria-label="Answer">${icon(video ? "video" : "phone", 22)}</button></div>`;
-      document.body.append(box); ringOn();
+      document.body.append(box); ringOn(); imgFallback(box);
+      if (!(c.callerPhoto || PHOTO[c.callerUid])) lookupPhoto(c.callerUid).then((src) => { if (src && box && curId === c.id) $$(".cl-avw", box).forEach((w) => w.insertAdjacentHTML("beforeend", photoImg(src, "cl-ph " + (w.classList.contains("xl") ? "xl" : "sm")))); });
       box.classList.add("min"); patchCall(c.id, { delivered: true }); if (document.hidden || !document.hasFocus()) systemRing(c);
       $(".cl-x", box).onclick = () => box.classList.add("min"); $(".cl-mini", box).onclick = (e) => { if (!e.target.closest("button")) box.classList.remove("min"); };
       $$(".no", box).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); close(); patchCall(c.id, { status: "declined", endedAt: Date.now() }); }));
-      $$(".yes", box).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const cur = live.get(c.id) || c; close(); run({ id: c.id, me: u.uid, role: "callee", kind: c.kind, other: { name: c.callerName, photo: c.callerPhoto }, offer: cur.offer || c.offer }); }));
+      $$(".yes", box).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const cur = live.get(c.id) || c; close(); run({ id: c.id, me: u.uid, role: "callee", kind: c.kind, other: { uid: c.callerUid, name: c.callerName, photo: c.callerPhoto || PHOTO[c.callerUid] || "" }, offer: cur.offer || c.offer }); }));
       $(".msg", box).onclick = () => { box.classList.add("min"); if (c.convId) location.hash = "#/messages/" + c.convId; };
       $(".mute", box).onclick = (e) => { ringOff(); e.currentTarget.querySelector("span").textContent = "Muted"; };
     }
@@ -311,12 +330,12 @@ export function watchIncoming(ctx, staff) {
 }
 
 // ---------- call logs (the Calls tab in Messages) ----------
-export function logRow(c, me) {
+export function logRow(c, me, srcOf) {
   const out = c.callerUid === me, other = out ? c.calleeName : c.callerName, when = c.createdAt?.seconds ? new Date(c.createdAt.seconds * 1000) : null;
   // A call that never got an answer or an ending is shown as unanswered once it is clearly over.
   const stale = c.status === "ringing" && when && Date.now() - when.getTime() > 90000;
   const st = stale ? "missed" : c.status, missed = !out && ["missed", "cancelled"].includes(st);
   const state = st === "ringing" ? "Ringing" : missed ? "Missed" : st === "declined" ? "Declined" : ["cancelled", "missed"].includes(st) ? "No answer" : "";
   const dur = c.duration ? fmtDur(c.duration) : "";
-  return `<div class="mx-call ${missed ? "missed" : ""}"><span class="mx-av ini">${esc(initials(other || "?"))}</span><div class="mx-cm"><b>${esc(other || "Unknown")}</b><p>${icon(c.kind === "video" ? "video" : "phone", 14)} ${out ? "Outgoing" : "Incoming"}${state ? " · " + state : ""}${dur ? " · " + dur : ""}${c.recorded ? " · Recorded" : ""}</p><small>${when ? when.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</small></div><div class="mx-cb"><button type="button" class="mx-ib" data-cb="${esc(c.id)}" data-k="voice" aria-label="Call back" title="Call back">${icon("phone", 20)}</button><button type="button" class="mx-ib" data-cb="${esc(c.id)}" data-k="video" aria-label="Video call back" title="Video call back">${icon("video", 20)}</button></div></div>`;
+  return `<div class="mx-call ${missed ? "missed" : ""}"><span class="mx-av ini">${esc(initials(other || "?"))}${(srcOf ? srcOf(c) : peerPhoto(c, me)) ? photoImg(srcOf ? srcOf(c) : peerPhoto(c, me)) : ""}</span><div class="mx-cm"><b>${esc(other || "Unknown")}</b><p>${icon(c.kind === "video" ? "video" : "phone", 14)}${[out ? "Outgoing" : "Incoming", state, dur, c.recorded ? "Recorded" : ""].filter(Boolean).map((t) => `<span class="nw">${esc(t)}</span>`).join(' <i class="sp">·</i> ')}</p><small>${when ? when.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</small></div><div class="mx-cb"><button type="button" class="mx-ib" data-cb="${esc(c.id)}" data-k="voice" aria-label="Call back" title="Call back">${icon("phone", 20)}</button><button type="button" class="mx-ib" data-cb="${esc(c.id)}" data-k="video" aria-label="Video call back" title="Video call back">${icon("video", 20)}</button></div></div>`;
 }
