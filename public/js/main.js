@@ -244,6 +244,10 @@ export async function render() {
     if (S.askingRes || S.profile?.country || !(parse().path === "/" || parse().path === roleHome())) return; S.askingRes = true;
     askResidence({ required: true }).then(async (r) => { if (!r) { S.askingRes = false; return; } try { const rf = resFields(r); await saveProfile(S.user.uid, rf); S.profile = { ...S.profile, ...rf }; toast("Thanks! Your area of residence is saved."); setTimeout(askNotifications, 800); } catch (e) { toast(friendlyErr(e)); } finally { S.askingRes = false; } });
   });
+  else if (S.user && S.profile && homeish && S.profile.country && !G.needsVerify(S.user)) whenReady(async () => {
+    // Google accounts without a Faxton picture are asked once (never over the splash, the lock, the verify screen or another window).
+    try { const GP = await import("./gphoto.js"); if (S.askingPhoto || !S.user || G.needsVerify(S.user) || !(parse().path === "/" || parse().path === roleHome()) || document.querySelector("dialog[open]") || !GP.shouldOffer(S.user, S.profile)) return setTimeout(askNotifications, 600); S.askingPhoto = true; GP.askGooglePhoto(S, () => { S.askingPhoto = false; render(); setTimeout(askNotifications, 800); }); } catch { askNotifications(); }
+  });
   else if (S.user && homeish) whenReady(() => setTimeout(askNotifications, 600));
   if (tk && !tourSeen(S.user, tk)) whenReady(() => { if (parse().path === path && S.user && !G.needsVerify(S.user)) startTour(S.user, (S.user.displayName || "").split(" ")[0], tk); });
 }
@@ -263,12 +267,9 @@ function wire() {
 }
 
 // ---------- auth ----------
-// Google (and other) sign-in pictures come as small links; ask for a sharper copy.
-const bigPhoto = (url) => String(url || "").replace(/=s\d+-c$/, "=s256-c");
 async function ensureProfile(u, extra = {}) {
   const ref = doc(db, "users", u.uid);
   const snap = await getDoc(ref);
-  if (snap.exists() && !snap.data().photo && u.photoURL) { try { await setDoc(ref, { photo: bigPhoto(u.photoURL) }, { merge: true }); } catch {} }
   if (!snap.exists()) {
     let role = extra.role || "renter";
     const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp() };
@@ -276,7 +277,7 @@ async function ensureProfile(u, extra = {}) {
     if (role === "agency" && extra.details) { d.agency = extra.details; d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() }; }
     else if (role === "agent" && extra.details) { d.agentInfo = extra.details; d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() }; }
     else if (role === "agency" || role === "agent") role = "renter";
-    d.role = role; if (extra.photo) d.photo = extra.photo; else if (u.photoURL) d.photo = bigPhoto(u.photoURL);
+    d.role = role; if (extra.photo) d.photo = extra.photo; // a Google picture is offered after sign-in, never copied silently
     const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
     if (res?.country) Object.assign(d, resFields(res));
     await setDoc(ref, d); S.justCreated = role;
