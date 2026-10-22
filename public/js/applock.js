@@ -46,16 +46,41 @@ export const disable = (uid) => write(uid, null);
 
 // ---- the lock screen ----
 let armed = null, hiddenAt = 0, showing = false, unlockedAt = 0;
-function lockScreen(user, logout) {
+function lockScreen(user, logout, reauth) {
   if (showing) return; showing = true;
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
   const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
   const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
-  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-alt" id="lkAlt" hidden></button><form class="lk-pw" id="lkPwForm" hidden autocomplete="off"><label for="lkPw">Your Faxton password</label><input id="lkPw" type="password" autocomplete="current-password" enterkeyhint="go" placeholder="Password"><button type="submit" class="btn primary lk-go" id="lkPwGo">Unlock with password</button><button type="button" class="lk-alt" id="lkPwBack">Use fingerprint instead</button></form><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
   const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
-  const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
+  const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") { $("#lkErr", el).textContent = e.message; if (hasPw) showPw(true); } } };
+  // If the fingerprint will not work (no sensor, too many tries, a dirty finger), the account password or Google sign-in opens the app instead.
+  const provs = (user.providerData || []).map((x) => x.providerId), hasPw = provs.includes("password") && !!user.email && !!reauth?.password, hasG = !hasPw && provs.includes("google.com") && !!reauth?.google;
+  const alt = $("#lkAlt", el), form = $("#lkPwForm", el), err = $("#lkErr", el), goBtn = $("#lkGo", el);
+  const showPw = (on) => { form.hidden = !on; goBtn.hidden = on; alt.hidden = on || !(hasPw || hasG); if (on) setTimeout(() => $("#lkPw", el).focus(), 50); };
+  if (hasPw || hasG) { alt.hidden = false; alt.textContent = hasPw ? "Use my password instead" : "Use Google instead"; }
+  const FK = "applock_f_" + user.uid, fails = () => { try { return JSON.parse(localStorage.getItem(FK) || "{}"); } catch { return {}; } };
+  alt.onclick = async () => {
+    err.textContent = "";
+    if (hasPw) return showPw(true);
+    alt.disabled = true; try { await reauth.google(); done(); } catch (e) { err.textContent = /cancel|closed|popup/i.test(e?.code + " " + e?.message) ? "" : "Couldn’t verify with Google. Try again."; } alt.disabled = false;
+  };
+  $("#lkPwBack", el).onclick = () => { err.textContent = ""; showPw(false); };
+  form.onsubmit = async (e) => {
+    e.preventDefault(); err.textContent = "";
+    const f = fails(); if (f.until && f.until > Date.now()) { err.textContent = `Too many wrong tries. Try again in ${Math.ceil((f.until - Date.now()) / 60000)} min, or sign out.`; return; }
+    const pw = $("#lkPw", el).value; if (!pw) { err.textContent = "Enter your password."; return; }
+    const b = $("#lkPwGo", el); b.disabled = true;
+    try { await reauth.password(pw); try { localStorage.removeItem(FK); } catch {} done(); }
+    catch (x) {
+      const n = (f.n || 0) + 1, lock = n >= 5; try { localStorage.setItem(FK, JSON.stringify({ n: lock ? 0 : n, until: lock ? Date.now() + 15 * 60000 : 0 })); } catch {}
+      err.textContent = lock ? "Too many wrong tries. Try again in 15 minutes, or sign out." : /network/i.test(x?.code) ? "No connection. Check your internet and try again." : /too-many/i.test(x?.code) ? "Too many tries. Wait a few minutes and try again." : "That password isn’t right.";
+      $("#lkPw", el).select();
+    }
+    b.disabled = false;
+  };
   $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
   if (!waitSplash) return void setTimeout(go, 250);
   let freed = false;
@@ -64,9 +89,9 @@ function lockScreen(user, logout) {
   else { document.addEventListener("splash-done", () => setTimeout(free, 1000), { once: true }); setTimeout(free, 12000); }
 }
 // Call after sign-in: locks now (the app was just opened), then again as the chosen option says.
-export function arm(user, logout) {
-  armed = enabled(user?.uid) ? { user, logout } : null;
-  if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
+export function arm(user, logout, reauth) {
+  armed = enabled(user?.uid) ? { user, logout, reauth } : null;
+  if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout, reauth);
   if (!arm.wired) {
     arm.wired = true;
     document.addEventListener("visibilitychange", () => {
@@ -74,11 +99,11 @@ export function arm(user, logout) {
       if (!armed || !hiddenAt || showing) return;
       const away = Date.now() - hiddenAt, st = settings(armed.user.uid); hiddenAt = 0;
       if (Date.now() - unlockedAt < 2000) return; // the system fingerprint prompt itself briefly hides the page
-      if (st.mode === "open" || (st.mode === "after" && away > st.secs * 1000)) lockScreen(armed.user, armed.logout);
+      if (st.mode === "open" || (st.mode === "after" && away > st.secs * 1000)) lockScreen(armed.user, armed.logout, armed.reauth);
     });
   }
 }
-export const refreshArm = (user, logout) => { armed = enabled(user?.uid) ? { user, logout } : null; };
+export const refreshArm = (user, logout, reauth) => { armed = enabled(user?.uid) ? { user, logout, reauth } : null; };
 
 // ---- the switch in Settings > Account & security ----
 export async function mountCard(box, user, logout) {
