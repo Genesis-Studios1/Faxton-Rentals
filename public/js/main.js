@@ -1,7 +1,7 @@
 import { detectTenant } from "./myhome.js";
 import * as G from "./gate.js";
 import * as LOCK from "./applock.js";
-import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup } from "./firebase.js";
+import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup, EmailAuthProvider } from "./firebase.js";
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -566,7 +566,7 @@ async function refreshAuthState(u) {
       if (first && n) toast(`${n} verification request${n > 1 ? "s" : ""} waiting for you.`); else if (!first && grew) toast("New verification request: an agency or agent is waiting for you."); first = false; }); }
   }
   // App lock: ask for the fingerprint once when the app opens (and again after being away; see applock.js).
-  if (u) { if (S.lockedFor !== u.uid) { S.lockedFor = u.uid; LOCK.arm(u, logout); } else LOCK.refreshArm(u, logout); } else S.lockedFor = null;
+  if (u) { const lockReauth = { password: (pw) => reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, String(pw))), google: () => reauthGoogle(u) }; if (S.lockedFor !== u.uid) { S.lockedFor = u.uid; LOCK.arm(u, logout, lockReauth); } else LOCK.refreshArm(u, logout, lockReauth); } else S.lockedFor = null;
   S.saved = new Set(u ? S.profile?.saved || [] : await getSaved(u));
   S.unsubConvs?.(); S.unsubConvs = null; S.unread = 0; S.hasConvs = false; S.openChat = "";
   PRES.stop(false);

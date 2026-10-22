@@ -289,3 +289,15 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 .lk-after{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 4px 34px;color:var(--head);font-size:.95rem}
 .lk-after select{min-height:44px;padding:6px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface,#fff);color:var(--head);font:inherit}
 .lk-opts[hidden],.lk-after[hidden]{display:none}
+
+/* password fallback on the lock screen */
+.lk-alt{min-height:44px;padding:0 14px;border:0;background:none;color:#d6f2e5;font-weight:600;font-size:.95rem;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.lk-alt:hover{color:#fff}
+.lk-alt[hidden],.lk-pw[hidden]{display:none}
+.lk-pw{display:grid;gap:10px;width:min(340px,100%);margin:6px auto 0;text-align:left}
+.lk-pw label{font-size:.85rem;color:#c3e3d4}
+.lk-pw input{min-height:48px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:16px}
+.lk-pw input::placeholder{color:#a8cdbd}
+.lk-pw input:focus-visible{outline:2px solid #6ee7b7;outline-offset:2px}
+.lk-pw .lk-go{width:100%}
+.lk-pw .lk-alt{justify-self:center}
+.lk-ov .lk-go[hidden]{display:none}
