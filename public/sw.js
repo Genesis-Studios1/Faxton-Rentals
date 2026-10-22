@@ -10,7 +10,7 @@
 //  - A new release waits until the person taps "Reload" in the "A new version is ready" message (see js/robust.js).
 //
 // RELEASE: BUILD below must equal BUILD in js/ui.js and the ?v= in index.html. Run `node scripts/check-release.mjs` before deploying.
-const BUILD = "2026-10-17.01";
+const BUILD = "2026-10-22.01";
 const PRE = "faxton-" + BUILD;   // saved on install, thrown away on the next release
 const RT = "faxton-rt";          // pictures, fonts, SDK scripts picked up while browsing (size-capped, survives releases)
 const RT_MAX = 160;

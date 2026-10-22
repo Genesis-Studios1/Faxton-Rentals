@@ -123,7 +123,7 @@ let toastT;
 export function toast(msg, opt) {
   let t = $("#toast"); if (!t) { t = document.createElement("div"); t.id = "toast"; t.setAttribute("role", "status"); t.setAttribute("aria-live", "polite"); document.body.append(t); }
   t.textContent = msg; t.dataset.kind = opt?.kind || ""; if (opt?.href) { const a = document.createElement("a"); a.href = opt.href; a.textContent = opt.action || "Open"; a.className = "toast-act"; t.append(a); }
-  t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), opt?.href ? 9000 : 3200);
+  t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), opt?.ms || (opt?.href ? 9000 : 3200));
 }
 export function modal(html, { sticky = false } = {}) {
   const d = document.createElement("dialog"); d.className = "modal";
@@ -166,4 +166,4 @@ export const friendlyErr = (e) => {
 
 
 
-export const BUILD = "2026-10-17.01";
+export const BUILD = "2026-10-22.01";
