@@ -18,7 +18,7 @@ const V = "?v=" + BUILD;
 
 // Must work or the worker does not install.
 const OFFLINE = "offline"; // offline.html, served without the .html because Firebase cleanUrls redirects the long form (a redirected page cannot be used as a navigation answer)
-const CORE = ["./", OFFLINE, "manifest.webmanifest", "css/fonts.css" + V, "css/theme.css" + V, "css/app.css" + V, "css/shell.css" + V, "css/home.css" + V, "css/flow.css" + V, "css/admin.css" + V, "css/chat.css" + V, "css/auth.css" + V, "css/robust.css" + V, "js/boot.js" + V, "js/robust.js" + V, "js/main.js" + V];
+const CORE = ["./", OFFLINE, "manifest.webmanifest", "css/fonts.css" + V, "css/theme.css" + V, "css/app.css" + V, "css/shell.css" + V, "css/home.css" + V, "css/flow.css" + V, "css/admin.css" + V, "css/chat.css" + V, "css/auth.css" + V, "css/robust.css" + V, "js/boot.js" + V, "js/robust.js" + V, "js/main.js" + V, "js/lightbox.js" + V];
 // Nice to have offline: the rest of the app's modules and the first screens' pictures. A missing one never breaks the install.
 const EXTRA = [
   "assets/mark.svg", "img/splash-final.webp", "icons/icon-192.png", "icons/favicon.svg?v=2",

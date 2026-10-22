@@ -16,6 +16,7 @@ import { playSound, setSounds } from "./sound.js";
 import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
 import { resFields } from "./loc.js";
 import { watchIncoming } from "./calls.js";
+import "./lightbox.js";
 import { siteFooter, wireFooter } from "./footer.js";
 import { syncPublic } from "./store.js";
 import * as PRES from "./presence.js";
