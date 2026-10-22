@@ -80,7 +80,7 @@ export async function route(ctx) {
   if ((m = path.match(/^\/accept-call\/([^/]+)$/))) { const id = decodeURIComponent(m[1]); setTimeout(() => { ctx.go("#/"); CALLS.answerById(ctx, id, true); }); return { title: "Call", html: `<div class="empty"><h2>Connecting your call…</h2></div>` }; }
   if ((m = path.match(/^\/call\/([^/]+)$/))) { const cid = decodeURIComponent(m[1]); setTimeout(() => ctx.go("#/messages/" + cid)); return { title: "Calls", html: `<div class="empty"><h2>Opening your conversation…</h2></div>` }; }
   if (path === "/settings" || path.startsWith("/settings/")) return settings(ctx, path.split("/")[2] || "profile");
-  if (path === "/support" || path === "/support/tickets" || path === "/support/suggestions" || path === "/support/data-requests" || path === "/support/services") return (await import("./dash.js")).supportPage(ctx, path.split("/")[2] || "");
+  if (path === "/support" || path === "/support/tickets" || path === "/support/suggestions" || path === "/support/data-requests" || path === "/support/website-messages" || path === "/support/services") return (await import("./dash.js")).supportPage(ctx, path.split("/")[2] || "");
   if (path === "/portfolio") return (await import("./dash.js")).ownerPage(ctx, "landlord");
   if (path === "/agency") return (await import("./dash.js")).ownerPage(ctx, "agency");
   if (path === "/agent-dashboard" || /^\/agent-dashboard\/(leads|clients|viewings|listings)$/.test(path)) return (await import("./dash.js")).ownerPage(ctx, "agent", path.split("/")[2] || "");

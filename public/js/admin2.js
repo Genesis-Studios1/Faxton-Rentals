@@ -48,6 +48,8 @@ export async function route(ctx, sub) {
     case "support": return (await import("./ax-sections.js")).ticketCenter(ctx);
     case "suggestions": return (await D()).suggestions(ctx);
     case "data-requests": return (await D()).dataRequests(ctx);
+    case "waitlist": return (await import("./ax-web.js")).waitlist(ctx);
+    case "website-messages": return (await import("./ax-web.js")).siteMessages(ctx);
     case "user-reports": return (await D()).userReports(ctx);
     case "reports": return (await D()).reports(ctx);
     case "calls": return (await D()).callsRedirect(ctx);

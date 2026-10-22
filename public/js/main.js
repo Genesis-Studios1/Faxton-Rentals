@@ -8,7 +8,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents, watchWaitlist, watchSiteMessages, webSeen } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
@@ -63,7 +63,7 @@ function shell(path, inner, o = {}) {
 }
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
-  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
+  support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/website-messages", "mail", "Website messages"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
   landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
@@ -72,6 +72,7 @@ const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console and staff portals: grouped sidebar, top bar, four-icon phone bar and More sheet (ax-shell.js, loaded for staff only).
 let AXS = null;
 function adminShell(path, inner, view, role = "") {
+  S.inConsole = true;
   AXS.setHost({ S, go, render, theme, themePref, setThemePref, toggleTheme, logout, confirmSignOut, noteDot, verifyBanner, userName, noteCount: noteUnread });
   setTimeout(() => AXS.afterRender(), 0);
   return AXS.renderShell(path, inner, view || {}, role);
@@ -212,6 +213,7 @@ const bar = (on) => { let b = $("#nprogress"); if (!b) { b = document.createElem
 export async function render() {
   const id = ++renderId;
   S.cleanups.splice(0).forEach((f) => f());
+  S.inConsole = false;
   const { path, q } = parse();
   if (!S.ready) return;
   // Everything except onboarding, login and sign-up needs an account. Signed-out visitors start at the onboarding.
@@ -232,6 +234,7 @@ export async function render() {
   if (!view) { app.innerHTML = shell(path, `<div class="fx-state"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M8.5 11h5"/></svg></span><span class="fx-st-code">Error 404</span><h1>We couldn’t find that page</h1><p>The link may be old, or the home may have been taken down.</p><div class="fx-st-row"><a class="btn primary" href="#/">Go home</a><a class="btn" href="#/search">Find a home</a></div></div>`); return wire(); }
   app.innerHTML = view.full ? view.html : shell(path, view.html, view);
   document.title = (view.title ? view.title + " · " : "") + "Faxton Rentals";
+  syncWebWatch();
   wire();
   scrollTo(0, 0);
   view.mount?.(app, ctx);
@@ -323,7 +326,7 @@ function announce(user, profile, type) {
   logStaffEvent(user, profile, type);
 }
 // ---- the notifications panel under the bell (a popover on desktop, a bottom sheet on phones) ----
-const allNotes = () => [...(S.evNotes || []), ...(S.notes || [])].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+const allNotes = () => [...(S.evNotes || []), ...(S.webNotes || []), ...(S.notes || [])].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 const noteUnread = () => allNotes().filter((n) => !n.read).length;
 const noteDot = () => (noteUnread() ? "dot" : "");
 const paintBell = () => $$("[data-bell]").forEach((b) => { b.classList.toggle("dot", noteUnread() > 0); const n = noteUnread(); if (n) b.dataset.n = n > 99 ? "99+" : n; else delete b.dataset.n; });
@@ -352,6 +355,44 @@ function startStaffEvents(u) {
     if (!first) { const fresh = S.evNotes.filter((n) => added.includes(n.id) && !n.read); if (fresh.length) { toast(fresh[0].title + (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : "")); playSound("staff"); } }
     first = false; paintBell(); if ($("#notePanel")) drawNotes();
   });
+}
+// ---- live website entries: waitlist sign-ups (owner and admins) and contact-form messages (owner, admins and support) ----
+// Two small listeners on the newest 30 entries, running only while a staff member has the console open (see syncWebWatch). They raise a toast and
+// a sound for each new entry, add a line to the bell, and feed the unread counts on the menu (S.web.wl, S.web.wmsg).
+const WEB_ROLE = { renter: "Renter", owner: "Property owner", agency: "Agency", agent: "Agent" };
+const secs = (t) => t?.seconds || 0;
+function rebuildWeb(u) {
+  if (S.user?.uid !== u.uid) return;
+  const read = new Set(lsGet(evKey(u, "Read"), [])), base = lsGet(evKey(u, "Base"), 0) / 1000, seen = Math.max(base, webSeen(u.uid) / 1000);
+  const wl = S.isAdmin ? S.webWl || [] : [], sm = S.webSm || [], root = S.isAdmin ? "/admin" : "/support";
+  S.web = { wl: wl.filter((w) => secs(w.createdAt) > seen).length, wmsg: sm.filter((m) => (m.status || "new") === "new").length };
+  S.webNotes = [
+    ...wl.slice(0, 10).map((w) => ({ id: "wl_" + w.id, ev: true, kind: "verified", title: `New waitlist signup: ${w.name || "Someone"} (${WEB_ROLE[w.role] || "Renter"})`, body: w.city || "", href: "/admin/waitlist?id=" + encodeURIComponent(w.id), createdAt: w.createdAt, read: read.has("wl_" + w.id) || secs(w.createdAt) <= seen })),
+    ...sm.slice(0, 10).map((m) => ({ id: "sm_" + m.id, ev: true, kind: "info", title: `New website message from ${m.name || "someone"}`, body: m.subject || "", href: root + "/website-messages?id=" + encodeURIComponent(m.id), createdAt: m.createdAt, read: read.has("sm_" + m.id) || (m.status || "new") !== "new" || secs(m.createdAt) <= base })),
+  ];
+  paintBell(); AXS?.paintBadges?.(); if ($("#notePanel")) drawNotes();
+}
+function startWebWatch(u) {
+  if (!lsGet(evKey(u, "Base"), 0)) lsSet(evKey(u, "Base"), Date.now());
+  const first = { wl: true, sm: true }, prev = { wl: [], sm: [] };
+  const feed = (kind, label, text) => (list, added) => {
+    if (S.user?.uid !== u.uid) return;
+    // Fresh = added inside the current window (a document sliding in after a delete is old, not new).
+    const floor = prev[kind].length >= 30 ? secs(prev[kind][prev[kind].length - 1].createdAt) : 0, fresh = first[kind] ? [] : list.filter((d) => added.includes(d.id) && secs(d.createdAt) > floor);
+    prev[kind] = list; first[kind] = false; S[label] = list; rebuildWeb(u);
+    if (fresh.length) { toast(text(fresh[0]) + (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : "")); playSound("staff"); }
+  };
+  const subs = [watchSiteMessages(feed("sm", "webSm", (m) => `New website message from ${m.name || "someone"}`))];
+  if (S.isAdmin) subs.push(watchWaitlist(feed("wl", "webWl", (w) => `New waitlist signup: ${w.name || "Someone"} (${WEB_ROLE[w.role] || "Renter"})`)));
+  document.addEventListener("web-seen", S.onWebSeen = () => rebuildWeb(u));
+  return () => { subs.forEach((f) => f()); document.removeEventListener("web-seen", S.onWebSeen); S.webWl = S.webSm = null; S.web = null; S.webNotes = []; };
+}
+// Starts the website listeners when a staff member is inside the console, and stops them everywhere else (and on sign-out).
+function syncWebWatch() {
+  const want = S.user && S.inConsole && (S.isAdmin || S.role === "support") ? S.user.uid + (S.isAdmin ? "a" : "s") : "";
+  if (S.webKey === want) return;
+  S.unsubWeb?.(); S.unsubWeb = null; S.webKey = want; if (!want) { paintBell(); return; }
+  S.unsubWeb = startWebWatch(S.user);
 }
 function drawNotes() {
   const box = $("#notePanel"); if (!box) return; const list = allNotes(), un = noteUnread(), groups = {};
@@ -523,7 +564,7 @@ async function setSaved(id, on) {
 export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 async function refreshAuthState(u) {
-  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; S.unsubStaffEv?.(); S.unsubStaffEv = null; S.evNotes = []; }
+  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; S.unsubStaffEv?.(); S.unsubStaffEv = null; S.evNotes = []; S.unsubWeb?.(); S.unsubWeb = null; S.webKey = ""; }
   S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
