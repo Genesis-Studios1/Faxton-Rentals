@@ -177,6 +177,56 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- Website forms: written by the public Faxton website with plain Firestore REST calls and the public web API key (nobody signs in) ----
+    // Anyone on the internet can call these, so the rules are the whole defence: a visitor can only CREATE one entry of exactly the right shape and size.
+    // There is no public read, list, update or delete (so a second create with the same id fails, and nobody can look up or change what others sent).
+    // Staff read them in the console (Waitlist, Website messages). These checks work whether or not the caller is signed in.
+    function webEmail(v) { return v is string && v.size() <= 120 && v.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'); }
+    function webText(v, lo, hi) { return v is string && v.size() >= lo && v.size() <= hi && v.matches('(?s).*\\S.*'); }
+    // The website stamps createdAt itself; it must be close to the real time so entries cannot be backdated or set far in the future.
+    function webTime(t) { return t is timestamp && t > request.time - duration.value(24, 'h') && t < request.time + duration.value(24, 'h'); }
+
+    // Waitlist sign-ups. The id is the first 32 hex characters of SHA-256(lowercased email), so one email can only ever be added once.
+    // Owner and admins read them, add a note (status is a spare field) and remove an entry; support has no access.
+    match /waitlist/{id} {
+      allow create: if id.matches('^[0-9a-f]{32}$')
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'city', 'source', 'createdAt'])
+        && request.resource.data.keys().hasAll(['name', 'email', 'role', 'source', 'createdAt'])
+        && webText(request.resource.data.name, 1, 80)
+        && webEmail(request.resource.data.email)
+        && request.resource.data.role in ['renter', 'owner', 'agency', 'agent']
+        && short(request.resource.data.get('city', ''), 60)
+        && request.resource.data.source == 'website'
+        && webTime(request.resource.data.createdAt);
+      allow read: if isAdmin();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note'])
+        && request.resource.data.get('status', 'new') in ['new', 'contacted', 'invited']
+        && short(request.resource.data.get('note', ''), 1000);
+      allow delete: if isAdmin();
+    }
+
+    // Contact-form messages from the website (automatic id: Firestore REST assigns it after the rules run, so the id cannot be checked here).
+    // Staff (owner, admin, support) read them and may only change status ('new', 'read', 'replied', 'spam'), the internal note and `by`
+    // (who handled it, which must be themselves). They are never deleted from the app.
+    match /siteMessages/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['name', 'email', 'subject', 'message', 'source', 'createdAt'])
+        && request.resource.data.keys().hasAll(['name', 'email', 'subject', 'message', 'source', 'createdAt'])
+        && webText(request.resource.data.name, 1, 80)
+        && webEmail(request.resource.data.email)
+        && request.resource.data.subject in ['General question', 'Support', 'List my property', 'Press', 'Other']
+        && webText(request.resource.data.message, 5, 2000)
+        && request.resource.data.source == 'website'
+        && webTime(request.resource.data.createdAt);
+      allow read: if isAdmin() || isSupport();
+      allow update: if (isAdmin() || isSupport())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note', 'by'])
+        && request.resource.data.get('status', 'new') in ['new', 'read', 'replied', 'spam']
+        && short(request.resource.data.get('note', ''), 1000)
+        && (!('by' in request.resource.data.diff(resource.data).affectedKeys()) || request.resource.data.by == request.auth.uid);
+      allow delete: if false;
+    }
+
     // One marker per registered email (keyed by a SHA-256 of the email) so sign-in can say "no account found".
     match /accountEmails/{h} {
       allow get: if true;

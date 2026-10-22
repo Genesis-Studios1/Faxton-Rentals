@@ -13,8 +13,8 @@ const ADMIN = [
   { l: "", items: [["/admin", "home", "Overview"], ["/admin/queue", "doccheck", "Review queue", "queue"]] },
   { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users"], ["/admin/agents", "handshake", "Agents"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
   { l: "Activity", items: [["/admin/applications", "doc", "Applications", "apps"], ["/admin/viewings", "calDots", "Viewings", "sos"], ["/admin/services", "wrench", "Service requests", "svc"], ["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"], ["/admin/payments", "card", "Payments", "proofs"]] },
-  { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/data-requests", "download", "Data requests"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
-  { l: "Insights", items: [["/admin/reports", "bars3", "Reports"]] },
+  { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/website-messages", "inbox", "Website messages", "wmsg"], ["/admin/data-requests", "download", "Data requests"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
+  { l: "Insights", items: [["/admin/reports", "bars3", "Reports"], ["/admin/waitlist", "list", "Waitlist", "wl"]] },
   { l: "System", items: [["/admin/team", "crown", "Team access"], ["/admin/get-app", "download", "Installations"], ["/settings", "gear", "Settings"]] },
 ];
 const OWNER = (home) => [{ l: "Portfolio", items: [[home, "home", "Dashboard"]] }, { l: "Rentals", items: [["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"]] }, { l: "Communication", items: [["/messages", "msg", "Messages", "unread"]] }, { l: "Account", items: [["/settings", "gear", "Settings"]] }];
@@ -26,17 +26,17 @@ export const ROLES = {
     groups: [{ l: "Work", items: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings", "views"], ["/agent-dashboard/clients", "user", "Clients"]] }, { l: "Deals", items: [["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"]] }, { l: "Communication", items: [["/messages", "msg", "Messages", "unread"]] }, { l: "Account", items: [["/settings", "gear", "Settings"]] }],
     tabs: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/viewings", "calDots", "Viewings", "views"]] },
   support: { title: "Support console", crumb: "Support console", home: "/support",
-    groups: [{ l: "Work", items: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests", "svc"], ["/messages", "msg", "Messages", "unread"]] }, { l: "Help", items: [["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] }],
+    groups: [{ l: "Work", items: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"], ["/support/website-messages", "inbox", "Website messages", "wmsg"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests", "svc"], ["/messages", "msg", "Messages", "unread"]] }, { l: "Help", items: [["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] }],
     tabs: [["/support", "home", "Dashboard"], ["/support/tickets", "chatdots", "Tickets", "tickets"], ["/support/suggestions", "chatlines", "Suggestions", "sugg"]] },
 };
 const cfgFor = (role) => ROLES[role] || ROLES.admin;
 const isOn = (path, h, home) => (h === home || h === "/admin" ? path === h : path === h || path.startsWith(h + "/"));
-const BADGE_TONE = { sos: "alert", svc: "amber", sugg: "grey", fbk: "grey", unread: "mint", proofs: "amber" };
+const BADGE_TONE = { sos: "alert", svc: "amber", sugg: "grey", fbk: "grey", unread: "mint", proofs: "amber", wl: "mint", wmsg: "amber" };
 // Pages with the new header: a big page title and a search that filters that page ("Search feedback…").
 const BAR = { "/admin/feedback": ["Feedback", "Search feedback…"], "/admin/agents": ["Agents", "Search agents…"], "/admin/team": ["Team access", "Search team access…"], "/admin/support": ["Ticket center", "Search ticket center…"], "/support/tickets": ["Ticket center", "Search ticket center…"], "/admin/users": ["Users", "Search users…"] };
 
 const badge = (key) => { const n = badgeVal(key); return `<b class="ax-badge" data-axb="${key}" data-t="${key === "queue" && counts.sos ? "alert" : BADGE_TONE[key] || "amber"}" ${key === "verif" ? "data-vbadge" : ""} ${key === "unread" ? "data-unread" : ""} ${n ? "" : "hidden"}>${n > 99 ? "99+" : n || ""}</b>`; };
-const badgeVal = (key) => (key === "verif" ? (host?.S.pendingV || 0) + (counts.dels || 0) : key === "unread" ? host?.S.unread || 0 : counts[key] || 0);
+const badgeVal = (key) => (key === "verif" ? (host?.S.pendingV || 0) + (counts.dels || 0) : key === "unread" ? host?.S.unread || 0 : key === "wl" || key === "wmsg" ? host?.S.web?.[key] || 0 : counts[key] || 0);
 
 const flat = (c) => c.groups.flatMap((g) => g.items.map((i) => ({ i, g: g.l })));
 const findItem = (c, path) => flat(c).filter((x) => isOn(path, x.i[0], c.home)).sort((a, b) => b.i[0].length - a.i[0].length)[0];

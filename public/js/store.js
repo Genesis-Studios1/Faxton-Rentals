@@ -1,6 +1,6 @@
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
-import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, startAfter, getCountFromServer, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
@@ -207,3 +207,28 @@ export const logStaffEvent = (user, p, type) => {
   return (type === "signup" ? setDoc(doc(db, "staffEvents", "signup_" + user.uid), d) : addDoc(collection(db, "staffEvents"), d)).catch(() => {});
 };
 export const watchStaffEvents = (cb) => onSnapshot(query(collection(db, "staffEvents"), orderBy("at", "desc"), limit(30)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })), s.docChanges().filter((c) => c.type === "added").map((c) => c.doc.id)), () => {});
+
+// ---- website forms: waitlist sign-ups and contact-form messages written by the public Faxton website (no sign-in; see "Website forms" in firestore.rules) ----
+// Staff only. Newest first, 100 at a time (single-field orderBy, so no composite index), and one small live listener for the bell.
+export const WEB_PAGE = 100;
+const webPage = async (col, after) => {
+  const s = await getDocs(query(collection(db, col), orderBy("createdAt", "desc"), ...(after ? [startAfter(after)] : []), limit(WEB_PAGE)));
+  return { rows: s.docs.map((d) => ({ ...d.data(), id: d.id })), after: s.docs[s.docs.length - 1] || null, more: s.docs.length === WEB_PAGE };
+};
+export const loadWaitlist = (after) => webPage("waitlist", after);
+export const loadSiteMessages = (after) => webPage("siteMessages", after);
+// Totals come from the server's count (about one read per thousand entries), so they stay right when only the newest 100 are loaded.
+export const waitlistStats = async ({ roles = true } = {}) => {
+  const n = (...w) => getCountFromServer(query(collection(db, "waitlist"), ...w)).then((s) => s.data().count), now = Date.now(), W = 7 * 864e5;
+  const [total, week, prev, ...by] = await Promise.all([n(), n(where("createdAt", ">=", new Date(now - W))), n(where("createdAt", ">=", new Date(now - 2 * W)), where("createdAt", "<", new Date(now - W))),
+    ...(roles ? ["renter", "owner", "agency", "agent"].map((r) => n(where("role", "==", r))) : [])]);
+  return { total, week, prev, roles: roles ? Object.fromEntries(["renter", "owner", "agency", "agent"].map((r, i) => [r, by[i]])) : null };
+};
+export const removeWaitlist = (id) => deleteDoc(doc(db, "waitlist", id));
+const watchWeb = (col, cb) => onSnapshot(query(collection(db, col), orderBy("createdAt", "desc"), limit(30)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })), s.docChanges().filter((c) => c.type === "added").map((c) => c.doc.id)), () => {});
+export const watchWaitlist = (cb) => watchWeb("waitlist", cb);
+export const watchSiteMessages = (cb) => watchWeb("siteMessages", cb);
+// When a staff member last opened the Waitlist page (this browser only): everything newer counts as unread in the menu and the bell.
+const seenKey = (uid) => "webSeen_" + uid;
+export const webSeen = (uid) => { try { return +localStorage.getItem(seenKey(uid)) || 0; } catch { return 0; } };
+export const markWebSeen = (uid) => { try { localStorage.setItem(seenKey(uid), String(Date.now())); } catch {} document.dispatchEvent(new Event("web-seen")); };
