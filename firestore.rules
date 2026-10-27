@@ -213,7 +213,8 @@ service cloud.firestore {
             && request.resource.data.professionalPath == 'verification-docs/' + uid + '/professional');
       allow update: if (signedIn() && request.auth.uid == uid
           && resource.data.status == 'rejected'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'identityType', 'identityPath', 'addressPath', 'country', 'professionalBody', 'professionalNumber', 'professionalPath', 'status', 'submittedAt', 'updatedAt'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'identityType', 'identityPath', 'addressPath', 'country', 'professionalBody', 'professionalNumber', 'professionalPath', 'status', 'submittedAt', 'updatedAt', 'reviewNote', 'reviewedAt', 'reviewedBy'])
+          && !('reviewNote' in request.resource.data) && !('reviewedAt' in request.resource.data) && !('reviewedBy' in request.resource.data)
           && request.resource.data.uid == uid
           && request.resource.data.role in ['landlord', 'agent', 'agency']
           && request.resource.data.identityType in ['national-id', 'passport', 'drivers-license']
