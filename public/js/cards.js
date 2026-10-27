@@ -34,7 +34,7 @@ export function listingCard(l, saved, o = {}) {
   const meta = [[l.beds != null ? "bed" : "", bedsLabel(l.beds ?? 0)], [l.baths ? "bath" : "", l.baths ? bathsLabel(l.baths) : ""], [l.sqm ? "area" : "", l.sqm ? `${l.sqm} m²` : ""], [+l.parking > 0 ? "car" : "", +l.parking > 0 ? `${l.parking}` : ""]]
     .filter(([ic, t]) => ic && t).map(([ic, t]) => `<li>${icon(ic, 16)}<span>${esc(t)}</span></li>`).join("");
   const owner = l.ownerUid || l.agent?.id || "";
-  const known = l.agent?.verified === true || l.verified === true || l.agentVerified === true;
+  const known = l.agent?.verified === true || l.agentVerified === true;
   const ownershipChecked = l.ownershipVerified === true;
   return `<article class="lc ${size ? "lc--" + size : ""} ${open ? "" : "is-rented"}" style="--i:${Math.min(i, 9)}" data-open="${esc(l.id)}" data-owner="${esc(owner)}" data-n="${photos.length}">
     <div class="lc-media">${media}
@@ -99,5 +99,5 @@ export function bindCards(root, ctx, o = {}) {
 // The green seal appears on cards whose agent has been verified by the Faxton team (looked up once per agent).
 export function hydrateVerified(root) {
   const ids = [...new Set($$(".lc[data-owner]", root).map((c) => c.dataset.owner).filter(Boolean))].slice(0, 16);
-  ids.forEach((uid) => st.getPublic(uid).then((p) => { if (p?.verified) $$(`.lc[data-owner="${CSS.escape(uid)}"] .lc-v`, root).forEach((v) => (v.hidden = false)); }).catch(() => {}));
+  ids.forEach((uid) => st.getPublic(uid).then((p) => { if (p?.verified) $(`.lc[data-owner="${CSS.escape(uid)}"] .lc-v:not(.lc-v--ownership)`, root).forEach((v) => (v.hidden = false)); }).catch(() => {}));
 }
