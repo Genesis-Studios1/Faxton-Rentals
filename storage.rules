@@ -24,7 +24,44 @@ service firebase.storage {
       return request.resource != null
         && request.resource.size > 0
         && request.resource.size <= 8 * 1024 * 1024
-        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png|image/webp');
+        && request.resource.contentType.matches('^(application/pdf|image/jpeg|image/png|image/webp);
+    }
+    function verificationMayUpload(uid) {
+      return !firestore.exists(identityPath(uid)) || firestore.get(identityPath(uid)).data.get('status', '') == 'rejected';
+    }
+
+    // Government IDs and address evidence are never public. No download tokens or public read access are granted.
+    match /verification-docs/{uid}/{kind} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin())
+        && kind in ['identity', 'address', 'professional'];
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && kind in ['identity', 'address', 'professional']
+        && verificationMayUpload(uid)
+        && privateFileOk();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid && verificationMayUpload(uid));
+    }
+
+    // One private proof per listing. The uploader must already have approved identity.
+    match /property-ownership/{uid}/{listingId}/proof {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && identityApproved(uid)
+        && privateFileOk();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid
+        && (!firestore.exists(/databases/(default)/documents/listings/$(listingId))
+          || firestore.get(/databases/(default)/documents/listings/$(listingId)).data.get('status', '') == 'pending'));
+    }
+
+    // Installer files are public downloads and contain no secrets; only admins can upload or remove them.
+    match /installers/{version}/{file} {
+      allow read: if true;
+      allow write: if isAdmin() && request.resource.size < 600 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}
+);
     }
     function verificationMayUpload(uid) {
       return !firestore.exists(identityPath(uid)) || firestore.get(identityPath(uid)).data.get('status', '') == 'rejected';
