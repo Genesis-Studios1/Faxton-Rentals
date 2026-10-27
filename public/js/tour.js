@@ -89,18 +89,31 @@ export function startTour(user, firstName = "", kind = "renter") {
   document.body.append(root);
   const spot = $(".tour-spot", root), card = $(".tour-card", root);
 
+  let placeRaf = 0, cardRaf = 0, settleTimer = 0;
   const place = () => {
+    if (!root.isConnected) return;
     const s = steps[i], el = s.sel && find(s.sel), pad = 10;
     if (el) {
+      const cw = Math.max(1, Math.min(360, innerWidth - 24));
+      card.style.width = cw + "px";
+      const ch = card.offsetHeight;
       const r = el.getBoundingClientRect();
+      const below = r.bottom + pad + 16 + ch < innerHeight;
+      const left = Math.min(Math.max(12, r.left + r.width / 2 - cw / 2), Math.max(12, innerWidth - cw - 12));
       Object.assign(spot.style, { top: r.top - pad + "px", left: r.left - pad + "px", width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px", opacity: 1, borderRadius: "16px" });
-      const cw = Math.min(360, innerWidth - 24), below = r.bottom + pad + 16 + 230 < innerHeight;
-      let left = Math.min(Math.max(12, r.left + r.width / 2 - cw / 2), innerWidth - cw - 12);
-      card.style.cssText = `width:${cw}px;left:${left}px;top:${below ? r.bottom + pad + 14 : Math.max(12, r.top - pad - 14 - card.offsetHeight)}px;transform:none`;
+      Object.assign(card.style, { left: left + "px", top: (below ? r.bottom + pad + 14 : Math.max(12, r.top - pad - 14 - ch)) + "px", transform: "none" });
     } else {
       Object.assign(spot.style, { top: innerHeight / 2 + "px", left: innerWidth / 2 + "px", width: "0px", height: "0px", opacity: 1, borderRadius: "16px" });
-      card.style.cssText = `width:${Math.min(400, innerWidth - 24)}px;left:50%;top:50%;transform:translate(-50%,-50%)`;
+      Object.assign(card.style, { width: Math.max(1, Math.min(400, innerWidth - 24)) + "px", left: "50%", top: "50%", transform: "translate(-50%,-50%)" });
     }
+  };
+  const schedulePlace = () => {
+    if (placeRaf) return;
+    placeRaf = requestAnimationFrame(() => { placeRaf = 0; place(); });
+  };
+  const settlePlace = () => {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(schedulePlace, 420);
   };
   const show = () => {
     const s = steps[i], el = s.sel && find(s.sel);
@@ -110,15 +123,23 @@ export function startTour(user, firstName = "", kind = "renter") {
     $("[data-back]", root).style.visibility = i ? "visible" : "hidden";
     $("[data-skip]", root).style.visibility = i === steps.length - 1 ? "hidden" : "visible";
     $("[data-next]", root).textContent = i === steps.length - 1 ? "Get started" : "Next";
-    card.classList.remove("in"); void card.offsetWidth; card.classList.add("in");
-    if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+    card.classList.remove("in");
+    if (cardRaf) cancelAnimationFrame(cardRaf);
+    cardRaf = requestAnimationFrame(() => { cardRaf = 0; if (root.isConnected) card.classList.add("in"); });
+    if (el) el.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
     document.body.classList.toggle("tour-rail", !!s.rail);
-    place(); setTimeout(place, 350); setTimeout(place, 700);
+    schedulePlace(); settlePlace();
   };
-  const close = () => { done(user, kind); running = false; document.body.classList.remove("tour-rail"); root.classList.add("out"); removeEventListener("resize", place); removeEventListener("keydown", key2); setTimeout(() => root.remove(), 350); };
+  const close = () => {
+    done(user, kind); running = false; document.body.classList.remove("tour-rail"); root.classList.add("out");
+    clearTimeout(settleTimer); if (placeRaf) cancelAnimationFrame(placeRaf); if (cardRaf) cancelAnimationFrame(cardRaf);
+    removeEventListener("resize", schedulePlace); removeEventListener("orientationchange", schedulePlace);
+    document.removeEventListener("scrollend", schedulePlace, true); removeEventListener("keydown", key2);
+    setTimeout(() => root.remove(), 350);
+  };
   const key2 = (e) => { if (e.key === "Escape") close(); if (e.key === "ArrowRight") next(); if (e.key === "ArrowLeft") back(); };
   const next = () => (i < steps.length - 1 ? (i++, show()) : close()), back = () => { if (i) { i--; show(); } };
   $("[data-next]", root).onclick = next; $("[data-back]", root).onclick = back; $("[data-skip]", root).onclick = close;
-  addEventListener("resize", place); addEventListener("keydown", key2);
+  addEventListener("resize", schedulePlace); addEventListener("orientationchange", schedulePlace); document.addEventListener("scrollend", schedulePlace, true); addEventListener("keydown", key2);
   requestAnimationFrame(() => { root.classList.add("on"); show(); $("[data-next]", root).focus({ preventScroll: true }); });
 }
