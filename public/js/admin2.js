@@ -154,8 +154,10 @@ async function reviewOwnershipProof(ctx, l, api) {
       try {
         const status = { status: "rejected", docType: proof.docType || "other", reason: why, decidedAt: Date.now(), decidedBy: ctx.S.user.uid };
         await st.setOwnershipVerification(l.id, status);
-        await st.patch("listings", l.id, { changeNote: "Ownership proof: " + why });
-        l.ownershipVerification = status; l.changeNote = "Ownership proof: " + why; changed(); d.close();
+        const note = "Ownership proof: " + why;
+        const nextListingStatus = l.status === "active" ? "flagged" : l.status;
+        await st.patch("listings", l.id, { status: nextListingStatus, changeNote: note });
+        l.ownershipVerification = status; l.status = nextListingStatus; l.changeNote = note; changed(); d.close();
         if (l.ownerUid) await st.notify(l.ownerUid, { kind: "rejected", title: "Ownership proof needs an update", body: l.title + ": " + why }).catch(() => {});
         toast("Replacement proof requested."); api.refresh();
       } catch (x) { busy(e.currentTarget, false); bad(x); }
