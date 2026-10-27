@@ -256,12 +256,15 @@ service cloud.firestore {
 
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
-      // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
-      allow create: if isAdmin() || (signedIn() && (myRole() == 'landlord' || (myRole() in ['agency', 'agent'] && isVerified()))
+      // Every landlord/agent/agency must have approved identity and address documents to post.
+      allow create: if isAdmin() || (signedIn() && hasListingKyc()
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
-        && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
+        && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120)
+        && request.resource.data.get('ownershipVerification', {}).get('status', 'not-submitted') != 'verified');
+      // Owners may submit ownership evidence only as pending. Only an admin can decide it is verified.
       allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.status == resource.data.status
+        && (request.resource.data.get('ownershipVerification', null) == resource.data.get('ownershipVerification', null) || canSubmitOwnershipProof(id))
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
@@ -526,6 +529,29 @@ service cloud.firestore {
         && request.resource.data.data is string && request.resource.data.data.size() < 1000000;
       allow read, delete: if owns() || isAdmin();
       allow update: if isAdmin();
+    }
+
+    // Government ID, address and property-proof files: owner/admin only; users cannot approve or edit files.
+    match /verificationFiles/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'purpose', 'label', 'proofType', 'listingId', 'name', 'contentType', 'size', 'data', 'status', 'createdAt'])
+        && request.resource.data.get('purpose', '') in ['identity', 'address', 'professional', 'ownership']
+        && request.resource.data.get('status', '') == 'pending'
+        && short(request.resource.data.get('name', ''), 150)
+        && short(request.resource.data.get('label', ''), 80)
+        && request.resource.data.get('contentType', '') in ['image/jpeg', 'image/png', 'application/pdf']
+        && request.resource.data.get('size', 0) is number && request.resource.data.size < 900000
+        && request.resource.data.get('data', '') is string && request.resource.data.data.size() < 680000
+        && (request.resource.data.purpose != 'ownership'
+            || (request.resource.data.get('listingId', '') is string
+                && exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId))
+                && get(/databases/$(database)/documents/listings/$(request.resource.data.listingId)).data.get('ownerUid', '') == request.auth.uid));
+      allow read: if isAdmin() || owns();
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewedAt', 'reviewedBy', 'reviewReason'])
+        && request.resource.data.get('status', '') in ['pending', 'approved', 'rejected']
+        && short(request.resource.data.get('reviewReason', ''), 400);
+      allow delete: if isAdmin() || (owns() && resource.data.get('status', '') == 'pending');
     }
     match /conversations/{id} {
       allow create: if (signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.keys().size() <= 20) || isAdmin() || isSupport();
