@@ -57,7 +57,7 @@ await test("public visitor cannot read identity document metadata", getDoc(doc(a
 await test("admin can list identity submissions", getDocs(collection(admin, "identityVerifications")));
 await test("landlord can submit their own identity for review", setDoc(doc(newLandlord, "identityVerifications/newLandlord"), submission("newLandlord", "landlord")));
 await test("renter cannot submit a forged landlord identity request", setDoc(doc(renter, "identityVerifications/renter"), submission("renter", "landlord")), false);
-await test("applicant cannot self-approve identity", setDoc(doc(newLandlord, "identityVerifications/selfApproved"), submission("newLandlord", "landlord", "approved")), false);
+await test("applicant cannot self-approve identity", setDoc(doc(newLandlord, "identityVerifications/newLandlord"), submission("newLandlord", "landlord", "approved")), false);
 await test("applicant cannot update identity decision", updateDoc(doc(newLandlord, "identityVerifications/newLandlord"), { status: "approved" }), false);
 await test("admin can approve after review", updateDoc(doc(admin, "identityVerifications/newLandlord"), {
   status: "approved", reviewNote: "", reviewedAt: serverTimestamp(), reviewedBy: "admin"
