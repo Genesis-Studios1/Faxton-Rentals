@@ -265,6 +265,47 @@ export async function mountRelayCard(host, ctx) {
   if (ctx.q?.relay) requestAnimationFrame(() => { const c = $("#relayCard", el); c?.scrollIntoView({ block: "start", behavior: "smooth" }); c?.classList.add("is-flash"); setTimeout(() => c?.classList.remove("is-flash"), 1800); });
 }
 
+// Upload or replace a listing-specific ownership document. It stays in a private collection.
+async function uploadOwnershipProof(ctx, listing, done) {
+  const profile = ctx.S.profile || {};
+  if (!(profile.verified === true && profile.verification?.status === "verified" && profile.verification?.documents?.identity === true && profile.verification?.documents?.address === true)) {
+    toast("Complete identity verification first.");
+    ctx.go("#/verification");
+    return;
+  }
+  const body = '<form class="ax-form" id="ownerProofForm" novalidate><p class="ax-p ax-muted">For <b>' + esc(listing.title) + '</b>. Upload a land title/deed, utility bill matching the property address, tax receipt or letting/management mandate. Only the authorised review team can view it.</p>' +
+    '<label class="ax-field full"><span>Document type</span><select class="ax-input" id="ownerProofType"><option value="land-title">Land title / deed</option><option value="utility-bill">Utility bill matching the address</option><option value="tax-receipt">Property tax receipt</option><option value="letting-mandate">Letting / management mandate</option><option value="other">Other ownership evidence</option></select></label>' +
+    '<label class="ax-field full"><span>Document image</span><input class="ax-input" id="ownerProofFile" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" required></label>' +
+    '<p class="ax-muted">Choose a clear JPG, PNG or WebP image. PDF upload is not available here yet.</p><p class="ax-err full" id="ownerProofError" role="alert"></p></form>';
+  const d = dialog({ title: "Property ownership proof", size: "lg", icon: "shield", body,
+    footer: btn("Cancel", { attrs: "data-x" }) + btn("Submit proof", { v: "primary", attrs: "data-proof-submit" }) });
+  $("[data-x]", d.el)?.addEventListener("click", () => d.close());
+  $("[data-proof-submit]", d.el)?.addEventListener("click", async (event) => {
+    const submit = event.currentTarget;
+    const file = $("#ownerProofFile", d.el)?.files?.[0];
+    const error = $("#ownerProofError", d.el);
+    const docType = $("#ownerProofType", d.el)?.value || "other";
+    error.textContent = "";
+    if (!file) { error.textContent = "Choose the ownership document image."; return; }
+    if (!/^image\\//.test(file.type || "")) { error.textContent = "Please choose a JPG, PNG or WebP image."; return; }
+    busy(submit, true);
+    try {
+      const dataUrl = await shrinkImage(file, { max: 1600, bytes: 520000 });
+      await st.saveListingVerificationDocument(listing.id, ctx.S.user.uid, { dataUrl, fileName: file.name, docType });
+      const ownershipVerification = { status: "pending", docType, requestedAt: Date.now() };
+      await st.patch("listings", listing.id, { status: "pending", ownershipVerification });
+      Object.assign(listing, { status: "pending", ownershipVerification });
+      d.close();
+      toast("Ownership proof submitted for review.");
+      changed();
+      done?.();
+    } catch (e) {
+      error.textContent = fe(e);
+      busy(submit, false);
+    }
+  });
+}
+
 // ---------- add property (landlords, agencies and agents) ----------
 export function addProperty(ctx, done) {
   const profile = ctx.S.profile || {};
