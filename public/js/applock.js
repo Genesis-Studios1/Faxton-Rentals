@@ -1,6 +1,6 @@
 // App lock: open the app with a fingerprint, face or the phone's screen lock.
 // Android and iPhone apps use the system biometric prompt (Capacitor plugin). On the web the browser's platform authenticator (WebAuthn) is used.
-import { $, $, esc, icon, toast, logoMark } from "./ui.js";
+import { $, $$, esc, icon, toast, logoMark } from "./ui.js";
 
 const KEY = (uid) => "applock_" + uid;
 // When the lock asks again: "open" = every time you come back to the app, "after" = once you have been away for a chosen time, "session" = once per launch (until the app is closed and opened again).
@@ -73,7 +73,7 @@ function lockScreen(user, logout) {
     const result = await httpsCallable(getFunctions(app, "us-central1"), name)(data);
     return result.data || {};
   }
-  $("[data-otp-send]", el).forEach((button) => {
+  $$("[data-otp-send]", el).forEach((button) => {
     button.addEventListener("click", async () => {
       button.disabled = true; codeStatus.textContent = "Sending a recovery code…";
       try {
