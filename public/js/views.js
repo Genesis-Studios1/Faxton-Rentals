@@ -56,6 +56,7 @@ export async function route(ctx) {
   if (path === "/login") return AV.authPage(ctx, "login");
   if (path === "/signup") return AV.authPage(ctx, "signup");
   if (path === "/forgot") return AV.forgotPage(ctx);
+  if (path === "/verification") return (await import("./verification.js")).verificationPage(ctx);
   if (path === "/terms" || path === "/privacy" || path === "/license") return LEGAL.legalPage(ctx, path.slice(1));
   if (path === "/download") return APPS.downloadPage(ctx);
   if (path === "/") return HOME.discover(ctx);
