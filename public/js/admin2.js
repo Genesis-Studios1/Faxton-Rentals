@@ -9,6 +9,7 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+import * as KYC from "./verification.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -243,6 +244,8 @@ const VF_CHECK = ["Name matches the account", "Registration or licence number pr
 export function verifications(ctx) {
   return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
+      const identityRows = await st.adminAll("identityVerifications");
+      const reviewedDocs = new Map();
       let tab = hq().q.tab || "waiting";
       const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
       const dels = () => us.filter((u) => u.deletion?.status === "pending");
@@ -253,10 +256,37 @@ export function verifications(ctx) {
         return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
           ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Registrar", esc(a?.registrar)], ["Role", esc(a?.position)], ["Opened", esc(a?.opened)], ["Registrar’s DOB", esc(dob(a?.dob))], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]])}
           ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${VF_CHECK.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
+      const identityPerson = (v) => us.find((x) => x.id === (v.uid || v.id)) || {};
+      const identityBy = (status) => identityRows.filter((v) => v.status === status).sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+      const identityCard = (v) => {
+        const u = identityPerson(v), uid = v.uid || v.id;
+        const reviewState = v.status === "approved" ? "Verified" : v.status === "rejected" ? "Needs changes" : "Under review";
+        const fileBtn = (label, key) => v[key] ? btn(label, { size: "sm", ic: "file", attrs: 'data-ivfile="' + key + '" data-ivuid="' + esc(uid) + '"' }) : "";
+        return '<article class="ax-card ax-vc" data-identity-card="' + esc(uid) + '"><div class="ax-vc-h">' +
+          avatar(u.name || u.email || uid, uid, 40, u.photo) +
+          '<div><b>' + esc(u.name || "Account") + '</b><small>' + esc(u.email || "") + ' · ' + esc(v.role || u.role || "") + '</small></div>' +
+          chipFor("verification", v.status) + '</div>' +
+          dl([["ID type", esc(v.identityType || "—")], ["Country", esc(v.country || "—")], ["Professional body", esc(v.professionalBody || "Not applicable")], ["Registration number", esc(v.professionalNumber || "—")], ["Submitted", fmt.dateTime(v.submittedAt)]]) +
+          '<div class="ax-vc-f">' + fileBtn("Open ID", "identityPath") + fileBtn("Open address", "addressPath") + fileBtn("Open professional proof", "professionalPath") + '</div>' +
+          (v.status === "pending" ? '<div class="ax-vc-f">' +
+            btn("Approve identity", { v: "primary", ic: "check", attrs: 'data-ivdecision="approved" data-ivuid="' + esc(uid) + '"' }) +
+            btn("Reject / request changes", { v: "danger", attrs: 'data-ivdecision="rejected" data-ivuid="' + esc(uid) + '"' }) +
+            '</div><p class="ax-sub">Open and inspect the ID, address proof, and any claimed professional-registration evidence before approval.</p>' :
+            '<p class="ax-sub">' + esc(reviewState) + (v.reviewNote ? ' · ' + esc(v.reviewNote) : "") + '</p>') +
+          '</article>';
+      };
+      const identityMain = () => {
+        const pending = identityBy("pending"), decided = identityRows.filter((v) => ["approved", "rejected"].includes(v.status));
+        const rows = tab === "identity-decided" ? decided : pending;
+        return rows.length ? '<div class="ax-vgrid">' + rows.map(identityCard).join("") + '</div>' :
+          '<div class="ax-card">' + empty({ icon: "shield", title: tab === "identity-decided" ? "No identity decisions yet" : "No identity reviews waiting", hint: "Government ID and proof-of-address submissions appear here after upload." }) + '</div>';
+      };
       const html = () => {
         const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
-        const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
-        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
+        const ivPending = identityRows.filter((v) => v.status === "pending").length;
+        const ivDecided = identityRows.filter((v) => ["approved", "rejected"].includes(v.status)).length;
+        const tb = tabs([{ k: "waiting", label: "Agent / agency", count: w.length }, { k: "decided", label: "Role decisions", count: dn.length }, { k: "identity", label: "Identity documents", count: ivPending }, { k: "identity-decided", label: "Identity history", count: ivDecided }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
+        const main = tab === "identity" || tab === "identity-decided" ? identityMain() : tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
           : tab === "decided" ? (dn.length ? `<div class="ax-vgrid">${dn.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." })}</div>`)
           : `<div class="ax-card ax-tablecard">${dd.length ? `<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>${dd.map((u) => `<tr><td data-label="Person" data-role="title"><div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}</b><small>${esc(u.email || "")}</small></div></div></td><td data-label="Role">${esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter")}</td><td data-label="Requested">${ago(u.deletion.requestedAt)}</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">${btn("Approve deletion", { v: "danger", size: "sm", attrs: `data-del=approved data-id="${esc(u.id)}"` })}${btn("Keep account", { size: "sm", attrs: `data-del=denied data-id="${esc(u.id)}"` })}</div></td></tr>`).join("")}</tbody></table></div>` : empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })}</div>`;
         return `${tb}<div style="margin-top:16px" id="vfMain">${main}</div>`;
@@ -265,8 +295,31 @@ export function verifications(ctx) {
         const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
+          const ivf = e.target.closest("[data-ivfile]"), ivd = e.target.closest("[data-ivdecision]");
           const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
-          if (bv) {
+          if (ivf) {
+            const v = identityRows.find((x) => (x.uid || x.id) === ivf.dataset.ivuid), path = v && v[ivf.dataset.ivfile];
+            if (!v || !path) return toast("This submission has no file attached.", { tone: "bad" });
+            const ok = await KYC.openPrivateDocument(path, "Faxton private verification document");
+            if (ok) { const uid = v.uid || v.id, set = reviewedDocs.get(uid) || new Set(); set.add(ivf.dataset.ivfile); reviewedDocs.set(uid, set); toast("Document opened. Check it carefully before making a decision."); }
+            return;
+          } else if (ivd) {
+            const v = identityRows.find((x) => (x.uid || x.id) === ivd.dataset.ivuid), uid = v && (v.uid || v.id), approve = ivd.dataset.ivdecision === "approved";
+            if (!v || v.status !== "pending") return;
+            const seen = reviewedDocs.get(uid) || new Set();
+            const requiredFiles = ["identityPath", "addressPath"].concat(v.professionalPath ? ["professionalPath"] : []);
+            if (approve && requiredFiles.some((key) => !seen.has(key))) return toast("Open and review every submitted document before approving identity.", { tone: "bad" });
+            let note = "";
+            if (!approve) { note = await reason({ title: "Request changes to " + (identityPerson(v).name || "this identity submission"), presets: ["Document unclear", "Information does not match", "Professional details could not be confirmed"], confirmLabel: "Request changes", tone: "bad", helper: "This note is shown to the applicant." }); if (!note) return; }
+            busy(ivd, true);
+            try {
+              await KYC.reviewIdentityVerification(uid, approve ? "approved" : "rejected", note, ctx.S.user.uid);
+              v.status = approve ? "approved" : "rejected"; v.reviewNote = note;
+              await st.notify(uid, approve ? { kind: "verified", title: "Identity verification approved", body: "Your ID and address were reviewed. You can now submit property listings with separate ownership evidence." } : { kind: "info", title: "Identity documents need changes", body: note || "Please submit updated documents for review." }).catch(() => {});
+              changed(); toast(approve ? "Identity approved." : "Changes requested."); paint();
+            } catch (x) { busy(ivd, false); bad(x); }
+            return;
+          } else if (bv) {
             const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
             busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
