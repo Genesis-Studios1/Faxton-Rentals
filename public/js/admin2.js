@@ -117,6 +117,7 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
     ${l.changeNote && /flag|reject/.test(s) ? section("Note sent to the owner", `<p class="ax-clamp" style="-webkit-line-clamp:6">${esc(l.changeNote)}</p>`) : ""}
     ${section("Description", l.desc ? `<p class="ax-clamp" data-clamp>${esc(l.desc)}</p>${l.desc.length > 220 ? `<button type="button" class="ax-link" data-more style="border:0;background:none;padding:4px 0;cursor:pointer">Show more</button>` : ""}` : `<span class="ax-muted">No description yet.</span>`)}
     ${section("Media", `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${(l.videos || []).length} video${(l.videos || []).length === 1 ? "" : "s"}</span>${btn("Photos and videos", { size: "sm", ic: "img", attrs: "data-media" })}</div>`)}
+    ${section("Ownership proof", l.ownershipProofPath ? `<div class="ax-stack"><p class="ax-sub">A private ownership or authority-to-list document was attached to this listing.</p><div>${btn("Open private proof", { size: "sm", ic: "file", attrs: "data-own-proof" })} ${l.ownershipVerified ? chipFor("verification", "verified") : chipFor("verification", "pending")}</div><p class="ax-sub">Open and inspect the document before approving this listing.</p></div>` : `<p class="ax-sub">No ownership proof was submitted.</p>`) }
     ${section("Owner", `<div class="ax-id" data-owner>${avatar(l.agent?.name, l.ownerUid || l.agent?.id, 36, l.agent?.photo || l.agent?.avatar)}<div><b>${esc(l.agent?.name || "Faxton")}</b><small data-ownersub>${l.ownerUid ? "Property owner account" : "Added by the Faxton team"}</small></div></div>${l.ownerUid ? `<div style="display:flex;gap:8px;margin-top:10px">${btn("Text", { size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}</div>` : ""}`)}
     ${section("History", timeline([{ title: "Submitted", meta: fmt.dateTime(l.createdAt) }, ...(s === "active" ? [{ title: "Live on Faxton", meta: "Approved" }] : []), ...(s === "flagged" ? [{ title: "Changes requested", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "rejected" ? [{ title: "Rejected", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "archived" ? [{ title: "Archived", tone: "mute" }] : [])]))}</div>`;
   const footer = viewOnly ? "" : s === "active" ? btn("Archive listing", { v: "outline", attrs: "data-do=archive" }) + (l.status === "active" ? btn("View live page", { v: "ghost", href: "#/home/" + encodeURIComponent(l.id) }) : "") : s === "archived" || s === "rejected" ? btn("Restore listing", { v: "primary", attrs: "data-do=restore" }) : btn("Approve listing", { v: "primary", attrs: "data-do=approve" }) + btn("Request changes", { attrs: "data-do=changes" }) + btn("Reject", { v: "danger", attrs: "data-do=reject" });
@@ -124,6 +125,7 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
     mount(el) {
       $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
       $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
+      $("[data-own-proof]", el)?.addEventListener("click", async () => { const opened = await KYC.openPrivateDocument(l.ownershipProofPath, "Ownership proof - " + l.title); if (opened) { l._ownershipProofReviewedAt = Date.now(); toast("Ownership proof opened. Check that it belongs to this property and authorises the listing."); } });
       $("[data-text]", el)?.addEventListener("click", () => data.safe("users").then((us) => { const u = us.find((x) => x.id === l.ownerUid); if (u) openChat(ctx, u); else toast("We couldn’t find that owner’s account.", { tone: "bad" }); }));
       $("[data-call]", el)?.addEventListener("click", () => CALLS.startCall(ctx, { to: l.ownerUid, toName: l.agent?.name || "Owner", kind: "voice", title: "Faxton team" }));
       el.querySelectorAll("[data-do]").forEach((b) => (b.onclick = () => listingAct(ctx, l, b.dataset.do, api, b)));
@@ -131,7 +133,16 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
 }
 async function listingAct(ctx, l, act, api, b) {
   try {
-    if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
+    if (act === "approve") {
+      if (l.ownerUid) {
+        if (!l.ownershipProofPath || l.ownershipProofPath !== "property-ownership/" + l.ownerUid + "/" + l.id + "/proof") return toast("This property has no valid ownership proof. Request the document before approval.", { tone: "bad" });
+        if (!l._ownershipProofReviewedAt || Date.now() - l._ownershipProofReviewedAt > 30 * 60 * 1000) return toast("Open and inspect the private ownership proof in Review before approving.", { tone: "bad" });
+        if (!(await confirm({ title: "Approve ownership evidence?", body: "Confirm that you reviewed this document and it supports ownership or authority to list this exact property. Only then can the listing be marked verified.", confirmLabel: "Approve evidence and listing", tone: "primary", icon: "shield-check" }))) return;
+      }
+      busy(b, true);
+      await write("listings", l, { status: "active", archived: false, ...(l.ownerUid ? { ownershipVerified: true } : {}) }, { msg: "Listing approved.", after: api.refresh });
+      notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` });
+    }
     else if (act === "restore") await write("listings", l, { status: "active", archived: false }, { msg: "Listing restored.", after: api.refresh });
     else if (act === "archive") await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
     else if (act === "changes" || act === "reject") {
