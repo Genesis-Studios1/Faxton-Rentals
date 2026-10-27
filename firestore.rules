@@ -207,7 +207,8 @@ service cloud.firestore {
         && (request.resource.data.type != 'signup' || id == 'signup_' + request.auth.uid);
       allow read: if isAdmin() || isSupport();
       allow update: if (isAdmin() || isSupport()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen']);
-      allow delete: if false;
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid
+          && get(/databases/$(database)/documents/users/$(uid)).data.get('deletion', {}).get('status', '') == 'approved');
     }
 
     // "Download my data" records. After a person confirms it's them and downloads their own data (all in their browser), the app files one entry here
