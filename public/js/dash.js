@@ -366,7 +366,7 @@ export async function ownerPage(ctx, kind, sub = "") {
   if (!allowed(ctx, kind)) return denied(ctx);
   const TITLE = { landlord: "Dashboard", agency: "Dashboard", agent: { leads: "Leads", clients: "Clients", viewings: "Viewings", listings: "Listings", "": "Overview" }[sub] || "Overview" }[kind] || "Dashboard";
   const eyebrow = { landlord: "Owner portal", agency: "Agency portal", agent: "Agent portal" }[kind], u = ctx.S.user.uid, prof = ctx.S.profile || {};
-  const needsV = kind !== "landlord" && !prof.verified, name = AX.first(prof.name || ctx.S.user.displayName);
+  const needsV = !(prof.verified === true && prof.verification?.status === "verified"), name = AX.first(prof.name || ctx.S.user.displayName);
   const subt = { landlord: "Here’s what’s happening with your properties.", agency: "Here’s your team’s performance and business overview.", agent: "Your listings, leads and viewings at a glance." }[kind];
   const addBtn = btn("Add property", { v: "primary", ic: "plus", attrs: `id="addp" ${needsV ? 'aria-disabled="true" title="Available once your account is verified"' : ""}` });
   const v = pageView(ctx, { title: kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
