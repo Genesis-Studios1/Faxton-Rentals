@@ -36,8 +36,8 @@ export function verificationPage(ctx) {
   ];
   const cards = fields.map(([id, title, desc, required]) => `<section class="rf-card kyc-doc" data-doc-card="${id}">
     <div class="kyc-doc-head"><span class="kyc-doc-ic">${icon(id === "identity" ? "user" : id === "address" ? "map" : "doc", 22, 1.7)}</span><div class="grow"><h3>${title} ${required ? '<span class="kyc-required">Required</span>' : '<span class="kyc-optional">Optional</span>'}</h3><p class="rf-sub">${desc}</p><p class="kyc-file" data-file-label="${id}">No document selected yet.</p></div></div>
-    \${id === "identity" ? \`<div class="rf-fl kyc-id-kind"><label for="kycIdentityType">Type of identification</label><select id="kycIdentityType" class="rf-input"><option value="National ID" \${(v.idKind || "National ID") === "National ID" ? "selected" : ""}>National ID / NIN slip or card</option><option value="Passport" \${v.idKind === "Passport" ? "selected" : ""}>International passport</option><option value="Driver’s licence" \${v.idKind === "Driver’s licence" ? "selected" : ""}>Driver’s licence</option></select></div>\` : ""}
-    <label class="kyc-pick"><span>Choose image</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-file="\${id}" aria-label="Upload \${title}"></label>
+    ${id === "identity" ? `<div class="rf-fl kyc-id-kind"><label for="kycIdentityType">Type of identification</label><select id="kycIdentityType" class="rf-input"><option value="National ID" ${(v.idKind || "National ID") === "National ID" ? "selected" : ""}>National ID / NIN slip or card</option><option value="Passport" ${v.idKind === "Passport" ? "selected" : ""}>International passport</option><option value="Driver’s licence" ${v.idKind === "Driver’s licence" ? "selected" : ""}>Driver’s licence</option></select></div>` : ""}
+    <label class="kyc-pick"><span>Choose image</span><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-file="${id}" aria-label="Upload ${title}"></label>
     <p class="kyc-hint">Upload a clear JPG, PNG or WebP image. PDFs are not supported in this uploader yet.</p>
     <div class="kyc-preview" data-preview="${id}" hidden></div>
   </section>`).join("");
@@ -70,9 +70,9 @@ export function verificationPage(ctx) {
     const hideExistingState = (key) => {
       const label = $("[data-file-label=\"" + key + "\"]", root);
       if (label && existing[key] && !selected[key]) label.textContent = "Saved document: " + existing[key].fileName;
-      const preview = $("[data-preview=\\"" + key + "\\"]", root);
+      const preview = $("[data-preview=\"" + key + "\"]", root);
       if (preview && existing[key]?.dataUrl && !selected[key]) {
-        preview.innerHTML = \`<img src="\${esc(existing[key].dataUrl)}" alt="Saved \${esc(key)} document preview"><span>Saved privately</span>\`;
+        preview.innerHTML = '<img src="' + esc(existing[key].dataUrl) + '" alt="Saved ' + esc(key) + ' document preview"><span>Saved privately</span>';
         preview.hidden = false;
       }
     };
