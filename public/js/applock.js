@@ -51,12 +51,52 @@ function lockScreen(user, logout) {
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
   const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
   const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
-  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  const canEmail = Boolean(user.email && user.emailVerified);
+  const canPhone = Boolean(user.phoneNumber);
+  const emailHint = canEmail ? user.email.replace(/^(.).+(@.+)$/, "$1•••$2") : "";
+  const phoneHint = canPhone ? "••••" + user.phoneNumber.slice(-4) : "";
+  const recoveryHtml = (canEmail || canPhone) ? `<button type="button" class="lk-alt" id="lkCodeToggle">Use a one-time code instead</button><div class="lk-code-panel" id="lkCodePanel" hidden><p>Choose a verified recovery method. The code expires in five minutes.</p><div class="lk-code-methods">${canEmail ? `<button type="button" class="lk-code-method" data-otp-send="email">Email code to ${esc(emailHint)}</button>` : ""}${canPhone ? `<button type="button" class="lk-code-method" data-otp-send="phone">SMS code to ${esc(phoneHint)}</button>` : ""}</div><label class="lk-code-label" for="lkCodeValue">Six-digit code</label><input id="lkCodeValue" class="lk-code-input" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" hidden><button type="button" class="btn primary lk-go" id="lkVerifyCode" hidden>Verify code and unlock</button><p class="lk-code-status" id="lkCodeStatus" role="status" aria-live="polite"></p></div>` : `<p class="lk-code-note">No verified email or phone recovery method is connected to this account. You can sign out and use your usual sign-in method.</p>`;
+  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p>${recoveryHtml}<button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
   const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
   const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
-  $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  $("#lkGo", el).onclick = go;
+  $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  const codePanel = $("#lkCodePanel", el), codeStatus = $("#lkCodeStatus", el), codeInput = $("#lkCodeValue", el), verifyButton = $("#lkVerifyCode", el);
+  $("#lkCodeToggle", el)?.addEventListener("click", () => { codePanel.hidden = !codePanel.hidden; if (!codePanel.hidden) codeStatus.textContent = ""; });
+  async function callUnlockFunction(name, data) {
+    const [{ getFunctions, httpsCallable }, { app }] = await Promise.all([
+      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js"),
+      import("./firebase.js")
+    ]);
+    const result = await httpsCallable(getFunctions(app, "us-central1"), name)(data);
+    return result.data || {};
+  }
+  $("[data-otp-send]", el).forEach((button) => {
+    button.addEventListener("click", async () => {
+      button.disabled = true; codeStatus.textContent = "Sending a recovery code…";
+      try {
+        const result = await callUnlockFunction("sendUnlockCode", { channel: button.dataset.otpSend });
+        codeStatus.textContent = "Code sent to " + result.destination + ". It expires in five minutes.";
+        codeInput.hidden = false; verifyButton.hidden = false; codeInput.focus();
+      } catch (error) {
+        codeStatus.textContent = error?.message?.replace(/^Firebase(?:Error)?:\s*/i, "") || "Code recovery is not available. Sign out and sign in again.";
+      } finally { button.disabled = false; }
+    });
+  });
+  verifyButton?.addEventListener("click", async () => {
+    const entered = codeInput.value.trim();
+    if (!/^\d{6}$/.test(entered)) { codeStatus.textContent = "Enter the six-digit code."; codeInput.focus(); return; }
+    verifyButton.disabled = true; codeStatus.textContent = "Checking the code…";
+    try {
+      const result = await callUnlockFunction("verifyUnlockCode", { code: entered });
+      if (result.verified === true) { done(); return; }
+      codeStatus.textContent = "The code could not be verified. Request another code if it has expired.";
+    } catch (error) {
+      codeStatus.textContent = error?.message?.replace(/^Firebase(?:Error)?:\s*/i, "") || "The code could not be verified.";
+    } finally { verifyButton.disabled = false; }
+  });
   if (!waitSplash) return void setTimeout(go, 250);
   let freed = false;
   const free = () => { if (freed || !el.isConnected) return; freed = true; el.classList.remove("lk-wait"); setTimeout(go, 300); };
