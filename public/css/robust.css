@@ -41,3 +41,57 @@
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
 }
+
+/* Identity and property evidence: compact, accessible verification forms. */
+.kyc-page{max-width:1060px;margin-inline:auto}
+.kyc-doc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+.kyc-doc,.kyc-reg,.kyc-listing-note{min-width:0;border:1px solid var(--border,var(--line,#dce8e2));border-radius:16px;padding:18px;background:var(--panel,#fff)}
+.kyc-doc-head{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.kyc-doc-head .grow{min-width:0;flex:1}
+.kyc-doc h3,.kyc-listing-note h3{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 5px;font-size:15px;color:var(--head,#102d25)}
+.kyc-doc .rf-sub{margin:0 0 8px;font-size:13px;line-height:1.45}
+.kyc-doc-ic{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:13px;background:var(--soft,#e4f3ec);color:var(--brand,#13926f)}
+.kyc-doc-ic svg{width:22px;height:22px}
+.kyc-required,.kyc-optional{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:10px;line-height:1;font-weight:750;letter-spacing:.02em}
+.kyc-required{background:#fff0e6;color:#9b4615}
+.kyc-optional{background:var(--soft,#e4f3ec);color:var(--muted,#64736d)}
+.kyc-file{font-size:12px;color:var(--brand,#13926f);overflow-wrap:anywhere}
+.kyc-pick{display:flex;align-items:center;justify-content:center;min-height:42px;gap:10px;margin-top:12px;padding:9px 12px;border:1px dashed var(--line,#cbdad2);border-radius:11px;cursor:pointer;font-size:13px;font-weight:700;color:var(--brand,#0b6e53);background:var(--field,#f7faf8)}
+.kyc-pick input{max-width:66%;min-width:0;font:inherit;font-size:12px}
+.kyc-hint{margin:8px 0 0;font-size:11px;line-height:1.45;color:var(--muted,#6b7772)}
+.kyc-preview{display:flex;align-items:center;gap:10px;margin-top:10px;min-width:0;font-size:12px;color:var(--muted,#6b7772)}
+.kyc-preview[hidden]{display:none}
+.kyc-preview img{display:block;width:64px;height:76px;flex:none;object-fit:cover;border:1px solid var(--line,#dce8e2);border-radius:8px;background:#f2f5f3}
+.kyc-reg{margin-top:14px}
+.kyc-reg h2{margin:4px 0 8px}
+.kyc-reg .rf-sub{font-size:13px;line-height:1.5}
+.kyc-reg .rf-fl{margin-top:12px}
+.kyc-reg-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.kyc-reg-links a{display:inline-flex;align-items:center;gap:5px;min-height:34px;color:var(--brand,#0b6e53);font-size:12px;font-weight:700;text-decoration:none}
+.kyc-private-note{display:flex;align-items:flex-start;gap:8px;margin:16px 0;color:var(--muted,#64736d);font-size:12px;line-height:1.5}
+.kyc-private-note svg{flex:none;color:var(--brand,#13926f)}
+.kyc-status-good,.kyc-status-note{display:flex;align-items:flex-start;gap:12px;margin:14px 0;padding:15px 16px;border-radius:14px}
+.kyc-status-good{background:#e8f8ef;border:1px solid #b9e8ce;color:#135d3d}
+.kyc-status-note{background:var(--field,#f7faf8);border:1px solid var(--line,#dce8e2);color:var(--head,#102d25)}
+.kyc-status-good svg,.kyc-status-note svg{flex:none}
+.kyc-status-good p,.kyc-status-note p{margin:4px 0 0;font-size:13px;line-height:1.5}
+.kyc-listing-note{margin-top:16px}
+.kyc-listing-note p{margin:5px 0 0;font-size:13px;line-height:1.5;color:var(--muted,#64736d)}
+.kyc-reg .rf-fl input,.kyc-reg .rf-fl select{width:100%;min-width:0}
+.ax-vdoc-actions{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.ax-vdoc-actions .btn{min-height:32px}
+.ax-kyc-preview{display:grid;gap:8px;min-width:0}
+.ax-kyc-preview img{max-width:100%}
+.kyc-listing-upload{grid-column:1/-1;display:grid;gap:8px;padding:14px;border:1px solid var(--ax-border,#dce8e2);border-radius:12px;background:var(--ax-card,#fff)}
+.kyc-listing-upload p{margin:0;font-size:12px;line-height:1.5}
+.kyc-listing-upload .ax-input{width:100%;min-width:0}
+@media(max-width:700px){
+ .kyc-doc-grid{grid-template-columns:minmax(0,1fr);gap:11px}
+ .kyc-doc,.kyc-reg,.kyc-listing-note{padding:15px}
+ .kyc-doc-ic{width:38px;height:38px}
+ .kyc-pick{flex-wrap:wrap;justify-content:flex-start}
+ .kyc-pick input{max-width:100%;width:100%;font-size:14px}
+ .kyc-private-note{font-size:11.5px}
+ .kyc-status-good,.kyc-status-note{padding:13px}
+}
+@media(prefers-reduced-motion:reduce){.kyc-doc,.kyc-pick{transition:none}}
