@@ -95,3 +95,21 @@
  .kyc-status-good,.kyc-status-note{padding:13px}
 }
 @media(prefers-reduced-motion:reduce){.kyc-doc,.kyc-pick{transition:none}}
+
+/* App-lock recovery by verified email or Firebase Auth phone. */
+.lk-alt{display:block;width:100%;min-height:42px;margin:12px 0 0;padding:8px 12px;border:1px solid var(--line,#dce8e2);border-radius:12px;background:transparent;color:var(--brand,#0b6e53);font:650 13px/1.3 var(--font-body,system-ui,sans-serif);cursor:pointer}
+.lk-alt:hover,.lk-code-method:hover{background:var(--soft,#e4f3ec)}
+.lk-code-panel{margin-top:12px;padding:14px;border:1px solid var(--line,#dce8e2);border-radius:14px;background:var(--field,#f7faf8);text-align:left}
+.lk-code-panel[hidden],.lk-code-input[hidden],#lkVerifyCode[hidden]{display:none!important}
+.lk-code-panel>p:first-child{margin:0 0 12px;font-size:12px;line-height:1.45;color:var(--muted,#69756f)}
+.lk-code-methods{display:grid;gap:8px}
+.lk-code-method{width:100%;min-height:40px;padding:9px 10px;border:1px solid var(--line,#dce8e2);border-radius:10px;background:var(--panel,#fff);color:var(--head,#102d25);font:650 12px/1.35 var(--font-body,system-ui,sans-serif);text-align:left;overflow-wrap:anywhere;cursor:pointer}
+.lk-code-label{display:block;margin-top:13px;font-size:12px;font-weight:750;color:var(--head,#102d25)}
+.lk-code-input{display:block;width:100%;min-height:48px;margin-top:6px;padding:10px 12px;border:1px solid var(--line,#cbdad2);border-radius:11px;background:var(--panel,#fff);color:var(--head,#102d25);font:750 22px/1 var(--font-body,system-ui,sans-serif);letter-spacing:.25em;text-align:center}
+.lk-code-input:focus-visible,.lk-code-method:focus-visible,.lk-alt:focus-visible{outline:2px solid var(--brand,#13926f);outline-offset:2px}
+.lk-code-panel .lk-go{width:100%;margin-top:10px}
+.lk-code-status{min-height:18px;margin:10px 0 0;font-size:12px;line-height:1.45;color:var(--muted,#69756f);overflow-wrap:anywhere}
+.lk-code-note{margin:12px 0 0;font-size:11px;line-height:1.45;color:var(--muted,#69756f)}
+:root[data-theme=dark] .lk-code-panel{background:#122820;border-color:#2d5144}
+:root[data-theme=dark] .lk-code-method,:root[data-theme=dark] .lk-code-input{background:#0d1e18;border-color:#34584a;color:#edf7f2}
+:root[data-theme=dark] .lk-alt{color:#9be8c5;border-color:#34584a}
