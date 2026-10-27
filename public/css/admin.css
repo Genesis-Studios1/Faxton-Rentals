@@ -734,3 +734,51 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 /* The global form rule in shell.css gives every field min-height:44px (a phone tap target); inside the console on desktop each control sets its own 32-40px height. */
 @media (min-width:900px){:is(.ax,.ax-fl) :where(input:not([type=checkbox],[type=radio]),select,textarea){min-height:0}}
 @media (max-width:899px){.ax-main .rf-copy,.ax-main .rf-avcam{min-height:44px;min-width:44px}}
+
+
+/* Dashboard polish: keep summary cards aligned and make phone dashboards scannable. */
+.ax-main .ax-attns,
+.ax-main .ax-kpis,
+.ax-main .ax-minis { min-width: 0; }
+.ax-main .ax-attn { height: 100%; min-width: 0; }
+.ax-main .ax-attn-l { min-width: 0; }
+.ax-main .ax-kpi { min-width: 0; height: 100%; }
+.ax-main .ax-kpi-h { min-width: 0; align-items: flex-start; }
+.ax-main .ax-kpi-h > * { min-width: 0; }
+.ax-main .ax-kpi-h span { overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .ax-main .ax-attns { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 8px; }
+  .ax-main .ax-attn {
+    grid-template-columns: 32px minmax(0, 1fr) 14px;
+    grid-template-areas: "t n c" "l l l";
+    gap: 4px 8px; min-height: 92px; padding: 10px; align-content: start;
+  }
+  .ax-main .ax-attn > b { font-size: 21px; line-height: 26px; }
+  .ax-main .ax-attn-l { overflow-wrap: anywhere; }
+  .ax-main .ax-kpis.scroll,
+  .ax-main .ax-minis.scroll {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px; margin: 0; padding: 0; overflow: visible;
+    scroll-snap-type: none;
+  }
+  .ax-main .ax-kpis.scroll > *,
+  .ax-main .ax-minis.scroll > * {
+    flex: initial; width: auto; min-width: 0; max-width: 100%;
+    scroll-snap-align: none;
+  }
+  .ax-main .ax-kpi { min-height: 128px; padding: 12px; }
+  .ax-main .ax-kpi-v { font-size: 23px; line-height: 28px; overflow-wrap: anywhere; }
+  .ax-main .ax-kpi-m { align-items: flex-start; }
+  .ax-main .ax-minis.scroll { margin-top: 12px; }
+  .ax-main .ax-mini { min-width: 0; padding: 11px; gap: 8px; }
+  .ax-main .ax-mini > * { min-width: 0; }
+}
+@media (max-width: 380px) {
+  .ax-main .ax-ph-a { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .ax-main .ax-ph-a > .ax-btn,
+  .ax-main .ax-ph-a > select,
+  .ax-main .ax-ph-a > .ax-input { width: 100%; }
+  .ax-main .ax-kpi-h .ax-tile { width: 32px; height: 32px; }
+}
