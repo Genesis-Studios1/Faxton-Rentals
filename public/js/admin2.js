@@ -8,6 +8,7 @@ import * as SVC from "./services.js";
 import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
+import { openStored } from "./fx.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
@@ -239,10 +240,10 @@ export function userDrawer(ctx, u, api) {
 }
 // ---------- verifications ----------
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
-const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+const VF_CHECK = ["Government ID and name reviewed", "Proof of address checked", "Professional registration checked or not applicable"];
 export function verifications(ctx) {
-  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
-    async render({ users: us }, { body }) {
+  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Review identity, address and property ownership evidence, plus account deletion requests.", cols: ["users", "listings"], what: "verifications",
+    async render({ users: us, listings: ls }, { body }) {
       let tab = hq().q.tab || "waiting";
       const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
       const dels = () => us.filter((u) => u.deletion?.status === "pending");
