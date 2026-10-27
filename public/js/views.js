@@ -18,6 +18,7 @@ import * as MATCH from "./match.js";
 import * as SVC from "./services.js";
 import * as MYHOME from "./myhome.js";
 import * as LOCK from "./applock.js";
+import * as KYC from "./kyc.js";
 import * as MYDATA from "./mydata.js";
 import * as TENANTS from "./tenants.js";
 import * as VS from "./viewsafe.js";
@@ -56,6 +57,7 @@ export async function route(ctx) {
   if (path === "/login") return AV.authPage(ctx, "login");
   if (path === "/signup") return AV.authPage(ctx, "signup");
   if (path === "/forgot") return AV.forgotPage(ctx);
+  if (path === "/verification") return KYC.verificationPage(ctx);
   if (path === "/terms" || path === "/privacy" || path === "/license") return LEGAL.legalPage(ctx, path.slice(1));
   if (path === "/download") return APPS.downloadPage(ctx);
   if (path === "/") return HOME.discover(ctx);
