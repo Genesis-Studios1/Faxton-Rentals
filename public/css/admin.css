@@ -680,6 +680,14 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 .ax-relay.is-flash{animation:axflash 1.6s ease}
 @keyframes axflash{0%,60%{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#13926f) 45%,transparent)}100%{box-shadow:none}}
 @media (max-width:560px){.ax-relay .rf-card-h{flex-wrap:wrap}}
+/* Tablet dashboard: keep page titles and action controls from colliding at medium widths. */
+@media (min-width:721px) and (max-width:1100px){
+  .ax-main .ax-ph{align-items:flex-start;flex-wrap:wrap;gap:10px 14px}
+  .ax-main .ax-ph-t{flex:1 1 320px;min-width:0}
+  .ax-main .ax-ph-a{flex:1 1 100%;justify-content:flex-start;min-width:0}
+  .ax-main .ax-ph-a>*{max-width:100%}
+  .ax-main .ax-kpis,.ax-main .ax-minis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 @media (prefers-reduced-motion:reduce){.ax-relay.is-flash{animation:none}}
 
 /* ---------- ratings on the renter side (call rating card, Rate Faxton form) ---------- */
