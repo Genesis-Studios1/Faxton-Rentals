@@ -282,11 +282,32 @@ export function verifications(ctx) {
         const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
+          const vd = e.target.closest("[data-vdoc]");
+          if (vd) {
+            const c = vd.closest("[data-uid]"), u = us.find((x) => x.id === c?.dataset.uid);
+            if (!u) return;
+            try {
+              const doc = await st.getVerificationDocument(u.id, vd.dataset.vdoc);
+              if (!doc?.dataUrl) { toast("That document has not been submitted yet.", { tone: "bad" }); return; }
+              const label = { identity: "Government-issued ID", address: "Proof of address", professional: "Professional / business evidence" }[vd.dataset.vdoc] || "Verification document";
+              const view = dialog({ title: label, size: "lg", icon: "shield", body: `<div class="ax-kyc-preview"><p class="ax-muted">${esc(doc.fileName || doc.label || label)}</p><img src="${esc(doc.dataUrl)}" alt="${esc(label)}" style="display:block;width:100%;max-height:70vh;object-fit:contain;background:#f4f7f5;border-radius:12px"></div>`, footer: btn("Close", { attrs: "data-x" }) });
+              $("[data-x]", view.el)?.addEventListener("click", () => view.close());
+            } catch (x) { bad(x); }
+            return;
+          }
           const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
           if (bv) {
-            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
+            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : u.verification.kind === "landlord" || u.role === "landlord" ? "property owner account" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
-            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            const checklist = Object.fromEntries($("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            if (ok && Object.values(checklist).some((checked) => !checked)) { toast("Complete every review checklist item before approving.", { tone: "bad" }); return; }
+            if (ok) {
+              try {
+                const docs = await Promise.all([st.getVerificationDocument(u.id, "identity"), st.getVerificationDocument(u.id, "address")]);
+                if (!docs[0]?.dataUrl || !docs[1]?.dataUrl) { toast("The government ID and proof of address must both be uploaded and reviewed before approval.", { tone: "bad" }); return; }
+              } catch (x) { bad(x); return; }
+            }
+            busy(bv, true);
             try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
               await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
               toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }
