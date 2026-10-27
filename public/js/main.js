@@ -79,7 +79,7 @@ function adminShell(path, inner, view, role = "") {
 // ---- navigation chrome: the desktop header, the phone's four-icon bar and its "Me" sheet ----
 // Phone bar (<= 860px): Home, Search, Messages, Me. Everything else lives in the Me sheet. The staff consoles (adminShell) draw their own bar.
 const BAR = [["/", "home", "homeFill", "Home"], ["/search", "search", "searchFill", "Search"], ["/messages", "msg", "msgFill", "Messages"]];
-const ME_PATHS = ["/settings", "/saved", "/bookings", "/payments", "/documents", "/rentals", "/applications", "/apply", "/book", "/offers", "/myhome", "/match", "/help", "/compare"];
+const ME_PATHS = ["/settings", "/verification", "/saved", "/bookings", "/payments", "/documents", "/rentals", "/applications", "/apply", "/book", "/offers", "/myhome", "/match", "/help", "/compare"];
 const pathIs = (path, h) => path === h || path.startsWith(h + "/");
 const navOn = (path, h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => pathIs(path, p)) : pathIs(path, h));
 const unreadTxt = (n) => (n > 99 ? "99+" : n || "");
@@ -89,7 +89,7 @@ const meGroups = () => {
   const dash = S.isAdmin ? ["/admin", "building", "Admin console"] : ROLE_UI[S.role] ? [ROLE_UI[S.role].home, "building", "My dashboard"] : null;
   return [
     [S.tenant ? ["/myhome", "home", "My home"] : ["/rentals", "folder", "My rentals"], ["/saved", "heart", "Saved homes", 1], ["/bookings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/payments", "card", "Payments"], ["/documents", "doc", "Documents"]],
-    [["/match", "sparkle", "Smart Home Match"], ["/help", "headset", "Contact us", 1], ["/settings", "cog", "Settings"]],
+    [["/match", "sparkle", "Smart Home Match"], ["/verification", "shield", "Identity & property verification"], ["/help", "headset", "Contact us", 1], ["/settings", "cog", "Settings"]],
     [["/?to=app", "download", "Get the app"], ...(dash ? [dash] : [])],
   ];
 };
