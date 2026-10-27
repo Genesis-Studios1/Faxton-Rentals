@@ -1,0 +1,12 @@
+{
+  "name": "faxton-rentals-functions",
+  "private": true,
+  "description": "Trusted server-side verification and recovery functions for Faxton Rentals",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "scripts": { "lint": "node --check index.js" },
+  "dependencies": {
+    "firebase-admin": "^13.0.2",
+    "firebase-functions": "^6.3.2"
+  }
+}
