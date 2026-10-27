@@ -1,0 +1,34 @@
+name: Verify application and security rules
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Set up Java for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Check release versions, modules, CSP and required files
+        run: npm run check
+      - name: Check JavaScript module syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in public/js/*.js; do
+            node --input-type=module --check < "$file"
+          done
+      - name: Run Firestore security-rule tests
+        run: npm run test:rules
