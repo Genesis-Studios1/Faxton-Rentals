@@ -9,6 +9,7 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+import * as KYC from "./verification.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -116,6 +117,7 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
     ${l.changeNote && /flag|reject/.test(s) ? section("Note sent to the owner", `<p class="ax-clamp" style="-webkit-line-clamp:6">${esc(l.changeNote)}</p>`) : ""}
     ${section("Description", l.desc ? `<p class="ax-clamp" data-clamp>${esc(l.desc)}</p>${l.desc.length > 220 ? `<button type="button" class="ax-link" data-more style="border:0;background:none;padding:4px 0;cursor:pointer">Show more</button>` : ""}` : `<span class="ax-muted">No description yet.</span>`)}
     ${section("Media", `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${(l.videos || []).length} video${(l.videos || []).length === 1 ? "" : "s"}</span>${btn("Photos and videos", { size: "sm", ic: "img", attrs: "data-media" })}</div>`)}
+    ${section("Ownership proof", l.ownershipProofPath ? `<div class="ax-stack"><p class="ax-sub">A private ownership or authority-to-list document was attached to this listing.</p><div>${btn("Open private proof", { size: "sm", ic: "file", attrs: "data-own-proof" })} ${l.ownershipVerified ? chipFor("verification", "verified") : chipFor("verification", "pending")}</div><p class="ax-sub">Open and inspect the document before approving this listing.</p></div>` : `<p class="ax-sub">No ownership proof was submitted.</p>`) }
     ${section("Owner", `<div class="ax-id" data-owner>${avatar(l.agent?.name, l.ownerUid || l.agent?.id, 36, l.agent?.photo || l.agent?.avatar)}<div><b>${esc(l.agent?.name || "Faxton")}</b><small data-ownersub>${l.ownerUid ? "Property owner account" : "Added by the Faxton team"}</small></div></div>${l.ownerUid ? `<div style="display:flex;gap:8px;margin-top:10px">${btn("Text", { size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}</div>` : ""}`)}
     ${section("History", timeline([{ title: "Submitted", meta: fmt.dateTime(l.createdAt) }, ...(s === "active" ? [{ title: "Live on Faxton", meta: "Approved" }] : []), ...(s === "flagged" ? [{ title: "Changes requested", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "rejected" ? [{ title: "Rejected", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "archived" ? [{ title: "Archived", tone: "mute" }] : [])]))}</div>`;
   const footer = viewOnly ? "" : s === "active" ? btn("Archive listing", { v: "outline", attrs: "data-do=archive" }) + (l.status === "active" ? btn("View live page", { v: "ghost", href: "#/home/" + encodeURIComponent(l.id) }) : "") : s === "archived" || s === "rejected" ? btn("Restore listing", { v: "primary", attrs: "data-do=restore" }) : btn("Approve listing", { v: "primary", attrs: "data-do=approve" }) + btn("Request changes", { attrs: "data-do=changes" }) + btn("Reject", { v: "danger", attrs: "data-do=reject" });
@@ -123,6 +125,7 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
     mount(el) {
       $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
       $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
+      $("[data-own-proof]", el)?.addEventListener("click", async () => { const opened = await KYC.openPrivateDocument(l.ownershipProofPath, "Ownership proof - " + l.title); if (opened) { l._ownershipProofReviewedAt = Date.now(); toast("Ownership proof opened. Check that it belongs to this property and authorises the listing."); } });
       $("[data-text]", el)?.addEventListener("click", () => data.safe("users").then((us) => { const u = us.find((x) => x.id === l.ownerUid); if (u) openChat(ctx, u); else toast("We couldn’t find that owner’s account.", { tone: "bad" }); }));
       $("[data-call]", el)?.addEventListener("click", () => CALLS.startCall(ctx, { to: l.ownerUid, toName: l.agent?.name || "Owner", kind: "voice", title: "Faxton team" }));
       el.querySelectorAll("[data-do]").forEach((b) => (b.onclick = () => listingAct(ctx, l, b.dataset.do, api, b)));
@@ -130,7 +133,16 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
 }
 async function listingAct(ctx, l, act, api, b) {
   try {
-    if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
+    if (act === "approve") {
+      if (l.ownerUid) {
+        if (!l.ownershipProofPath || l.ownershipProofPath !== "property-ownership/" + l.ownerUid + "/" + l.id + "/proof") return toast("This property has no valid ownership proof. Request the document before approval.", { tone: "bad" });
+        if (!l._ownershipProofReviewedAt || Date.now() - l._ownershipProofReviewedAt > 30 * 60 * 1000) return toast("Open and inspect the private ownership proof in Review before approving.", { tone: "bad" });
+        if (!(await confirm({ title: "Approve ownership evidence?", body: "Confirm that you reviewed this document and it supports ownership or authority to list this exact property. Only then can the listing be marked verified.", confirmLabel: "Approve evidence and listing", tone: "primary", icon: "shield-check" }))) return;
+      }
+      busy(b, true);
+      await write("listings", l, { status: "active", archived: false, ...(l.ownerUid ? { ownershipVerified: true } : {}) }, { msg: "Listing approved.", after: api.refresh });
+      notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` });
+    }
     else if (act === "restore") await write("listings", l, { status: "active", archived: false }, { msg: "Listing restored.", after: api.refresh });
     else if (act === "archive") await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
     else if (act === "changes" || act === "reject") {
@@ -243,6 +255,8 @@ const VF_CHECK = ["Name matches the account", "Registration or licence number pr
 export function verifications(ctx) {
   return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
+      const identityRows = await st.adminAll("identityVerifications");
+      const reviewedDocs = new Map();
       let tab = hq().q.tab || "waiting";
       const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
       const dels = () => us.filter((u) => u.deletion?.status === "pending");
@@ -253,10 +267,41 @@ export function verifications(ctx) {
         return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
           ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Registrar", esc(a?.registrar)], ["Role", esc(a?.position)], ["Opened", esc(a?.opened)], ["Registrar’s DOB", esc(dob(a?.dob))], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]])}
           ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${VF_CHECK.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
+      const identityPerson = (v) => us.find((x) => x.id === (v.uid || v.id)) || {};
+      const identityBy = (status) => identityRows.filter((v) => v.status === status).sort((a, b) => (b.submittedAt?.seconds || 0) - (a.submittedAt?.seconds || 0));
+      const identityCard = (v) => {
+        const u = identityPerson(v), uid = v.uid || v.id;
+        const reviewState = v.status === "approved" ? "Verified" : v.status === "rejected" ? "Needs changes" : "Under review";
+        const registry = v.professionalBody === "ESVARBON"
+          ? '<p class="ax-sub"><a href="https://portal.esvarbon.gov.ng/pages/verify" target="_blank" rel="noopener noreferrer">Open official ESVARBON register ↗</a></p>'
+          : v.professionalBody === "NIESV"
+            ? '<p class="ax-sub"><a href="https://portal.niesv.org.ng/View/MembershipVerification.aspx" target="_blank" rel="noopener noreferrer">Open official NIESV membership check ↗</a></p>' : "";
+        const fileBtn = (label, key) => v[key] ? btn(label, { size: "sm", ic: "file", attrs: 'data-ivfile="' + key + '" data-ivuid="' + esc(uid) + '"' }) : "";
+        return '<article class="ax-card ax-vc" data-identity-card="' + esc(uid) + '"><div class="ax-vc-h">' +
+          avatar(u.name || u.email || uid, uid, 40, u.photo) +
+          '<div><b>' + esc(u.name || "Account") + '</b><small>' + esc(u.email || "") + ' · ' + esc(v.role || u.role || "") + '</small></div>' +
+          chipFor("verification", v.status === "approved" ? "verified" : v.status) + '</div>' +
+          dl([["ID type", esc(v.identityType || "—")], ["Country", esc(v.country || "—")], ["Professional body", esc(v.professionalBody || "Not applicable")], ["Registration number", esc(v.professionalNumber || "—")], ["Submitted", fmt.dateTime(v.submittedAt)]]) + registry +
+          '<div class="ax-vc-f">' + fileBtn("Open ID", "identityPath") + fileBtn("Open address", "addressPath") + fileBtn("Open professional proof", "professionalPath") + '</div>' +
+          (v.status === "pending" ? '<div class="ax-vc-f">' +
+            btn("Approve identity", { v: "primary", ic: "check", attrs: 'data-ivdecision="approved" data-ivuid="' + esc(uid) + '"' }) +
+            btn("Reject / request changes", { v: "danger", attrs: 'data-ivdecision="rejected" data-ivuid="' + esc(uid) + '"' }) +
+            '</div><p class="ax-sub">Open and inspect the ID, address proof, and any claimed professional-registration evidence before approval.</p>' :
+            '<p class="ax-sub">' + esc(reviewState) + (v.reviewNote ? ' · ' + esc(v.reviewNote) : "") + '</p>') +
+          '</article>';
+      };
+      const identityMain = () => {
+        const pending = identityBy("pending"), decided = identityRows.filter((v) => ["approved", "rejected"].includes(v.status));
+        const rows = tab === "identity-decided" ? decided : pending;
+        return rows.length ? '<div class="ax-vgrid">' + rows.map(identityCard).join("") + '</div>' :
+          '<div class="ax-card">' + empty({ icon: "shield", title: tab === "identity-decided" ? "No identity decisions yet" : "No identity reviews waiting", hint: "Government ID and proof-of-address submissions appear here after upload." }) + '</div>';
+      };
       const html = () => {
         const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
-        const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
-        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
+        const ivPending = identityRows.filter((v) => v.status === "pending").length;
+        const ivDecided = identityRows.filter((v) => ["approved", "rejected"].includes(v.status)).length;
+        const tb = tabs([{ k: "waiting", label: "Agent / agency", count: w.length }, { k: "decided", label: "Role decisions", count: dn.length }, { k: "identity", label: "Identity documents", count: ivPending }, { k: "identity-decided", label: "Identity history", count: ivDecided }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
+        const main = tab === "identity" || tab === "identity-decided" ? identityMain() : tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
           : tab === "decided" ? (dn.length ? `<div class="ax-vgrid">${dn.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." })}</div>`)
           : `<div class="ax-card ax-tablecard">${dd.length ? `<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>${dd.map((u) => `<tr><td data-label="Person" data-role="title"><div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}</b><small>${esc(u.email || "")}</small></div></div></td><td data-label="Role">${esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter")}</td><td data-label="Requested">${ago(u.deletion.requestedAt)}</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">${btn("Approve deletion", { v: "danger", size: "sm", attrs: `data-del=approved data-id="${esc(u.id)}"` })}${btn("Keep account", { size: "sm", attrs: `data-del=denied data-id="${esc(u.id)}"` })}</div></td></tr>`).join("")}</tbody></table></div>` : empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })}</div>`;
         return `${tb}<div style="margin-top:16px" id="vfMain">${main}</div>`;
@@ -265,8 +310,31 @@ export function verifications(ctx) {
         const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
+          const ivf = e.target.closest("[data-ivfile]"), ivd = e.target.closest("[data-ivdecision]");
           const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
-          if (bv) {
+          if (ivf) {
+            const v = identityRows.find((x) => (x.uid || x.id) === ivf.dataset.ivuid), path = v && v[ivf.dataset.ivfile];
+            if (!v || !path) return toast("This submission has no file attached.", { tone: "bad" });
+            const ok = await KYC.openPrivateDocument(path, "Faxton private verification document");
+            if (ok) { const uid = v.uid || v.id, set = reviewedDocs.get(uid) || new Set(); set.add(ivf.dataset.ivfile); reviewedDocs.set(uid, set); toast("Document opened. Check it carefully before making a decision."); }
+            return;
+          } else if (ivd) {
+            const v = identityRows.find((x) => (x.uid || x.id) === ivd.dataset.ivuid), uid = v && (v.uid || v.id), approve = ivd.dataset.ivdecision === "approved";
+            if (!v || v.status !== "pending") return;
+            const seen = reviewedDocs.get(uid) || new Set();
+            const requiredFiles = ["identityPath", "addressPath"].concat(v.professionalPath ? ["professionalPath"] : []);
+            if (approve && requiredFiles.some((key) => !seen.has(key))) return toast("Open and review every submitted document before approving identity.", { tone: "bad" });
+            let note = "";
+            if (!approve) { note = await reason({ title: "Request changes to " + (identityPerson(v).name || "this identity submission"), presets: ["Document unclear", "Information does not match", "Professional details could not be confirmed"], confirmLabel: "Request changes", tone: "bad", helper: "This note is shown to the applicant." }); if (!note) return; }
+            busy(ivd, true);
+            try {
+              await KYC.reviewIdentityVerification(uid, approve ? "approved" : "rejected", note, ctx.S.user.uid);
+              v.status = approve ? "approved" : "rejected"; v.reviewNote = note;
+              await st.notify(uid, approve ? { kind: "verified", title: "Identity verification approved", body: "Your ID and address were reviewed. You can now submit property listings with separate ownership evidence." } : { kind: "info", title: "Identity documents need changes", body: note || "Please submit updated documents for review." }).catch(() => {});
+              changed(); toast(approve ? "Identity approved." : "Changes requested."); paint();
+            } catch (x) { busy(ivd, false); bad(x); }
+            return;
+          } else if (bv) {
             const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
             busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));

@@ -64,9 +64,9 @@ function shell(path, inner, o = {}) {
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
   support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
-  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
+  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"], ["/verification", "shield", "Identity check"]] },
+  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"], ["/verification", "shield", "Identity check"]] },
+  agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"], ["/verification", "shield", "Identity check"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
 // Admin console and staff portals: grouped sidebar, top bar, four-icon phone bar and More sheet (ax-shell.js, loaded for staff only).
@@ -581,7 +581,7 @@ async function refreshAuthState(u) {
     $$("[data-unread]").forEach((b) => { b.textContent = unreadTxt(n); b.hidden = !n; });
   });
 }
-onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
+onAuthStateChanged(auth, async (u) => { try { await LOCK.handleEmailRecoveryLink(u); await refreshAuthState(auth.currentUser || u); } catch (e) { console.error(e); } S.ready = true; render(); });
 // Opening or leaving a chat inside Messages swaps the thread in place (no new page, no new listeners); see views.js messages().
 addEventListener("hashchange", () => { if (AXS?.softNav() || S.msgNav?.(parse().path)) { S.nav++; return; } S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());

@@ -1,19 +1,99 @@
-// Faxton keeps pictures, audio and documents inside Firestore documents (as data), so the app does NOT use Firebase Storage.
-// The only exception is the optional app-installer upload in Admin > Installations, which needs Storage (and the paid Blaze plan).
-// Everything else is closed. If you never switch Storage on, this file does nothing.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function admin() {
-      let u = firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-      let o = firestore.get(/databases/(default)/documents/config/owner);
-      return request.auth != null && (u.data.role == 'admin' || o.data.uid == request.auth.uid);
+    function signedIn() { return request.auth != null; }
+    function userPath(uid) {
+      return /databases/(default)/documents/users/$(uid);
     }
-    // Installer files are public downloads (they contain no secrets). Only admins can upload or remove them.
+    function ownerPath() {
+      return /databases/(default)/documents/config/owner;
+    }
+    function identityPath(uid) {
+      return /databases/(default)/documents/identityVerifications/$(uid);
+    }
+    function isAdmin() {
+      return signedIn() && (
+        (firestore.exists(userPath(request.auth.uid)) && firestore.get(userPath(request.auth.uid)).data.role == 'admin')
+        || (firestore.exists(ownerPath()) && firestore.get(ownerPath()).data.uid == request.auth.uid)
+      );
+    }
+    function identityApproved(uid) {
+      return firestore.exists(identityPath(uid)) && firestore.get(identityPath(uid)).data.get('status', '') == 'approved';
+    }
+    function privateFileOk() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 8 * 1024 * 1024
+        && request.resource.contentType.matches('^(application/pdf|image/jpeg|image/png|image/webp);
+    }
+    function verificationMayUpload(uid) {
+      return !firestore.exists(identityPath(uid)) || firestore.get(identityPath(uid)).data.get('status', '') == 'rejected';
+    }
+
+    // Government IDs and address evidence are never public. No download tokens or public read access are granted.
+    match /verification-docs/{uid}/{kind} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin())
+        && kind in ['identity', 'address', 'professional'];
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && kind in ['identity', 'address', 'professional']
+        && verificationMayUpload(uid)
+        && privateFileOk();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid && verificationMayUpload(uid));
+    }
+
+    // One private proof per listing. The uploader must already have approved identity.
+    match /property-ownership/{uid}/{listingId}/proof {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && identityApproved(uid)
+        && privateFileOk();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid
+        && (!firestore.exists(/databases/(default)/documents/listings/$(listingId))
+          || firestore.get(/databases/(default)/documents/listings/$(listingId)).data.get('status', '') == 'pending'));
+    }
+
+    // Installer files are public downloads and contain no secrets; only admins can upload or remove them.
     match /installers/{version}/{file} {
       allow read: if true;
-      allow write: if admin() && request.resource.size < 600 * 1024 * 1024;
-      allow delete: if admin();
+      allow write: if isAdmin() && request.resource.size < 600 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}
+);
+    }
+    function verificationMayUpload(uid) {
+      return !firestore.exists(identityPath(uid)) || firestore.get(identityPath(uid)).data.get('status', '') == 'rejected';
+    }
+
+    // Government IDs and address evidence are never public. No download tokens or public read access are granted.
+    match /verification-docs/{uid}/{kind} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin())
+        && kind in ['identity', 'address', 'professional'];
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && kind in ['identity', 'address', 'professional']
+        && verificationMayUpload(uid)
+        && privateFileOk();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid && verificationMayUpload(uid));
+    }
+
+    // One private proof per listing. The uploader must already have approved identity.
+    match /property-ownership/{uid}/{listingId}/proof {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && identityApproved(uid)
+        && privateFileOk();
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid
+        && (!firestore.exists(/databases/(default)/documents/listings/$(listingId))
+          || firestore.get(/databases/(default)/documents/listings/$(listingId)).data.get('status', '') == 'pending'));
+    }
+
+    // Installer files are public downloads and contain no secrets; only admins can upload or remove them.
+    match /installers/{version}/{file} {
+      allow read: if true;
+      allow write: if isAdmin() && request.resource.size < 600 * 1024 * 1024;
+      allow delete: if isAdmin();
     }
     match /{allPaths=**} { allow read, write: if false; }
   }

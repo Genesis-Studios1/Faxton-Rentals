@@ -1,6 +1,7 @@
 // App lock: open the app with a fingerprint, face or the phone's screen lock.
 // Android and iPhone apps use the system biometric prompt (Capacitor plugin). On the web the browser's platform authenticator (WebAuthn) is used.
 import { $, esc, icon, toast, logoMark } from "./ui.js";
+import { auth, sendSignInLinkToEmail, isSignInWithEmailLink, EmailAuthProvider, reauthenticateWithCredential, linkWithCredential } from "./firebase.js";
 
 const KEY = (uid) => "applock_" + uid;
 // When the lock asks again: "open" = every time you come back to the app, "after" = once you have been away for a chosen time, "session" = once per launch (until the app is closed and opened again).
@@ -44,19 +45,87 @@ export async function enable(user) {
 }
 export const disable = (uid) => write(uid, null);
 
+// Complete email-link recovery only in the browser that requested it. This re-authenticates
+// or links the existing account; it does not sign in an arbitrary account from a forwarded link.
+export async function handleEmailRecoveryLink(user) {
+  if (!isSignInWithEmailLink(auth, window.location.href)) return false;
+  let email = "", expectedUid = "";
+  try { email = localStorage.getItem("fx_lock_email") || ""; expectedUid = localStorage.getItem("fx_lock_email_uid") || ""; } catch {}
+  if (!user || !email || !expectedUid || user.uid !== expectedUid || String(user.email || "").toLowerCase() !== email.toLowerCase()) {
+    toast("For security, open the email link in the same browser where you requested it. Return to the locked app and request a new link if needed.", { tone: "bad" });
+    return false;
+  }
+  const credential = EmailAuthProvider.credentialWithLink(email, window.location.href);
+  try {
+    try {
+      await reauthenticateWithCredential(user, credential);
+    } catch (error) {
+      // Existing password/Google accounts can add email-link sign-in after proving control of the same address.
+      if (error?.code === "auth/provider-already-linked") throw error;
+      await linkWithCredential(user, credential);
+    }
+    try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {}
+    recoveryUnlockUid = user.uid;
+    try { localStorage.removeItem("fx_lock_email"); localStorage.removeItem("fx_lock_email_uid"); } catch {}
+    history.replaceState(history.state, document.title, window.location.origin + window.location.pathname);
+    document.documentElement.classList.remove("locked");
+    toast("Email verified. Faxton Rentals is unlocked.");
+    return true;
+  } catch (error) {
+    if (error?.code === "auth/provider-already-linked") {
+      try {
+        await reauthenticateWithCredential(user, credential);
+        try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {}
+    recoveryUnlockUid = user.uid;
+        try { localStorage.removeItem("fx_lock_email"); localStorage.removeItem("fx_lock_email_uid"); } catch {}
+        history.replaceState(history.state, document.title, window.location.origin + window.location.pathname);
+        document.documentElement.classList.remove("locked");
+        toast("Email verified. Faxton Rentals is unlocked.");
+        return true;
+      } catch (e) { error = e; }
+    }
+    console.error("App lock email recovery completion failed", error);
+    toast("This recovery link could not unlock the current account. Request a fresh link from the locked app or use your usual sign-in method.", { tone: "bad" });
+    return false;
+  }
+}
+
 // ---- the lock screen ----
-let armed = null, hiddenAt = 0, showing = false, unlockedAt = 0;
+let armed = null, hiddenAt = 0, showing = false, unlockedAt = 0, recoveryUnlockUid = null;
 function lockScreen(user, logout) {
   if (showing) return; showing = true;
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
   const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
   const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
-  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkEmail">Use email recovery link</button><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
   const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
   const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
-  $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  $("#lkGo", el).onclick = go;
+  $("#lkEmail", el).onclick = async () => {
+    const button = $("#lkEmail", el), err = $("#lkErr", el);
+    if (!user.email) { err.textContent = "This account has no email address. Sign out and use your configured sign-in method."; return; }
+    button.disabled = true; err.textContent = "Sending a secure recovery link…";
+    try {
+      const actionCodeSettings = { url: location.origin + location.pathname + "?fxLockEmail=1", handleCodeInApp: true };
+      await sendSignInLinkToEmail(auth, user.email, actionCodeSettings);
+      localStorage.setItem("fx_lock_email", user.email);
+      localStorage.setItem("fx_lock_email_uid", user.uid);
+      err.textContent = "Recovery link sent to " + user.email + ". Open it in this same browser to unlock Faxton Rentals.";
+      button.textContent = "Recovery link sent";
+    } catch (e) {
+      console.error("App lock email recovery request failed", e);
+      const code = e?.code || "";
+      err.textContent = code === "auth/operation-not-allowed"
+        ? "Email-link recovery is not enabled for this app yet. Use your device screen lock or sign in again."
+        : code === "auth/unauthorized-continue-uri" || code === "auth/unauthorized-domain"
+          ? "This app domain needs to be added to Firebase Authentication’s authorised domains before email recovery can be used."
+          : "We couldn’t send the recovery link. Please try again or sign out and use your usual sign-in method.";
+      button.disabled = false;
+    }
+  };
+  $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
   if (!waitSplash) return void setTimeout(go, 250);
   let freed = false;
   const free = () => { if (freed || !el.isConnected) return; freed = true; el.classList.remove("lk-wait"); setTimeout(go, 300); };
@@ -66,7 +135,7 @@ function lockScreen(user, logout) {
 // Call after sign-in: locks now (the app was just opened), then again as the chosen option says.
 export function arm(user, logout) {
   armed = enabled(user?.uid) ? { user, logout } : null;
-  if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
+  if (armed && recoveryUnlockUid === user.uid) recoveryUnlockUid = null; else if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
   if (!arm.wired) {
     arm.wired = true;
     document.addEventListener("visibilitychange", () => {
