@@ -287,7 +287,7 @@ async function uploadOwnershipProof(ctx, listing, done) {
     const docType = $("#ownerProofType", d.el)?.value || "other";
     error.textContent = "";
     if (!file) { error.textContent = "Choose the ownership document image."; return; }
-    if (!/^image\\//.test(file.type || "")) { error.textContent = "Please choose a JPG, PNG or WebP image."; return; }
+    if (!/^image\//.test(file.type || "")) { error.textContent = "Please choose a JPG, PNG or WebP image."; return; }
     busy(submit, true);
     try {
       const dataUrl = await shrinkImage(file, { max: 1600, bytes: 520000 });
