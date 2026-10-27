@@ -78,7 +78,7 @@ export function imgFallback(root) { if (root.__fb) return; root.__fb = 1; root.a
 const photoImg = (src, cls = "") => `<img${cls ? ` class="${cls}"` : ""} src="${esc(src)}" alt="" decoding="async" referrerpolicy="no-referrer">`;
 
 // ---------- the call window ----------
-let active = null;
+let active = null, startingCall = false;
 // Phones and tablets can't share a screen with sound (and most can't share one at all).
 const isPhone = () => /Android|iPhone|iPod|iPad|Mobi|FaxtonApp\/mobile/i.test(navigator.userAgent || "") || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.platform || ""));
 const SHARE_TIP = "Share screen (with audio when your browser offers it)";
@@ -159,8 +159,15 @@ function run({ id, me, role, kind, other, offer }) {
     const wave = el("clWave"), bars = [...wave.children]; wave.classList.add("live");
     try {
       const ac = audio(), src = ac.createMediaStreamSource(remote), an = ac.createAnalyser(); an.fftSize = 128; src.connect(an);
-      const data = new Uint8Array(an.frequencyBinCount); let raf = 0;
-      const tick = () => { an.getByteFrequencyData(data); const mid = bars.length >> 1; bars.forEach((b, i) => { const d = Math.abs(i - mid), v = data[Math.min(data.length - 1, 2 + d * 2)] / 255; b.style.transform = `scaleY(${(0.1 + v * 0.9 * (1 - d / (mid + 4))).toFixed(2)})`; }); raf = requestAnimationFrame(tick); };
+      const data = new Uint8Array(an.frequencyBinCount); let raf = 0, lastPaint = 0;
+      const tick = (now = 0) => {
+        if (now - lastPaint >= 50) {
+          an.getByteFrequencyData(data); const mid = bars.length >> 1;
+          bars.forEach((b, i) => { const d = Math.abs(i - mid), v = data[Math.min(data.length - 1, 2 + d * 2)] / 255; b.style.transform = `scaleY(${(0.1 + v * 0.9 * (1 - d / (mid + 4))).toFixed(2)})`; });
+          lastPaint = now;
+        }
+        raf = requestAnimationFrame(tick);
+      };
       tick(); waveStop = () => { cancelAnimationFrame(raf); try { src.disconnect(); } catch {} };
     } catch { wave.classList.add("anim"); }
   };
@@ -296,17 +303,22 @@ const ROLE = { renter: "Tenant", landlord: "Property owner", agency: "Agency", a
 export async function startCall(ctx, { convId, to, toName, toPhoto = "", kind = "voice", title = "", image = "", area = "" }) {
   const u = ctx.S.user; if (!u) return;
   if (!navigator.mediaDevices?.getUserMedia || !window.RTCPeerConnection) return toast("Calling isn’t supported on this device or browser.");
-  if (active) return toast("You’re already on a call.");
-  if (to && to !== "staff") {
-    if ((await getDoc(doc(db, "blocks", `${u.uid}_${to}`)).catch(() => null))?.exists()) return toast("You blocked this user. Unblock them to call.");
-    if ((await getDoc(doc(db, "blocks", `${to}_${u.uid}`)).catch(() => null))?.exists()) return toast("You can’t call this user.");
-  }
-  audio(); await ensureIce(); // the call button counts as a tap, so the ringing sound may play
+  if (active || startingCall) return toast("You’re already on a call or one is starting.");
+  startingCall = true;
   try {
+    if (to && to !== "staff") {
+      if ((await getDoc(doc(db, "blocks", `${u.uid}_${to}`)).catch(() => null))?.exists()) return toast("You blocked this user. Unblock them to call.");
+      if ((await getDoc(doc(db, "blocks", `${to}_${u.uid}`)).catch(() => null))?.exists()) return toast("You can’t call this user.");
+    }
+    audio(); await ensureIce(); // the call button counts as a tap, so the ringing sound may play
     const peerPic = smallPhoto(toPhoto), myPic = smallPhoto(ctx.S.profile?.photo);
     const ref = await addDoc(collection(db, "calls"), { convId: convId || "", title, kind, status: "ringing", callerUid: u.uid, callerName: u.displayName || ctx.S.profile?.name || u.email, callerPhoto: myPic, calleePhoto: peerPic, callerRole: ROLE[ctx.S.isOwner ? "owner" : ctx.S.profile?.role || "renter"] || "Tenant", image, area, calleeUid: to, calleeName: toName || "Faxton team", members: to === "staff" ? [u.uid] : [u.uid, to], createdAt: serverTimestamp() });
-    run({ id: ref.id, me: u.uid, role: "caller", kind, other: { uid: to, name: toName || "Faxton team", photo: toPhoto } });
-  } catch (e) { toast(/permission/i.test(String(e?.code || e)) ? "You can’t place calls from this account." : "The call couldn’t be placed."); }
+    if (active) { await patchCall(ref.id, { status: "cancelled", endedAt: Date.now() }); return; }
+    const session = run({ id: ref.id, me: u.uid, role: "caller", kind, other: { uid: to, name: toName || "Faxton team", photo: toPhoto } });
+    if (!session) await patchCall(ref.id, { status: "cancelled", endedAt: Date.now() });
+  } catch (e) {
+    toast(/permission/i.test(String(e?.code || e)) ? "You can’t place calls from this account." : "The call couldn’t be placed.");
+  } finally { startingCall = false; }
 }
 
 // ---------- incoming calls ----------
@@ -338,6 +350,7 @@ export async function answerById(ctx, id, accept) {
   const c = { ...s.data(), id }; if (c.status !== "ringing" || !c.offer) return toast("That call has ended.");
   closeSystem(id);
   if (!accept) return patchCall(id, { status: "declined", endedAt: Date.now() });
+  if (active || startingCall) { toast("You’re already on a call."); return patchCall(id, { status: "declined", endedAt: Date.now() }); }
   run({ id, me: u.uid, role: "callee", kind: c.kind, other: { uid: c.callerUid, name: c.callerName, photo: c.callerPhoto || PHOTO[c.callerUid] || "" }, offer: c.offer });
 }
 let swHooked = false;
@@ -376,7 +389,7 @@ export function watchIncoming(ctx, staff) {
       box.classList.add("min"); patchCall(c.id, { delivered: true }); if (document.hidden || !document.hasFocus()) systemRing(c);
       $(".cl-x", box).onclick = () => box.classList.add("min"); $(".cl-mini", box).onclick = (e) => { if (!e.target.closest("button")) box.classList.remove("min"); };
       $$(".no", box).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); close(); patchCall(c.id, { status: "declined", endedAt: Date.now() }); }));
-      $$(".yes", box).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const cur = live.get(c.id) || c; close(); run({ id: c.id, me: u.uid, role: "callee", kind: c.kind, other: { uid: c.callerUid, name: c.callerName, photo: c.callerPhoto || PHOTO[c.callerUid] || "" }, offer: cur.offer || c.offer }); }));
+      $(".yes", box).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const cur = live.get(c.id) || c; close(); if (active || startingCall) { toast("You’re already on a call."); patchCall(c.id, { status: "declined", endedAt: Date.now() }); return; } run({ id: c.id, me: u.uid, role: "callee", kind: c.kind, other: { uid: c.callerUid, name: c.callerName, photo: c.callerPhoto || PHOTO[c.callerUid] || "" }, offer: cur.offer || c.offer }); }));
       $(".msg", box).onclick = () => { box.classList.add("min"); if (c.convId) location.hash = "#/messages/" + c.convId; };
       $(".mute", box).onclick = (e) => { ringOff(); e.currentTarget.querySelector("span").textContent = "Muted"; };
     }
