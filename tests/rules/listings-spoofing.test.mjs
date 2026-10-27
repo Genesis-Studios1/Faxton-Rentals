@@ -4,6 +4,7 @@ import { setDoc, doc, addDoc, collection, serverTimestamp, updateDoc, getDoc, ge
 const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
 await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" });
   for (const [u, r] of [["own","renter"],["adm","admin"],["ren","renter"],["lord","landlord"],["oth","landlord"]]) await setDoc(doc(d, "users/" + u), { role: r });
+  await setDoc(doc(d, "identityVerifications/lord"), { uid: "lord", role: "landlord", status: "approved" });
   await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x", price: 3000000 });
   await setDoc(doc(d, "listings/l2"), { status: "active", title: "platform home", price: 2000000 });
   await setDoc(doc(d, "listings/l3"), { status: "pending", ownerUid: "lord", title: "draft" }); });
@@ -42,6 +43,6 @@ await t("renter cannot read users/lord", getDoc(doc(ren, "users/lord")), false);
 await t("renter cannot make themselves admin", updateDoc(doc(ren, "users/ren"), { role: "admin" }), false);
 await t("renter cannot set verified", updateDoc(doc(ren, "users/ren"), { verified: true }), false);
 await t("renter cannot create a listing", setDoc(doc(ren, "listings/new1"), { status: "pending", ownerUid: "ren", title: "x" }), false);
-await t("landlord creates a pending listing", setDoc(doc(lord, "listings/new2"), { status: "pending", ownerUid: "lord", title: "x" }));
+await t("verified landlord creates a pending listing with ownership evidence", setDoc(doc(lord, "listings/new2"), { id: "new2", status: "pending", ownerUid: "lord", title: "x", ownershipProofPath: "property-ownership/lord/new2/proof", ownershipVerified: false }));
 await t("landlord cannot create an active listing", setDoc(doc(lord, "listings/new3"), { status: "active", ownerUid: "lord", title: "x" }), false);
 await env.cleanup(); process.exit(0);
