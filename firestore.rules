@@ -997,7 +997,7 @@ service cloud.firestore {
           && d.get('submittedAt', null) == request.time;
       }
       allow read: if isAdmin() || (signedIn() && resource.data.get('ownerUid', '') == request.auth.uid);
-      allow create: if signedIn() && request.resource.data.get('ownerUid', '') == request.auth.uid
+      allow create: if signedIn() && isVerified() && request.resource.data.get('ownerUid', '') == request.auth.uid
         && validOwnershipDoc(request.resource.data);
       allow update: if signedIn() && resource.data.get('ownerUid', '') == request.auth.uid
         && exists(/databases/$(database)/documents/listings/$(listingId))
@@ -1010,6 +1010,10 @@ service cloud.firestore {
 
     // OTP records are server-only. Clients can never read or mutate unlock codes directly.
     match /unlockCodes/{uid} {
+      allow read, write: if false;
+    }
+
+    match /unlockCodeState/{uid} {
       allow read, write: if false;
     }
 
