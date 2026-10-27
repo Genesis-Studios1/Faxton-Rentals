@@ -107,6 +107,21 @@ In the Firebase console (project **faxton-rentals**):
 3. Build > Firestore Database > Create database (production mode).
 4. Build > Hosting > Get started.
 
+## Identity and ownership verification
+
+Landlords, agents and agencies must submit a government-issued ID and proof of address before they can post a property. Professional registrations are checked by a reviewer when applicable; the admin review screen links to the official ESVARBON practitioner register and NIESV membership checker. These are manual, reviewer-assisted checks, not a claim of a private registry API integration.
+
+Every user-submitted listing also needs ownership evidence or written authority to list it. The file is stored privately in Firebase Storage; the listing stores only the private object path and review status. Firestore and Storage rules limit access to the applicant and authorised admins, and block an owner from setting their own verification status. Never replace these paths with public download URLs or store ID scans in public profile fields.
+
+One-time setup:
+1. Ensure Firebase Storage is enabled for the `faxton-rentals` project and that your project plan supports the bucket. The existing `storage.rules` file must be deployed with the other rules.
+2. Configure bucket CORS once so the web app can preview private documents using authenticated byte reads (not public download tokens). With the Google Cloud CLI and Storage Admin permission, from this repository run:
+   `gcloud storage buckets update gs://faxton-rentals.firebasestorage.app --cors-file=storage.cors.json`
+   The CORS file allows only the app's two Firebase Hosting origins. Add a custom domain explicitly if one is introduced.
+3. In Firebase Console → Authentication → Sign-in method, enable **Email/Password** and **Email link (passwordless sign-in)**. Confirm `faxton-rentals.web.app` is an authorised domain. The app-lock recovery fallback is a one-time email link, not a 6-digit numeric code. SMS MFA codes require Firebase Authentication with Identity Platform, SMS MFA enabled and a phone factor enrolled; the client does not fake this flow.
+
+Test with a non-admin landlord account first, then verify in an admin account that the files open privately, a rejection allows resubmission, and a listing cannot be activated without its ownership proof being reviewed.
+
 ## Deploy from GitHub (no local tools)
 
 1. Firebase console > Project settings > Service accounts > **Generate new private key** (a `.json` file; treat it like a password).
