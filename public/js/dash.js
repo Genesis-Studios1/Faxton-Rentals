@@ -9,6 +9,7 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { listingState, isPendingL, roleOf, emailPending } from "./admin2.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+import * as KYC from "./verification.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, csv, pageView, pageHead, kpi, mini, attn, spark, areaChart, barChart, donut, rank, progress, pctDelta, mountCharts, animateCounts, bulkRun, ms, staffFlags } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -366,15 +367,18 @@ export async function ownerPage(ctx, kind, sub = "") {
   if (!allowed(ctx, kind)) return denied(ctx);
   const TITLE = { landlord: "Dashboard", agency: "Dashboard", agent: { leads: "Leads", clients: "Clients", viewings: "Viewings", listings: "Listings", "": "Overview" }[sub] || "Overview" }[kind] || "Dashboard";
   const eyebrow = { landlord: "Owner portal", agency: "Agency portal", agent: "Agent portal" }[kind], u = ctx.S.user.uid, prof = ctx.S.profile || {};
-  const needsV = kind !== "landlord" && !prof.verified, name = AX.first(prof.name || ctx.S.user.displayName);
+  const identity = await KYC.getIdentityVerification(u);
+  const identityPending = identity?.status !== "approved";
+  const professionalPending = kind !== "landlord" && !prof.verified;
+  const needsV = identityPending || professionalPending, name = AX.first(prof.name || ctx.S.user.displayName);
   const subt = { landlord: "Here’s what’s happening with your properties.", agency: "Here’s your team’s performance and business overview.", agent: "Your listings, leads and viewings at a glance." }[kind];
-  const addBtn = btn("Add property", { v: "primary", ic: "plus", attrs: `id="addp" ${needsV ? 'aria-disabled="true" title="Available once your account is verified"' : ""}` });
+  const addBtn = btn(identityPending ? "Complete identity check" : professionalPending ? "Verification in progress" : "Add property", { v: "primary", ic: identityPending ? "shield" : "plus", attrs: 'id="addp"' });
   const v = pageView(ctx, { title: kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
     cols: [["ls", () => data.safe("listings", { uid: u })], ["apps", () => data.safe("applications", { uid: u })], ["views", () => data.safe("viewings", { uid: u })], ["offers", () => data.safe("offers", { uid: u })], ["maint", () => data.safe("maintenance", { uid: u })]],
     async render({ ls, apps, views, offers, maint }, { root }) {
       const r = kind === "agent" ? agentDash(ctx, { ls, apps, views, offers }, sub) : portfolio(ctx, { ls, apps, views, offers, maint }, kind);
       return { html: r.html, mount(el) {
-        r.mount?.(el); const open = () => (needsV ? toast("Your account is still being verified. You’ll be able to list properties as soon as it’s done.") : addProperty(ctx, () => ctx.render()));
+        r.mount?.(el); const open = () => { if (identityPending) return ctx.go("#/verification"); if (professionalPending) return toast("Your agent or agency review is still pending. You can post properties after the review is approved."); return addProperty(ctx, () => ctx.render()); };
         $("#addp", root).onclick = open; el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = open));
         if (hq().q.new) { setQ({ new: "" }); open(); }
       } };
