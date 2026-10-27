@@ -302,7 +302,7 @@ export function addProperty(ctx, done) {
 }
 
 // ---------- shared pieces for the portals ----------
-const verifyBanner = (ctx, needs, vst, agency) => (needs ? `<div class="ax-banner" data-t="${vst === "rejected" ? "bad" : "warn"}" data-t2="verify" data-tour="verify">${I(vst === "rejected" ? "info" : "clock", 20)}<div><b>${vst === "rejected" ? "We couldn’t verify your account" : "Your account is being verified"}</b><p>${vst === "rejected" ? esc(ctx.S.profile?.verification?.reason || "Please contact support for details.") : `This usually takes about ${agency ? "3 to 5 minutes" : "10 minutes"}. We’ll notify you the moment you’re verified, and then you can start listing properties.`}</p></div></div>` : "");
+const verifyBanner = (ctx, needs, vst, agency) => (needs ? `<div class="ax-banner" data-t="${vst === "rejected" ? "bad" : "warn"}" data-t2="verify" data-tour="verify">${I(vst === "rejected" ? "info" : "clock", 20)}<div><b>${vst === "rejected" ? "We couldn’t verify your account" : "Identity verification required"}</b><p>${vst === "rejected" ? esc(ctx.S.profile?.verification?.reason || "Please update your documents.") : "Submit your government ID and proof of address before posting properties. The Faxton team reviews all documents manually."}</p><a class="ax-link" href="#/verification">Open identity & property verification →</a></div></div>` : "");
 function locHandler(ctx, ls, root) { $$("[data-loc]", root).forEach((b) => (b.onclick = async () => { const l = ls.find((x) => x.id === b.dataset.loc); const r = await pickLocation({ lat: l.hasPin ? l.lat : undefined, lng: l.hasPin ? l.lng : undefined, title: `Location of ${l.title}` }); if (!r) return; try { await st.patch("listings", l.id, { lat: r.lat, lng: r.lng, hasPin: true }); Object.assign(l, { lat: r.lat, lng: r.lng, hasPin: true }); toast("Location saved. It now shows on the map."); b.querySelector("span").textContent = "Edit location"; } catch (e) { bad(e); } })); }
 const VSTAT = ["Requested", "Confirmed", "Completed", "Cancelled"];
 function viewReqTable(rows, empty0) {
@@ -316,7 +316,7 @@ function wireViews(root, vws, rerender) {
 
 // ---------- property owner and agency dashboard ----------
 function portfolio(ctx, { ls, apps, views, offers, maint }, kind) {
-  const agency = kind === "agency", prof = ctx.S.profile || {}, needsV = agency && !prof.verified, vst = prof.verification?.status || "pending", bs = buckets("365"), L = bs.length - 1;
+  const agency = kind === "agency", prof = ctx.S.profile || {}, needsV = !(prof.verified === true && prof.verification?.status === "verified"), vst = prof.verification?.status || "pending", bs = buckets("365"), L = bs.length - 1;
   const live = ls.filter(isActive), pend = ls.filter(isPendingL), tenants = apps.filter(approved), occupied = new Set([...tenants.map((a) => a.listingId), ...ls.filter((l) => l.available === false).map((l) => l.id)]);
   const occ = ls.length ? Math.round((occupied.size / ls.length) * 100) : 0, roll = ls.filter((l) => occupied.has(l.id)).reduce((s, l) => s + (+l.price || 0), 0), enq = [...apps, ...views], perL = (id) => enq.filter((x) => x.listingId === id).length;
   const bm = buckets("90"), eS = per(enq, bm), pv = views.filter((v) => v.status === "Requested"), open = offers.filter((o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status) && o.turn === "owner");
@@ -336,7 +336,7 @@ function portfolio(ctx, { ls, apps, views, offers, maint }, kind) {
 const leadsOf = (apps, views) => [...views.map((v) => ({ id: v.id, kind: "viewing", name: v.name || "Prospect", email: "", prop: v.title, listingId: v.listingId, src: "Viewing request", stage: v.status === "Confirmed" ? "Viewing scheduled" : v.status === "Completed" ? "Viewed" : /cancel/i.test(v.status || "") ? "Declined" : "New lead", createdAt: v.createdAt })), ...apps.map((a) => ({ id: a.id, kind: "application", name: a.name || "Applicant", email: a.email, prop: a.title, listingId: a.listingId, src: "Application", stage: approved(a) ? "Closed" : /reject|cancel|declin/i.test(a.status || "") ? "Declined" : "Application", createdAt: a.createdAt }))].sort((x, y) => ms(y.createdAt) - ms(x.createdAt));
 const todayKey = () => new Date().toISOString().slice(0, 10);
 function agentDash(ctx, { ls, apps, views, offers }, sub) {
-  const prof = ctx.S.profile || {}, needsV = !prof.verified, vst = prof.verification?.status || "pending", leads = leadsOf(apps, views), live = ls.filter(isActive), closed = apps.filter(approved), booked = views.filter((v) => /confirmed|completed/i.test(v.status || ""));
+  const prof = ctx.S.profile || {}, needsV = !(prof.verified === true && prof.verification?.status === "verified"), vst = prof.verification?.status || "pending", leads = leadsOf(apps, views), live = ls.filter(isActive), closed = apps.filter(approved), booked = views.filter((v) => /confirmed|completed/i.test(v.status || ""));
   const bm = buckets("365"), conv = leads.length ? Math.round((closed.length / leads.length) * 1000) / 10 : 0, perL = (id) => ({ e: [...apps, ...views].filter((x) => x.listingId === id).length, v: views.filter((x) => x.listingId === id).length });
   const stages = ["New lead", "Viewing scheduled", "Application", "Closed", "Declined"], cnt = (s) => leads.filter((x) => x.stage === s || (s === "Viewing scheduled" && x.stage === "Viewed")).length;
   const leadRow = (x) => `<tr><td data-role="title" data-label="Name"><div class="ax-id">${avatar(x.name, x.id, 28)}<div><b>${esc(x.name)}</b><small>${esc(x.email || "")}</small></div></div></td><td data-label="Property interest">${esc(x.prop || "—")}</td><td data-label="Source" data-priority="2">${esc(x.src)}</td><td data-role="status" data-label="Stage">${chipFor("lead", x.stage)}</td><td data-label="Last contact" data-priority="2">${fmt.rel(x.createdAt)}</td></tr>`;
@@ -374,7 +374,7 @@ export async function ownerPage(ctx, kind, sub = "") {
     async render({ ls, apps, views, offers, maint }, { root }) {
       const r = kind === "agent" ? agentDash(ctx, { ls, apps, views, offers }, sub) : portfolio(ctx, { ls, apps, views, offers, maint }, kind);
       return { html: r.html, mount(el) {
-        r.mount?.(el); const open = () => (needsV ? toast("Your account is still being verified. You’ll be able to list properties as soon as it’s done.") : addProperty(ctx, () => ctx.render()));
+        r.mount?.(el); const open = () => (needsV ? (ctx.go("#/verification"), toast("Submit identity and address documents before posting a property.")) : addProperty(ctx, () => ctx.render()));
         $("#addp", root).onclick = open; el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = open));
         if (hq().q.new) { setQ({ new: "" }); open(); }
       } };
