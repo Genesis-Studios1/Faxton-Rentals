@@ -252,8 +252,20 @@ service cloud.firestore {
       // Owners cannot mark a listing or its evidence verified. Only admins can approve/modify verification metadata.
       allow update: if isAdmin() || (ownsListing()
         && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.get('ownershipVerification', null) == resource.data.get('ownershipVerification', null)
+        && (
+          (request.resource.data.status == resource.data.status
+            && request.resource.data.get('ownershipVerification', null) == resource.data.get('ownershipVerification', null))
+          ||
+          (request.resource.data.status == 'pending'
+            && resource.data.get('status', '') in ['active', 'pending', 'flagged', 'rejected']
+            && resource.data.get('ownershipVerification', {}).get('status', '') != 'verified'
+            && request.resource.data.get('ownershipVerification', {}).get('status', '') == 'pending'
+            && request.resource.data.get('ownershipVerification', {}).keys().hasOnly(['status', 'docType', 'requestedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'ownershipVerification'])
+            && exists(/databases/$(database)/documents/listingVerificationDocuments/$(id))
+            && get(/databases/$(database)/documents/listingVerificationDocuments/$(id)).data.get('ownerUid', '') == request.auth.uid
+            && get(/databases/$(database)/documents/listingVerificationDocuments/$(id)).data.get('listingId', '') == id)
+        )
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
@@ -989,7 +1001,7 @@ service cloud.firestore {
         && validOwnershipDoc(request.resource.data);
       allow update: if signedIn() && resource.data.get('ownerUid', '') == request.auth.uid
         && exists(/databases/$(database)/documents/listings/$(listingId))
-        && get(/databases/$(database)/documents/listings/$(listingId)).data.get('status', '') != 'active'
+        && get(/databases/$(database)/documents/listings/$(listingId)).data.get('ownershipVerification', {}).get('status', '') != 'verified'
         && request.resource.data.get('ownerUid', '') == resource.data.get('ownerUid', '')
         && request.resource.data.get('listingId', '') == listingId
         && validOwnershipDoc(request.resource.data);
