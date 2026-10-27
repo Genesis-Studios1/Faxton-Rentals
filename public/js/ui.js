@@ -166,4 +166,4 @@ export const friendlyErr = (e) => {
 
 
 
-export const BUILD = "2026-10-27.01";
+export const BUILD = "2026-10-27.02";
