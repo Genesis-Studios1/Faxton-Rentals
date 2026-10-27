@@ -581,7 +581,7 @@ async function refreshAuthState(u) {
     $$("[data-unread]").forEach((b) => { b.textContent = unreadTxt(n); b.hidden = !n; });
   });
 }
-onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
+onAuthStateChanged(auth, async (u) => { try { if (u) await LOCK.completeEmailFallback(u); await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
 // Opening or leaving a chat inside Messages swaps the thread in place (no new page, no new listeners); see views.js messages().
 addEventListener("hashchange", () => { if (AXS?.softNav() || S.msgNav?.(parse().path)) { S.nav++; return; } S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
