@@ -3,6 +3,7 @@ import { updateProfile } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { $, $$, esc, naira, short, icon, logo, logoMark, initials, toast, modal, friendlyErr, BUILD, verifiedBadge } from "./ui.js";
 import * as st from "./store.js";
 import * as PG from "./pages.js";
+import * as VFY from "./verification.js";
 import * as LEGAL from "./legal.js";
 import * as CALLS2 from "./calls.js";
 import { loadLeaflet, ctrlZoom, tiles } from "./maps.js";
@@ -74,6 +75,7 @@ export async function route(ctx) {
   if (path === "/applications") return PG.applicationsPage(ctx);
   if (path === "/rentals") return PG.rentalPage(ctx);
   if (path === "/documents") return PG.documentsPage(ctx);
+  if (path === "/verification") return VFY.verificationPage(ctx);
   if ((m = path.match(/^\/agent\/([^/]+)$/))) return PG.agentPage(ctx, decodeURIComponent(m[1]));
   if ((m = path.match(/^\/book\/([^/]+)$/))) return PG.bookPage(ctx, decodeURIComponent(m[1]));
   if ((m = path.match(/^\/apply\/([^/]+)$/))) return PG.applyPage(ctx, decodeURIComponent(m[1]));
