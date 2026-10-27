@@ -207,3 +207,40 @@ export const logStaffEvent = (user, p, type) => {
   return (type === "signup" ? setDoc(doc(db, "staffEvents", "signup_" + user.uid), d) : addDoc(collection(db, "staffEvents"), d)).catch(() => {});
 };
 export const watchStaffEvents = (cb) => onSnapshot(query(collection(db, "staffEvents"), orderBy("at", "desc"), limit(30)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })), s.docChanges().filter((c) => c.type === "added").map((c) => c.doc.id)), () => {});
+
+
+// ---- private KYC / property ownership evidence ----
+// Sensitive identity images live in restricted documents, never on public profiles or listing records.
+// Images are compressed by the UI before they reach Firestore so each evidence document stays below 1 MiB.
+export async function saveVerificationDocument(uid, type, payload) {
+  if (!uid || !["identity", "address", "professional"].includes(type)) throw new Error("Invalid verification document.");
+  return setDoc(doc(db, "users", uid, "verificationDocuments", type), {
+    type, label: payload.label || type, dataUrl: payload.dataUrl, mime: "image/jpeg",
+    fileName: String(payload.fileName || "document.jpg").slice(0, 160), submittedAt: serverTimestamp()
+  });
+}
+export async function getVerificationDocument(uid, type) {
+  if (!uid || !["identity", "address", "professional"].includes(type)) return null;
+  const snap = await getDoc(doc(db, "users", uid, "verificationDocuments", type));
+  return snap.exists() ? snap.data() : null;
+}
+export async function submitVerification(uid, verification) {
+  if (!uid) throw new Error("Please sign in again.");
+  return updateDoc(doc(db, "users", uid), { verification });
+}
+export async function saveListingVerificationDocument(listingId, ownerUid, payload) {
+  if (!listingId || !ownerUid || !payload?.dataUrl) throw new Error("Add a clear ownership document.");
+  return setDoc(doc(db, "listingVerificationDocuments", listingId), {
+    listingId, ownerUid, docType: String(payload.docType || "land-title").slice(0, 60),
+    dataUrl: payload.dataUrl, mime: "image/jpeg",
+    fileName: String(payload.fileName || "ownership-proof.jpg").slice(0, 160),
+    submittedAt: serverTimestamp()
+  });
+}
+export async function getListingVerificationDocument(listingId) {
+  if (!listingId) return null;
+  const snap = await getDoc(doc(db, "listingVerificationDocuments", listingId));
+  return snap.exists() ? snap.data() : null;
+}
+export const setOwnershipVerification = (listingId, ownershipVerification) =>
+  updateDoc(doc(db, "listings", listingId), { ownershipVerification });
