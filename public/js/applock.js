@@ -1,6 +1,10 @@
 // App lock: open the app with a fingerprint, face or the phone's screen lock.
 // Android and iPhone apps use the system biometric prompt (Capacitor plugin). On the web the browser's platform authenticator (WebAuthn) is used.
 import { $, esc, icon, toast, logoMark } from "./ui.js";
+import {
+  auth, google, sendSignInLinkToEmail, isSignInWithEmailLink, EmailAuthProvider,
+  reauthenticateWithCredential, reauthenticateWithPhoneNumber, reauthenticateWithPopup, RecaptchaVerifier
+} from "./firebase.js";
 
 const KEY = (uid) => "applock_" + uid;
 // When the lock asks again: "open" = every time you come back to the app, "after" = once you have been away for a chosen time, "session" = once per launch (until the app is closed and opened again).
@@ -9,6 +13,34 @@ export const AFTER_CHOICES = [[30, "30 seconds"], [60, "1 minute"], [120, "2 min
 export const settings = (uid) => { const v = read(uid) || {}; return { mode: MODES[v.mode] ? v.mode : "after", secs: AFTER_CHOICES.some((c) => c[0] === v.secs) ? v.secs : 30 }; };
 const setSettings = (uid, patch) => { const v = read(uid); if (v) write(uid, { ...v, ...patch }); };
 const SKEY = (uid) => "applock_s_" + uid;
+const EKEY = (uid) => "applock_email_link_" + uid;
+const RECOVERY_KEY = (uid) => "applock_recovered_" + uid;
+const canSmsFallback = (user) => !!user?.phoneNumber && user.providerData?.some((p) => p.providerId === "phone");
+const canGoogleFallback = (user) => !!user?.providerData?.some((p) => p.providerId === "google.com");
+const maskedEmail = (email = "") => { const [name, host] = String(email).split("@"); return host ? (name.length < 3 ? name[0] + "••" : name.slice(0, 2) + "•••") + "@" + host : "your email"; };
+const maskedPhone = (phone = "") => { const s = String(phone).replace(/\s/g, ""); return s.length < 6 ? "your linked phone" : s.slice(0, 3) + " ••• ••" + s.slice(-2); };
+
+// Complete an email-link reauthentication only for the same account and browser that requested it.
+export async function completeEmailFallback(user) {
+  const link = window.location.href;
+  if (!isSignInWithEmailLink(auth, link)) return false;
+  const cleanUrl = () => { try { history.replaceState(null, "", location.origin + location.pathname + location.hash); } catch {} };
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem(EKEY(user?.uid)) || "null"); } catch {}
+  if (!user || !pending || pending.uid !== user.uid || pending.email !== user.email) { cleanUrl(); return false; }
+  try {
+    const credential = EmailAuthProvider.credentialWithLink(pending.email, link);
+    await reauthenticateWithCredential(user, credential);
+    try { sessionStorage.setItem(RECOVERY_KEY(user.uid), "1"); } catch {}
+    try { localStorage.removeItem(EKEY(user.uid)); } catch {}
+    cleanUrl();
+    return true;
+  } catch {
+    try { localStorage.removeItem(EKEY(user.uid)); sessionStorage.setItem("applock_recovery_error_" + user.uid, "The email link could not verify this session. Use another method or sign in again."); } catch {}
+    cleanUrl();
+    return false;
+  }
+}
 const unlockedThisLaunch = (uid) => { try { return sessionStorage.getItem(SKEY(uid)) === "1"; } catch { return false; } };
 const isApp = () => /FaxtonApp\/mobile/.test(navigator.userAgent) && !!window.Capacitor?.registerPlugin;
 let native = null;
@@ -51,12 +83,64 @@ function lockScreen(user, logout) {
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
   const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
   const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
-  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  const emailHtml = user.email ? `<button type="button" class="lk-alt" id="lkEmail">${icon("mail", 17)} Email me a secure link <small>${esc(maskedEmail(user.email))}</small></button>` : "";
+  const smsHtml = canSmsFallback(user) ? `<button type="button" class="lk-alt" id="lkSms">${icon("phone", 17)} Text me a verification code <small>${esc(maskedPhone(user.phoneNumber))}</small></button><div class="lk-captcha" id="lkRecaptcha"></div><form class="lk-code-form" id="lkSmsForm" hidden><label for="lkCode">6-digit SMS code</label><div class="lk-code-row"><input id="lkCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-label="6-digit SMS code" placeholder="000000" required><button type="submit" class="btn primary" id="lkCodeGo">Verify</button></div></form>` : "";
+  const googleHtml = canGoogleFallback(user) ? `<button type="button" class="lk-alt" id="lkGoogle">${icon("user", 17)} Continue with Google</button>` : "";
+  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><div class="lk-recovery"><span class="lk-recovery-label">Having trouble?</span>${emailHtml}${smsHtml}${googleHtml}</div><p class="lk-err" id="lkErr" role="alert">${esc((() => { try { const v = sessionStorage.getItem("applock_recovery_error_" + user.uid) || ""; sessionStorage.removeItem("applock_recovery_error_" + user.uid); return v; } catch { return ""; } })())}</p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
-  const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
-  const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
-  $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  let smsVerifier = null, smsConfirmation = null;
+  const say = (message) => { const err = $("#lkErr", el); if (err) err.textContent = message || ""; };
+  const done = () => {
+    try { smsVerifier?.clear(); } catch {}
+    el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0;
+    try { sessionStorage.setItem(SKEY(user.uid), "1"); sessionStorage.removeItem("applock_recovery_error_" + user.uid); } catch {}
+    document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open"));
+  };
+  const go = async () => { say(""); try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") say(e.message); } };
+  $("#lkGo", el).onclick = go;
+  $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  const emailButton = $("#lkEmail", el);
+  if (emailButton) emailButton.onclick = async () => {
+    emailButton.disabled = true; say("");
+    try {
+      await sendSignInLinkToEmail(auth, user.email, { url: location.origin + location.pathname, handleCodeInApp: true });
+      try { localStorage.setItem(EKEY(user.uid), JSON.stringify({ uid: user.uid, email: user.email, at: Date.now() })); } catch {}
+      say("Secure link sent. Open it on this same device and browser to finish unlocking. Check spam too.");
+    } catch (e) {
+      say(e?.code === "auth/operation-not-allowed" ? "Email-link sign-in is not enabled for this app yet. Use another option or sign in again." : "We could not send the email link. Check your connection and try again.");
+    } finally { emailButton.disabled = false; }
+  };
+  const googleButton = $("#lkGoogle", el);
+  if (googleButton) googleButton.onclick = async () => {
+    googleButton.disabled = true; say("");
+    try { await reauthenticateWithPopup(user, google); done(); }
+    catch (e) { say(/cancel|closed/i.test(String(e?.code || e?.message)) ? "Google verification was cancelled." : "Google verification did not finish. Try again or sign in again."); }
+    finally { googleButton.disabled = false; }
+  };
+  const smsButton = $("#lkSms", el), smsForm = $("#lkSmsForm", el);
+  if (smsButton && smsForm) smsButton.onclick = async () => {
+    smsButton.disabled = true; say("");
+    try {
+      if (!smsVerifier) smsVerifier = new RecaptchaVerifier(auth, $("#lkRecaptcha", el), { size: "invisible" });
+      smsConfirmation = await reauthenticateWithPhoneNumber(user, user.phoneNumber, smsVerifier);
+      smsForm.hidden = false; $("#lkCode", el)?.focus();
+      say("Code sent by SMS. Enter the six digits to verify this account. Message and data rates may apply.");
+    } catch (e) {
+      try { smsVerifier?.clear(); } catch {}
+      smsVerifier = null; smsConfirmation = null;
+      say(e?.code === "auth/operation-not-allowed" ? "SMS verification is not enabled for this Firebase project yet." : e?.code === "auth/too-many-requests" ? "Too many SMS attempts. Wait a little before trying again." : "We could not send the code. Check your connection and try again.");
+    } finally { smsButton.disabled = false; }
+  };
+  if (smsForm) smsForm.onsubmit = async (event) => {
+    event.preventDefault();
+    const codeInput = $("#lkCode", el), codeButton = $("#lkCodeGo", el), code = (codeInput?.value || "").trim();
+    if (!smsConfirmation || !/^\d{6}$/.test(code)) { say("Enter the six-digit code from the text message."); codeInput?.focus(); return; }
+    if (codeButton) codeButton.disabled = true; say("");
+    try { await smsConfirmation.confirm(code); done(); }
+    catch (e) { say(e?.code === "auth/invalid-verification-code" ? "That code does not match. Check the message and try again." : "We could not verify that code. Request another code or use another sign-in method."); }
+    finally { if (codeButton) codeButton.disabled = false; }
+  };
   if (!waitSplash) return void setTimeout(go, 250);
   let freed = false;
   const free = () => { if (freed || !el.isConnected) return; freed = true; el.classList.remove("lk-wait"); setTimeout(go, 300); };
@@ -66,7 +150,9 @@ function lockScreen(user, logout) {
 // Call after sign-in: locks now (the app was just opened), then again as the chosen option says.
 export function arm(user, logout) {
   armed = enabled(user?.uid) ? { user, logout } : null;
-  if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
+  let recovered = false;
+  try { recovered = sessionStorage.getItem(RECOVERY_KEY(user?.uid)) === "1"; sessionStorage.removeItem(RECOVERY_KEY(user?.uid)); } catch {}
+  if (armed && !recovered && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
   if (!arm.wired) {
     arm.wired = true;
     document.addEventListener("visibilitychange", () => {
