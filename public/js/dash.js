@@ -267,6 +267,12 @@ export async function mountRelayCard(host, ctx) {
 
 // ---------- add property (landlords, agencies and agents) ----------
 export function addProperty(ctx, done) {
+  const profile = ctx.S.profile || {};
+  if (!(profile.verified === true && profile.verification?.status === "verified" && profile.verification?.documents?.identity === true && profile.verification?.documents?.address === true)) {
+    toast("Complete identity verification before adding a property.");
+    ctx.go("#/verification");
+    return;
+  }
   let where = null;
   const amen = ["Parking", "Water supply", "Security", "Generator", "Solar / inverter", "Balcony", "Gym", "Pool", "Garden", "Wi-Fi"];
   const d = dialog({ title: "Add a property", size: "lg", icon: "home", body: `<p class="ax-p ax-muted">New listings are reviewed by the Faxton team before they go live.</p><form id="np" class="ax-form" novalidate>
@@ -283,6 +289,13 @@ export function addProperty(ctx, done) {
     <label class="ax-field full"><span>Description</span><textarea class="ax-input" name="desc" rows="3" maxlength="800"></textarea></label>
     <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px">${btn("Set location on map", { size: "sm", ic: "pin", attrs: "id=npLoc" })}<span class="ax-muted" id="npLocT">Not set yet</span></div></div>
     <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label><label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
+    <div class="ax-field full kyc-listing-upload"><span>Proof of ownership or authority to let <b class="kyc-required">Required</b></span>
+      <p class="ax-muted">Examples: land title/deed, a utility bill matching the address, tax receipt or letting/management mandate. Only the verification team can view this file.</p>
+      <select class="ax-input" id="npOwnType" aria-label="Ownership proof document type">
+        <option value="land-title">Land title / deed</option><option value="utility-bill">Utility bill showing the property address</option><option value="tax-receipt">Property tax receipt</option><option value="letting-mandate">Letting / management mandate</option><option value="other">Other ownership evidence</option>
+      </select>
+      <input class="ax-input" id="npOwnFile" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" aria-label="Upload property ownership evidence" required>
+    </div>
     <p class="ax-err full" id="npe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Submit for review", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea" }, cityId: "npCity" });
   $("#npLoc", d.el).onclick = async () => { const r = await pickLocation({ lat: where?.lat, lng: where?.lng }); if (r) { where = r; $("#npLocT", d.el).textContent = `Saved (${r.lat.toFixed(4)}, ${r.lng.toFixed(4)})`; } };
@@ -294,10 +307,15 @@ export function addProperty(ctx, done) {
     const im = ln(f.im), vd = ln(f.vd);
     if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const imgs = im.slice(0, 20); if (!imgs.length) imgs.push("img/palm-court.webp");
+    const ownershipFile = $("#npOwnFile", d.el).files?.[0], ownershipType = $("#npOwnType", d.el).value;
+    if (!ownershipFile) return (err.textContent = "Upload proof of ownership or permission to let this property.");
+    if (!/^image\//.test(ownershipFile.type || "")) return (err.textContent = "Please upload a JPG, PNG or WebP image for ownership proof.");
     const u = ctx.S.user, id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4); busy(e.currentTarget, true);
     try {
-      await st.createListing({ id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
-      data.invalidate("listings"); d.close(); toast("Property submitted for review."); done?.();
+      const ownershipData = await shrinkImage(ownershipFile, { max: 1600, bytes: 520000 });
+      await st.saveListingVerificationDocument(id, u.uid, { dataUrl: ownershipData, fileName: ownershipFile.name, docType: ownershipType });
+      await st.createListing({ id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", ownershipVerification: { status: "pending", docType: ownershipType, requestedAt: Date.now() }, service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
+      data.invalidate("listings"); d.close(); toast("Property and ownership evidence submitted for review."); done?.();
     } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
   };
 }
