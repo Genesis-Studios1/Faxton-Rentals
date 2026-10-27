@@ -239,7 +239,7 @@ export function userDrawer(ctx, u, api) {
 }
 // ---------- verifications ----------
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
-const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+const VF_CHECK = ["Government ID checked against the account", "Proof of address checked", "Professional / business registration checked where applicable"];
 export function verifications(ctx) {
   return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
