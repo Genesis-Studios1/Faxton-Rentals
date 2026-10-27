@@ -35,6 +35,7 @@ export function listingCard(l, saved, o = {}) {
     .filter(([ic, t]) => ic && t).map(([ic, t]) => `<li>${icon(ic, 16)}<span>${esc(t)}</span></li>`).join("");
   const owner = l.ownerUid || l.agent?.id || "";
   const known = l.agent?.verified === true || l.verified === true || l.agentVerified === true;
+  const ownershipChecked = l.ownershipVerified === true;
   return `<article class="lc ${size ? "lc--" + size : ""} ${open ? "" : "is-rented"}" style="--i:${Math.min(i, 9)}" data-open="${esc(l.id)}" data-owner="${esc(owner)}" data-n="${photos.length}">
     <div class="lc-media">${media}
       <span class="lc-tag ${open ? "" : "off"}"><i></i>${open ? "Available" : "Rented"}</span>
@@ -44,7 +45,7 @@ export function listingCard(l, saved, o = {}) {
       <h3 class="lc-title"><a href="#/home/${esc(l.id)}">${esc(l.title || "Untitled home")}</a></h3>
       <p class="lc-loc">${icon("pin", 15)}<span>${esc(placeOf(l))}</span></p>
       <div class="lc-price num">${esc(priceOf(l))}${+l.price > 0 ? "<small> / year</small>" : ""}</div>
-      <div class="lc-foot"><ul class="lc-meta">${meta}</ul><span class="lc-v" ${known ? "" : "hidden"} title="Verified agent">${verifiedBadge(16)}<em>Verified</em></span></div>${extra}
+      <div class="lc-foot"><ul class="lc-meta">${meta}</ul><div class="lc-verifieds"><span class="lc-v" ${known ? "" : "hidden"} title="Agent identity reviewed">${verifiedBadge(16)}<em>Verified agent</em></span><span class="lc-v lc-v--ownership" ${ownershipChecked ? "" : "hidden"} title="Property ownership evidence reviewed">${icon("shield-check", 16, 2)}<em>Ownership checked</em></span></div></div>${extra}
     </div></article>`;
 }
 
