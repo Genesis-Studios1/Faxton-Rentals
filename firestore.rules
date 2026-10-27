@@ -16,6 +16,7 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'renter') : '';
     }
     function isSupport() { return myRole() == 'support'; }
+    function short(v, n) { return v is string && v.size() <= n; }
     function privateKycPath(uid, kind) {
       return /databases/$(database)/documents/users/$(uid)/verificationDocuments/$(kind);
     }
@@ -65,7 +66,6 @@ service cloud.firestore {
     }
     function ownsListing() { return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
-    function short(v, n) { return v is string && v.size() <= n; }
     // A booking, application or offer can only point at the real owner of the home it is about (no spamming other people's inboxes).
     function ownerMatchesListing(d) {
       return d.get('listingId', null) is string
