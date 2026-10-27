@@ -165,6 +165,10 @@ async function reviewOwnershipProof(ctx, l, api) {
 
 async function listingAct(ctx, l, act, api, b) {
   try {
+    if (["approve", "restore"].includes(act) && l.ownerUid && l.ownershipVerification?.status !== "verified") {
+      toast("Review and verify this listing’s private ownership proof before approving or restoring it.", { tone: "bad" });
+      return;
+    }
     if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
     else if (act === "restore") await write("listings", l, { status: "active", archived: false }, { msg: "Listing restored.", after: api.refresh });
     else if (act === "archive") await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
@@ -212,6 +216,10 @@ export function listings(ctx) {
     } });
 }
 async function bulkListings(rs, c, act, ctx) {
+  if (["approve", "restore"].includes(act) && rs.some((l) => l.ownerUid && l.ownershipVerification?.status !== "verified")) {
+    toast("Some selected owner listings still need ownership proof review. Review them individually first.", { tone: "bad" });
+    return;
+  }
   let why = "";
   if (act === "changes") { why = await reason({ title: `Request changes on ${rs.length} listing${rs.length === 1 ? "" : "s"}`, presets: REJ_PRESETS, confirmLabel: "Send request", helper: "One message goes to every owner." }); if (!why) return; }
   const label = { approve: "Approving", changes: "Requesting changes on", archive: "Archiving", restore: "Restoring" }[act], prev = new Map(rs.map((l) => [l.id, { status: l.status, archived: !!l.archived, changeNote: l.changeNote || "" }]));
