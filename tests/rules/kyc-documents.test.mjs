@@ -22,6 +22,14 @@ await env.withSecurityRulesDisabled(async (context) => {
   });
   await seedDoc(db, "users/verified/verificationDocuments/identity", { type: "identity", label: "ID", dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "id.jpg", submittedAt: serverTimestamp() });
   await seedDoc(db, "users/verified/verificationDocuments/address", { type: "address", label: "Address", dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "address.jpg", submittedAt: serverTimestamp() });
+  await seedDoc(db, "listings/rejected-home", {
+    ownerUid: "verified", title: "Needs new proof", status: "flagged",
+    ownershipVerification: { status: "rejected", docType: "land-title", reason: "Document is unclear" }
+  });
+  await seedDoc(db, "listingVerificationDocuments/rejected-home", {
+    listingId: "rejected-home", ownerUid: "verified", docType: "land-title",
+    dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "old-title.jpg", submittedAt: serverTimestamp()
+  });
 });
 const tests = async (name, promise, expected = true) => {
   let ok = true;
@@ -43,6 +51,10 @@ const kycDoc = (type) => ({
 });
 await tests("landlord can upload private identity evidence", setDoc(doc(landlord, "users/landlord/verificationDocuments/identity"), kycDoc("identity")));
 await tests("landlord can upload private address evidence", setDoc(doc(landlord, "users/landlord/verificationDocuments/address"), kycDoc("address")));
+await tests("unverified landlord cannot upload property ownership evidence", setDoc(doc(landlord, "listingVerificationDocuments/not-verified"), {
+  listingId: "not-verified", ownerUid: "landlord", docType: "land-title",
+  dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "title.jpg", submittedAt: serverTimestamp()
+}), false);
 await tests("landlord can submit KYC for review", updateDoc(doc(landlord, "users/landlord"), {
   verification: { status: "pending", kind: "landlord", requestedAt: Date.now(), documents: { identity: true, address: true, professional: false }, idKind: "National ID", professionalNumber: "", regulatoryBody: "" }
 }));
@@ -75,6 +87,13 @@ await tests("owner can read own ownership proof", getDoc(doc(verified, "listingV
 await tests("owner cannot self-approve ownership evidence", updateDoc(doc(verified, "listings/new-home"), {
   ownershipVerification: { status: "verified", docType: "land-title", requestedAt: Date.now() }
 }), false);
+await tests("owner can replace rejected ownership evidence", setDoc(doc(verified, "listingVerificationDocuments/rejected-home"), {
+  listingId: "rejected-home", ownerUid: "verified", docType: "utility-bill", dataUrl: "data:image/jpeg;base64,BBBB",
+  mime: "image/jpeg", fileName: "new-bill.jpg", submittedAt: serverTimestamp()
+}));
+await tests("owner can resubmit rejected listing for review", updateDoc(doc(verified, "listings/rejected-home"), {
+  status: "pending", ownershipVerification: { status: "pending", docType: "utility-bill", requestedAt: Date.now() }
+}));
 await tests("client cannot read server-only unlock code", getDoc(doc(landlord, "unlockCodes/landlord")), false);
 await tests("client cannot write server-only unlock code state", setDoc(doc(landlord, "unlockCodeState/landlord"), { windowCount: 0 }), false);
 
