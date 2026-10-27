@@ -9,11 +9,11 @@ await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); awai
   await setDoc(doc(d, "users/lord/verificationDocuments/address"), { type: "address", label: "Address", dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "address.jpg" });
   await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x", price: 3000000 });
   await setDoc(doc(d, "listings/l2"), { status: "active", title: "platform home", price: 2000000 });
-  await setDoc(doc(d, "listings/l3"), { status: "pending", ownerUid: "lord", title: "draft" }); });
+  await setDoc(doc(d, "listings/l3"), { status: "pending", ownerUid: "lord", title: "draft" });
+  await setDoc(doc(d, "listingVerificationDocuments/new4"), { listingId: "new4", ownerUid: "oth", docType: "land-title", dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "title.jpg", submittedAt: serverTimestamp() }); });
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
 const ren = env.authenticatedContext("ren").firestore(), lord = env.authenticatedContext("lord").firestore(), oth = env.authenticatedContext("oth").firestore(), adm = env.authenticatedContext("adm").firestore(), anon = env.unauthenticatedContext().firestore();
 await setDoc(doc(lord, "listingVerificationDocuments/new2"), { listingId: "new2", ownerUid: "lord", docType: "land-title", dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "title.jpg", submittedAt: serverTimestamp() });
-await setDoc(doc(oth, "listingVerificationDocuments/new4"), { listingId: "new4", ownerUid: "oth", docType: "land-title", dataUrl: "data:image/jpeg;base64,AAAA", mime: "image/jpeg", fileName: "title.jpg", submittedAt: serverTimestamp() });
 const V = (o) => ({ uid: "ren", name: "R", listingId: "l1", ownerUid: "lord", title: "T", area: "A", when: "2026-11-01", slot: "10:00 AM", status: "Requested", createdAt: serverTimestamp(), ...o });
 await t("viewing at the real owner", addDoc(collection(ren, "viewings"), V({})));
 await t("viewing pointing at a stranger denied", addDoc(collection(ren, "viewings"), V({ ownerUid: "oth" })), false);
