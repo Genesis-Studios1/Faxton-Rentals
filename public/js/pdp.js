@@ -135,7 +135,7 @@ export async function detail(ctx, id) {
   const html = `<div class="wrap pd">
     <nav class="pd-crumbs" aria-label="Breadcrumb"><a href="#/">Home</a><span aria-hidden="true">/</span><a href="#/search">Rent</a>${crumbArea ? `<span aria-hidden="true">/</span><b aria-current="page">${esc(crumbArea)}</b>` : ""}</nav>
     <header class="pd-head"><div class="pd-ttl">
-        <div class="pd-badges"><span class="pd-tag ${open ? "" : "off"}"><i></i>${open ? "Available" : "Rented"}</span><span class="pd-kind">${esc(catName(l))}</span><span class="pd-ver" hidden>${verifiedBadge(15)}<em>Verified agent</em></span></div>
+        <div class="pd-badges"><span class="pd-tag ${open ? "" : "off"}"><i></i>${open ? "Available" : "Rented"}</span><span class="pd-kind">${esc(catName(l))}</span><span class="pd-own-ver" ${l.ownershipVerified === true ? "" : "hidden"}>${icon("shield-check", 15, 2)}<em>Ownership checked</em></span><span class="pd-ver" hidden>${verifiedBadge(15)}<em>Verified agent</em></span></div>
         <h1 class="${String(l.title || "").length > 56 ? "sm" : ""}">${esc(l.title || "Untitled home")}</h1><p class="pd-loc">${icon("pin", 17)}<span>${esc(place)}</span></p></div>
       <div class="pd-acts"><button class="btn" id="save" aria-pressed="${on}">${icon("heart", 18)} <span>${on ? "Saved" : "Save"}</span></button><button class="btn" id="share">${icon("share", 18)} Share</button></div></header>
     ${gal}
