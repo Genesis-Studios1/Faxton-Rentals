@@ -426,7 +426,7 @@ export async function ownerPage(ctx, kind, sub = "") {
   const needsV = kind !== "landlord" && !prof.verified, name = AX.first(prof.name || ctx.S.user.displayName);
   const subt = { landlord: "Here’s what’s happening with your properties.", agency: "Here’s your team’s performance and business overview.", agent: "Your listings, leads and viewings at a glance." }[kind];
   const addBtn = btn("Add property", { v: "primary", ic: "plus", attrs: `id="addp" ${needsV ? 'aria-disabled="true" title="Available once your account is verified"' : ""}` });
-  const v = pageView(ctx, { title: kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
+  const v = pageView(ctx, { title: kind === "landlord" ? "Owner dashboard" : kind === "agency" ? "Agency overview" : kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
     cols: [["ls", () => data.safe("listings", { uid: u })], ["apps", () => data.safe("applications", { uid: u })], ["views", () => data.safe("viewings", { uid: u })], ["offers", () => data.safe("offers", { uid: u })], ["maint", () => data.safe("maintenance", { uid: u })]],
     async render({ ls, apps, views, offers, maint }, { root }) {
       const r = kind === "agent" ? agentDash(ctx, { ls, apps, views, offers }, sub) : portfolio(ctx, { ls, apps, views, offers, maint }, kind);
