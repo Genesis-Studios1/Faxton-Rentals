@@ -21,5 +21,8 @@ google.addScope("email"); google.addScope("profile");
 
 // Re-authentication helpers used by the "Download my data" check (mydata.js). Email-link sign-in must be enabled in the Firebase console
 // (Authentication > Sign-in method > Email/Password > Email link); without it the app falls back to the password.
-export { sendSignInLinkToEmail, isSignInWithEmailLink, EmailAuthProvider, reauthenticateWithCredential, reauthenticateWithPopup }
-  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+export {
+  sendSignInLinkToEmail, isSignInWithEmailLink, EmailAuthProvider,
+  reauthenticateWithCredential, reauthenticateWithPopup,
+  RecaptchaVerifier, reauthenticateWithPhoneNumber
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
