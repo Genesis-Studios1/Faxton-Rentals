@@ -751,3 +751,18 @@
 .hx-lc .cmb-list{left:-44px;right:-16px;min-width:270px;top:calc(100% + 12px)}
 .hx-m-cb{flex:1;min-width:0}
 @media (max-width:860px){.hx-search-m .hx-m-cb,.hx-search-m .hx-m-cb .cmb-row{position:static}.hx-m-cb .cmb-chev{display:none}.hx-m-cb .cmb-row .cmb-in{padding-right:4px!important}.hx-search-m .cmb-list{left:0;right:0;top:calc(100% + 8px)}}
+
+
+/* Property document review is distinct from a verified agent badge. */
+.lc-verifieds { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:6px; min-width:0; }
+.lc-v--ownership { color:var(--brand-d); }
+.lc-v--ownership .ic { flex:none; }
+.pd-own-ver { display:inline-flex; align-items:center; gap:5px; min-height:26px; padding:0 10px; border:1px solid color-mix(in srgb,var(--brand) 30%,var(--border)); border-radius:99px; background:var(--soft); color:var(--soft-t); font:600 12px/1 var(--font-body); }
+.pd-own-ver[hidden] { display:none; }
+.pd-own-ver .ic { flex:none; }
+.pd-own-ver em { font-style:normal; }
+@media (max-width:560px) {
+  .lc-verifieds { gap:5px; }
+  .lc-v--ownership em { display:none; }
+  .pd-own-ver { min-height:24px; padding-inline:8px; font-size:11px; }
+}
