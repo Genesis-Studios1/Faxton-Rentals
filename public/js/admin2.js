@@ -63,7 +63,7 @@ const where = (l) => [l.area, l.city].filter(Boolean).join(", ");
 export const roleOf = (ctx, u) => (u.id === ctx.S.ownerUid ? "owner" : u.role === "owner" ? "admin" : u.role || "renter");
 export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Agency", agent: "Agent", landlord: "Property owner", renter: "Renter" };
 export { emailPending };
-export const userVerified = (u) => u.verified === true || u.verification?.status === "verified";
+export const userVerified = (u) => u.verified === true && u.verification?.status === "verified" && u.verification?.documents?.identity === true && u.verification?.documents?.address === true;
 
 // ---------- listings ----------
 const REJ_PRESETS = ["Photos too dark", "Missing details", "Price looks wrong"];
