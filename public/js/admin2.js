@@ -287,10 +287,56 @@ export function verifications(ctx) {
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
           const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
+          const docBtn = e.target.closest("[data-vdoc]");
+          if (docBtn) {
+            try {
+              const file = await st.getVerificationFile(docBtn.dataset.vdoc);
+              if (!file?.data) { toast("The private document could not be found.", { tone: "bad" }); return; }
+              if (!openStored(file.data, file.name || "verification-document")) toast("This document could not be opened.", { tone: "bad" });
+            } catch (x) { bad(x); }
+            return;
+          }
+          const ownershipDoc = e.target.closest("[data-own-doc]");
+          if (ownershipDoc) {
+            try {
+              const file = await st.getVerificationFile(ownershipDoc.dataset.ownDoc);
+              if (!file?.data) { toast("The private property document could not be found.", { tone: "bad" }); return; }
+              if (!openStored(file.data, file.name || "ownership-proof")) toast("This document could not be opened.", { tone: "bad" });
+            } catch (x) { bad(x); }
+            return;
+          }
+          const ownershipDecision = e.target.closest("[data-own-review]");
+          if (ownershipDecision) {
+            const listing = ls.find((x) => x.id === ownershipDecision.dataset.listing);
+            const proof = listing?.ownershipVerification;
+            const approve = ownershipDecision.dataset.ownReview === "verified";
+            if (!listing || !proof?.documentId) { toast("This property has no attached ownership document.", { tone: "bad" }); return; }
+            if (approve && !$("[data-own-check]", root).some((x) => x.dataset.ownCheck === listing.id && x.checked)) {
+              toast("Confirm that you reviewed the document against the property details.", { tone: "bad" }); return;
+            }
+            let why = "";
+            if (!approve) {
+              why = await reason({ title: "Reject property ownership proof", body: esc(listing.title || "Property"), presets: VF_PRESETS, confirmLabel: "Reject proof", tone: "bad", helper: "This reason will be shown to the owner." });
+              if (!why) return;
+            }
+            busy(ownershipDecision, true);
+            try {
+              await st.reviewVerificationFiles([proof.documentId], approve ? "approved" : "rejected", ctx.S.user.uid, why);
+              const next = { ...proof, status: approve ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}) };
+              await st.patch("listings", listing.id, { ownershipVerification: next });
+              listing.ownershipVerification = next; changed();
+              if (listing.ownerUid) await st.notify(listing.ownerUid, { kind: approve ? "verified" : "rejected", title: approve ? "Property ownership verified" : "Property proof needs changes", body: approve ? "The Faxton team approved the ownership evidence for " + (listing.title || "your property") + "." : (listing.title || "Your property") + ": " + why }).catch(() => {});
+              toast(approve ? "Property ownership verified." : "Property proof rejected."); paint();
+            } catch (x) { busy(ownershipDecision, false); bad(x); }
+            return;
+          }
           if (bv) {
             const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
-            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            const checklist = Object.fromEntries($("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            if (ok && (!u.verification.identityDocId || !u.verification.addressDocId)) { toast("Both government ID and proof of address are required.", { tone: "bad" }); return; }
+            if (ok && Object.values(checklist).some((checked) => !checked)) { toast("Complete every review checklist item before approving.", { tone: "bad" }); return; }
+            busy(bv, true);
             try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
               await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
               toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }
