@@ -751,3 +751,10 @@
 .hx-lc .cmb-list{left:-44px;right:-16px;min-width:270px;top:calc(100% + 12px)}
 .hx-m-cb{flex:1;min-width:0}
 @media (max-width:860px){.hx-search-m .hx-m-cb,.hx-search-m .hx-m-cb .cmb-row{position:static}.hx-m-cb .cmb-chev{display:none}.hx-m-cb .cmb-row .cmb-in{padding-right:4px!important}.hx-search-m .cmb-list{left:0;right:0;top:calc(100% + 8px)}}
+
+/* Verified person and verified property are distinct trust signals. */
+.lc-ownv,.pd-ownv{display:inline-flex;align-items:center;gap:4px;flex:none;color:var(--brand-d,#15745a);font:650 11px/1.2 var(--font-body)}
+.lc-ownv .ic,.pd-ownv .ic{width:14px;height:14px;flex:none}
+.lc-ownv em,.pd-ownv em{font-style:normal}
+.pd-ownv{height:26px;padding:0 9px;border:1px solid color-mix(in srgb,var(--brand) 28%,transparent);border-radius:99px;background:var(--soft);font-size:12px}
+.pd-ownv[hidden]{display:none}
