@@ -143,6 +143,18 @@ The site runs on the free **Spark** plan with no servers of your own. Typical fr
 - [ ] Upgrade to Blaze **before** your first big announcement or ad. In the same screen set a **budget alert** (for example the equivalent of US$10 to 20) so a surprise never becomes a big bill. A budget alert only emails you; it does not stop the spending, so also check the **Usage** tab weekly.
 - [ ] Until you upgrade, announce quietly and grow in steps. If many people arrive at once, the site simply stops for the day instead of costing you money.
 
+### Account-unlock recovery (required before turning on email/SMS codes)
+The app-lock screen is protected by a separate server-side one-time-code flow. It never generates or verifies a code in browser JavaScript. The functions are in `functions/index.js`; the deployment workflow leaves them **off by default** until you deliberately enable them.
+
+- [ ] Upgrade the Firebase project to **Blaze** first. Cloud Functions deployment and outbound email/SMS provider use may incur charges; set a billing budget alert.
+- [ ] Configure a verified sender in Resend for the email address you will use in `UNLOCK_FROM_EMAIL`. For SMS, configure a Twilio account and a sender number that can send to your users' destinations.
+- [ ] From the project folder, run `firebase functions:secrets:set UNLOCK_CODE_PEPPER` and paste a freshly generated random value of at least 32 bytes. Then set these secrets using the same interactive Firebase CLI command: `RESEND_API_KEY`, `UNLOCK_FROM_EMAIL`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_FROM_NUMBER`. **Never put secret values in source code, this repository, or screenshots.**
+- [ ] Check that the GitHub Actions service account has permissions to deploy Cloud Functions and the required build resources, in addition to Hosting and Firestore rules.
+- [ ] In GitHub > Settings > Secrets and variables > Actions > Variables, set `DEPLOY_UNLOCK_FUNCTIONS` to `true` only after billing, all function secrets and sender configuration are ready. The next deploy will publish the two callable functions.
+- [ ] After deployment, test the app lock using a verified test email and a verified Firebase Auth phone. Confirm the code arrives, expires, is single-use, and locks out after repeated wrong attempts. The code is valid for five minutes; requests are rate-limited. Do not test using a real government ID or personal account you can't risk locking out.
+
+Until these setup tasks are complete, the one-time-code fallback will show a delivery/service error instead of unlocking the app. Fingerprint/face/device-lock and the existing sign-out/re-sign-in routes remain available.
+
 ## 12. Backups (the free plan has none)
 
 Spark has **no automatic backups and no undelete**. A bad click or a bug can lose data for good.
