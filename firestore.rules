@@ -23,6 +23,71 @@ service cloud.firestore {
     function ownsListing() { return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
     function short(v, n) { return v is string && v.size() <= n; }
+    function verificationFilePath(id) { return /databases/$(database)/documents/verificationFiles/$(id); }
+    function fileMatches(id, uid, purpose, status) {
+      return id is string && exists(verificationFilePath(id))
+        && get(verificationFilePath(id)).data.get('uid', '') == uid
+        && get(verificationFilePath(id)).data.get('purpose', '') == purpose
+        && get(verificationFilePath(id)).data.get('status', '') == status;
+    }
+    function fileMatchesAfter(id, uid, purpose, status) {
+      return id is string && existsAfter(verificationFilePath(id))
+        && getAfter(verificationFilePath(id)).data.get('uid', '') == uid
+        && getAfter(verificationFilePath(id)).data.get('purpose', '') == purpose
+        && getAfter(verificationFilePath(id)).data.get('status', '') == status;
+    }
+    function validVerificationSubmission(uid) {
+      let v = request.resource.data.get('verification', {});
+      return request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification'])
+        && request.resource.data.get('verified', false) == false
+        && resource.data.role in ['landlord', 'agent', 'agency']
+        && v is map
+        && v.keys().hasOnly(['status', 'kind', 'requestedAt', 'idType', 'identityDocId', 'addressDocId', 'professionalBody', 'professionalNumber', 'professionalDocId'])
+        && v.get('status', '') == 'pending'
+        && v.get('kind', '') == resource.data.role
+        && v.get('requestedAt', 0) is number
+        && v.get('idType', '') in ['national-id', 'passport', 'drivers-license']
+        && fileMatches(v.get('identityDocId', ''), uid, 'identity', 'pending')
+        && fileMatches(v.get('addressDocId', ''), uid, 'address', 'pending')
+        && (!('professionalDocId' in v) || fileMatches(v.professionalDocId, uid, 'professional', 'pending'))
+        && short(v.get('professionalBody', 'not-applicable'), 80)
+        && short(v.get('professionalNumber', ''), 100);
+    }
+    function approvedKycAfter(uid) {
+      let v = request.resource.data.get('verification', {});
+      return v is map && v.get('status', '') == 'verified'
+        && fileMatchesAfter(v.get('identityDocId', ''), uid, 'identity', 'approved')
+        && fileMatchesAfter(v.get('addressDocId', ''), uid, 'address', 'approved')
+        && (!('professionalDocId' in v) || fileMatchesAfter(v.professionalDocId, uid, 'professional', 'approved'));
+    }
+    function hasListingKyc() {
+      let uid = request.auth.uid;
+      let uPath = /databases/$(database)/documents/users/$(uid);
+      return signedIn() && exists(uPath)
+        && get(uPath).data.role in ['landlord', 'agent', 'agency']
+        && get(uPath).data.get('verified', false) == true
+        && get(uPath).data.get('verification', {}).get('status', '') == 'verified'
+        && fileMatches(get(uPath).data.get('verification', {}).get('identityDocId', ''), uid, 'identity', 'approved')
+        && fileMatches(get(uPath).data.get('verification', {}).get('addressDocId', ''), uid, 'address', 'approved')
+        && (!('professionalDocId' in get(uPath).data.get('verification', {}))
+            || get(uPath).data.verification.professionalBody == 'not-applicable'
+            || fileMatches(get(uPath).data.verification.professionalDocId, uid, 'professional', 'approved'));
+    }
+    function canSubmitOwnershipProof(id) {
+      let v = request.resource.data.get('ownershipVerification', {});
+      let fPath = /databases/$(database)/documents/verificationFiles/$(v.get('documentId', ''));
+      return hasListingKyc() && v is map
+        && v.keys().hasOnly(['status', 'documentId', 'proofType', 'submittedAt'])
+        && v.get('status', '') == 'pending'
+        && v.get('proofType', '') in ['land-title', 'utility-bill', 'tax-receipt', 'other-official']
+        && v.get('submittedAt', 0) is number
+        && v.get('documentId', '') is string && exists(fPath)
+        && get(fPath).data.get('uid', '') == request.auth.uid
+        && get(fPath).data.get('purpose', '') == 'ownership'
+        && get(fPath).data.get('listingId', '') == id
+        && get(fPath).data.get('status', '') == 'pending';
+    }
     // A booking, application or offer can only point at the real owner of the home it is about (no spamming other people's inboxes).
     function ownerMatchesListing(d) {
       return d.get('listingId', null) is string
