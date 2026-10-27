@@ -315,8 +315,65 @@ function wireViews(root, vws, rerender) {
 }
 
 // ---------- property owner and agency dashboard ----------
+function agencyPortfolio(ctx, { ls, apps, views, offers, maint }) {
+  const prof = ctx.S.profile || {}, needsV = !prof.verified, vst = prof.verification?.status || "pending";
+  const live = ls.filter(isActive), pending = ls.filter(isPendingL);
+  const reviewApps = apps.filter((a) => /review/i.test(a.status || ""));
+  const requestedViews = views.filter((v) => v.status === "Requested");
+  const openOffers = offers.filter((o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status) && o.turn === "owner");
+  const now = Date.now(), bm = buckets("90"), last30Apps = apps.filter((a) => ms(a.createdAt) >= now - 30 * DAY);
+  const last30Views = views.filter((v) => ms(v.createdAt) >= now - 30 * DAY);
+  const perListing = (id) => apps.filter((a) => a.listingId === id).length + views.filter((v) => v.listingId === id).length;
+  const recentApps = [...apps].sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 5);
+  const props = [...ls].sort((a, b) => perListing(b.id) - perListing(a.id)).map((l) =>
+    '<tr data-id="' + esc(l.id) + '">' +
+    '<td data-role="title" data-label="Property"><div class="ax-id">' + thumb(thumbOf(l), 36) + '<div><b>' + esc(l.title || "Untitled property") + '</b><small>' + esc([l.area, l.city].filter(Boolean).join(", ") || "Location not set") + '</small></div></div></td>' +
+    '<td data-label="Rent" class="al-right"><span class="ax-money">' + naira(l.price) + '</span></td>' +
+    '<td data-label="Enquiries" class="al-right num">' + perListing(l.id) + '</td>' +
+    '<td data-role="status" data-label="Status">' + (isPendingL(l) ? chipFor("listing", "pending") : l.archived ? chipFor("listing", "archived") : chipFor("listing", isActive(l) ? "available" : listingState(l))) + '</td>' +
+    '<td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">' +
+    (isActive(l) ? btn("View", { size: "sm", href: "#/home/" + encodeURIComponent(l.id) }) : "") +
+    btn(l.hasPin ? "Edit location" : "Set location", { size: "sm", ic: "pin", attrs: 'data-loc="' + esc(l.id) + '"' }) +
+    '</div></td></tr>'
+  );
+  const recent = recentApps.length
+    ? '<ul class="ax-chats">' + recentApps.map((a) =>
+      '<li>' + avatar(a.name, a.uid, 32) + '<div><b>' + esc(a.name || "Applicant") + '</b><small>' + esc(a.title || "Property enquiry") + '</small></div>' +
+      chipFor("application", a.status || "Under review") + '</li>'
+    ).join("") + '</ul>'
+    : empty({ icon: "users", title: "No applications yet", hint: "New applications will appear here as people enquire about your listings." });
+  const html = verifyBanner(ctx, needsV, vst, true) +
+    '<div class="ax-attns" data-t="att">' +
+      attn({ label: "Listings awaiting approval", count: pending.length, href: "/agency", icon: "clipList" }) +
+      attn({ label: "Applications to review", count: reviewApps.length, href: "/agency", icon: "doc" }) +
+      attn({ label: "Viewing requests", count: requestedViews.length, href: "/agency", icon: "calDots" }) +
+      attn({ label: "Offers awaiting your reply", count: openOffers.length, href: "/offers", icon: "tag" }) +
+    '</div>' +
+    '<div class="ax-kpis scroll" data-t="kpis">' +
+      kpi({ label: "Active listings", value: fmt.num(live.length), count: live.length, sub: pending.length + " awaiting approval", icon: "home" }) +
+      kpi({ label: "New applications", value: fmt.num(last30Apps.length), count: last30Apps.length, sub: "in the last 30 days", icon: "users" }) +
+      kpi({ label: "Viewing requests", value: fmt.num(last30Views.length), count: last30Views.length, sub: "in the last 30 days", icon: "calDots" }) +
+      kpi({ label: "Open offers", value: fmt.num(openOffers.length), count: openOffers.length, sub: "awaiting a response", icon: "tag" }) +
+    '</div>' +
+    '<div class="ax-grid">' +
+      '<div class="ax-c8" data-t="pipeline">' + card("Enquiry pipeline", "Applications and viewing requests over the last 90 days", barChart([{ name: "Applications", data: per(apps, bm) }, { name: "Viewings", data: per(views, bm) }], bm.map((x) => x.label))) + '</div>' +
+      '<div class="ax-c4" data-t="recent">' + card("Recent applications", recentApps.length + " latest", recent, { pad: false }) + '</div>' +
+    '</div>' +
+    '<div class="ax-grid">' +
+      '<div class="ax-c12" data-t="props">' + card("Agency listings", ls.length + " propert" + (ls.length === 1 ? "y" : "ies") + " · ranked by enquiries", miniTable([["Property"], ["Rent", "al-right"], ["Enquiries", "al-right"], ["Status"], [""]], props, empty({ icon: "home", title: "No agency listings yet", hint: "Add your first property to start building your agency portfolio.", action: btn("Add property", { v: "primary", ic: "plus", attrs: "data-add" }) })), { pad: false }) + '</div>' +
+    '</div>' +
+    '<div class="ax-grid">' +
+      '<div class="ax-c12" data-t="views">' + card("Viewing requests", "Respond to people interested in your listings", viewReqTable([...views].sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 8), empty({ icon: "calDots", title: "No viewing requests yet", hint: "Requests for your agency listings will appear here." })), { pad: false }) + '</div>' +
+    '</div>';
+  return { html, mount(root) {
+    locHandler(ctx, ls, root);
+    wireViews(root, views, () => ctx.render());
+  } };
+}
+
 function portfolio(ctx, { ls, apps, views, offers, maint }, kind) {
-  const agency = kind === "agency", prof = ctx.S.profile || {}, needsV = agency && !prof.verified, vst = prof.verification?.status || "pending", bs = buckets("365"), L = bs.length - 1;
+  if (kind === "agency") return agencyPortfolio(ctx, { ls, apps, views, offers, maint });
+  const agency = false, prof = ctx.S.profile || {}, needsV = false, vst = prof.verification?.status || "pending", bs = buckets("365"), L = bs.length - 1;
   const live = ls.filter(isActive), pend = ls.filter(isPendingL), tenants = apps.filter(approved), occupied = new Set([...tenants.map((a) => a.listingId), ...ls.filter((l) => l.available === false).map((l) => l.id)]);
   const occ = ls.length ? Math.round((occupied.size / ls.length) * 100) : 0, roll = ls.filter((l) => occupied.has(l.id)).reduce((s, l) => s + (+l.price || 0), 0), enq = [...apps, ...views], perL = (id) => enq.filter((x) => x.listingId === id).length;
   const bm = buckets("90"), eS = per(enq, bm), pv = views.filter((v) => v.status === "Requested"), open = offers.filter((o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status) && o.turn === "owner");
@@ -369,7 +426,7 @@ export async function ownerPage(ctx, kind, sub = "") {
   const needsV = kind !== "landlord" && !prof.verified, name = AX.first(prof.name || ctx.S.user.displayName);
   const subt = { landlord: "Here’s what’s happening with your properties.", agency: "Here’s your team’s performance and business overview.", agent: "Your listings, leads and viewings at a glance." }[kind];
   const addBtn = btn("Add property", { v: "primary", ic: "plus", attrs: `id="addp" ${needsV ? 'aria-disabled="true" title="Available once your account is verified"' : ""}` });
-  const v = pageView(ctx, { title: kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
+  const v = pageView(ctx, { title: kind === "landlord" ? "Owner dashboard" : kind === "agency" ? "Agency overview" : kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
     cols: [["ls", () => data.safe("listings", { uid: u })], ["apps", () => data.safe("applications", { uid: u })], ["views", () => data.safe("viewings", { uid: u })], ["offers", () => data.safe("offers", { uid: u })], ["maint", () => data.safe("maintenance", { uid: u })]],
     async render({ ls, apps, views, offers, maint }, { root }) {
       const r = kind === "agent" ? agentDash(ctx, { ls, apps, views, offers }, sub) : portfolio(ctx, { ls, apps, views, offers, maint }, kind);
