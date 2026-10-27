@@ -76,7 +76,8 @@ service cloud.firestore {
     }
     function canSubmitOwnershipProof(id) {
       let v = request.resource.data.get('ownershipVerification', {});
-      let fPath = /databases/$(database)/documents/verificationFiles/$(v.get('documentId', ''));
+      let documentId = v.get('documentId', '');
+      let fPath = /databases/$(database)/documents/verificationFiles/$(documentId);
       return hasListingKyc() && v is map
         && v.keys().hasOnly(['status', 'documentId', 'proofType', 'submittedAt'])
         && v.get('status', '') == 'pending'
