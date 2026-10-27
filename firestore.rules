@@ -20,6 +20,11 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verified', false) == true;
     }
+    function identityApproved(uid) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/identityVerifications/$(uid))
+        && get(/databases/$(database)/documents/identityVerifications/$(uid)).data.get('status', '') == 'approved';
+    }
     function ownsListing() { return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
     function short(v, n) { return v is string && v.size() <= n; }
@@ -185,15 +190,80 @@ service cloud.firestore {
     }
 
 
+    match /identityVerifications/{uid} {
+      // Government ID and address evidence are private: only the applicant and authorised reviewers can read it.
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['uid', 'role', 'identityType', 'identityPath', 'addressPath', 'country', 'professionalBody', 'professionalNumber', 'professionalPath', 'status', 'submittedAt', 'updatedAt'])
+        && request.resource.data.uid == uid
+        && request.resource.data.role in ['landlord', 'agent', 'agency']
+        && request.resource.data.identityType in ['national-id', 'passport', 'drivers-license']
+        && request.resource.data.identityPath == 'verification-docs/' + uid + '/identity'
+        && request.resource.data.addressPath == 'verification-docs/' + uid + '/address'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.submittedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && short(request.resource.data.country, 60)
+        && request.resource.data.professionalBody in ['not-applicable', 'ESVARBON', 'NIESV', 'other']
+        && short(request.resource.data.professionalNumber, 80)
+        && (request.resource.data.professionalBody == 'not-applicable'
+          ? request.resource.data.professionalNumber == '' && request.resource.data.professionalPath == ''
+          : request.resource.data.professionalNumber.size() > 0
+            && request.resource.data.professionalPath == 'verification-docs/' + uid + '/professional');
+      allow update: if (signedIn() && request.auth.uid == uid
+          && resource.data.status == 'rejected'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'identityType', 'identityPath', 'addressPath', 'country', 'professionalBody', 'professionalNumber', 'professionalPath', 'status', 'submittedAt', 'updatedAt'])
+          && request.resource.data.uid == uid
+          && request.resource.data.role in ['landlord', 'agent', 'agency']
+          && request.resource.data.identityType in ['national-id', 'passport', 'drivers-license']
+          && request.resource.data.identityPath == 'verification-docs/' + uid + '/identity'
+          && request.resource.data.addressPath == 'verification-docs/' + uid + '/address'
+          && request.resource.data.status == 'pending'
+          && request.resource.data.submittedAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && short(request.resource.data.country, 60)
+          && request.resource.data.professionalBody in ['not-applicable', 'ESVARBON', 'NIESV', 'other']
+          && short(request.resource.data.professionalNumber, 80)
+          && (request.resource.data.professionalBody == 'not-applicable'
+            ? request.resource.data.professionalNumber == '' && request.resource.data.professionalPath == ''
+            : request.resource.data.professionalNumber.size() > 0
+              && request.resource.data.professionalPath == 'verification-docs/' + uid + '/professional'))
+        || (isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reviewNote', 'reviewedAt', 'reviewedBy'])
+          && request.resource.data.status in ['approved', 'rejected']
+          && short(request.resource.data.get('reviewNote', ''), 500)
+          && request.resource.data.reviewedBy == request.auth.uid
+          && request.resource.data.reviewedAt == request.time);
+      allow delete: if false;
+    }
+
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
-      // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
-      allow create: if isAdmin() || (signedIn() && (myRole() == 'landlord' || (myRole() in ['agency', 'agent'] && isVerified()))
-        && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
-        && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
-      allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.status == resource.data.status
-        && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
+      // Every user-owned listing is submitted pending, after identity approval, with private proof for this exact listing.
+      allow create: if isAdmin() || (signedIn()
+        && myRole() in ['landlord', 'agency', 'agent']
+        && identityApproved(request.auth.uid)
+        && (myRole() == 'landlord' || isVerified())
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.get('ownershipProofPath', '') == 'property-ownership/' + request.auth.uid + '/' + id + '/proof'
+        && request.resource.data.get('ownershipVerified', false) == false
+        && request.resource.data.keys().size() <= 42
+        && short(request.resource.data.title, 120));
+      // Owners cannot set or swap the ownership proof/review status. An admin can approve a submitted property only
+      // after reviewing that listing's private ownership file; older staff-created listings remain manageable.
+      allow update: if (isAdmin()
+        && (resource.data.status == 'active' || resource.data.get('ownerUid', '') == ''
+          || (resource.data.get('ownershipProofPath', '') == 'property-ownership/' + resource.data.ownerUid + '/' + id + '/proof'
+            && request.resource.data.get('ownershipVerified', false) == true))
+        || (ownsListing()
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.get('ownershipProofPath', '') == resource.data.get('ownershipProofPath', '')
+          && request.resource.data.get('ownershipVerified', false) == resource.data.get('ownershipVerified', false)
+          && request.resource.data.keys().size() <= 42
+          && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
 
