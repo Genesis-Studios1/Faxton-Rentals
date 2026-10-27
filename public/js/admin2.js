@@ -280,7 +280,7 @@ export function verifications(ctx) {
         return '<article class="ax-card ax-vc" data-identity-card="' + esc(uid) + '"><div class="ax-vc-h">' +
           avatar(u.name || u.email || uid, uid, 40, u.photo) +
           '<div><b>' + esc(u.name || "Account") + '</b><small>' + esc(u.email || "") + ' · ' + esc(v.role || u.role || "") + '</small></div>' +
-          chipFor("verification", v.status) + '</div>' +
+          chipFor("verification", v.status === "approved" ? "verified" : v.status) + '</div>' +
           dl([["ID type", esc(v.identityType || "—")], ["Country", esc(v.country || "—")], ["Professional body", esc(v.professionalBody || "Not applicable")], ["Registration number", esc(v.professionalNumber || "—")], ["Submitted", fmt.dateTime(v.submittedAt)]]) + registry +
           '<div class="ax-vc-f">' + fileBtn("Open ID", "identityPath") + fileBtn("Open address", "addressPath") + fileBtn("Open professional proof", "professionalPath") + '</div>' +
           (v.status === "pending" ? '<div class="ax-vc-f">' +
