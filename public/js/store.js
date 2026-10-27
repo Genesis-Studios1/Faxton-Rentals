@@ -64,6 +64,28 @@ export const myDocs = (u) => mine("documents", u);
 export const addDocument = (u, d) => addDoc(collection(db, "documents"), { ...d, uid: u.uid, status: "Uploaded", createdAt: serverTimestamp() });
 export const removeDocument = (id) => deleteDoc(doc(db, "documents", id));
 
+// Sensitive identity and property-proof files are private: only their owner and admins can read them.
+export async function addVerificationFile(user, file) {
+  const ref = await addDoc(collection(db, "verificationFiles"), {
+    ...file, uid: user.uid, status: "pending", createdAt: serverTimestamp()
+  });
+  return ref.id;
+}
+export async function getVerificationFile(id) {
+  if (!id) return null;
+  const s = await getDoc(doc(db, "verificationFiles", id));
+  return s.exists() ? { ...s.data(), id: s.id } : null;
+}
+export async function reviewVerificationFiles(ids, status, reviewedBy, reason = "") {
+  const unique = [...new Set((ids || []).filter((id) => typeof id === "string" && id))];
+  if (!unique.length) return;
+  const batch = writeBatch(db);
+  for (const id of unique) batch.update(doc(db, "verificationFiles", id), {
+    status, reviewedAt: serverTimestamp(), reviewedBy, ...(reason ? { reviewReason: reason } : {})
+  });
+  await batch.commit();
+}
+
 // ---- support tickets ----
 export const myTickets = (u) => mine("tickets", u);
 export const addTicket = (u, t) => addDoc(collection(db, "tickets"), { ...t, uid: u.uid, name: u.displayName || u.email, status: "Open", ref: "FR-" + (1000 + Math.floor(Math.random() * 9000)), createdAt: serverTimestamp() });
@@ -157,8 +179,14 @@ export async function ownedDocs(col, uid) { try { return (await getDocs(query(co
 
 // ---- verification of agencies and agents, notifications, suggestions ----
 export const verifyUser = async (uid, verification) => {
-  await updateDoc(doc(db, "users", uid), { verified: verification.status === "verified", verification });
-  try { const u = (await getDoc(doc(db, "users", uid))).data() || {}; await setDoc(doc(db, "profiles", uid), { name: u.agency?.business || u.name || "User", role: u.role || "", photo: u.photo || "", verified: verification.status === "verified", updatedAt: serverTimestamp() }, { merge: true }); pubCache.delete(uid); } catch {}
+  const approve = verification.status === "verified";
+  const ids = approve ? [verification.identityDocId, verification.addressDocId, verification.professionalDocId].filter((id) => typeof id === "string" && id) : [];
+  if (approve && (!verification.identityDocId || !verification.addressDocId)) throw new Error("Identity and proof-of-address documents must be attached before approval.");
+  const batch = writeBatch(db);
+  batch.update(doc(db, "users", uid), { verified: approve, verification });
+  for (const id of ids) batch.update(doc(db, "verificationFiles", id), { status: "approved", reviewedAt: serverTimestamp() });
+  await batch.commit();
+  try { const u = (await getDoc(doc(db, "users", uid))).data() || {}; await setDoc(doc(db, "profiles", uid), { name: u.agency?.business || u.name || "User", role: u.role || "", photo: u.photo || "", verified: approve, updatedAt: serverTimestamp() }, { merge: true }); pubCache.delete(uid); } catch {}
 };
 export const notify = (uid, n) => addDoc(collection(db, "notifications"), { uid, read: false, createdAt: serverTimestamp(), ...n });
 export const watchNotifications = (uid, cb) => onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid), where("read", "==", false)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
