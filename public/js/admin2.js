@@ -272,12 +272,16 @@ export function verifications(ctx) {
       const identityCard = (v) => {
         const u = identityPerson(v), uid = v.uid || v.id;
         const reviewState = v.status === "approved" ? "Verified" : v.status === "rejected" ? "Needs changes" : "Under review";
+        const registry = v.professionalBody === "ESVARBON"
+          ? '<p class="ax-sub"><a href="https://portal.esvarbon.gov.ng/pages/verify" target="_blank" rel="noopener noreferrer">Open official ESVARBON register ↗</a></p>'
+          : v.professionalBody === "NIESV"
+            ? '<p class="ax-sub"><a href="https://portal.niesv.org.ng/View/MembershipVerification.aspx" target="_blank" rel="noopener noreferrer">Open official NIESV membership check ↗</a></p>' : "";
         const fileBtn = (label, key) => v[key] ? btn(label, { size: "sm", ic: "file", attrs: 'data-ivfile="' + key + '" data-ivuid="' + esc(uid) + '"' }) : "";
         return '<article class="ax-card ax-vc" data-identity-card="' + esc(uid) + '"><div class="ax-vc-h">' +
           avatar(u.name || u.email || uid, uid, 40, u.photo) +
           '<div><b>' + esc(u.name || "Account") + '</b><small>' + esc(u.email || "") + ' · ' + esc(v.role || u.role || "") + '</small></div>' +
           chipFor("verification", v.status) + '</div>' +
-          dl([["ID type", esc(v.identityType || "—")], ["Country", esc(v.country || "—")], ["Professional body", esc(v.professionalBody || "Not applicable")], ["Registration number", esc(v.professionalNumber || "—")], ["Submitted", fmt.dateTime(v.submittedAt)]]) +
+          dl([["ID type", esc(v.identityType || "—")], ["Country", esc(v.country || "—")], ["Professional body", esc(v.professionalBody || "Not applicable")], ["Registration number", esc(v.professionalNumber || "—")], ["Submitted", fmt.dateTime(v.submittedAt)]]) + registry +
           '<div class="ax-vc-f">' + fileBtn("Open ID", "identityPath") + fileBtn("Open address", "addressPath") + fileBtn("Open professional proof", "professionalPath") + '</div>' +
           (v.status === "pending" ? '<div class="ax-vc-f">' +
             btn("Approve identity", { v: "primary", ic: "check", attrs: 'data-ivdecision="approved" data-ivuid="' + esc(uid) + '"' }) +
