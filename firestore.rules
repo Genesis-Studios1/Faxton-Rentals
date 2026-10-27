@@ -163,7 +163,10 @@ service cloud.firestore {
       allow create: if signedIn() && pubOk(request.resource.data)
         && ((request.auth.uid == uid && request.resource.data.get('verified', false) == false) || isAdmin());
       allow update: if signedIn() && pubOk(request.resource.data)
-        && ((request.auth.uid == uid && request.resource.data.get('verified', false) == resource.data.get('verified', false)) || isAdmin());
+        && ((request.auth.uid == uid
+              && (request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                  || request.resource.data.get('verified', false) == false))
+            || isAdmin());
     }
 
     match /users/{uid} {
@@ -185,8 +188,8 @@ service cloud.firestore {
           && request.resource.data.role == resource.data.role
           && request.resource.data.email == resource.data.email
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
-          && request.resource.data.get('verified', false) == resource.data.get('verified', false)
-          && request.resource.data.get('verification', null) == resource.data.get('verification', null)
+          && (request.resource.data.get('verified', false) == resource.data.get('verified', false) || request.resource.data.get('verified', false) == false)
+          && (request.resource.data.get('verification', null) == resource.data.get('verification', null) || validVerificationSubmission(uid))
           && request.resource.data.get('agency', null) == resource.data.get('agency', null)
           && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
@@ -201,8 +204,9 @@ service cloud.firestore {
         || (isAdmin() && uid != request.auth.uid
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
-              || (resource.data.role in ['agent', 'agency']
-                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification']))
+              || (resource.data.role in ['agent', 'agency', 'landlord']
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification'])
+                && (request.resource.data.get('verified', false) == false || approvedKycAfter(uid)))
               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
       allow delete: if signedIn() && request.auth.uid == uid && resource.data.get('deletion', {}).get('status', '') == 'approved'
