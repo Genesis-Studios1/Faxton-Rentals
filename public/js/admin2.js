@@ -130,6 +130,39 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
       el.querySelectorAll("[data-do]").forEach((b) => (b.onclick = () => listingAct(ctx, l, b.dataset.do, api, b)));
     } };
 }
+async function reviewOwnershipProof(ctx, l, api) {
+  if (!ctx.S.isAdmin && !ctx.S.isOwner) return toast("Only the verification team can review ownership evidence.", { tone: "bad" });
+  try {
+    const proof = await st.getListingVerificationDocument(l.id);
+    if (!proof || !proof.dataUrl) return toast("No ownership document was found for this listing.", { tone: "bad" });
+    const body = '<div class="ax-kyc-preview"><p><b>' + esc(l.title) + '</b></p><p class="ax-muted">Document type: ' + esc(proof.docType || "Not specified") + ' · ' + esc(proof.fileName || "Uploaded document") + '</p><img src="' + esc(proof.dataUrl) + '" alt="Private ownership evidence for ' + esc(l.title) + '" style="display:block;width:100%;max-height:65vh;object-fit:contain;background:#f4f7f5;border-radius:12px"></div><p class="ax-help">Check that the title/deed, property address, or letting mandate matches this listing and the submitting account.</p>';
+    const d = dialog({ title: "Property ownership evidence", size: "lg", icon: "shield", body,
+      footer: btn("Request replacement", { v: "outline", attrs: "data-proof-reject" }) + btn("Mark proof verified", { v: "primary", ic: "check", attrs: "data-proof-approve" }) + btn("Close", { attrs: "data-x" }) });
+    $("[data-x]", d.el)?.addEventListener("click", () => d.close());
+    $("[data-proof-approve]", d.el)?.addEventListener("click", async (e) => {
+      busy(e.currentTarget, true);
+      try {
+        const status = { status: "verified", docType: proof.docType || "other", decidedAt: Date.now(), decidedBy: ctx.S.user.uid };
+        await st.setOwnershipVerification(l.id, status);
+        l.ownershipVerification = status; changed(); d.close(); toast("Ownership evidence verified."); api.refresh();
+      } catch (x) { busy(e.currentTarget, false); bad(x); }
+    });
+    $("[data-proof-reject]", d.el)?.addEventListener("click", async (e) => {
+      const why = await reason({ title: "Request replacement ownership proof", presets: ["Document is unclear", "Address does not match", "Ownership / authority is not clear"], confirmLabel: "Request replacement", tone: "bad", helper: "The reason will be shown to the property owner." });
+      if (!why) return;
+      busy(e.currentTarget, true);
+      try {
+        const status = { status: "rejected", docType: proof.docType || "other", reason: why, decidedAt: Date.now(), decidedBy: ctx.S.user.uid };
+        await st.setOwnershipVerification(l.id, status);
+        await st.patch("listings", l.id, { changeNote: "Ownership proof: " + why });
+        l.ownershipVerification = status; l.changeNote = "Ownership proof: " + why; changed(); d.close();
+        if (l.ownerUid) await st.notify(l.ownerUid, { kind: "rejected", title: "Ownership proof needs an update", body: l.title + ": " + why }).catch(() => {});
+        toast("Replacement proof requested."); api.refresh();
+      } catch (x) { busy(e.currentTarget, false); bad(x); }
+    });
+  } catch (e) { bad(e); }
+}
+
 async function listingAct(ctx, l, act, api, b) {
   try {
     if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
