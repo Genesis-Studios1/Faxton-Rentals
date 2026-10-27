@@ -169,7 +169,16 @@ export const watchPendingVerifications = (cb) => onSnapshot(query(collection(db,
 export const addSuggestion = (u, s) => addDoc(collection(db, "suggestions"), { ...s, uid: u.uid, name: u.displayName || u.email, email: u.email, status: "New", createdAt: serverTimestamp() });
 export const setDeletion = (uid, d) => updateDoc(doc(db, "users", uid), { deletion: d ? d : deleteField() });
 export const decideDeletion = (uid, d) => updateDoc(doc(db, "users", uid), { deletion: d });
-export async function deleteProfile(uid) { await deleteDoc(doc(db, "users", uid)); }
+export async function deleteVerificationDocuments(uid) {
+  if (!uid) return;
+  const snap = await getDocs(collection(db, "users", uid, "verificationDocuments"));
+  for (const item of snap.docs) await deleteDoc(item.ref);
+}
+export async function deleteProfile(uid) {
+  if (!uid) return;
+  await deleteVerificationDocuments(uid);
+  await deleteDoc(doc(db, "users", uid));
+}
 
 // A direct conversation started by the Faxton team (admin or support) with any user.
 export async function ensureDirectConversation(staff, u) {
