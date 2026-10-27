@@ -289,3 +289,22 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 .lk-after{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 4px 34px;color:var(--head);font-size:.95rem}
 .lk-after select{min-height:44px;padding:6px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface,#fff);color:var(--head);font:inherit}
 .lk-opts[hidden],.lk-after[hidden]{display:none}
+
+
+/* App-lock recovery methods: visible alternatives that remain usable on small phone screens. */
+.lk-recovery{display:grid;gap:8px;width:100%;padding-top:14px;border-top:1px solid rgba(185,216,203,.22)}
+.lk-recovery-label{color:#b9d8cb;font-size:.78rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.lk-alt{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:10px 13px;border:1px solid rgba(185,216,203,.28);border-radius:12px;background:rgba(255,255,255,.055);color:#f0fbf6;text-align:left;font:600 .9rem/1.3 var(--font-body);cursor:pointer}
+.lk-alt>.ic{width:18px;height:18px;flex:none}
+.lk-alt small{margin-left:auto;color:#b9d8cb;font-size:.75rem;font-weight:500;overflow-wrap:anywhere}
+.lk-alt:hover:not(:disabled){background:rgba(255,255,255,.12);border-color:rgba(185,216,203,.55)}
+.lk-alt:focus-visible,.lk-code-row button:focus-visible{outline:2px solid #b5f38a;outline-offset:3px}
+.lk-alt:disabled{opacity:.55;cursor:wait}
+.lk-captcha{min-height:0;overflow:hidden}
+.lk-code-form{display:grid;gap:8px;text-align:left}
+.lk-code-form label{font-size:.85rem;color:#e1f0e9;font-weight:650}
+.lk-code-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.lk-code-row input{min-width:0;width:100%;min-height:48px;padding:0 12px;border:1px solid rgba(185,216,203,.38);border-radius:11px;background:#fff;color:#10251e;font:600 1rem/1 var(--font-body);letter-spacing:.14em}
+.lk-code-row .btn{min-height:48px;padding:0 15px}
+.lk-code-form[hidden]{display:none!important}
+@media(max-width:480px){.lk-card{width:min(360px,calc(100vw - 34px));gap:11px}.lk-recovery{padding-top:10px}.lk-alt{font-size:.84rem;padding:9px 10px}.lk-alt small{font-size:.7rem}.lk-code-row{grid-template-columns:minmax(0,1fr)}.lk-code-row .btn{width:100%}}
