@@ -37,6 +37,10 @@ jobs:
       # Not continue-on-error: if the rules can't be published the run turns red, so a stale ruleset is never silent.
       - name: Deploy Firestore rules (needs the Firestore database to exist)
         run: npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals --non-interactive
+      # Optional: enable this only after Functions secrets and billing are configured (see LAUNCH.md).
+      - name: Deploy account recovery functions (optional)
+        if: vars.DEPLOY_UNLOCK_FUNCTIONS == 'true'
+        run: npx --yes firebase-tools deploy --only functions:sendUnlockCode,functions:verifyUnlockCode --project faxton-rentals --non-interactive
       # Indexes need the service account to hold the "Datastore Index Admin" role (IAM). Until it does, this step warns instead of failing the release.
       - name: Deploy Firestore indexes (optional)
         continue-on-error: true
