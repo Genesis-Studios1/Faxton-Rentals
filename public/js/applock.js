@@ -65,6 +65,7 @@ export async function handleEmailRecoveryLink(user) {
       await linkWithCredential(user, credential);
     }
     try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {}
+    recoveryUnlockUid = user.uid;
     try { localStorage.removeItem("fx_lock_email"); localStorage.removeItem("fx_lock_email_uid"); } catch {}
     history.replaceState(history.state, document.title, window.location.origin + window.location.pathname);
     document.documentElement.classList.remove("locked");
@@ -75,6 +76,7 @@ export async function handleEmailRecoveryLink(user) {
       try {
         await reauthenticateWithCredential(user, credential);
         try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {}
+    recoveryUnlockUid = user.uid;
         try { localStorage.removeItem("fx_lock_email"); localStorage.removeItem("fx_lock_email_uid"); } catch {}
         history.replaceState(history.state, document.title, window.location.origin + window.location.pathname);
         document.documentElement.classList.remove("locked");
@@ -89,7 +91,7 @@ export async function handleEmailRecoveryLink(user) {
 }
 
 // ---- the lock screen ----
-let armed = null, hiddenAt = 0, showing = false, unlockedAt = 0;
+let armed = null, hiddenAt = 0, showing = false, unlockedAt = 0, recoveryUnlockUid = null;
 function lockScreen(user, logout) {
   if (showing) return; showing = true;
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
@@ -133,7 +135,7 @@ function lockScreen(user, logout) {
 // Call after sign-in: locks now (the app was just opened), then again as the chosen option says.
 export function arm(user, logout) {
   armed = enabled(user?.uid) ? { user, logout } : null;
-  if (armed && !unlockedThisLaunch(user.uid)) lockScreen(user, logout);
+  if (armed && recoveryUnlockUid === user.uid) recoveryUnlockUid = null; else if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
   if (!arm.wired) {
     arm.wired = true;
     document.addEventListener("visibilitychange", () => {
