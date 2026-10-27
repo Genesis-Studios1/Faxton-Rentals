@@ -9,8 +9,13 @@ for (const f of readdirSync(dir).filter((x) => x.endsWith(".test.mjs")).sort()) 
   const lines = (r.stdout || "").split("\n").filter((l) => /^(PASS|FAIL) /.test(l));
   const p = lines.filter((l) => l.startsWith("PASS")).length, bad = lines.filter((l) => l.startsWith("FAIL"));
   pass += p; fail += bad.length || (r.status ? 1 : 0);
-  console.log(`${bad.length || r.status ? "FAIL" : "ok  "}  ${f}: ${p} passed${bad.length ? ", " + bad.length + " failed" : ""}${!lines.length ? " (no results: " + (r.stderr || "").split("\n")[0] + ")" : ""}`);
+  console.log(`${bad.length || r.status ? "FAIL" : "ok  "}  ${f}: ${p} passed${bad.length ? ", " + bad.length + " failed" : ""}`);
   bad.forEach((l) => console.log("      " + l));
+  if (!lines.length) {
+    const detail = (r.stderr || r.stdout || "").trim().split("\n").slice(-12);
+    console.log("      No test results. Process exit: " + r.status);
+    detail.forEach((line) => console.log("      " + line));
+  }
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
