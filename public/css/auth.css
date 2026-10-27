@@ -238,6 +238,16 @@ form[aria-busy=true] .au-tab{pointer-events:none}
   .ob2-prog{grid-area:prog;grid-template-columns:1fr auto;justify-items:stretch;align-items:center;gap:12px}.ob2-bars{gap:6px}.ob2-bars i{flex:1;width:auto}
   .ob2-btn.back{grid-area:back;min-width:108px;min-height:48px;padding:0 18px}.ob2-btn.cta{grid-area:cta;justify-self:stretch;min-height:48px}
 }
+@media (min-width:600px) and (max-width:899px){
+  .ob2{--m:clamp(24px,4vw,36px)}
+  .ob2-main{gap:18px;padding-block:16px 12px}
+  .ob2-img{height:clamp(180px,24vh,260px);min-height:0}
+  .ob2 h1{font-size:clamp(2rem,4.1vw,2.5rem);max-width:18ch}
+  .ob2-feats{gap:10px}
+  .ob2-feats li{gap:12px}
+  .ob2-ft small{display:block}
+  .ob2-foot-in{gap:10px 18px}
+}
 @media (max-height:700px) and (max-width:899px){.ob2-img{height:120px}.ob2-lead{display:none}.ob2-ft small{display:none}.ob2-feats li{padding:8px 12px}}
 @media (min-width:900px) and (max-height:700px){.ob2 h1{font-size:clamp(1.9rem,1rem + 3vw,3rem)}.ob2-lead{margin-top:10px}.ob2-feats{margin-top:14px;gap:8px}.ob2-fi{width:40px;height:40px}.ob2-foot-in{height:72px}}
 @media (prefers-reduced-motion:reduce){.ob2-text,.ob2-feats li,.ob2-img,.ob2-chip,.ob2-bars i.on{animation:none!important}}
