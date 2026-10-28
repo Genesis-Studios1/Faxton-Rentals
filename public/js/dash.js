@@ -295,13 +295,29 @@ export function addProperty(ctx, done) {
     const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
     const im = ln(f.im), vd = ln(f.vd);
+    let ownershipProof = null, ownershipMime = "";
+    if (isLandlord) {
+      ownershipProof = f.ownershipProof;
+      const ext = String(ownershipProof?.name || "").split(".").pop().toLowerCase();
+      ownershipMime = ownershipProof?.type || ({ pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp" })[ext] || "";
+      if (!ownershipProof || !ownershipProof.size) return (err.textContent = "Upload proof of ownership for this property.");
+      if (!["application/pdf", "image/jpeg", "image/png", "image/webp"].includes(ownershipMime)) return (err.textContent = "Use a PDF, JPEG, PNG or WebP ownership document.");
+      if (ownershipProof.size > 10 * 1024 * 1024) return (err.textContent = "The ownership document must be 10 MB or smaller.");
+    }
     if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const imgs = im.slice(0, 20); if (!imgs.length) imgs.push("img/palm-court.webp");
     const u = ctx.S.user, id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4); busy(e.currentTarget, true);
+    let ownershipDocPath = ""; const uploaded = [];
     try {
-      await st.createListing({ id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
+      if (isLandlord) {
+        const fileName = String(ownershipProof.name || "ownership-document").normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").slice(-70) || "ownership-document";
+        ownershipDocPath = "listing-verification/" + u.uid + "/" + id + "/" + Date.now() + "-" + fileName;
+        await uploadBytes(storageRef(storage, ownershipDocPath), ownershipProof, { contentType: ownershipMime, customMetadata: { ownerUid: u.uid, documentType: "listing-ownership", listingId: id } });
+        uploaded.push(ownershipDocPath);
+      }
+      await st.createListing({ id, title: f.title.trim(), ...(ownershipDocPath ? { ownershipDocPath } : {}), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
       data.invalidate("listings"); d.close(); toast("Property submitted for review."); done?.();
-    } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
+    } catch (x) { await Promise.all(uploaded.map((path) => deleteObject(storageRef(storage, path)).catch(() => {}))); err.textContent = fe(x); busy(e.currentTarget, false); }
   };
 }
 
