@@ -85,7 +85,8 @@ service cloud.firestore {
         && (!('privacy' in d) || d.privacy is map)
         && (!('lastActive' in d) || d.lastActive is timestamp)
         && (!('provider' in d) || short(d.provider, 20))
-        && (!('emailVerified' in d) || d.emailVerified is bool);
+        && (!('emailVerified' in d) || d.emailVerified is bool)
+        && (!('verificationSubmitted' in d) || d.verificationSubmitted is bool);
     }
 
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
@@ -190,6 +191,10 @@ service cloud.firestore {
           && (!('agency' in request.resource.data) || (request.resource.data.agency is map && request.resource.data.agency.size() <= 20))
           && (!('agentInfo' in request.resource.data) || (request.resource.data.agentInfo is map && request.resource.data.agentInfo.size() <= 20))
           && onboardingOk(request.resource.data)
+          && (!('verificationSubmitted' in request.resource.data)
+              || (request.resource.data.verificationSubmitted is bool
+                  && (!request.resource.data.verificationSubmitted
+                      || existsAfter(/databases/$(database)/documents/verificationRequests/$(uid)))))
           && (
             request.resource.data.get('onboarding', null) == resource.data.get('onboarding', null)
             || (resource.data.get('onboarding', {}).get('completed', false) == false
@@ -198,7 +203,7 @@ service cloud.firestore {
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding', 'verificationSubmitted'])
           && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
