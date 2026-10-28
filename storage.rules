@@ -1,15 +1,24 @@
-// Faxton keeps pictures, audio and documents inside Firestore documents (as data), so the app does NOT use Firebase Storage.
-// The only exception is the optional app-installer upload in Admin > Installations, which needs Storage (and the paid Blaze plan).
-// Everything else is closed. If you never switch Storage on, this file does nothing.
+// Verification documents are private. Never expose ID/ownership documents through public download URLs.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
     function admin() {
-      let u = firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-      let o = firestore.get(/databases/(default)/documents/config/owner);
-      return request.auth != null && (u.data.role == 'admin' || o.data.uid == request.auth.uid);
+      return signedIn()
+        && (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          || firestore.get(/databases/(default)/documents/config/owner).data.uid == request.auth.uid);
     }
-    // Installer files are public downloads (they contain no secrets). Only admins can upload or remove them.
+
+    // IDs, proof of address and property-ownership documents are private to the owner and authorized reviewers.
+    match /verification/{uid}/{fileName} {
+      allow read: if signedIn() && (request.auth.uid == uid || admin());
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)|application/pdf');
+      allow delete: if signedIn() && (request.auth.uid == uid || admin());
+    }
+
+    // Installer files are public downloads; only admins can upload or remove them.
     match /installers/{version}/{file} {
       allow read: if true;
       allow write: if admin() && request.resource.size < 600 * 1024 * 1024;
