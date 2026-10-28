@@ -87,6 +87,7 @@ service cloud.firestore {
         && short(d.agency.get('business', ''), 120) && d.agency.get('business', '').size() >= 2
         && d.agency.get('businessTypes', []) is list
         && d.agency.get('businessTypes', []).size() >= 1 && d.agency.get('businessTypes', []).size() <= 8
+        && d.agency.get('businessTypes', []).hasOnly(['real-estate', 'electrical', 'home-automation', 'plumbing', 'tiling', 'painting', 'appliance-repair', 'other'])
         && short(d.agency.get('cac', ''), 30) && d.agency.get('cac', '').size() >= 4
         && short(d.agency.get('registrar', ''), 120) && d.agency.get('registrar', '').size() >= 3
         && short(d.agency.get('address', ''), 200) && d.agency.get('address', '').size() >= 5
@@ -105,10 +106,20 @@ service cloud.firestore {
         && short(d.agentInfo.get('areas', ''), 180) && d.agentInfo.get('areas', '').size() >= 3
         && short(d.agentInfo.get('dob', ''), 10) && d.agentInfo.get('dob', '').size() == 10;
     }
+    function onboardingLocationOk(d) {
+      return short(d.get('country', ''), 60) && d.get('country', '').size() >= 2
+        && short(d.get('location', ''), 80) && d.get('location', '').size() >= 2
+        && ((d.get('country', '') == 'Nigeria'
+              && short(d.get('state', ''), 60) && d.get('state', '').size() >= 2
+              && short(d.get('lga', ''), 60) && d.get('lga', '').size() >= 2)
+            || (d.get('country', '') != 'Nigeria'
+              && ((short(d.get('city', ''), 60) && d.get('city', '').size() >= 2)
+                || (short(d.get('state', ''), 60) && d.get('state', '').size() >= 2))));
+    }
     function onboardingCompleteUpdate(resourceData, newData) {
       return resourceData.get('onboarding', {}).get('completed', false) == false
         && newData.get('onboarding', {}).get('completed', false) == true
-        && onboardingOk(newData)
+        && onboardingOk(newData) && onboardingLocationOk(newData)
         && ((newData.role == 'agency' && businessOnboardingOk(newData) && !('agentInfo' in newData) && !('kyc' in newData))
           || (newData.role == 'agent' && agentOnboardingOk(newData) && ('kyc' in newData) && kycOk(newData))
           || (newData.role == 'landlord' && ('kyc' in newData) && kycOk(newData) && !('agency' in newData) && !('agentInfo' in newData))
