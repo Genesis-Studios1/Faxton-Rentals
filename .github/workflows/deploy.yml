@@ -41,8 +41,7 @@ jobs:
       - name: Deploy Firestore indexes (optional)
         continue-on-error: true
         run: npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals --non-interactive
-      - name: Deploy Storage rules (needs Firebase Storage to be enabled)
-        continue-on-error: true
+      - name: Deploy Storage rules (needed for private verification documents)
         run: npx --yes firebase-tools deploy --only storage --project faxton-rentals --non-interactive
       # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
       - name: Smoke test the live site
