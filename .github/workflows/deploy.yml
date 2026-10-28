@@ -1,7 +1,5 @@
 name: Deploy to Firebase
-# Deploys the site (and Firestore rules) from GitHub's servers, so no local Firebase CLI is needed.
-# One-time setup: add a repository secret named FIREBASE_SERVICE_ACCOUNT containing the service-account JSON
-# (Firebase console -> Project settings -> Service accounts -> Generate new private key).
+# Private KYC documents depend on Firebase Storage. Deploy storage + Firestore rules before hosting.
 on:
   push:
     branches: [main]
@@ -21,30 +19,23 @@ jobs:
           KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           if [ -z "$KEY" ]; then echo "::error::Missing repository secret FIREBASE_SERVICE_ACCOUNT. See README > Deploy from GitHub."; exit 1; fi
+          printf '%s' "$KEY" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Stops a broken release (mismatched version numbers, missing files, blocked web addresses) before it reaches visitors.
       - name: Release check
         run: node scripts/check-release.mjs
-      - name: Deploy hosting
-        env:
-          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          printf '%s' "$KEY" > "$RUNNER_TEMP/sa.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
-          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
-      # Not continue-on-error: if the rules can't be published the run turns red, so a stale ruleset is never silent.
-      - name: Deploy Firestore rules (needs the Firestore database to exist)
+      # These rules must deploy before Hosting; if Firebase Storage is not enabled/billed correctly, stop here.
+      - name: Deploy Storage rules (required for private KYC documents)
+        run: npx --yes firebase-tools deploy --only storage --project faxton-rentals --non-interactive
+      - name: Deploy Firestore rules
         run: npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals --non-interactive
-      # Indexes need the service account to hold the "Datastore Index Admin" role (IAM). Until it does, this step warns instead of failing the release.
+      - name: Deploy hosting
+        run: npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
       - name: Deploy Firestore indexes (optional)
         continue-on-error: true
         run: npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals --non-interactive
-      - name: Deploy Storage rules (needs Firebase Storage to be enabled)
-        continue-on-error: true
-        run: npx --yes firebase-tools deploy --only storage --project faxton-rentals --non-interactive
-      # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
       - name: Smoke test the live site
         run: |
           set -e

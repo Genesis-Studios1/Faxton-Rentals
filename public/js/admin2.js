@@ -1,6 +1,8 @@
 // Console pages for the owner and admins: review queue, listings, users, verifications, applications and viewings.
 // The overview, payments, support inbox, suggestions, reports, call setup and the staff portals live in dash.js.
 import * as CALLS from "./calls.js";
+import { storage } from "./firebase.js";
+import { getBytes, getMetadata, ref as storageRef } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
 import * as VS from "./viewsafe.js";
@@ -17,6 +19,38 @@ const meName = (ctx) => ctx.S.profile?.name || ctx.S.user.displayName || ctx.S.u
 const DEF = { archived: false, changeNote: "", status: "pending" };
 const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean);
 const naira = fmt.naira;
+
+const hasRequiredKyc = (u) => {
+  const k = u.kyc || {}, base = "verification/" + u.id + "/";
+  return k.status === "submitted"
+    && k.identityPath === base + "identity"
+    && k.addressPath === base + "address-proof"
+    && (u.verification?.kind !== "landlord" || k.ownershipPath === base + "ownership-proof");
+};
+async function openKycDocument(uid, slot) {
+  if (!["identity", "address-proof", "ownership-proof"].includes(slot)) throw new Error("Unknown verification document.");
+  const popup = window.open("about:blank", "_blank");
+  if (popup) popup.opener = null;
+  try {
+    const objectRef = storageRef(storage, "verification/" + uid + "/" + slot);
+    const meta = await getMetadata(objectRef);
+    const type = meta.contentType || "application/octet-stream";
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(type)) throw new Error("This document type cannot be previewed.");
+    const bytes = await getBytes(objectRef, 10 * 1024 * 1024);
+    const url = URL.createObjectURL(new Blob([bytes], { type }));
+    if (popup && !popup.closed) popup.location.replace(url);
+    else {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = slot + (type === "application/pdf" ? ".pdf" : type === "image/png" ? ".png" : ".jpg");
+      document.body.append(anchor); anchor.click(); anchor.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) {
+    if (popup && !popup.closed) popup.close();
+    throw error;
+  }
+}
 
 // Write a change, keep the previous values in memory and offer Undo.
 async function write(col, row, patch, { msg, after, undo = true }) {
@@ -238,25 +272,63 @@ export function userDrawer(ctx, u, api) {
     } };
 }
 // ---------- verifications ----------
+const businessTypeName = (value) => ({
+  "real-estate": "Real estate company", electrical: "Electrical services", "home-automation": "Home automation",
+  plumbing: "Plumbing", tiling: "Tiling", painting: "Painting",
+  "appliance-repair": "Home appliance repair", other: "Other home services"
+}[value] || value || "");
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
-const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+const vfChecklist = (u) => u.verification?.kind === "agency"
+  ? ["CAC registration checked", "Registrar and office details reviewed", "Business contact details checked"]
+  : u.verification?.kind === "landlord"
+    ? ["Name matches government ID", "Address proof reviewed", "Ownership evidence matches the property"]
+    : ["Name matches government ID", "Address proof reviewed", "Professional registration checked where applicable"];
+function kycDocuments(u) {
+  const kind = u.verification?.kind;
+  if (kind !== "agent" && kind !== "landlord") return "";
+  const k = u.kyc || {};
+  const docs = [
+    ["identity", "Government ID", "identityPath", k.idType],
+    ["address-proof", "Proof of address", "addressPath", k.addressProofType]
+  ];
+  if (kind === "landlord") docs.push(["ownership-proof", "Property ownership evidence", "ownershipPath", k.ownershipProofType]);
+  const labels = {
+    "national-id": "National identity card", passport: "International passport", "drivers-license": "Driver’s licence",
+    "utility-bill": "Utility bill", "bank-statement": "Bank statement", "tenancy-agreement": "Tenancy agreement",
+    title: "Land title / deed", "tax-receipt": "Property tax receipt", other: "Other document"
+  };
+  const base = "verification/" + u.id + "/";
+  const rows = docs.map(([slot, title, pathKey, type]) => {
+    const available = k[pathKey] === base + slot;
+    const typeText = labels[type] || "";
+    const open = available
+      ? btn("Open privately", { v: "outline", size: "sm", attrs: 'data-kyc-open="' + slot + '"' })
+      : '<span class="ax-sub">Not submitted</span>';
+    return '<div class="ax-kyc-row"><div><b>' + title + '</b>' + (typeText ? '<small>' + esc(typeText) + '</small>' : '') + '</div>' + open + '</div>';
+  }).join("");
+  const summary = hasRequiredKyc(u)
+    ? "Documents submitted. Open them using your authenticated reviewer session."
+    : "Required identity, address, or ownership documents are missing. Do not approve this account yet.";
+  return '<section class="ax-card ax-kyc-review"><span class="ax-eyebrow">Private verification documents</span><p class="ax-sub">' + summary + '</p><div class="ax-kyc-list">' + rows + '</div></section>';
+}
 export function verifications(ctx) {
-  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
+  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Business, agent and home-owner accounts awaiting review, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
       let tab = hq().q.tab || "waiting";
-      const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
+      const want = () => us.filter((u) => u.verification && u.onboarding?.completed !== false), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
       const dels = () => us.filter((u) => u.deletion?.status === "pending");
       const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
       const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : (Math.floor(m / 1440) === 1 ? "1 day ago" : `${Math.floor(m / 1440)} days ago`); };
       const nameOf = (id) => us.find((x) => x.id === id)?.name || "";
-      const card = (u) => { const a = u.agency, g = u.agentInfo, v = u.verification, isA = v.kind === "agency", pend = v.status === "pending";
-        return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
-          ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Registrar", esc(a?.registrar)], ["Role", esc(a?.position)], ["Opened", esc(a?.opened)], ["Registrar’s DOB", esc(dob(a?.dob))], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]])}
-          ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${VF_CHECK.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
+      const card = (u) => { const a = u.agency || {}, g = u.agentInfo || {}, v = u.verification, isA = v.kind === "agency", isL = v.kind === "landlord", pend = v.status === "pending", roleName = isA ? "Business" : isL ? "Home owner" : "Agent", canApprove = !["agent", "landlord"].includes(v.kind) || hasRequiredKyc(u);
+        return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${roleName} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
+          ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Business types", esc((a?.businessTypes || []).map(businessTypeName).join(", "))], ["Registrar", esc(a?.registrar)], ["Role in company", esc(a?.position)], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : isL ? [["Full name", esc(u.name)], ["Account email", esc(u.email)], ["Location", esc([u.city, u.state, u.country].filter(Boolean).join(", "))]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["Professional registration", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Date of birth", esc(g?.dob)], ["Account email", esc(u.email)]])}
+          ${kycDocuments(u)}
+          ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${vfChecklist(u).map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: `data-v=verified${canApprove ? "" : " disabled"}` })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
       const html = () => {
         const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
         const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
-        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
+        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New business, agent and home-owner requests appear here." })}</div>`)
           : tab === "decided" ? (dn.length ? `<div class="ax-vgrid">${dn.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." })}</div>`)
           : `<div class="ax-card ax-tablecard">${dd.length ? `<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>${dd.map((u) => `<tr><td data-label="Person" data-role="title"><div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}</b><small>${esc(u.email || "")}</small></div></div></td><td data-label="Role">${esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter")}</td><td data-label="Requested">${ago(u.deletion.requestedAt)}</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">${btn("Approve deletion", { v: "danger", size: "sm", attrs: `data-del=approved data-id="${esc(u.id)}"` })}${btn("Keep account", { size: "sm", attrs: `data-del=denied data-id="${esc(u.id)}"` })}</div></td></tr>`).join("")}</tbody></table></div>` : empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })}</div>`;
         return `${tb}<div style="margin-top:16px" id="vfMain">${main}</div>`;
@@ -265,11 +337,17 @@ export function verifications(ctx) {
         const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
-          const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
-          if (bv) {
-            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
+          const bk = e.target.closest("[data-kyc-open]"), bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
+          if (bk) {
+            const c = bk.closest("[data-uid]"), u = us.find((x) => x.id === c?.dataset.uid);
+            if (!u || !hasRequiredKyc(u)) return bad(new Error("Required KYC metadata is missing."));
+            try { busy(bk, true); await openKycDocument(u.id, bk.dataset.kycOpen); toast("Opened the private verification document."); }
+            catch (error) { bad(error); }
+            finally { busy(bk, false); }
+          } else if (bv) {
+            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "business" : u.verification.kind === "landlord" ? "home-owner" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
-            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            busy(bv, true); const checklist = Object.fromEntries($("[data-ck]", c).map((x) => [vfChecklist(u)[+x.dataset.ck], x.checked]));
             try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
               await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
               toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }

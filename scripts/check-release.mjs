@@ -57,7 +57,7 @@ if (cfg && !/Content-Security-Policy/.test(csp)) bad("firebase.json has no Conte
 const cspText = (cfg?.hosting?.headers || []).flatMap((h) => h.headers).find((h) => h.key === "Content-Security-Policy")?.value || "";
 const allowed = new Set([...cspText.matchAll(/https:\/\/([a-z0-9*.-]+)/g)].map((m) => m[1]));
 const ok = (h) => allowed.has(h) || [...allowed].some((a) => a.startsWith("*.") && h.endsWith(a.slice(1)));
-const skip = /^(www\.w3\.org|faxton-rentals\.web\.app|wa\.me|www\.google\.com|outlook\.live\.com|mail\.yahoo\.com|mail\.google\.com|yourapp\.metered\.live|www\.youtube\.com|i\.ytimg\.com|schema\.org|github\.com|apps\.apple\.com|play\.google\.com|[a-z.]*tile\.openstreetmap\.org|\{s\}\.tile\.openstreetmap\.org)$/;
+const skip = /^(www\.w3\.org|faxton-rentals\.web\.app|yourbusiness\.com|wa\.me|www\.google\.com|outlook\.live\.com|mail\.yahoo\.com|mail\.google\.com|yourapp\.metered\.live|www\.youtube\.com|i\.ytimg\.com|schema\.org|github\.com|apps\.apple\.com|play\.google\.com|[a-z.]*tile\.openstreetmap\.org|\{s\}\.tile\.openstreetmap\.org)$/;
 for (const f of readdirSync(join(pub, "js")).filter((x) => x.endsWith(".js"))) {
   for (const m of read("public/js/" + f).matchAll(/["'`]https:\/\/([a-z0-9{}.-]+)/g)) {
     const h = m[1]; if (skip.test(h) || ok(h)) continue;

@@ -3,7 +3,13 @@ import { readFileSync } from "fs";
 import { setDoc, doc, addDoc, collection, serverTimestamp, updateDoc, getDoc, getDocs, query, where } from "firebase/firestore";
 const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
 await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" });
-  for (const [u, r] of [["own","renter"],["adm","admin"],["ren","renter"],["lord","landlord"],["oth","landlord"]]) await setDoc(doc(d, "users/" + u), { role: r });
+  for (const [u, r] of [["own","renter"],["adm","admin"],["ren","renter"],["oth","landlord"]]) await setDoc(doc(d, "users/" + u), { role: r });
+  await setDoc(doc(d, "users/lord"), {
+    role: "landlord", onboarding: { completed: true, referralSource: "friend", completedAt: Date.now() },
+    kyc: { status: "submitted", idType: "national-id", identityPath: "verification/lord/identity",
+      addressProofType: "utility-bill", addressPath: "verification/lord/address-proof",
+      ownershipProofType: "title", ownershipPath: "verification/lord/ownership-proof", submittedAt: Date.now() }
+  });
   await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x", price: 3000000 });
   await setDoc(doc(d, "listings/l2"), { status: "active", title: "platform home", price: 2000000 });
   await setDoc(doc(d, "listings/l3"), { status: "pending", ownerUid: "lord", title: "draft" }); });

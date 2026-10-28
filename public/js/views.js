@@ -8,6 +8,7 @@ import * as CALLS2 from "./calls.js";
 import { loadLeaflet, ctrlZoom, tiles } from "./maps.js";
 import * as CALLS from "./calls.js";
 import * as AV from "./authviews.js";
+import { onboardingSetup } from "./onboarding-setup.js";
 import { locFields, mountLoc, legacyLoc, resFields } from "./loc.js";
 import * as APPS from "./apps.js";
 import * as SAFE from "./safety.js";
@@ -52,6 +53,7 @@ const statusPill = (s) => `<span class="pill ${/pending|review|requested|awaitin
 // ---------- router ----------
 export async function route(ctx) {
   const { path } = ctx; let m;
+  if (path === "/onboarding/setup") return onboardingSetup(ctx);
   if ((m = path.match(/^\/onboarding\/([123])$/))) return AV.onboarding(ctx, +m[1]);
   if (path === "/login") return AV.authPage(ctx, "login");
   if (path === "/signup") return AV.authPage(ctx, "signup");

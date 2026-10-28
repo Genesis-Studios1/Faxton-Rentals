@@ -17,9 +17,9 @@ an admin console. Light and dark mode. Plain HTML, CSS and JavaScript (ES module
 | `public/.well-known/assetlinks.json` | Lets the Android app open `faxton-rentals.web.app` links. |
 | `public/vendor/leaflet/` | The map library, hosted by us (no third party). Loaded only when a map opens. |
 | `firebase.json` | Hosting settings: security headers, the Content-Security-Policy, caching rules. |
-| `firestore.rules` | Who may read or write what. Deny by default. |
+| `firestore.rules` | Who may read or write what, including onboarding completion, verified profiles and listing-verification gates. Deny by default. |
 | `firestore.indexes.json` | Search indexes. Faxton needs no custom ones; the file also switches off indexing for big picture fields. |
-| `storage.rules` | Only for the optional app-installer upload. The app does not use Firebase Storage for pictures. |
+| `storage.rules` | Private KYC uploads for landlord/agent identity and address, landlord ownership evidence, plus app-installer files. KYC objects are not public URLs. |
 | `scripts/check-release.mjs` | `npm run check`: stops a broken release before it goes out. |
 | `scripts/smoke-live.mjs` | `node scripts/smoke-live.mjs https://your-site`: checks the live site from outside. |
 | `tests/rules/` | Security-rule tests (`npm run test:rules`). |
@@ -29,8 +29,7 @@ an admin console. Light and dark mode. Plain HTML, CSS and JavaScript (ES module
 ## How the data is stored
 
 * **Firebase Authentication**: email and password, and Google sign-in.
-* **Cloud Firestore** on the free Spark plan. There are **no Cloud Functions and no Storage**: photos, voice notes and documents are saved as text
-  ("data URLs") inside Firestore documents, so each document must stay under 1 MiB. The rules cap picture fields well below that.
+* **Cloud Firestore** stores app records, and existing photos/voice notes/documents are still stored using the app's existing approach where applicable. **Private KYC verification files use Firebase Cloud Storage**, which requires the Firebase **Blaze pay-as-you-go plan**. KYC files are stored as private objects (not Firestore data URLs or public download links), limited to PDF/JPG/PNG and 10 MB each. See LAUNCH.md and enable Storage before release.
 * **No sample homes are ever shown to visitors.** If there are no live listings the app shows an honest empty state. The sample homes in
   `public/js/data.js` (`DEMO_SEED`) exist only for tests and for the owner's optional demo mode (below).
 
@@ -67,7 +66,7 @@ Windows: double-click **run-locally.bat**. Mac/Linux: `./run-locally.sh`. Or `np
    * `public/sw.js` (`BUILD`)
    * every `?v=` in `public/index.html` (css and js links, 13 of them)
 2. `npm run check` (it fails with a plain-English reason if the three disagree, a file is missing, or the code talks to a website the security policy would block).
-3. `npm run deploy` (checks again, then publishes the site and the Firestore rules). Or push to `main` and GitHub does it (`deploy.yml`).
+3. `npm run deploy` checks the release, then deploys Storage rules and Firestore rules before Hosting. Or push to `main` and GitHub does the same (`deploy.yml`). If Storage is not configured, the workflow stops before publishing Hosting.
 4. Run `node scripts/smoke-live.mjs https://faxton-rentals.web.app` and the by-hand test in LAUNCH.md.
 
 People who already have the app open see **"A new version is ready. Reload"**; everyone else gets it on their next visit.
@@ -116,8 +115,8 @@ In the Firebase console (project **faxton-rentals**):
 
 Troubleshooting deploys:
 * *"resolving hosting target of a site with no site name"*: run `npm run setup:site` (or Console > Hosting > Get started). If the name is taken, put another in `firebase.json` as `"site"`.
-* *Firestore error on deploy*: create the database first, or run `npm run deploy:hosting`.
-* *Storage step fails*: expected on the free plan; that step is allowed to fail.
+* *Firestore or Storage error on deploy*: create Firestore and enable Cloud Storage on Blaze first, then run the full `npm run deploy`. The `deploy:hosting` alias intentionally runs the full safe release so Hosting cannot skip KYC rules.
+* *Storage step fails*: do not ignore it for the onboarding/KYC release. Confirm Firebase Storage is enabled and the project is on Blaze, then rerun the release. The workflow deploys Storage and Firestore rules before Hosting so the new UI is not published against missing security rules.
 
 ## Apps (Android, iPhone, Windows, Mac, Linux)
 

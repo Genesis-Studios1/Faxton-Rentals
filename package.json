@@ -5,15 +5,16 @@
   "description": "Faxton Rentals web app",
   "scripts": {
     "start": "npx --yes serve public -l 3000",
-    "deploy": "node scripts/check-release.mjs && npx --yes firebase-tools deploy --only hosting,firestore --project faxton-rentals",
+    "deploy": "node scripts/check-release.mjs && npx --yes firebase-tools deploy --only storage --project faxton-rentals && npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals && npx --yes firebase-tools deploy --only hosting --project faxton-rentals",
     "update": "git pull origin main && npm run deploy",
     "setup:site": "npx --yes firebase-tools hosting:sites:create faxton-rentals --project faxton-rentals",
     "sites": "npx --yes firebase-tools hosting:sites:list --project faxton-rentals",
-    "deploy:hosting": "npx --yes firebase-tools deploy --only hosting --project faxton-rentals",
-    "deploy:rules": "npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals",
+    "deploy:hosting": "npm run deploy",
+    "deploy:rules": "npx --yes firebase-tools deploy --only storage --project faxton-rentals && npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals",
     "check": "node scripts/check-release.mjs",
-    "deploy:all": "npx --yes firebase-tools deploy --project faxton-rentals",
+    "deploy:all": "npm run deploy",
     "deploy:indexes": "npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals",
-    "test:rules": "npm --prefix tests/rules install --silent && npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton \"node tests/rules/run.mjs\""
+    "test:rules": "npm --prefix tests/rules install --silent && npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton \"node tests/rules/run.mjs\"",
+    "deploy:storage-rules": "npx --yes firebase-tools deploy --only storage --project faxton-rentals"
   }
 }

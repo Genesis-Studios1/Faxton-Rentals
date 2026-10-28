@@ -43,7 +43,8 @@ to renters and agents. Do this *before* you print or share the link, because the
 - [ ] **Email deliverability**: Firebase's default sender often lands in spam. In *Templates* choose **Customize domain** and add the DNS records it shows (they prove your domain). New renters must verify their email to use the app, so this matters.
 - [ ] **Email limits**: the free plan limits how many verification and password-reset emails Firebase will send per day (a low figure; see **Authentication > Usage** and the Firebase quotas page). If you expect more new sign-ups per day than that, move to the Blaze plan (step 11) before launch.
 - [ ] **Firestore**: database created in **production mode**, in a region close to Nigeria if offered (for example `europe-west` is usually the closest; the region cannot be changed later).
-- [ ] Deploy the rules and indexes once: GitHub > Actions > **Deploy to Firebase** > Run workflow (or `npm run deploy`).
+- [ ] **Enable Cloud Storage for Firebase before deploying the onboarding/KYC release.** Firebase requires the Blaze pay-as-you-go plan for Cloud Storage. Create the default bucket, review the current no-cost quotas and possible charges, and configure budget alerts. Do not deploy the new onboarding UI until Storage is enabled and its private rules deploy successfully.
+- [ ] Deploy the rules and indexes once: GitHub > Actions > **Deploy to Firebase** > Run workflow (or `npm run deploy`). The release workflow deploys Storage rules and Firestore rules before Hosting; it stops before Hosting if required Storage deployment fails.
 - [ ] **Project settings > Your apps > Web app**: nothing secret is in it. Leave the public web config as it is.
 
 ## 3. Google sign-in in production (blocker)
@@ -111,16 +112,18 @@ The owner's email is deliberately not stored in the code. You tell Firestore onc
 ## 10. Real agents, real homes (blocker: the site is empty until you do this)
 
 - [ ] **Remove demo data.** If you ever used demo mode, delete every home that has the sample agents (Daniel Okafor, Ngozi Adeyemi, Tunde Salami, Amara Bello, Ibrahim Musa) from Admin > **Listings**. Visitors must only ever see real homes.
-- [ ] **Approve the first agents and agencies**: they sign up with the *Agent* or *Agency* tab, upload their documents, then appear in Admin > **Verifications**. Check the documents (CAC number for agencies, valid ID and a phone call for agents) and **Verify**. Verified people get the green tick and can list homes.
-- [ ] **Home owners** (landlords) can list straight away; every new listing waits in Admin > **Listings** (or the **Review queue**) until you approve it.
+- [ ] **Review the first businesses, agents and home owners**: the sign-up role is shown as *Business* in the UI. After signup, new users finish onboarding with their referral source and manually selected location. Businesses submit CAC and company details; agents submit contact/experience/coverage details. Agents and home owners upload a valid government ID and proof of address; home owners also submit ownership evidence. These sensitive documents are private Storage objects, opened through Admin > **Verifications** using an authorised admin session.
+- [ ] **Manually verify professional registration where applicable**: check CAC and relevant professional registers (for example PPRA, where applicable) during review. The current app does not automatically integrate with PPRA; do not mark a registration verified unless it has been checked.
+- [ ] **Verify home ownership before property verification**: compare the owner’s submitted title/deed, address-matching utility bill, tax receipt or other evidence against the specific property. Do not mark a listing “Verified” merely because the user uploaded a document. Keep every listing pending until review is complete.
+- [ ] **Home owners** must complete onboarding and submit identity, address and ownership evidence before creating listings. Their listings remain pending until an admin reviews and approves them; mark a listing verified only after its ownership evidence matches that property.
 - [ ] **Seed 10 to 20 real homes before announcing.** Visit each one or get the agent's proof. Each home: a clear title, the real price per year, 4 to 6 good photos (or paste photo links), the real area, and a working phone/WhatsApp contact via the app. Keep photos small: pictures live inside the database and one home can hold roughly 8 to 10 photos before it hits the 1 MB document limit.
 - [ ] Videos: only YouTube, Vimeo or `https://` video links; the app does not host video.
 - [ ] Decide your **cities**: the search and the "Lagos" wording assume Lagos first. Add areas of other cities only when you have homes there.
 - [ ] Have a plan for the day-to-day: who approves listings (target: within 24 hours), who answers the support inbox and Help tickets, who handles reports of scams (Admin > **User reports**).
 
-## 11. The free Firebase plan (Spark): limits and what breaks first
+## 11. Firebase plan and limits (Spark vs Blaze)
 
-The site runs on the free **Spark** plan with no servers of your own. Typical free limits (confirm on firebase.google.com/pricing; Google changes them):
+The current public app has historically used the free **Spark** plan for Authentication, Firestore and Hosting. **The new private KYC onboarding requires Cloud Storage for Firebase, which requires Blaze. Do not deploy or enable the new onboarding flow on Spark:** ID/address/ownership uploads will fail. Before release, the project owner must enable Blaze, create/enable the Storage bucket, review the current no-cost quotas and possible charges, and configure budget alerts. The Firebase limits below can change, so confirm them on firebase.google.com/pricing:
 
 | Resource | Free limit | What happens when you hit it |
 |---|---|---|
@@ -139,7 +142,7 @@ The site runs on the free **Spark** plan with no servers of your own. Typical fr
 3. **Document size (1 MiB).** Each home, chat message and document keeps its pictures inside the document. Keep photos few and small.
 4. **Writes (20,000 a day)**: chat typing indicators, read receipts and call signalling all write. A busy chat day with a few hundred active users can reach it.
 
-**When to move to the paid Blaze plan.** Blaze is pay-as-you-go with the **same free amounts**; you only pay for what goes over. It also unlocks things that need a server: scheduled backups, Cloud Functions (for emailed 2-step codes, push notifications and automatic clean-ups), and Firebase Storage. Cards issued in Nigeria usually work if enabled for international payments.
+**Blaze and budgets.** Blaze is pay-as-you-go; no-cost quotas may still apply, but usage above them can incur charges. Cloud Storage for Firebase requires Blaze. The account owner should review current pricing and set budget alerts before enabling KYC uploads. Budget alerts notify you but do not automatically stop usage.
 - [ ] Upgrade to Blaze **before** your first big announcement or ad. In the same screen set a **budget alert** (for example the equivalent of US$10 to 20) so a surprise never becomes a big bill. A budget alert only emails you; it does not stop the spending, so also check the **Usage** tab weekly.
 - [ ] Until you upgrade, announce quietly and grow in steps. If many people arrive at once, the site simply stops for the day instead of costing you money.
 

@@ -11,7 +11,7 @@ const f = (id, label, ph = "", extra = "", hint = "") => `<div class="field"><la
 
 const AGENCY = (name) => `<h2>Tell us about your agency</h2><p class="muted" style="margin-bottom:12px">We use these details to verify your agency. Only the Faxton team can see them.</p>
   <form id="ob" class="a2-form ob-form" novalidate>
-    ${f("business", "Agency / business name", "e.g. Faxton Properties Ltd", 'required maxlength="120" autocomplete="organization"')}
+    ${f("business", "Business name", "e.g. Faxton Properties Ltd", 'required maxlength="120" autocomplete="organization"')}
     <div class="f2">${f("registrar", "Full name of registrar", "", `required maxlength="120" value="${esc(name)}" autocomplete="name"`)}${f("position", "Your role in the company", "e.g. Managing Director", 'required maxlength="80"')}</div>
     <div class="f2">${f("supportEmail", "Support email", "support@youragency.com", 'type="email" required maxlength="120"')}${f("phone", "Business phone number", "+234 …", 'type="tel" required maxlength="30"')}</div>
     <div class="f2">${f("cac", "CAC registration number", "RC 1234567", 'required maxlength="30"', "As shown on your CAC certificate.")}${f("opened", "Year the agency opened", String(thisYear - 5), `type="number" required min="1900" max="${thisYear}"`)}</div>
@@ -106,7 +106,7 @@ export function collectDetails(role, fullName = "") {
 export function verifyPopup(role) {
   return new Promise((resolve) => {
     const mins = role === "agency" ? "3 to 5 minutes" : "10 minutes";
-    const m = modal(`<div class="vf-pop"><span class="vf-ic">${icon("clock", 34)}</span><h2>Account created</h2><p>Your ${role === "agency" ? "agency" : "agent"} account is being verified. This will take about <b>${mins}</b>.</p><p class="muted">We’ll notify you the moment you’re verified. After that you can start listing properties.</p><button class="btn primary block" id="vfok">Got it</button></div>`);
+    const m = modal(`<div class="vf-pop"><span class="vf-ic">${icon("clock", 34)}</span><h2>Account created</h2><p>Your ${role === "agency" ? "business" : "agent"} account is being verified. This will take about <b>${mins}</b>.</p><p class="muted">We’ll notify you the moment you’re verified. After that you can start listing properties.</p><button class="btn primary block" id="vfok">Got it</button></div>`);
     m.el.addEventListener("close", () => resolve()); $("#vfok", m.el).onclick = () => m.close();
   });
 }

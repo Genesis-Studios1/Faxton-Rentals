@@ -7,7 +7,7 @@ import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, r
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
-const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Run your agency’s listings, agents and clients.", agent: "Follow up leads, clients and your listings." };
+const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Run your business listings, team and clients.", agent: "Follow up leads, clients and your listings." };
 const safeGet = (k, s = sessionStorage) => { try { return s.getItem(k); } catch { return null; } };
 const safeSet = (k, v, s = sessionStorage) => { try { s.setItem(k, v); } catch {} };
 const logoLink = (cls = "", href = "#/") => `<a class="${cls}" href="${href}" aria-label="Faxton Rentals">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
@@ -203,7 +203,7 @@ export function authPage(ctx, mode) {
       const btn = which === "google" ? google : submit, lbl = $(".au-bl", btn);
       btn.classList.toggle("loading", on); if (on) { lbl.dataset.t = lbl.textContent; lbl.textContent = which === "google" ? "Connecting to Google…" : login ? "Signing in…" : "Creating your account…"; } else if (lbl.dataset.t) lbl.textContent = lbl.dataset.t;
     };
-    const STAFF = ["admin", "owner", "support"], WHO = { landlord: "a home owner", agency: "an agency", agent: "an agent" };
+    const STAFF = ["admin", "owner", "support"], WHO = { landlord: "a home owner", agency: "a business", agent: "an agent" };
     const run = async (fn, which) => {
       if (busy) return;
       if (navigator.onLine === false) return say("You’re offline. Connect to the internet and try again.");
@@ -262,7 +262,7 @@ export function authPage(ctx, mode) {
     };
     google.onclick = async () => {
       if (busy) return;
-      // On the sign-up page the chosen account type, its details and where the person lives all travel with the Google account.
+      // The account type is selected here; required location and role-specific details are collected on the post-sign-up onboarding screen.
       if (!login && !validateSignup({ google: true })) return;
       run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, null, null, photo || undefined), "google");
     };

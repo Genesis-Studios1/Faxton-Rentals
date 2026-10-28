@@ -30,6 +30,102 @@ service cloud.firestore {
           ? d.get('ownerUid', null) == get(/databases/$(database)/documents/listings/$(d.listingId)).data.get('ownerUid', null)
           : d.get('ownerUid', null) == null);
     }
+    function onboardingOk(d) {
+      return !('onboarding' in d) || (
+        d.onboarding is map
+        && d.onboarding.keys().hasOnly(['completed', 'referralSource', 'referralOther', 'completedAt'])
+        && d.onboarding.get('completed', false) is bool
+        && (!d.onboarding.get('completed', false) || d.onboarding.get('referralSource', '') in ['instagram', 'tiktok', 'x', 'facebook', 'google', 'youtube', 'friend', 'event', 'other'])
+        && (!('referralOther' in d.onboarding) || short(d.onboarding.referralOther, 120))
+        && (!('completedAt' in d.onboarding) || d.onboarding.completedAt is int)
+      );
+    }
+    // KYC document paths are private Firebase Storage object names, never public download URLs.
+    function kycOk(d) {
+      return !('kyc' in d) || (
+        d.kyc is map
+        && d.kyc.keys().hasOnly(['status', 'idType', 'identityPath', 'addressProofType', 'addressPath', 'ownershipProofType', 'ownershipPath', 'submittedAt'])
+        && d.kyc.get('status', '') == 'submitted'
+        && d.kyc.get('idType', '') in ['national-id', 'passport', 'drivers-license']
+        && d.kyc.get('identityPath', '') == 'verification/' + request.auth.uid + '/identity'
+        && d.kyc.get('addressProofType', '') in ['utility-bill', 'bank-statement', 'tenancy-agreement', 'other']
+        && d.kyc.get('addressPath', '') == 'verification/' + request.auth.uid + '/address-proof'
+        && d.kyc.get('submittedAt', 0) is int
+        && ((d.get('role', '') == 'landlord'
+              && d.kyc.get('ownershipProofType', '') in ['title', 'utility-bill', 'tax-receipt', 'other']
+              && d.kyc.get('ownershipPath', '') == 'verification/' + request.auth.uid + '/ownership-proof')
+            || (d.get('role', '') == 'agent'
+              && !('ownershipPath' in d.kyc) && !('ownershipProofType' in d.kyc)))
+      );
+    }
+    function kycSubmittedFor(d, uid) {
+      return d.get('kyc', null) is map
+        && d.kyc.get('status', '') == 'submitted'
+        && d.kyc.get('idType', '') in ['national-id', 'passport', 'drivers-license']
+        && d.kyc.get('identityPath', '') == 'verification/' + uid + '/identity'
+        && d.kyc.get('addressProofType', '') in ['utility-bill', 'bank-statement', 'tenancy-agreement', 'other']
+        && d.kyc.get('addressPath', '') == 'verification/' + uid + '/address-proof'
+        && ((d.get('role', '') == 'landlord'
+              && d.kyc.get('ownershipProofType', '') in ['title', 'utility-bill', 'tax-receipt', 'other']
+              && d.kyc.get('ownershipPath', '') == 'verification/' + uid + '/ownership-proof')
+            || (d.get('role', '') == 'agent'
+              && !('ownershipPath' in d.kyc) && !('ownershipProofType' in d.kyc)));
+    }
+    function listingVerificationOk(d) {
+      return d.get('verified', false) != true
+        || !('ownerUid' in d) || d.ownerUid == null
+        || (d.ownerUid is string
+          && exists(/databases/$(database)/documents/users/$(d.ownerUid))
+          && ((get(/databases/$(database)/documents/users/$(d.ownerUid)).data.get('role', '') == 'landlord'
+                && kycSubmittedFor(get(/databases/$(database)/documents/users/$(d.ownerUid)).data, d.ownerUid))
+              || (get(/databases/$(database)/documents/users/$(d.ownerUid)).data.get('role', '') in ['agent', 'agency']
+                && get(/databases/$(database)/documents/users/$(d.ownerUid)).data.get('verified', false) == true)));
+    }
+    function businessOnboardingOk(d) {
+      return d.get('agency', null) is map
+        && d.agency.keys().hasOnly(['business', 'businessTypes', 'cac', 'registrar', 'address', 'supportEmail', 'position', 'website', 'otherService'])
+        && short(d.agency.get('business', ''), 120) && d.agency.get('business', '').size() >= 2
+        && d.agency.get('businessTypes', []) is list
+        && d.agency.get('businessTypes', []).size() >= 1 && d.agency.get('businessTypes', []).size() <= 8
+        && d.agency.get('businessTypes', []).hasOnly(['real-estate', 'electrical', 'home-automation', 'plumbing', 'tiling', 'painting', 'appliance-repair', 'other'])
+        && short(d.agency.get('cac', ''), 30) && d.agency.get('cac', '').size() >= 4
+        && short(d.agency.get('registrar', ''), 120) && d.agency.get('registrar', '').size() >= 3
+        && short(d.agency.get('address', ''), 200) && d.agency.get('address', '').size() >= 5
+        && short(d.agency.get('supportEmail', ''), 120) && d.agency.get('supportEmail', '').matches('^[^@ ]+@[^@ ]+\\.[^@ ]+$')
+        && short(d.agency.get('position', ''), 100) && d.agency.get('position', '').size() >= 2
+        && short(d.agency.get('website', ''), 180)
+        && short(d.agency.get('otherService', ''), 100);
+    }
+    function agentOnboardingOk(d) {
+      return d.get('agentInfo', null) is map
+        && d.agentInfo.keys().hasOnly(['phone', 'experience', 'company', 'licence', 'areas', 'dob'])
+        && short(d.agentInfo.get('phone', ''), 30) && d.agentInfo.get('phone', '').size() >= 8
+        && d.agentInfo.get('experience', -1) is int && d.agentInfo.get('experience', -1) >= 0 && d.agentInfo.get('experience', -1) <= 60
+        && short(d.agentInfo.get('company', ''), 120)
+        && short(d.agentInfo.get('licence', ''), 80)
+        && short(d.agentInfo.get('areas', ''), 180) && d.agentInfo.get('areas', '').size() >= 3
+        && short(d.agentInfo.get('dob', ''), 10) && d.agentInfo.get('dob', '').size() == 10;
+    }
+    function onboardingLocationOk(d) {
+      return short(d.get('country', ''), 60) && d.get('country', '').size() >= 2
+        && short(d.get('location', ''), 80) && d.get('location', '').size() >= 2
+        && ((d.get('country', '') == 'Nigeria'
+              && short(d.get('state', ''), 60) && d.get('state', '').size() >= 2
+              && short(d.get('lga', ''), 60) && d.get('lga', '').size() >= 2)
+            || (d.get('country', '') != 'Nigeria'
+              && ((short(d.get('city', ''), 60) && d.get('city', '').size() >= 2)
+                || (short(d.get('state', ''), 60) && d.get('state', '').size() >= 2))));
+    }
+    function onboardingCompleteUpdate(resourceData, newData) {
+      return resourceData.get('onboarding', {}).get('completed', false) == false
+        && newData.get('onboarding', {}).get('completed', false) == true
+        && onboardingOk(newData) && onboardingLocationOk(newData)
+        && ((newData.role == 'agency' && businessOnboardingOk(newData) && !('agentInfo' in newData) && !('kyc' in newData))
+          || (newData.role == 'agent' && agentOnboardingOk(newData) && ('kyc' in newData) && kycOk(newData))
+          || (newData.role == 'landlord' && ('kyc' in newData) && kycOk(newData) && !('agency' in newData) && !('agentInfo' in newData))
+          || (newData.role == 'renter' && !('agency' in newData) && !('agentInfo' in newData) && !('kyc' in newData)));
+    }
+
     // Optional profile fields must have the right type and size.
     function profileOk(d) {
       return (!('phone' in d) || short(d.phone, 30))
@@ -44,7 +140,8 @@ service cloud.firestore {
         && (!('privacy' in d) || d.privacy is map)
         && (!('lastActive' in d) || d.lastActive is timestamp)
         && (!('provider' in d) || short(d.provider, 20))
-        && (!('emailVerified' in d) || d.emailVerified is bool);
+        && (!('emailVerified' in d) || d.emailVerified is bool)
+        && onboardingOk(d) && kycOk(d);
     }
 
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
@@ -106,11 +203,11 @@ service cloud.firestore {
       // Agencies and agents register with business details and start unverified (an admin verifies them).
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.role in ['renter', 'agent', 'landlord', 'agency']
-        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification', 'onboarding', 'kyc', 'lastActive', 'provider', 'emailVerified'])
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500 && profileOk(request.resource.data)
-        && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency']))
+        && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && ((request.resource.data.role == 'agent' && request.resource.data.verification.kind == 'agent') || (request.resource.data.role == 'agency' && request.resource.data.verification.kind == 'agency') || (request.resource.data.role == 'landlord' && request.resource.data.verification.kind == 'landlord'))))
         && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
         && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
       // Users edit their own profile but never role, email, ban or verification. The owner can change anything;
@@ -122,12 +219,11 @@ service cloud.firestore {
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
           && request.resource.data.get('verification', null) == resource.data.get('verification', null)
-          && request.resource.data.get('agency', null) == resource.data.get('agency', null)
-          && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['onboarding', 'agency', 'agentInfo', 'kyc']) || onboardingCompleteUpdate(resource.data, request.resource.data))
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding', 'kyc'])
           && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
@@ -136,8 +232,11 @@ service cloud.firestore {
         || (isAdmin() && uid != request.auth.uid
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
-              || (resource.data.role in ['agent', 'agency']
-                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification']))
+              || (resource.data.role in ['agent', 'agency', 'landlord']
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification'])
+                && (request.resource.data.get('verified', false) != true
+                    || (resource.data.role == 'agency' && resource.data.get('onboarding', {}).get('completed', false) == true && businessOnboardingOk(resource.data))
+                    || kycSubmittedFor(resource.data, uid)))
               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
       allow delete: if signedIn() && request.auth.uid == uid && resource.data.get('deletion', {}).get('status', '') == 'approved'
@@ -188,11 +287,16 @@ service cloud.firestore {
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
       // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
-      allow create: if isAdmin() || (signedIn() && (myRole() == 'landlord' || (myRole() in ['agency', 'agent'] && isVerified()))
+      allow create: if (isAdmin() && listingVerificationOk(request.resource.data)) || (signedIn()
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
-        && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
-      allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.get('verified', false) != true
+        && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('onboarding', {}).get('completed', false) == true
+        && ((myRole() == 'landlord' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('kyc', {}).get('status', '') == 'submitted')
+          || (myRole() in ['agency', 'agent'] && isVerified())));
+      allow update: if (isAdmin() && listingVerificationOk(request.resource.data)) || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.status == resource.data.status
+        && request.resource.data.get('verified', false) == resource.data.get('verified', false)
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
