@@ -289,3 +289,87 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 .lk-after{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:2px 0 4px 34px;color:var(--head);font-size:.95rem}
 .lk-after select{min-height:44px;padding:6px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface,#fff);color:var(--head);font:inherit}
 .lk-opts[hidden],.lk-after[hidden]{display:none}
+
+
+/* Post-signup account setup: responsive form cards for every user type. */
+.obx-setup{min-height:100%;background:var(--bg,#f5f8f6);color:var(--head,#0b2e25);padding:0 0 30px}
+.obx-head{width:min(1120px,calc(100% - 40px));margin:0 auto;min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.obx-logo{display:inline-flex;align-items:center;gap:9px;text-decoration:none;color:var(--head,#0b2e25);font-weight:700}
+.obx-logo .logo-svg{width:32px;height:32px;flex:none}
+.obx-account-pill{display:inline-flex;align-items:center;gap:7px;border:1px solid #dce9e1;border-radius:999px;background:#fff;padding:8px 13px;font-size:12px;font-weight:700;color:#177354}
+.obx-main{width:min(900px,calc(100% - 40px));margin:0 auto}
+.obx-intro{max-width:720px;margin:22px auto 26px;text-align:center}
+.obx-kicker{margin:0 0 8px;font-size:10px;line-height:1.4;letter-spacing:.16em;font-weight:800;color:#138363;text-transform:uppercase}
+.obx-intro h1{margin:0;font-size:clamp(30px,4vw,43px);line-height:1.08;letter-spacing:-.04em;font-family:var(--font-display,Inter,system-ui,sans-serif);font-weight:750}
+.obx-intro>p:not(.obx-kicker){max-width:560px;margin:12px auto 0;color:var(--muted,#61746c);font-size:14px;line-height:1.55}
+.obx-progress{max-width:440px;margin:22px auto 0;display:flex;align-items:center;gap:7px}
+.obx-progress span{height:4px;flex:1;border-radius:999px;background:#dce7e0}
+.obx-progress span.on{background:#17966f}
+.obx-progress small{margin-left:8px;color:var(--muted,#61746c);font-size:11px;white-space:nowrap}
+#obx-form{display:grid;gap:16px}
+.obx-card{min-width:0;background:#fff;border:1px solid #e0e9e4;border-radius:20px;padding:clamp(18px,3vw,28px);box-shadow:0 10px 35px rgba(15,50,37,.035)}
+.obx-section-head{display:grid;grid-template-columns:38px minmax(0,1fr);gap:13px;align-items:start;margin-bottom:20px}
+.obx-step{width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:#e2f5ec;color:#087a59;font-size:12px;font-weight:850;font-variant-numeric:tabular-nums}
+.obx-section-head h2{margin:0;font-size:clamp(19px,2.4vw,24px);line-height:1.18;letter-spacing:-.025em}
+.obx-section-head p:not(.obx-kicker){margin:6px 0 0;color:var(--muted,#61746c);font-size:13px;line-height:1.5}
+.obx-section-head .obx-kicker{margin:1px 0 6px}
+.obx-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.obx-field{min-width:0;display:flex;flex-direction:column;gap:7px}
+.obx-field label,.obx-upload label{font-size:12px;font-weight:750;color:#183e31;line-height:1.35}
+.obx-field input,.obx-field select{width:100%;min-width:0;min-height:46px;padding:11px 12px;border:1px solid #d9e4de;border-radius:11px;background:#fbfdfb;color:#173b2e;font:400 14px/1.35 var(--font-body,Inter,system-ui,sans-serif);outline:none}
+.obx-field input:focus,.obx-field select:focus{border-color:#19936d;box-shadow:0 0 0 3px rgba(25,147,109,.11);background:#fff}
+.obx-field.invalid input,.obx-field.invalid select{border-color:#d64242;background:#fffafa}
+.obx-error{font-size:11px;line-height:1.4;color:#b52727}
+.obx-help{font-size:11px;line-height:1.5;color:var(--muted,#61746c)}
+.obx-wide{grid-column:1/-1}
+.obx-location{margin-top:19px;padding-top:18px;border-top:1px solid #e8efeb}
+.obx-location h3{margin:0 0 4px;font-size:14px;font-weight:800}
+.obx-location>p{margin:0 0 15px;font-size:12px;color:var(--muted,#61746c)}
+.obx-location .au-res{margin:0}
+.obx-note{margin-top:17px;padding:15px 16px;border:1px solid #dcece3;border-radius:13px;background:#f4fbf7;font-size:12px;line-height:1.55;color:#49645a}
+.obx-note b{display:block;margin-bottom:4px;color:#125b43;font-size:12px}
+.obx-note p{margin:4px 0 0}
+.obx-upload-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.obx-upload{min-width:0;border:1px solid #dce8e1;border-radius:14px;padding:15px;background:#fbfdfb}
+.obx-upload-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+.obx-upload-icon{width:34px;height:34px;display:grid;place-items:center;flex:none;border-radius:10px;background:#e3f5ec;color:#087a59}
+.obx-upload-top label{display:block;margin:0 0 4px}
+.obx-upload-top p{margin:0;color:var(--muted,#61746c);font-size:11px;line-height:1.45}
+.obx-upload input[type=file]{width:100%;min-width:0;font:12px var(--font-body,Inter,system-ui,sans-serif);color:#4c665a}
+.obx-upload input[type=file]::file-selector-button{border:1px solid #d8e4dd;border-radius:8px;padding:8px 10px;margin:0 8px 0 0;background:#fff;color:#16563f;font:700 11px var(--font-body,Inter,system-ui,sans-serif);cursor:pointer}
+.obx-file-state{display:block;overflow-wrap:anywhere;margin-top:9px;color:#648074;font-size:10px;line-height:1.45}
+.obx-submit-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 3px 0}
+.obx-submit-note{max-width:450px;margin:0;color:var(--muted,#61746c);font-size:11px;line-height:1.55}
+.obx-submit{display:inline-flex;justify-content:center;align-items:center;gap:9px;min-height:48px;flex:none;padding:0 20px;border:0;border-radius:12px;background:#0e805d;color:#fff;font:750 13px var(--font-body,Inter,system-ui,sans-serif);box-shadow:0 7px 18px rgba(14,128,93,.15);cursor:pointer}
+.obx-submit:hover{background:#09684b}
+.obx-submit:disabled{opacity:.62;cursor:wait}
+.obx-submit.loading svg{animation:obx-spin .8s linear infinite}
+@keyframes obx-spin{to{transform:rotate(360deg)}}
+.obx-status,.obx-error-summary{margin:0;padding:0 3px;font-size:12px;line-height:1.5}
+.obx-status{color:#11734f}.obx-error-summary{color:#b52727}
+.obx-footer{padding:26px 0 0;text-align:center;color:#90a198;font-size:10px}
+.obx-finish-card{text-align:center;padding-block:32px}
+.obx-finish-card h2{margin:12px 0 6px;font-size:22px}
+.obx-finish-card p{max-width:420px;margin:0 auto;color:var(--muted,#61746c);font-size:13px;line-height:1.55}
+.obx-finish-icon{display:inline-grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#e1f5eb;color:#087a59}
+.obx-setup [hidden]{display:none!important}
+@media(max-width:640px){
+ .obx-head{width:calc(100% - 28px);min-height:62px}
+ .obx-main{width:calc(100% - 24px)}
+ .obx-intro{margin:16px auto 20px;text-align:left}
+ .obx-intro h1{font-size:31px;max-width:16ch}
+ .obx-intro>p:not(.obx-kicker){font-size:13px}
+ .obx-progress{margin-top:17px}
+ .obx-progress small{font-size:10px;max-width:118px;white-space:normal;line-height:1.3}
+ .obx-card{padding:17px 15px;border-radius:16px}
+ .obx-section-head{grid-template-columns:32px minmax(0,1fr);gap:10px;margin-bottom:17px}
+ .obx-step{width:31px;height:31px;border-radius:10px}
+ .obx-section-head h2{font-size:20px}
+ .obx-grid,.obx-upload-grid{grid-template-columns:minmax(0,1fr);gap:13px}
+ .obx-wide{grid-column:1}
+ .obx-field input,.obx-field select{min-height:47px;font-size:14px}
+ .obx-upload{padding:13px}
+ .obx-submit-row{align-items:stretch;flex-direction:column}
+ .obx-submit{width:100%}
+}
+@media(prefers-reduced-motion:reduce){.obx-submit.loading svg{animation:none}}
