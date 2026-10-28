@@ -66,7 +66,7 @@ export function checkDetails(role, raw) {
 export const ROLE_INFO = {
   renter: { name: "Renter", blurb: "Browse homes, book viewings and apply to rent.", ask: [] },
   landlord: { name: "Home owner", blurb: "List your own homes. Our team reviews each listing before it goes live.", ask: [] },
-  agency: { name: "Agency", blurb: "Run a registered business and list homes for your clients.", ask: ["Business name", "CAC registration number", "Support email", "Office address"], more: "plus a few details about the registrar" },
+  agency: { name: "Business", blurb: "Register your real-estate or home-services business and tell us what you offer.", ask: ["Business type", "CAC registration number", "Office address"], more: "plus your contact and company details" },
   agent: { name: "Agent", blurb: "List and manage homes as an individual agent.", ask: ["ID or licence number", "Agency you work for", "Areas you cover"], more: "plus your phone number and experience" },
 };
 // The inline detail fields for the sign-up page (country and city are asked once, in the residence row).
