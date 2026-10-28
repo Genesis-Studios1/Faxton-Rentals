@@ -36,6 +36,41 @@ service cloud.firestore {
         && short(d.get('lga', ''), 60)
         && short(d.get('identityType', ''), 30);
     }
+    function businessProfileOk(d) {
+      return d is map
+        && d.keys().hasOnly(['business', 'businessType', 'businessTypeOther', 'cac', 'registrar', 'position', 'supportEmail', 'address', 'website', 'registrationBody', 'registrationNumber', 'country', 'state', 'lga', 'city'])
+        && short(d.get('business', ''), 120)
+        && short(d.get('businessType', ''), 40)
+        && short(d.get('businessTypeOther', ''), 100)
+        && short(d.get('cac', ''), 30)
+        && short(d.get('registrar', ''), 120)
+        && short(d.get('position', ''), 80)
+        && short(d.get('supportEmail', ''), 120)
+        && short(d.get('address', ''), 200)
+        && short(d.get('website', ''), 160)
+        && short(d.get('registrationBody', ''), 120)
+        && short(d.get('registrationNumber', ''), 60)
+        && short(d.get('country', ''), 60)
+        && short(d.get('state', ''), 60)
+        && short(d.get('lga', ''), 60)
+        && short(d.get('city', ''), 60);
+    }
+    function agentProfileOk(d) {
+      return d is map
+        && d.keys().hasOnly(['phone', 'experience', 'company', 'areas', 'dob', 'licence', 'registrationBody', 'registrationNumber', 'country', 'state', 'lga', 'city'])
+        && short(d.get('phone', ''), 30)
+        && d.get('experience', 0) is int && d.experience >= 0 && d.experience <= 60
+        && short(d.get('company', ''), 120)
+        && short(d.get('areas', ''), 180)
+        && short(d.get('dob', ''), 10)
+        && short(d.get('licence', ''), 60)
+        && short(d.get('registrationBody', ''), 120)
+        && short(d.get('registrationNumber', ''), 60)
+        && short(d.get('country', ''), 60)
+        && short(d.get('state', ''), 60)
+        && short(d.get('lga', ''), 60)
+        && short(d.get('city', ''), 60);
+    }
     function verificationFileMeta(uid, d) {
       return d is map
         && d.keys().hasOnly(['path', 'name', 'contentType', 'size', 'uploadedAt'])
@@ -145,8 +180,8 @@ service cloud.firestore {
         && request.resource.data.saved.size() <= 500 && profileOk(request.resource.data)
         && (!('onboarding' in request.resource.data) || (onboardingOk(request.resource.data.onboarding) && request.resource.data.onboarding.get('completed', false) == false))
         && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency', 'landlord']))
-        && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
-        && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
+        && (!('agency' in request.resource.data) || businessProfileOk(request.resource.data.agency))
+        && (!('agentInfo' in request.resource.data) || agentProfileOk(request.resource.data.agentInfo));
       // Users edit their own profile but never role, email, ban or verification. The owner can change anything;
       // an admin can ban or unban non-owners and verify agents and agencies, nothing else.
       allow update: if signedIn() && (
@@ -158,10 +193,10 @@ service cloud.firestore {
           && request.resource.data.get('verification', null) == resource.data.get('verification', null)
           && (request.resource.data.get('agency', null) == resource.data.get('agency', null)
               || (resource.data.role == 'agency' && resource.data.get('verification', {}).get('status', '') == 'pending'
-                  && request.resource.data.get('agency', null) is map && request.resource.data.agency.size() <= 20))
+                  && request.resource.data.get('agency', null) is map && businessProfileOk(request.resource.data.agency)))
           && (request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
               || (resource.data.role == 'agent' && resource.data.get('verification', {}).get('status', '') == 'pending'
-                  && request.resource.data.get('agentInfo', null) is map && request.resource.data.agentInfo.size() <= 20))
+                  && request.resource.data.get('agentInfo', null) is map && agentProfileOk(request.resource.data.agentInfo)))
           && (request.resource.data.get('onboarding', null) == resource.data.get('onboarding', null)
               || (!resource.data.get('onboarding', {}).get('completed', false) || request.resource.data.get('onboarding', {}).get('completed', false)))
           && (!('onboarding' in request.resource.data) || onboardingOk(request.resource.data.onboarding))
