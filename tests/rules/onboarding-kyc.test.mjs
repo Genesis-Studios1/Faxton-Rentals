@@ -87,6 +87,6 @@ await t("landlord with KYC can be approved by an admin", updateDoc(doc(admin, "u
 }));
 await t("admin cannot mark a home verified without owner evidence", updateDoc(doc(admin, "listings/l-unverified"), { verified: true }), false);
 await t("admin can mark a home verified after landlord ownership evidence is submitted", updateDoc(doc(admin, "listings/l-landlord"), { verified: true }));
-await t("landlord cannot set listing verification status", updateDoc(doc(landlord, "listings/l-landlord"), { verified: false }), false);
+await t("landlord cannot mark their listing verified", updateDoc(doc(landlord, "listings/l-landlord"), { verified: true }), false);
 
 await env.cleanup();
