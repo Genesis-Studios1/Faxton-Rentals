@@ -726,3 +726,12 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 /* The global form rule in shell.css gives every field min-height:44px (a phone tap target); inside the console on desktop each control sets its own 32-40px height. */
 @media (min-width:900px){:is(.ax,.ax-fl) :where(input:not([type=checkbox],[type=radio]),select,textarea){min-height:0}}
 @media (max-width:899px){.ax-main .rf-copy,.ax-main .rf-avcam{min-height:44px;min-width:44px}}
+
+
+/* Private KYC document review cards */
+.ax-v-docs{display:grid;gap:8px;padding:12px;border:1px solid var(--ax-border);border-radius:12px;background:var(--ax-surface-2);min-width:0}
+.ax-v-docs>.ax-eyebrow{margin-bottom:2px}
+.ax-v-doc{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:9px;background:var(--ax-surface);border:1px solid var(--ax-border);min-width:0}
+.ax-v-doc>span{min-width:0;overflow-wrap:anywhere;font-size:12px;color:var(--ax-head)}
+.ax-v-doc .ax-btn{flex:none}
+@media(max-width:520px){.ax-v-doc{align-items:flex-start;flex-direction:column}.ax-v-doc .ax-btn{width:100%}}
