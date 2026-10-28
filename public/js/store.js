@@ -166,6 +166,7 @@ export const watchAllNotifications = (uid, cb) => onSnapshot(query(collection(db
   (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 40)), () => {});
 export const markNotificationRead = (id) => updateDoc(doc(db, "notifications", id), { read: true }).catch(() => {});
 export const watchPendingVerifications = (cb) => onSnapshot(query(collection(db, "users"), where("verification.status", "==", "pending")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
+export const getVerificationRequest = async (uid) => { const s = await getDoc(doc(db, "verificationRequests", uid)); return s.exists() ? { ...s.data(), id: s.id } : null; };
 export const addSuggestion = (u, s) => addDoc(collection(db, "suggestions"), { ...s, uid: u.uid, name: u.displayName || u.email, email: u.email, status: "New", createdAt: serverTimestamp() });
 export const setDeletion = (uid, d) => updateDoc(doc(db, "users", uid), { deletion: d ? d : deleteField() });
 export const decideDeletion = (uid, d) => updateDoc(doc(db, "users", uid), { deletion: d });
