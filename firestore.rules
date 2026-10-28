@@ -39,14 +39,15 @@ service cloud.firestore {
     function businessProfileOk(d) {
       return d is map
         && d.keys().hasOnly(['business', 'businessType', 'businessTypeOther', 'cac', 'registrar', 'position', 'supportEmail', 'address', 'website', 'registrationBody', 'registrationNumber', 'country', 'state', 'lga', 'city'])
-        && short(d.get('business', ''), 120)
-        && short(d.get('businessType', ''), 40)
+        && d.keys().hasAll(['business', 'businessType', 'cac', 'registrar', 'position', 'supportEmail', 'address', 'country'])
+        && short(d.get('business', ''), 120) && d.business.size() >= 2
+        && d.get('businessType', '') in ['real_estate_company', 'electrical', 'home_automation', 'plumbing', 'tiling', 'painting', 'appliance_repair', 'other']
         && short(d.get('businessTypeOther', ''), 100)
-        && short(d.get('cac', ''), 30)
-        && short(d.get('registrar', ''), 120)
-        && short(d.get('position', ''), 80)
-        && short(d.get('supportEmail', ''), 120)
-        && short(d.get('address', ''), 200)
+        && short(d.get('cac', ''), 30) && d.cac.size() >= 4
+        && short(d.get('registrar', ''), 120) && d.registrar.size() >= 3
+        && short(d.get('position', ''), 80) && d.position.size() >= 2
+        && short(d.get('supportEmail', ''), 120) && d.supportEmail.size() >= 5
+        && short(d.get('address', ''), 200) && d.address.size() >= 5
         && short(d.get('website', ''), 160)
         && short(d.get('registrationBody', ''), 120)
         && short(d.get('registrationNumber', ''), 60)
@@ -58,11 +59,12 @@ service cloud.firestore {
     function agentProfileOk(d) {
       return d is map
         && d.keys().hasOnly(['phone', 'experience', 'company', 'areas', 'dob', 'licence', 'registrationBody', 'registrationNumber', 'country', 'state', 'lga', 'city'])
-        && short(d.get('phone', ''), 30)
+        && d.keys().hasAll(['phone', 'experience', 'areas', 'dob', 'country'])
+        && short(d.get('phone', ''), 30) && d.phone.size() >= 8
         && d.get('experience', 0) is int && d.experience >= 0 && d.experience <= 60
         && short(d.get('company', ''), 120)
-        && short(d.get('areas', ''), 180)
-        && short(d.get('dob', ''), 10)
+        && short(d.get('areas', ''), 180) && d.areas.size() >= 3
+        && short(d.get('dob', ''), 10) && d.dob.size() == 10
         && short(d.get('licence', ''), 60)
         && short(d.get('registrationBody', ''), 120)
         && short(d.get('registrationNumber', ''), 60)
@@ -84,7 +86,7 @@ service cloud.firestore {
     function verificationDocsOk(uid, d) {
       return d is map
         && d.keys().hasOnly(['identityType', 'identity', 'address', 'ownership1', 'ownership2', 'ownership3'])
-        && short(d.get('identityType', ''), 30)
+        && d.get('identityType', '') in ['', 'national_id', 'passport', 'drivers_licence']
         && (!('identity' in d) || verificationFileMeta(uid, d.identity))
         && (!('address' in d) || verificationFileMeta(uid, d.address))
         && (!('ownership1' in d) || verificationFileMeta(uid, d.ownership1))
