@@ -9,6 +9,31 @@ service firebase.storage {
       let o = firestore.get(/databases/(default)/documents/config/owner);
       return request.auth != null && (u.data.role == 'admin' || o.data.uid == request.auth.uid);
     }
+    // Private identity, address, property-ownership and business registration documents.
+    // The files are not public and must never be linked using public download tokens.
+    match /verification/{uid}/{kind}/{fileName} {
+      function accountPath() {
+        return /databases/(default)/documents/users/$(uid);
+      }
+      function canUploadForSetup() {
+        let user = firestore.get(accountPath()).data;
+        return request.auth != null && request.auth.uid == uid
+          && (user.get('onboarding', {}).get('completed', false) != true
+            || user.get('verification', {}).get('status', '') == 'rejected');
+      }
+      allow read: if request.auth != null && (request.auth.uid == uid || admin());
+      allow create: if canUploadForSetup()
+        && kind in ['identity', 'address', 'ownership', 'cac']
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType in ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      allow update: if false;
+      allow delete: if admin()
+        || (request.auth != null && request.auth.uid == uid
+          && (firestore.get(accountPath()).data.get('onboarding', {}).get('completed', false) != true
+            || firestore.get(accountPath()).data.get('verification', {}).get('status', '') == 'rejected'));
+    }
+
     // Installer files are public downloads (they contain no secrets). Only admins can upload or remove them.
     match /installers/{version}/{file} {
       allow read: if true;
