@@ -64,7 +64,7 @@ export const first = (s) => String(s || "").trim().split(/\s+/)[0] || "";
 const CH = {
   listing: { active: ["ok", "Active"], pending: ["warn", "Pending review"], flagged: ["bad", "Changes requested"], rejected: ["bad", "Rejected"], archived: ["mute", "Archived"], occupied: ["info", "Occupied"], available: ["ok", "Available"] },
   verification: { pending: ["warn", "Pending"], verified: ["ok", "Verified"], rejected: ["bad", "Rejected"] },
-  user: { banned: ["bad", "Banned"], active: ["ok", "Active"], owner: ["info", "Owner"], admin: ["mute", "Admin"], support: ["mute", "Support"], agency: ["mute", "Agency"], agent: ["mute", "Agent"], landlord: ["mute", "Property owner"], renter: ["mute", "Renter"] },
+  user: { banned: ["bad", "Banned"], active: ["ok", "Active"], owner: ["info", "Owner"], admin: ["mute", "Admin"], support: ["mute", "Support"], agency: ["mute", "Business"], agent: ["mute", "Agent"], landlord: ["mute", "Property owner"], renter: ["mute", "Renter"] },
   application: { "under review": ["warn", "Under review"], "awaiting documents": ["info", "Awaiting documents"], approved: ["ok", "Approved"], active: ["ok", "Active"], rejected: ["bad", "Rejected"] },
   viewing: { requested: ["warn", "Requested"], confirmed: ["info", "Confirmed"], completed: ["ok", "Completed"], cancelled: ["mute", "Cancelled"], declined: ["mute", "Declined"] },
   offer: { pending: ["warn", "Pending"], countered: ["info", "Countered"], accepted: ["ok", "Accepted"], declined: ["bad", "Declined"], withdrawn: ["mute", "Withdrawn"] },
