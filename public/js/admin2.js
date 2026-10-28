@@ -112,6 +112,7 @@ async function addListingDialog(ctx, ls, list) {
   };
 }
 function listingDrawer(ctx, l, api, { viewOnly } = {}) {
+  delete l._ownershipDocOpenedThisDrawer; delete l._ownershipReviewedThisDrawer;
   const s = listingState(l), imgs = (l.images || []).filter(Boolean);
   const body = `${imgs[0] ? `<img class="ax-hero" src="${esc(imgs[0])}" alt="" loading="lazy">${imgs.length > 1 ? `<div class="ax-strip">${imgs.slice(1, 5).map((u) => `<img src="${esc(u)}" alt="" loading="lazy">`).join("")}</div>` : ""}` : `<div class="ax-hero" style="display:grid;place-items:center;color:var(--ax-faint)">${I("img", 32)}</div>`}
     <div style="margin-top:16px">${section("Summary", dl([["Agent", esc(l.agent?.name || "—")], ["Type", esc(l.type || "—")], ["Rent", l.price ? `${naira(l.price)} <span class="ax-muted">/ year</span>` : "—"], ["Bedrooms", l.beds === 0 ? "Studio" : fmt.num(l.beds)], ["Size", l.sqm ? l.sqm + " m²" : ""], ["Deposit", l.deposit ? naira(l.deposit) : ""], ["Service charge", l.service ? naira(l.service) : ""]]))}
@@ -119,12 +120,16 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
     ${section("Description", l.desc ? `<p class="ax-clamp" data-clamp>${esc(l.desc)}</p>${l.desc.length > 220 ? `<button type="button" class="ax-link" data-more style="border:0;background:none;padding:4px 0;cursor:pointer">Show more</button>` : ""}` : `<span class="ax-muted">No description yet.</span>`)}
     ${section("Media", `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${(l.videos || []).length} video${(l.videos || []).length === 1 ? "" : "s"}</span>${btn("Photos and videos", { size: "sm", ic: "img", attrs: "data-media" })}</div>`)}
     ${section("Owner", `<div class="ax-id" data-owner>${avatar(l.agent?.name, l.ownerUid || l.agent?.id, 36, l.agent?.photo || l.agent?.avatar)}<div><b>${esc(l.agent?.name || "Faxton")}</b><small data-ownersub>${l.ownerUid ? "Property owner account" : "Added by the Faxton team"}</small></div></div>${l.ownerUid ? `<div style="display:flex;gap:8px;margin-top:10px">${btn("Text", { size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}</div>` : ""}`)}
+    ${l.ownershipDocPath ? section("Ownership verification", '<p class="ax-p">Private proof of ownership was submitted for this specific property.</p><div class="ax-vdoc-links">' + btn("View private ownership proof", { size: "sm", ic: "shield", attrs: "data-ownership-doc" }) + '</div><label class="ax-check"><input type="checkbox" id="ownershipReviewed"> I reviewed the document details against this listing.</label>') : ""}
     ${section("History", timeline([{ title: "Submitted", meta: fmt.dateTime(l.createdAt) }, ...(s === "active" ? [{ title: "Live on Faxton", meta: "Approved" }] : []), ...(s === "flagged" ? [{ title: "Changes requested", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "rejected" ? [{ title: "Rejected", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "archived" ? [{ title: "Archived", tone: "mute" }] : [])]))}</div>`;
   const footer = viewOnly ? "" : s === "active" ? btn("Archive listing", { v: "outline", attrs: "data-do=archive" }) + (l.status === "active" ? btn("View live page", { v: "ghost", href: "#/home/" + encodeURIComponent(l.id) }) : "") : s === "archived" || s === "rejected" ? btn("Restore listing", { v: "primary", attrs: "data-do=restore" }) : btn("Approve listing", { v: "primary", attrs: "data-do=approve" }) + btn("Request changes", { attrs: "data-do=changes" }) + btn("Reject", { v: "danger", attrs: "data-do=reject" });
   return { title: l.title, sub: `${chipFor("listing", s)}<span>${esc(where(l))}</span>`, body, footer,
     mount(el) {
       $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
       $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
+      const ownershipButton = $("[data-ownership-doc]", el);
+      ownershipButton?.addEventListener("click", async () => { const opened = await openVerificationDocument(l.ownershipDocPath, "Property ownership proof", ownershipButton); if (opened) l._ownershipDocOpenedThisDrawer = true; });
+      $("#ownershipReviewed", el)?.addEventListener("change", (e) => { l._ownershipReviewedThisDrawer = !!e.target.checked; });
       $("[data-text]", el)?.addEventListener("click", () => data.safe("users").then((us) => { const u = us.find((x) => x.id === l.ownerUid); if (u) openChat(ctx, u); else toast("We couldn’t find that owner’s account.", { tone: "bad" }); }));
       $("[data-call]", el)?.addEventListener("click", () => CALLS.startCall(ctx, { to: l.ownerUid, toName: l.agent?.name || "Owner", kind: "voice", title: "Faxton team" }));
       el.querySelectorAll("[data-do]").forEach((b) => (b.onclick = () => listingAct(ctx, l, b.dataset.do, api, b)));
