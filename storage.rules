@@ -34,6 +34,27 @@ service firebase.storage {
             || firestore.get(accountPath()).data.get('verification', {}).get('status', '') == 'rejected'));
     }
 
+    // Property-specific ownership evidence: a verified home owner uploads one document per listing.
+    // The path is tied to both the account and listing id, and remains private to the owner/admin team.
+    match /listing-verification/{uid}/{listingId}/{fileName} {
+      function listingAccountPath() {
+        return /databases/(default)/documents/users/$(uid);
+      }
+      function listingDocPath() {
+        return /databases/(default)/documents/listings/$(listingId);
+      }
+      allow read: if request.auth != null && (request.auth.uid == uid || admin());
+      allow create: if request.auth != null && request.auth.uid == uid
+        && firestore.get(listingAccountPath()).data.role == 'landlord'
+        && firestore.get(listingAccountPath()).data.get('verified', false) == true
+        && !firestore.exists(listingDocPath())
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType in ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      allow update: if false;
+      allow delete: if admin() || (request.auth != null && request.auth.uid == uid && !firestore.exists(listingDocPath()));
+    }
+
     // Installer files are public downloads (they contain no secrets). Only admins can upload or remove them.
     match /installers/{version}/{file} {
       allow read: if true;
