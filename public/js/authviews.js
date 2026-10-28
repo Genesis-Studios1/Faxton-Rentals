@@ -72,9 +72,7 @@ export function authPage(ctx, mode) {
       ${fieldHtml("name", "Full name", { ic: "user", ph: "Your full name", attrs: 'autocomplete="name" autocapitalize="words" enterkeyhint="next" maxlength="80"' })}
       ${fieldHtml("email", "Email address", { ic: "mail", type: "email", ph: "you@example.com", attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next"' })}
       <div class="au-pw">${pwField}<p class="au-caps" id="caps" hidden>${icon("info", 16, 1.8)} Caps Lock is on</p>${strengthUi}</div>
-      <details class="au-xtra" id="xtra" hidden><summary><span class="au-xt-ic">${icon("shield", 20, 1.6)}</span><span class="au-xt-t"><b id="xtraT"></b><small>Only the Faxton team sees these. We use them to verify you.</small></span><span class="au-xt-chev">${icon("chevd", 18, 1.8)}</span></summary><div class="au-xtra-body" id="xtraBody"></div></details>
-      <div class="au-res-wrap"><p class="au-sec">Where do you live?</p>${residenceFields(draft.country || "Nigeria", draft.city || "", draft.state || "")}</div>
-      <div class="au-f au-terms" data-f="terms"><label class="au-chk"><input type="checkbox" id="terms" aria-describedby="terms-e"><span>I agree to the <a class="au-link" href="#/terms">Terms</a> and <a class="au-link" href="#/privacy">Privacy Policy</a></span></label><p class="au-fe" id="terms-e" hidden></p></div>`;
+      <div class="au-f au-terms data-f="terms"><label class="au-chk"><input type="checkbox" id="terms" aria-describedby="terms-e"><span>I agree to the <a class="au-link" href="#/terms">Terms</a> and <a class="au-link" href="#/privacy">Privacy Policy</a></span></label><p class="au-fe" id="terms-e" hidden></p></div>`;
   const html = `<div class="au au-${mode}">
     <aside class="au-photo"><img src="img/${login ? "login-hero" : "signup-hero"}.webp" alt="" decoding="async">${logoLink("au-logo")}
       <p class="au-cap">${login ? "A fresh start<br>begins here." : "Make room for<br>what comes next."}</p></aside>
@@ -117,15 +115,10 @@ export function authPage(ctx, mode) {
       const R = ROLE_INFO[role], asks = !login && R.ask.length;
       info.innerHTML = `<span class="au-ri">${icon(ROLE_ICON[role], 22, 1.6)}</span><div><b>${R.name}</b><p>${login ? SIGNIN_BLURB[role] : R.blurb}</p>${!login ? (asks ? `<p class="au-ask"><span>We’ll ask for:</span> ${R.ask.map((a) => `<em>${a}</em>`).join("")}<em class="more">${R.more}</em></p>` : `<p class="au-ask none">${icon("check", 14, 2.4)} Nothing extra to fill in.</p>`) : ""}</div>`;
       if (login) return;
-      if (asks) {
-        $("#xtraT", root).textContent = role === "agency" ? "Agency details" : "Agent details";
-        $("#xtraBody", root).innerHTML = detailsFields(role, restore?.registrar ?? ($("#name", root)?.value || ""));
-        xtra.hidden = false; xtra.open = true;
-        Object.entries(restore || {}).forEach(([k, v]) => { const i = $("#" + k, $("#xtraBody", root)); if (i && v != null) i.value = v; });
-      } else { xtra.hidden = true; xtra.open = false; $("#xtraBody", root).innerHTML = ""; }
+      if (xtra) { xtra.hidden = true; xtra.open = false; const xb = $("#xtraBody", root); if (xb) xb.innerHTML = ""; }
     };
     const setRole = (r, { focus = false, silent = false } = {}) => {
-      if (!login && !xtra.hidden) store[role] = gatherDetails();
+      if (!login && xtra && !xtra.hidden) store[role] = gatherDetails();
       role = r;
       $$("[data-role]", root).forEach((b) => { const on = b.dataset.role === r; b.setAttribute("aria-selected", on); b.tabIndex = on ? 0 : -1; if (on && focus) b.focus(); });
       info.setAttribute("aria-labelledby", "rt-" + r);
@@ -140,10 +133,10 @@ export function authPage(ctx, mode) {
     });
 
     // ----- remembering what was typed (never the password) -----
-    const LOC = login ? null : mountResidence(root);
+    const LOC = null;
     const resNow = () => { const country = $("#country", root).value, state = $("#state", root).value, city = $("#city", root).value.trim(); return { country, state, city, lga: country === "Nigeria" ? city : "" }; };
     const pickRes = (d) => ({ country: d.country, state: d.state || "", city: d.city, lga: d.lga || "" });
-    const keep = () => { if (login) return; const v = (id) => $("#" + id, root)?.value || ""; if (!xtra.hidden) store[role] = gatherDetails(); safeSet("signupDraft", JSON.stringify({ name: v("name"), email: v("email"), role, terms: !!$("#terms", root)?.checked, country: v("country"), state: v("state"), city: v("city"), photo: photo || undefined, d: store })); };
+    const keep = () => { if (login) return; const v = (id) => $("#" + id, root)?.value || ""; if (xtra && !xtra.hidden) store[role] = gatherDetails(); safeSet("signupDraft", JSON.stringify({ name: v("name"), email: v("email"), role, terms: !!$("#terms", root)?.checked, country: v("country"), state: v("state"), city: v("city"), photo: photo || undefined, d: store })); };
     let keepT = 0; const keepSoon = () => { clearTimeout(keepT); keepT = setTimeout(keep, 120); };
 
     // ----- inline validation -----
@@ -222,7 +215,7 @@ export function authPage(ctx, mode) {
         try { sessionStorage.removeItem("signupDraft"); } catch {}
         fails = 0;
         const made = ctx.S.justCreated; ctx.S.justCreated = null;
-        if (made === "agency" || made === "agent") { ctx.go("#" + next); await verifyPopup(made); return; }
+        if (made) { ctx.go("#/onboarding/setup"); return; }
         ctx.go("#" + next);
       } catch (e) {
         sayErr(e);
@@ -239,26 +232,21 @@ export function authPage(ctx, mode) {
 
     // Returns the details + residence when everything is fine; otherwise marks every problem and moves to the first one.
     const validateSignup = ({ google: g = false } = {}) => {
-      LOC?.commit();
-      const bad = [], isBiz = role === "agency" || role === "agent";
-      const chk = (id) => { if (one(id)) bad.push(id); };
+      const bad = [], chk = (id) => { if (one(id)) bad.push(id); };
       if (!g) ["name", "email", "password"].forEach(chk);
-      let details;
-      if (isBiz) {
-        const raw = { ...rawDetails(), state: $("#state", root).value || ($("#country", root).value === "Nigeria" ? "ok" : ""), city: $("#city", root).value }, r = checkDetails(role, raw);
-        $$("#xtraBody input", root).forEach((i) => { const m = r.all?.[i.id] || ""; fieldError(root, i.id, m); if (m) bad.push(i.id); });
-        details = r.details;
+      if (!g) {
+        const terms = $("#terms", root), termsError = $("#terms-e", root);
+        termsError.textContent = terms.checked ? "" : "Please accept the Terms and Privacy Policy to continue.";
+        termsError.hidden = terms.checked;
+        if (!terms.checked) bad.push("terms");
       }
-      const resBlank = g && !isBiz && !$("#city", root).value.trim();
-      if (!resBlank) { chk("country"); chk("state"); chk("city"); }
-      if (!g) { const t = $("#terms", root), te = $("#terms-e", root); te.textContent = t.checked ? "" : "Please accept the Terms and Privacy Policy to continue."; te.hidden = t.checked; if (!t.checked) bad.push("terms"); }
       if (bad.length) {
         say(bad.length > 1 ? "A few things need another look. We’ve marked them below." : "One thing needs another look. We’ve marked it below.");
-        const order = ["name", "email", "password", ...$$("#xtraBody input", root).map((i) => i.id), "country", "state", "city", "terms"], id = order.find((x) => bad.includes(x)), i = $("#" + id, root);
-        const d = i.closest("details"); if (d && !d.open) d.open = true; i.focus(); i.scrollIntoView?.({ block: "center", behavior: "smooth" });
-        return null;
+        const id = ["name", "email", "password", "terms"].find((x) => bad.includes(x)), input = $("#" + id, root);
+        input?.focus(); input?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        return false;
       }
-      return { details, residence: resBlank ? null : resNow() };
+      return true;
     };
 
     form.onsubmit = (e) => {
@@ -269,20 +257,14 @@ export function authPage(ctx, mode) {
         try { safeSet("rememberMe", $("#remember", root).checked ? "1" : "0", localStorage); } catch {}
         return run(() => ctx.signIn(v.email.trim(), v.password, $("#remember", root).checked));
       }
-      const ok = validateSignup(); if (!ok) return;
-      const residence = ok.details ? pickRes(ok.details) : ok.residence;
-      run(() => ctx.signUp(v.name.trim(), v.email.trim(), v.password, role, ok.details, photo, residence));
+      if (!validateSignup()) return;
+      run(() => ctx.signUp(v.name.trim(), v.email.trim(), v.password, role, null, photo, null));
     };
     google.onclick = async () => {
       if (busy) return;
       // On the sign-up page the chosen account type, its details and where the person lives all travel with the Google account.
-      let details, residence;
-      if (!login) {
-        const ok = validateSignup({ google: true }); if (!ok) return;
-        details = ok.details; residence = ok.details ? pickRes(ok.details) : ok.residence;
-        if (!residence) { residence = await askResidence(); if (!residence) return; }
-      }
-      run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, details, residence, photo || undefined), "google");
+      if (!login && !validateSignup({ google: true })) return;
+      run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, null, null, photo || undefined), "google");
     };
     const f = $("#forgot", root); if (f) f.onclick = (e) => { e.preventDefault(); const em = ($("#email", root)?.value || "").trim(); ctx.go("#/forgot" + (em ? "?email=" + encodeURIComponent(em) : "")); };
   } };
