@@ -9,6 +9,8 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { listingState, isPendingL, roleOf, emailPending } from "./admin2.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+import { storage } from "./firebase.js";
+import { ref as storageRef, uploadBytes, deleteObject } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, csv, pageView, pageHead, kpi, mini, attn, spark, areaChart, barChart, donut, rank, progress, pctDelta, mountCharts, animateCounts, bulkRun, ms, staffFlags } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -267,6 +269,7 @@ export async function mountRelayCard(host, ctx) {
 // ---------- add property (landlords, agencies and agents) ----------
 export function addProperty(ctx, done) {
   let where = null;
+  const isLandlord = ctx.S.profile?.role === "landlord";
   const amen = ["Parking", "Water supply", "Security", "Generator", "Solar / inverter", "Balcony", "Gym", "Pool", "Garden", "Wi-Fi"];
   const d = dialog({ title: "Add a property", size: "lg", icon: "home", body: `<p class="ax-p ax-muted">New listings are reviewed by the Faxton team before they go live.</p><form id="np" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
@@ -281,6 +284,7 @@ export function addProperty(ctx, done) {
     <label class="ax-field full"><span>Floor plan link (optional)</span><input class="ax-input" name="floorPlan" type="url" placeholder="https://…"></label>
     <label class="ax-field full"><span>Description</span><textarea class="ax-input" name="desc" rows="3" maxlength="800"></textarea></label>
     <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px">${btn("Set location on map", { size: "sm", ic: "pin", attrs: "id=npLoc" })}<span class="ax-muted" id="npLocT">Not set yet</span></div></div>
+    ${isLandlord ? '<label class="ax-field full"><span>Proof of ownership for this property</span><input class="ax-input" name="ownershipProof" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" required><small class="ax-muted">A title, deed, tax record or other accepted record for this specific property. Private to Faxton reviewers; max 10 MB.</small></label>' : ""}
     <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label><label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
     <p class="ax-err full" id="npe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Submit for review", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea" }, cityId: "npCity" });
