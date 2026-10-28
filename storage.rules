@@ -30,7 +30,8 @@ service firebase.storage {
         && documentName in ['identity', 'address-proof', 'ownership-proof']
         && request.resource.size <= 10 * 1024 * 1024
         && request.resource.contentType in ['application/pdf', 'image/jpeg', 'image/png'];
-      allow delete: if maySubmitVerification(uid)
+      allow delete: if (maySubmitVerification(uid)
+          || (signedIn() && request.auth.uid == uid && userDoc(uid).data.get('deletion', {}).get('status', '') == 'approved'))
         && documentName in ['identity', 'address-proof', 'ownership-proof'];
     }
 
