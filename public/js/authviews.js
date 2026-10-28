@@ -206,7 +206,7 @@ export function authPage(ctx, mode) {
       const btn = which === "google" ? google : submit, lbl = $(".au-bl", btn);
       btn.classList.toggle("loading", on); if (on) { lbl.dataset.t = lbl.textContent; lbl.textContent = which === "google" ? "Connecting to Google…" : login ? "Signing in…" : "Creating your account…"; } else if (lbl.dataset.t) lbl.textContent = lbl.dataset.t;
     };
-    const STAFF = ["admin", "owner", "support"], WHO = { landlord: "a home owner", agency: "an agency", agent: "an agent" };
+    const STAFF = ["admin", "owner", "support"], WHO = { landlord: "a home owner", agency: "a business", agent: "an agent" };
     const run = async (fn, which) => {
       if (busy) return;
       if (navigator.onLine === false) return say("You’re offline. Connect to the internet and try again.");
