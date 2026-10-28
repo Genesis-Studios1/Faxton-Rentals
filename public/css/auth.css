@@ -331,7 +331,7 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 .setup-file-input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 .setup-file-btn{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 11px;border:1px solid var(--a-line);border-radius:10px;background:var(--a-panel);color:var(--head);font-size:.76rem;font-weight:var(--fw-semibold);cursor:pointer}
 .setup-file-btn:hover{border-color:var(--brand);background:var(--soft)}
-.setup-file-input:focus-visible+.setup-file-btn{outline:2px solid var(--brand);outline-offset:2px}
+.setup-doc:focus-within .setup-file-btn{outline:2px solid var(--brand);outline-offset:2px}
 .setup-ownership-divider{height:1px;margin:20px 0;background:var(--a-line2)}
 .setup-subheading{margin:0;color:var(--head);font-size:.96rem;font-weight:var(--fw-semibold)}
 .setup-help{margin:5px 0 12px;color:var(--a-sub);font-size:.82rem;line-height:1.5}
