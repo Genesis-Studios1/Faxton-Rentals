@@ -273,8 +273,38 @@ export function verifications(ctx) {
         const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
-          const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
-          if (bv) {
+          const docsButton = e.target.closest("[data-vdocs]"), bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
+          if (docsButton) {
+            busy(docsButton, true);
+            try {
+              const req = await st.getVerificationRequest(docsButton.dataset.vdocs), docs = req?.documents || {};
+              const labels = { governmentId: "Government-issued ID", proofOfAddress: "Proof of address", ownershipProof: "Property ownership evidence", cacCertificate: "CAC registration certificate", professionalRegistration: "Professional registration document" };
+              const rows = Object.entries(docs).map(([kind, d]) =>
+                '<div class="ax-doc-row"><span class="ax-doc-icon">' + I("fileCheck", 20) + '</span><div><b>' + esc(labels[kind] || kind) + '</b><small>' + esc(d.name || "Document") + ' · ' + Math.max(1, Math.round((d.size || 0) / 1024)) + ' KB</small></div>' +
+                btn("Preview", { size: "sm", attrs: 'data-vdoc-path="' + esc(d.path) + '" data-vdoc-name="' + esc(d.name || kind) + '"' }) + '</div>'
+              ).join("");
+              const body = req && Object.keys(docs).length
+                ? '<div class="ax-doc-list">' + rows + '</div><p class="ax-sub">These files are private and available only to the account holder and authorised reviewers.</p>'
+                : '<div class="ax-empty-note">No private documents were submitted through the new verification flow. Do not approve until the required evidence has been reviewed.</div>';
+              const dlg = dialog({ title: "Submitted verification documents", size: "md", icon: "fileCheck", body, footer: btn("Done", { attrs: "data-x" }) });
+              $$("[data-vdoc-path]", dlg.el).forEach((b) => b.addEventListener("click", async () => {
+                const path = b.dataset.vdocPath, name = b.dataset.vdocName || "verification-document";
+                const tab = window.open("about:blank", "_blank");
+                if (!tab) { toast("Allow pop-ups to preview the private document.", { tone: "bad" }); return; }
+                busy(b, true);
+                try {
+                  const blob = await getBlob(storageRef(storage, path));
+                  const url = URL.createObjectURL(blob);
+                  tab.opener = null; tab.location.href = url;
+                  setTimeout(() => URL.revokeObjectURL(url), 120000);
+                } catch (x) {
+                  tab.close(); console.error("Private document preview failed", x);
+                  toast("Could not preview the private file. Check that Firebase Storage is enabled and its CORS allows the app origin.", { tone: "bad" });
+                } finally { busy(b, false); }
+              }));
+            } catch (x) { bad(x); }
+            finally { busy(docsButton, false); }
+          } else if (bv) {
             const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified";
             const label = u.verification.kind === "agency" ? "Business" : u.verification.kind === "landlord" ? "home owner" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: "Reject " + (u.agency?.business || u.name || "this request"), presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
