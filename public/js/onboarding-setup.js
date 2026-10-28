@@ -9,8 +9,8 @@ const BUSINESS_TYPES = [["real-estate","Real estate company"],["electricals","El
 const SOURCES = ["Instagram","TikTok","X","Facebook","Google Search","WhatsApp","Friend or family","Real estate agent","Event or outdoor advert","Other"];
 const MAX_FILE = 10 * 1024 * 1024;
 const MIME = new Set(["application/pdf","image/jpeg","image/png","image/webp"]);
-const EMAIL_RE = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/;
-const digits = (s) => String(s || "").replace(/\\D/g,"");
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\\.[^@\s]+$/;
+const digits = (s) => String(s || "").replace(/\D/g,"");
 const safeName = (s) => String(s || "document").normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g,"-").replace(/^-+|-+$/g,"").slice(-90) || "document";
 const age = (iso) => { const d=new Date(iso); if(!iso || Number.isNaN(+d)) return 0; const n=new Date(); let a=n.getFullYear()-d.getFullYear(); if(n<new Date(n.getFullYear(),d.getMonth(),d.getDate()))a--; return a; };
 const value = (root,id) => root.querySelector("#"+CSS.escape(id))?.value?.trim() || "";
