@@ -1,8 +1,46 @@
 // App lock: open the app with a fingerprint, face or the phone's screen lock.
 // Android and iPhone apps use the system biometric prompt (Capacitor plugin). On the web the browser's platform authenticator (WebAuthn) is used.
 import { $, esc, icon, toast, logoMark } from "./ui.js";
+import { auth, sendSignInLinkToEmail, isSignInWithEmailLink, EmailAuthProvider, reauthenticateWithCredential } from "./firebase.js";
 
 const KEY = (uid) => "applock_" + uid;
+const EMAIL_LINK_KEY = (uid) => "applock_email_link_" + uid;
+const emailLinkPending = (uid) => {
+  try { return JSON.parse(localStorage.getItem(EMAIL_LINK_KEY(uid)) || "null"); } catch { return null; }
+};
+const clearEmailLinkPending = (uid) => { try { localStorage.removeItem(EMAIL_LINK_KEY(uid)); } catch {} };
+const maskEmail = (email) => {
+  const parts = String(email || "").split("@");
+  if (parts.length !== 2) return "your email";
+  const name = parts[0];
+  return (name.length <= 2 ? name[0] + "…" : name.slice(0, 2) + "…") + "@" + parts[1];
+};
+// Firebase email-link reauthentication is a fallback when the browser's platform
+// authenticator fails. This is a one-time link, not a numeric OTP.
+async function sendEmailUnlockLink(user, status) {
+  if (isApp()) throw new Error("Use your phone's screen-lock PIN or passcode in the system prompt.");
+  if (!user?.email) throw new Error("There is no email address connected to this account.");
+  await sendSignInLinkToEmail(auth, user.email, {
+    url: location.origin + "/#/settings/account?confirm=unlock",
+    handleCodeInApp: true
+  });
+  try { localStorage.setItem(EMAIL_LINK_KEY(user.uid), JSON.stringify({ uid: user.uid, email: user.email, sentAt: Date.now() })); }
+  catch { throw new Error("This browser cannot remember the email-link request. Enable site storage and try again."); }
+  status.textContent = "A secure unlock link was sent to " + maskEmail(user.email) + ". Open it in this same browser to continue.";
+}
+async function redeemEmailUnlockLink(user) {
+  let isLink = false;
+  try { isLink = isSignInWithEmailLink(auth, location.href); } catch {}
+  if (!isLink) return false;
+  const pending = emailLinkPending(user?.uid);
+  if (!pending || pending.uid !== user?.uid || String(pending.email || "").toLowerCase() !== String(user?.email || "").toLowerCase()) {
+    throw new Error("This link was not requested in this browser, or it has expired. Return to the locked screen and request a new email link.");
+  }
+  await reauthenticateWithCredential(user, EmailAuthProvider.credentialWithLink(pending.email, location.href));
+  clearEmailLinkPending(user.uid);
+  try { history.replaceState({}, document.title, location.origin + "/#/settings/account?confirm=unlock"); } catch {}
+  return true;
+}
 // When the lock asks again: "open" = every time you come back to the app, "after" = once you have been away for a chosen time, "session" = once per launch (until the app is closed and opened again).
 export const MODES = { open: "Every time I open the app", after: "After I leave the app for a while", session: "Only once, until I close the app" };
 export const AFTER_CHOICES = [[30, "30 seconds"], [60, "1 minute"], [120, "2 minutes"], [300, "5 minutes"], [900, "15 minutes"], [1800, "30 minutes"]];
