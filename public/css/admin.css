@@ -726,3 +726,23 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 /* The global form rule in shell.css gives every field min-height:44px (a phone tap target); inside the console on desktop each control sets its own 32-40px height. */
 @media (min-width:900px){:is(.ax,.ax-fl) :where(input:not([type=checkbox],[type=radio]),select,textarea){min-height:0}}
 @media (max-width:899px){.ax-main .rf-copy,.ax-main .rf-avcam{min-height:44px;min-width:44px}}
+
+
+/* Private verification documents: buttons, image previews, and safe responsive review controls. */
+.ax-vdoc-section { display:grid; gap:10px; padding:12px; border:1px solid var(--ax-border); border-radius:12px; background:var(--ax-surface-2); }
+.ax-vdoc-list { display:flex; flex-wrap:wrap; gap:8px; }
+.ax-vdoc-list .ax-btn { display:inline-flex; align-items:center; justify-content:flex-start; gap:8px; min-height:40px; max-width:100%; white-space:normal; text-align:left; }
+.ax-vdoc-list .ax-btn span { overflow-wrap:anywhere; }
+.ax-vdoc-links { display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; }
+.ax-verification-preview { display:block; max-width:100%; max-height:min(68vh,760px); width:auto; height:auto; margin:0 auto; object-fit:contain; border:1px solid var(--ax-border); border-radius:12px; background:var(--ax-surface-2); }
+.ax-vdoc-pdf { display:grid; justify-items:center; gap:10px; padding:28px 16px; border:1px dashed var(--ax-border); border-radius:12px; text-align:center; }
+.ax-vdoc-icon { display:grid; place-items:center; width:54px; height:54px; border-radius:15px; background:var(--ax-tint); color:var(--ax-brand); }
+.ax-vdoc-pdf .ax-p { margin:0; max-width:45ch; }
+.ax-vc .ax-checks { gap:10px; }
+.ax-vc .ax-check { display:flex; align-items:flex-start; gap:9px; line-height:1.45; }
+.ax-vc .ax-check input { flex:none; margin-top:3px; }
+@media (max-width:720px) {
+  .ax-vdoc-list { display:grid; grid-template-columns:minmax(0,1fr); }
+  .ax-vdoc-list .ax-btn { width:100%; }
+  .ax-vc-f .ax-btn { min-height:44px; }
+}
