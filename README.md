@@ -115,7 +115,7 @@ In the Firebase console (project **faxton-rentals**):
 
 Troubleshooting deploys:
 * *"resolving hosting target of a site with no site name"*: run `npm run setup:site` (or Console > Hosting > Get started). If the name is taken, put another in `firebase.json` as `"site"`.
-* *Firestore error on deploy*: create the database first, or run `npm run deploy:hosting`.
+* *Firestore or Storage error on deploy*: create Firestore and enable Cloud Storage on Blaze first, then run the full `npm run deploy`. The `deploy:hosting` alias intentionally runs the full safe release so Hosting cannot skip KYC rules.
 * *Storage step fails*: do not ignore it for the onboarding/KYC release. Confirm Firebase Storage is enabled and the project is on Blaze, then rerun the release. The workflow deploys Storage and Firestore rules before Hosting so the new UI is not published against missing security rules.
 
 ## Apps (Android, iPhone, Windows, Mac, Linux)
