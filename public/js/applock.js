@@ -1,6 +1,7 @@
 // App lock: open the app with a fingerprint, face or the phone's screen lock.
 // Android and iPhone apps use the system biometric prompt (Capacitor plugin). On the web the browser's platform authenticator (WebAuthn) is used.
 import { $, esc, icon, toast, logoMark } from "./ui.js";
+import { auth, sendSignInLinkToEmail } from "./firebase.js";
 
 const KEY = (uid) => "applock_" + uid;
 // When the lock asks again: "open" = every time you come back to the app, "after" = once you have been away for a chosen time, "session" = once per launch (until the app is closed and opened again).
@@ -51,12 +52,38 @@ function lockScreen(user, logout) {
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
   const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
   const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
-  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or device screen lock. If that fails, choose another secure way to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Try fingerprint / screen lock</button><p class="lk-err" id="lkErr" role="alert"></p><div class="lk-fallbacks"><button type="button" class="btn" id="lkEmail">${icon("mail",18)} Email me a secure sign-in link</button><button type="button" class="btn" id="lkPassword">${icon("key",18)} Use password instead</button></div><button type="button" class="lk-out" id="lkOut">Sign out and turn off app lock</button><p class="lk-note">Email fallback uses a one-time secure link, not a numeric code. Email link sign-in may need to be enabled in Firebase Authentication.</p></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
   const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
   const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
-  $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  $("#lkGo", el).onclick = go;
+  $("#lkEmail", el).onclick = async () => {
+    const b = $("#lkEmail", el), msg = $("#lkErr", el);
+    if (!user.email) { msg.textContent = "There is no email address attached to this account. Use your password or contact support."; return; }
+    b.disabled = true; msg.textContent = "Sending a secure sign-in link…";
+    try {
+      const key = "faxton_email_link_email";
+      const actionCodeSettings = { url: location.origin + location.pathname + "#/login", handleCodeInApp: true };
+      await sendSignInLinkToEmail(auth, user.email, actionCodeSettings);
+      try { localStorage.setItem(key, user.email); } catch {}
+      msg.textContent = "A secure sign-in link was sent to " + user.email + ". Open it on this device to continue. Check your spam folder if it doesn’t arrive.";
+    } catch (e) {
+      msg.textContent = e?.code === "auth/operation-not-allowed"
+        ? "Email link sign-in is not enabled for this Firebase project yet. Use your password instead."
+        : e?.code === "auth/unauthorized-continue-uri"
+          ? "This app address is not authorised for email sign-in links in Firebase Authentication."
+          : "Couldn’t send the email link. Check your connection and use your password instead.";
+      console.error("Email link fallback failed", e);
+    } finally { b.disabled = false; }
+  };
+  $("#lkPassword", el).onclick = async () => {
+    try { sessionStorage.setItem("applock_email_verified_" + user.uid, "1"); } catch {}
+    done();
+    await logout();
+    location.hash = "#/login";
+  };
+  $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
   if (!waitSplash) return void setTimeout(go, 250);
   let freed = false;
   const free = () => { if (freed || !el.isConnected) return; freed = true; el.classList.remove("lk-wait"); setTimeout(go, 300); };
@@ -65,8 +92,11 @@ function lockScreen(user, logout) {
 }
 // Call after sign-in: locks now (the app was just opened), then again as the chosen option says.
 export function arm(user, logout) {
+  let fallbackVerified = false;
+  if (user?.uid) { try { const k = "applock_email_verified_" + user.uid; fallbackVerified = sessionStorage.getItem(k) === "1"; if (fallbackVerified) sessionStorage.removeItem(k); } catch {} }
   armed = enabled(user?.uid) ? { user, logout } : null;
-  if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
+  if (fallbackVerified && user?.uid) { try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} }
+  else if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
   if (!arm.wired) {
     arm.wired = true;
     document.addEventListener("visibilitychange", () => {
