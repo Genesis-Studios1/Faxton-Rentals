@@ -67,7 +67,7 @@ await t("landlord cannot complete onboarding without ownership evidence", update
 }), false);
 
 await t("agent completes onboarding with ID and address proof", updateDoc(doc(agent, "users/agent"), {
-  ...location, ...referral, onboarding: referral, phone: agentInfo.phone, agentInfo, kyc: kyc("agent", "agent")
+  ...location, onboarding: referral, phone: agentInfo.phone, agentInfo, kyc: kyc("agent", "agent")
 }));
 await t("business completes setup without government KYC uploads", updateDoc(doc(businessDb, "users/business"), {
   ...location, onboarding: referral, agency: business
