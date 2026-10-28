@@ -222,7 +222,7 @@ export function setupPage(ctx) {
         putError("experience", validExperience ? "" : "Enter a number from 0 to 60."); if (!validExperience) errors.push("experience");
         putError("areas", agent.areas.length < 2 ? "Enter the areas you cover." : ""); if (agent.areas.length < 2) errors.push("areas");
         putError("dob", adult(agent.dob) ? "" : "Agents must be at least 18 years old."); if (!adult(agent.dob)) errors.push("dob");
-        if (agent.professionalBody !== "none" && agent.professionalNumber.length < 3) { putError("professionalNumber", "Enter the registration number or select Not applicable."); errors.push("professionalNumber"); }
+        if (agent.professionalBody && agent.professionalBody !== "none" && agent.professionalNumber.length < 3) { putError("professionalNumber", "Enter the registration number or select Not applicable."); errors.push("professionalNumber"); }
         else putError("professionalNumber", "");
         agent.experience = Number(agent.experience);
         data.agentInfo = agent; data.phone = agent.phone;
@@ -239,10 +239,9 @@ export function setupPage(ctx) {
         const consent = $("#verificationConsent", root);
         if (!consent || !consent.checked) { putError("verificationConsent", "Please consent to document review."); errors.push("verificationConsent"); }
         else putError("verificationConsent", "");
-        if (!qv(root, "idType")) { putError("idType", "Choose your government ID type."); errors.push("idType"); }
-        else putError("idType", "");
       }
-      if (isRe && !qv(root, "idType")) { putError("idType", "Choose your government ID type."); errors.push("idType"); }
+      if (hasVerification && !qv(root, "idType")) { putError("idType", "Choose your government ID type."); errors.push("idType"); }
+      else if (hasVerification) putError("idType", "");
       const uploadItems = {};
       const fileRequired = new Set(requiredFiles);
       if (role === "landlord") fileRequired.add("ownershipFile");
@@ -290,6 +289,11 @@ export function setupPage(ctx) {
           referralSource: source, referralOther: source === "other" ? other : "",
           onboarding: Object.assign({}, profile.onboarding || {}, { completed: true, completedAt: Date.now() })
         });
+        // A rejected application may resubmit; the role stays unchanged and the review returns to pending.
+        if (profile.verification?.status === "rejected" && ["agent", "landlord", "agency"].includes(role)) {
+          patch.verification = Object.assign({}, profile.verification, { status: "pending", requestedAt: Date.now(), reason: "" });
+          patch.verified = false;
+        }
         if (Object.keys(vf).length > 1) patch.verificationFiles = vf;
         await saveProfile(uid, patch);
         ctx.S.profile = Object.assign({}, ctx.S.profile, patch);
