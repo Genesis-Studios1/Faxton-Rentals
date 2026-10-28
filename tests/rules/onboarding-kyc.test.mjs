@@ -33,6 +33,7 @@ await env.withSecurityRulesDisabled(async (context) => {
   await setDoc(doc(db, "users/renter"), incomplete("renter", "renter", "renter@example.com"));
   await setDoc(doc(db, "users/business"), incomplete("business", "agency", "business@example.com"));
   await setDoc(doc(db, "users/agent"), incomplete("agent", "agent", "agent@example.com"));
+  await setDoc(doc(db, "users/no-kyc-agent"), incomplete("no-kyc-agent", "agent", "no-kyc-agent@example.com"));
   await setDoc(doc(db, "users/landlord"), incomplete("landlord", "landlord", "landlord@example.com"));
   await setDoc(doc(db, "users/bad-landlord"), incomplete("bad-landlord", "landlord", "bad-landlord@example.com"));
   await setDoc(doc(db, "users/unverified-landlord"), { role: "landlord", onboarding: { completed: true, referralSource: "friend", completedAt: Date.now() }, name: "No KYC", email: "no-kyc@example.com", saved: [] });
@@ -78,7 +79,7 @@ await t("renter cannot mark onboarding complete twice to add business details", 
   onboarding: referral, agency: business
 }), false);
 await t("another user cannot edit the landlord onboarding profile", updateDoc(doc(renter, "users/landlord"), landlordPayload), false);
-await t("agent without submitted KYC cannot be approved", updateDoc(doc(admin, "users/agent"), {
+await t("agent without submitted KYC cannot be approved", updateDoc(doc(admin, "users/no-kyc-agent"), {
   verified: true, verification: { status: "verified", kind: "agent", requestedAt: Date.now(), decidedAt: Date.now() }
 }), false);
 await t("landlord with KYC can be approved by an admin", updateDoc(doc(admin, "users/landlord"), {
