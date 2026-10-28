@@ -1,15 +1,40 @@
-// Faxton keeps pictures, audio and documents inside Firestore documents (as data), so the app does NOT use Firebase Storage.
-// The only exception is the optional app-installer upload in Admin > Installations, which needs Storage (and the paid Blaze plan).
-// Everything else is closed. If you never switch Storage on, this file does nothing.
+// Private KYC files and property-ownership evidence. Public listing photos remain existing https links.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function admin() {
-      let u = firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-      let o = firestore.get(/databases/(default)/documents/config/owner);
-      return request.auth != null && (u.data.role == 'admin' || o.data.uid == request.auth.uid);
+      return request.auth != null
+        && ((firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+              && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
+            || (firestore.exists(/databases/(default)/documents/config/owner)
+              && firestore.get(/databases/(default)/documents/config/owner).data.uid == request.auth.uid));
     }
-    // Installer files are public downloads (they contain no secrets). Only admins can upload or remove them.
+    function permittedDocument() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('(application/pdf|image/jpeg|image/png|image/webp)');
+    }
+
+    // Users can upload their own identity/address/business evidence. Only the owner of the account and authorised staff can read it.
+    match /verificationDocs/{uid}/{kind}/{fileName} {
+      allow read: if request.auth != null && (request.auth.uid == uid || admin());
+      allow create: if request.auth != null && request.auth.uid == uid
+        && kind in ['governmentId', 'proofOfAddress', 'ownershipProof', 'cacCertificate', 'professionalRegistration']
+        && permittedDocument();
+      allow update: if false;
+      allow delete: if admin();
+    }
+
+    // Ownership evidence is private to the submitting property owner and authorised reviewers.
+    match /listingOwnership/{uid}/{listingId}/{fileName} {
+      allow read: if request.auth != null && (request.auth.uid == uid || admin());
+      allow create: if request.auth != null && request.auth.uid == uid && permittedDocument();
+      allow update: if false;
+      allow delete: if admin();
+    }
+
+    // Installer files are public downloads; only admins can upload or remove them.
     match /installers/{version}/{file} {
       allow read: if true;
       allow write: if admin() && request.resource.size < 600 * 1024 * 1024;
