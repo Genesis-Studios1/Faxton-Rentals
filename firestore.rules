@@ -16,6 +16,12 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'renter') : '';
     }
     function isSupport() { return myRole() == 'support'; }
+    function realEstateBusiness() {
+      let userPath = /databases/$(database)/documents/users/$(request.auth.uid);
+      let businessTypes = get(userPath).data.get('agency', {}).get('businessTypes', []);
+      return myRole() != 'agency'
+        || (exists(userPath) && businessTypes is list && 'real-estate' in businessTypes);
+    }
     function isVerified() {
       return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('verified', false) == true;
@@ -264,7 +270,7 @@ service cloud.firestore {
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
       // Every public listing requires account verification and a private ownership document for this listing.
-      allow create: if isAdmin() || (signedIn() && myRole() in ['landlord', 'agency', 'agent'] && isVerified()
+      allow create: if isAdmin() || (signedIn() && myRole() in ['landlord', 'agency', 'agent'] && isVerified() && realEstateBusiness()
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120)
         && request.resource.data.get('ownershipProofPath', '') is string
@@ -272,6 +278,8 @@ service cloud.firestore {
         && short(request.resource.data.get('ownershipProofName', ''), 180));
       allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.status == resource.data.status
+        && request.resource.data.get('ownershipProofPath', '') == resource.data.get('ownershipProofPath', '')
+        && request.resource.data.get('ownershipProofName', '') == resource.data.get('ownershipProofName', '')
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
