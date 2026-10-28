@@ -3,11 +3,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     function admin() {
+      // At most two Firestore document accesses per Storage-rule evaluation.
       return request.auth != null
-        && ((firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
-              && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin')
-            || (firestore.exists(/databases/(default)/documents/config/owner)
-              && firestore.get(/databases/(default)/documents/config/owner).data.uid == request.auth.uid));
+        && (firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.get('role', '') in ['admin', 'owner']
+            || firestore.get(/databases/(default)/documents/config/owner).data.get('uid', '') == request.auth.uid);
     }
     function permittedDocument() {
       return request.resource != null
