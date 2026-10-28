@@ -9,6 +9,8 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+import { storage } from "./firebase.js";
+import { ref as storageRef, getBlob } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -239,51 +241,230 @@ export function userDrawer(ctx, u, api) {
 }
 // ---------- verifications ----------
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
-const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+const VF_BUSINESS_TYPES = {
+  "real-estate-company": "Real estate company", electricals: "Electrical services",
+  "home-automation": "Home automation", plumbing: "Plumbing", tiling: "Tiling",
+  painting: "Painting", "appliance-repair": "Home appliance fixing", cleaning: "Cleaning services",
+  handyman: "Handyman / general repairs", other: "Other home service"
+};
+const vfIsBusiness = (u) => u.verification?.kind === "agency" || u.role === "agency";
+const vfIsLandlord = (u) => u.verification?.kind === "landlord" || u.role === "landlord";
+const vfIsAgent = (u) => u.verification?.kind === "agent" || u.role === "agent";
+const vfRealEstateBusiness = (u) => vfIsBusiness(u) && (u.agency?.types || []).includes("real-estate-company");
+const vfPath = (u, key) => {
+  const p = u.verificationFiles?.[key];
+  return typeof p === "string" && p.startsWith("verification/" + u.id + "/") ? p : "";
+};
+const vfRequiredDocs = (u) => {
+  if (vfIsLandlord(u)) return ["identityPath", "addressPath", "ownershipPath"];
+  if (vfIsAgent(u) || vfRealEstateBusiness(u)) return ["identityPath", "addressPath"];
+  return [];
+};
+const vfChecks = (u) => {
+  const result = [["name", "Account name matches the submitted details"], ["contact", "Contact details look genuine"]];
+  if (vfIsBusiness(u)) result.push(["registration", "CAC number matches the business details"]);
+  if (vfIsAgent(u) || vfIsLandlord(u) || vfRealEstateBusiness(u)) {
+    result.push(["identity", "Government ID reviewed"], ["address", "Proof of address reviewed"]);
+  }
+  if (vfIsLandlord(u)) result.push(["ownership", "Property ownership evidence reviewed"]);
+  if (vfIsAgent(u) && u.agentInfo?.professionalBody && u.agentInfo.professionalBody !== "none") {
+    result.push(["professional", "Professional registration checked"]);
+  }
+  return result;
+};
+async function openVerificationDocument(path, label, trigger) {
+  if (!path || !path.startsWith("verification/")) return toast("The document path is invalid.", { tone: "bad" });
+  let objectUrl = "";
+  const viewer = dialog({
+    title: label,
+    size: "lg",
+    icon: "shield",
+    body: '<p class="ax-p">Loading private verification document…</p>',
+    onClose: () => { if (objectUrl) URL.revokeObjectURL(objectUrl); }
+  });
+  busy(trigger, true);
+  try {
+    const blob = await getBlob(storageRef(storage, path));
+    objectUrl = URL.createObjectURL(blob);
+    const link = '<div class="ax-vdoc-links"><a class="ax-link" href="' + esc(objectUrl) + '" target="_blank" rel="noopener noreferrer">Open file in a new tab</a><a class="ax-link" href="' + esc(objectUrl) + '" download="' + esc(label.replace(/[^a-z0-9_-]+/gi, "-")) + '">Download private copy</a></div>';
+    if (blob.type && blob.type.startsWith("image/")) {
+      viewer.body.innerHTML = '<img class="ax-verification-preview" src="' + esc(objectUrl) + '" alt="' + esc(label) + '">' + link;
+    } else {
+      viewer.body.innerHTML = '<div class="ax-vdoc-pdf"><span class="ax-vdoc-icon">' + I("file", 30) + '</span><p class="ax-p">This is a PDF or document. Open it in a new tab or download it to review the contents.</p>' + link + '</div>';
+    }
+  } catch (e) {
+    viewer.body.innerHTML = '<p class="ax-p">We could not load this private file. Check that Firebase Storage is enabled and that your admin account has permission to read verification documents.</p>';
+    bad(e);
+  } finally { busy(trigger, false); }
+}
 export function verifications(ctx) {
-  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
-    async render({ users: us }, { body }) {
+  return pageView(ctx, {
+    title: "Verifications", eyebrow: "Marketplace",
+    sub: "Review businesses, real-estate agents and home owners. Document submission alone never grants verified status.",
+    cols: ["users"], what: "verifications",
+    async render({ users: us }) {
       let tab = hq().q.tab || "waiting";
-      const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
+      const want = () => us.filter((u) => u.verification);
+      const by = (status) => want().filter((u) => u.verification.status === status).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
       const dels = () => us.filter((u) => u.deletion?.status === "pending");
       const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
-      const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : (Math.floor(m / 1440) === 1 ? "1 day ago" : `${Math.floor(m / 1440)} days ago`); };
-      const nameOf = (id) => us.find((x) => x.id === id)?.name || "";
-      const card = (u) => { const a = u.agency, g = u.agentInfo, v = u.verification, isA = v.kind === "agency", pend = v.status === "pending";
-        return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
-          ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Registrar", esc(a?.registrar)], ["Role", esc(a?.position)], ["Opened", esc(a?.opened)], ["Registrar’s DOB", esc(dob(a?.dob))], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]])}
-          ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${VF_CHECK.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
-      const html = () => {
-        const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
-        const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
-        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
-          : tab === "decided" ? (dn.length ? `<div class="ax-vgrid">${dn.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." })}</div>`)
-          : `<div class="ax-card ax-tablecard">${dd.length ? `<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>${dd.map((u) => `<tr><td data-label="Person" data-role="title"><div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}</b><small>${esc(u.email || "")}</small></div></div></td><td data-label="Role">${esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter")}</td><td data-label="Requested">${ago(u.deletion.requestedAt)}</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">${btn("Approve deletion", { v: "danger", size: "sm", attrs: `data-del=approved data-id="${esc(u.id)}"` })}${btn("Keep account", { size: "sm", attrs: `data-del=denied data-id="${esc(u.id)}"` })}</div></td></tr>`).join("")}</tbody></table></div>` : empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })}</div>`;
-        return `${tb}<div style="margin-top:16px" id="vfMain">${main}</div>`;
+      const ago = (t) => {
+        const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000));
+        return m < 60 ? m + " min ago" : m < 1440 ? Math.floor(m / 60) + " h ago" : (Math.floor(m / 1440) === 1 ? "1 day ago" : Math.floor(m / 1440) + " days ago");
       };
-      return { html: `<div id="vfRoot">${html()}</div>`, mount(el) {
-        const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
+      const nameOf = (id) => us.find((x) => x.id === id)?.name || "";
+      const docButtons = (u) => {
+        const vf = u.verificationFiles || {};
+        const rows = [
+          ["Government ID", "identityPath"], ["Proof of address", "addressPath"],
+          ["Property ownership", "ownershipPath"], ["CAC certificate", "cacPath"]
+        ].filter((r) => vfPath(u, r[1]));
+        if (!rows.length) return '<p class="ax-sub">No verification files were uploaded for this request.</p>';
+        return '<div class="ax-vdoc-list" aria-label="Submitted private documents">' +
+          rows.map((r) => '<button type="button" class="ax-btn ax-btn--soft" data-verification-doc="' + esc(vfPath(u, r[1])) + '" data-doc-label="' + esc(r[0]) + '">' + I("file", 16) + '<span>View ' + esc(r[0]) + '</span></button>').join("") +
+          '</div>';
+      };
+      const profileRows = (u) => {
+        const a = u.agency || {}, g = u.agentInfo || {}, v = u.verification || {};
+        if (vfIsBusiness(u)) return [
+          ["Full name", esc(u.name)], ["Business name", esc(a.business)], ["Business types", esc((a.types || []).map((t) => VF_BUSINESS_TYPES[t] || t).join(", "))],
+          ["Registrar / representative", esc(a.registrar)], ["Role in business", esc(a.position)], ["CAC number", esc(a.cac)],
+          ["Support email", esc(a.supportEmail)], ["Business phone", esc(a.phone)], ["Office address", esc(a.address)],
+          ["Website", esc(a.website)], ["Account email", esc(u.email)], ["Residence", esc(u.location)]
+        ];
+        if (vfIsLandlord(u)) return [
+          ["Full name", esc(u.name)], ["Phone", esc(u.phone)], ["Account email", esc(u.email)],
+          ["Residence", esc(u.location)], ["Government ID type", esc(u.verificationFiles?.idType)],
+          ["Submitted", esc(v.requestedAt ? new Date(v.requestedAt).toLocaleString("en-GB") : "")]
+        ];
+        return [
+          ["Full name", esc(u.name)], ["Phone", esc(g.phone || u.phone)], ["Experience", esc(g.experience)],
+          ["Agency", esc(g.company)], ["Areas covered", esc(g.areas)], ["Date of birth", esc(dob(g.dob))],
+          ["Professional body", esc(g.professionalBody)], ["Registration number", esc(g.professionalNumber)],
+          ["ID or licence number", esc(g.licence)], ["Government ID type", esc(u.verificationFiles?.idType)],
+          ["Account email", esc(u.email)], ["Residence", esc(u.location)]
+        ];
+      };
+      const card = (u) => {
+        const v = u.verification || {}, isBusiness = vfIsBusiness(u), isLandlord = vfIsLandlord(u);
+        const kindLabel = isBusiness ? "Business" : isLandlord ? "Home owner" : "Real estate agent";
+        const heading = isBusiness ? (u.agency?.business || u.name) : u.name;
+        const pend = v.status === "pending", checklist = vfChecks(u);
+        const checkUi = checklist.map((item, i) => '<label class="ax-check"><input type="checkbox" data-ck="' + i + '"><span>' + esc(item[1]) + '</span></label>').join("");
+        return '<article class="ax-card ax-vc" data-uid="' + esc(u.id) + '">' +
+          '<div class="ax-vc-h">' + avatar(heading || u.email, u.id, 40, u.photo) + '<div><b>' + esc(heading || "Unnamed") + '</b><small>' + kindLabel + ' · requested ' + esc(ago(v.requestedAt)) + '</small></div>' + chipFor("verification", v.status) + '</div>' +
+          dl(profileRows(u)) +
+          '<div class="ax-vdoc-section"><span class="ax-eyebrow">Private verification documents</span>' + docButtons(u) + '</div>' +
+          (pend ? '<div class="ax-checks" role="group" aria-label="Verification checklist"><span class="ax-eyebrow">Review every applicable item</span>' + checkUi + '</div>' +
+            '<div class="ax-vc-f">' + btn("Verify", { v: "primary", ic: "check", attrs: 'data-v="verified"' }) + btn("Reject", { v: "danger", attrs: 'data-v="rejected"' }) + '</div>' :
+            '<p class="ax-sub">' + (v.status === "verified" ? "Verified" : "Rejected") +
+            (v.decidedAt ? " · " + esc(ago(v.decidedAt)) : "") +
+            (v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : "") +
+            (v.reason ? " · " + esc(v.reason) : "") + '</p>') +
+          '</article>';
+      };
+      const html = () => {
+        const waiting = by("pending");
+        const decided = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12);
+        const deletion = dels();
+        const tb = tabs([
+          { k: "waiting", label: "Waiting", count: waiting.length },
+          { k: "decided", label: "Decided", count: decided.length },
+          { k: "deletions", label: "Deletion requests", count: deletion.length }
+        ], tab, { label: "Verifications" });
+        let content;
+        if (tab === "waiting") content = waiting.length ? '<div class="ax-vgrid">' + waiting.map(card).join("") + '</div>' :
+          '<div class="ax-card">' + empty({ icon: "shield", title: "No one is waiting for verification.", hint: "Business, agent and home-owner requests appear here." }) + '</div>';
+        else if (tab === "decided") content = decided.length ? '<div class="ax-vgrid">' + decided.map(card).join("") + '</div>' :
+          '<div class="ax-card">' + empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." }) + '</div>';
+        else content = '<div class="ax-card ax-tablecard">' + (deletion.length ?
+          '<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>' +
+          deletion.map((u) => '<tr><td data-label="Person" data-role="title"><div class="ax-id">' + avatar(u.name || u.email, u.id, 32, u.photo) + '<div><b>' + esc(u.name || "—") + '</b><small>' + esc(u.email || "") + '</small></div></div></td><td data-label="Role">' + esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter") + '</td><td data-label="Requested">' + esc(ago(u.deletion.requestedAt)) + '</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">' +
+          btn("Approve deletion", { v: "danger", size: "sm", attrs: 'data-del="approved" data-id="' + esc(u.id) + '"' }) +
+          btn("Keep account", { size: "sm", attrs: 'data-del="denied" data-id="' + esc(u.id) + '"' }) +
+          '</div></td></tr>').join("") + '</tbody></table></div>' :
+          empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })) + '</div>';
+        return tb + '<div style="margin-top:16px" id="vfMain">' + content + '</div>';
+      };
+      return { html: '<div id="vfRoot">' + html() + '</div>', mount(el) {
+        const root = $("#vfRoot", el);
+        const paint = () => {
+          root.innerHTML = html();
+          mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
+        };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
-          const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
-          if (bv) {
-            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
-            let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
-            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
-            try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
-              await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
-              toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }
-          } else if (bd) {
-            const u = us.find((x) => x.id === bd.dataset.id), ok = bd.dataset.del === "approved";
-            if (ok && !(await confirm({ title: `Approve deleting ${u.name || u.email}?`, body: "Their account will be removed the next time it’s opened after the one-day review.", confirmLabel: "Approve deletion", tone: "danger", icon: "trash" }))) return;
-            busy(bd, true);
-            try { const nd = { ...u.deletion, status: bd.dataset.del, decidedAt: Date.now() }; await st.decideDeletion(u.id, nd); u.deletion = nd; changed(); await st.notify(u.id, { kind: "info", title: ok ? "Deletion approved" : "Account kept", body: ok ? "Your account will be removed after the one-day review period." : "We’ve kept your account as it is." }).catch(() => {}); toast(ok ? "Deletion approved." : "Account kept."); paint(); } catch (x) { busy(bd, false); bad(x); }
+          const docButton = e.target.closest("[data-verification-doc]");
+          if (docButton) {
+            const u = us.find((x) => x.id === docButton.closest("[data-uid]")?.dataset.uid);
+            const path = docButton.dataset.verificationDoc || "";
+            if (!u || !path.startsWith("verification/" + u.id + "/")) return toast("This document path does not belong to this account.", { tone: "bad" });
+            return openVerificationDocument(path, docButton.dataset.docLabel || "Verification document", docButton);
+          }
+          const verifyButton = e.target.closest("[data-v]");
+          const deleteButton = e.target.closest("[data-del]");
+          if (verifyButton) {
+            const c = verifyButton.closest("[data-uid]");
+            const u = us.find((x) => x.id === c?.dataset.uid);
+            if (!u) return;
+            const ok = verifyButton.dataset.v === "verified";
+            const label = vfIsBusiness(u) ? "business account" : vfIsLandlord(u) ? "home-owner account" : "agent account";
+            let why = "";
+            if (!ok) {
+              why = await reason({ title: "Reject " + (u.agency?.business || u.name || "this request"), presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." });
+              if (!why) return;
+            }
+            if (ok) {
+              const required = vfRequiredDocs(u);
+              const files = u.verificationFiles || {};
+              const missing = required.filter((key) => !vfPath(u, key) || !vfPath(u, key).startsWith("verification/" + u.id + "/"));
+              if (missing.length || (required.length && !files.idType)) {
+                toast("Required ID, address or ownership documents are missing. Ask the person to submit them before approving.", { tone: "bad" });
+                return;
+              }
+              if (vfIsBusiness(u) && (!u.agency?.business || !u.agency?.cac)) {
+                toast("The business name and CAC number must be present before approval.", { tone: "bad" });
+                return;
+              }
+              if (vfIsAgent(u) && u.agentInfo?.professionalBody && u.agentInfo.professionalBody !== "none" && !u.agentInfo.professionalNumber) {
+                toast("Check the professional registration number before approving.", { tone: "bad" });
+                return;
+              }
+              const checks = $$("[data-ck]", c);
+              if (checks.some((box) => !box.checked)) {
+                toast("Complete every applicable checklist item before approving.", { tone: "bad" });
+                return;
+              }
+            }
+            busy(verifyButton, true);
+            const checklist = Object.fromEntries($$("[data-ck]", c).map((box) => [vfChecks(u)[+box.dataset.ck]?.[0] || ("check-" + box.dataset.ck), box.checked]));
+            try {
+              const nv = Object.assign({}, u.verification, { status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid });
+              if (why) nv.reason = why;
+              if (ok) nv.checklist = checklist;
+              await st.verifyUser(u.id, nv);
+              u.verification = nv; u.verified = ok; changed();
+              await st.notify(u.id, ok
+                ? { kind: "verified", title: "You’re verified!", body: "Your " + label + " has been verified. You can now start listing properties." }
+                : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
+              toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told.");
+              paint();
+            } catch (x) { busy(verifyButton, false); bad(x); }
+          } else if (deleteButton) {
+            const u = us.find((x) => x.id === deleteButton.dataset.id), ok = deleteButton.dataset.del === "approved";
+            if (ok && !(await confirm({ title: "Approve deleting " + (u.name || u.email || "this account") + "?", body: "Their account will be removed the next time it’s opened after the one-day review.", confirmLabel: "Approve deletion", tone: "danger", icon: "trash" }))) return;
+            busy(deleteButton, true);
+            try {
+              const nd = Object.assign({}, u.deletion, { status: deleteButton.dataset.del, decidedAt: Date.now() });
+              await st.decideDeletion(u.id, nd); u.deletion = nd; changed();
+              await st.notify(u.id, { kind: "info", title: ok ? "Deletion approved" : "Request closed", body: ok ? "Your deletion request was approved. You’ll be signed out and the account will be removed after one day." : "The support team kept your account as it is." }).catch(() => {});
+              toast(ok ? "Deletion approved." : "Account kept."); paint();
+            } catch (x) { busy(deleteButton, false); bad(x); }
           }
         });
       } };
     } });
 }
-
 // ---------- applications ----------
 const APP_STATUS = ["Under review", "Awaiting documents", "Approved", "Rejected"];
 const appMonth = (a) => String(a.moveIn || "").slice(0, 7);
