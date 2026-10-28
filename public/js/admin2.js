@@ -9,6 +9,8 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+import { storage } from "./firebase.js";
+import { ref as storageRef, getBlob } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -61,7 +63,7 @@ export const isPendingL = (l) => ["pending", "flagged"].includes(listingState(l)
 const thumbOf = (l) => l.thumb || l.images?.[0] || "";
 const where = (l) => [l.area, l.city].filter(Boolean).join(", ");
 export const roleOf = (ctx, u) => (u.id === ctx.S.ownerUid ? "owner" : u.role === "owner" ? "admin" : u.role || "renter");
-export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Agency", agent: "Agent", landlord: "Property owner", renter: "Renter" };
+export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Business", agent: "Agent", landlord: "Property owner", renter: "Renter" };
 export { emailPending };
 export const userVerified = (u) => u.verified === true || u.verification?.status === "verified";
 
@@ -222,7 +224,7 @@ export function userStatus(ctx, u) {
 }
 export function userDrawer(ctx, u, api) {
   const r = roleOf(ctx, u), mine = u.id === ctx.S.user.uid, ag = u.agency, gi = u.agentInfo, ban = canBan(ctx, u);
-  const ROLES = [["renter", "Renter"], ["agent", "Agent"], ["landlord", "Property owner"], ["agency", "Agency"], ["support", "Support"], ["admin", "Admin"]];
+  const ROLES = [["renter", "Renter"], ["agent", "Agent"], ["landlord", "Property owner"], ["agency", "Business"], ["support", "Support"], ["admin", "Admin"]];
   const body = `<div style="display:flex;gap:14px;align-items:center;margin-bottom:14px">${avatar(u.name || u.email, u.id, 56, u.photo)}<div style="min-width:0"><div style="font:700 18px/22px var(--font-display);color:var(--ax-head)">${esc(u.name || "—")}${mine ? ' <span class="ax-muted" style="font:400 13px var(--font-body)">(you)</span>' : ""}</div><div style="font-size:13px;color:var(--ax-muted);overflow-wrap:anywhere">${esc(u.email || "")}</div><div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">${chipFor("user", r)}${userStatus(ctx, u)}</div></div></div>
     ${mine ? "" : `<div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">${btn("Text", { v: "primary", size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call=voice" })}${btn("Video", { size: "sm", ic: "video", attrs: "data-call=video" })}</div>`}
     ${section("Details", dl([["Phone", esc(u.phone || ag?.phone || gi?.phone || "")], ["Residence", esc(u.location || [u.city, u.country].filter(Boolean).join(", "))], ["Joined", fmt.date(u.createdAt) === "—" ? "" : fmt.date(u.createdAt)], ["Last active", u.lastActive ? fmt.rel(u.lastActive) : ""], ["Sign-in", u.provider === "google" || /googleusercontent\.com/.test(u.photo || "") ? "Google" : "Email"], ["Saved homes", fmt.num((u.saved || []).length)], ...(ag ? [["Business", esc(ag.business)], ["Registrar", esc([ag.registrar, ag.position].filter(Boolean).join(" · "))], ["CAC number", esc(ag.cac)], ["Opened", esc(ag.opened)], ["Support email", esc(ag.supportEmail)], ["Office address", esc(ag.address)], ["Website", ag.website ? esc(ag.website) : ""]] : []), ...(gi ? [["Agency", esc(gi.company)], ["Licence", esc(gi.licence)], ["Experience", esc(gi.experience)], ["Areas", esc(gi.areas)]] : [])]))}
@@ -239,9 +241,13 @@ export function userDrawer(ctx, u, api) {
 }
 // ---------- verifications ----------
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
-const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+const VF_CHECK = (u) => u.verification?.kind === "landlord"
+  ? ["Government ID matches the account", "Proof of address matches the owner", "Property ownership proof reviewed", "Contact details look genuine"]
+  : u.verification?.kind === "agency"
+    ? ["Representative ID and address reviewed", "CAC number and certificate match", "Business contact details look genuine"]
+    : ["Government ID and proof of address reviewed", "Professional registration checked if applicable", "Contact details look genuine"];
 export function verifications(ctx) {
-  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
+  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Business, agent and home owner verification requests, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
       let tab = hq().q.tab || "waiting";
       const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
@@ -249,14 +255,16 @@ export function verifications(ctx) {
       const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
       const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : (Math.floor(m / 1440) === 1 ? "1 day ago" : `${Math.floor(m / 1440)} days ago`); };
       const nameOf = (id) => us.find((x) => x.id === id)?.name || "";
-      const card = (u) => { const a = u.agency, g = u.agentInfo, v = u.verification, isA = v.kind === "agency", pend = v.status === "pending";
-        return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
-          ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Registrar", esc(a?.registrar)], ["Role", esc(a?.position)], ["Opened", esc(a?.opened)], ["Registrar’s DOB", esc(dob(a?.dob))], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]])}
-          ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${VF_CHECK.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
+      const card = (u) => { const a = u.agency || {}, g = u.agentInfo || {}, v = u.verification || {}, isA = v.kind === "agency", isL = v.kind === "landlord", pend = v.status === "pending", checks = VF_CHECK(u), label = isA ? "Business" : isL ? "Home owner" : "Agent";
+        const details = isA ? [["Full name", esc(u.name)], ["Business name", esc(a.business)], ["Business types", esc((a.businessTypes || []).map((x) => ({"real-estate":"Real estate company", electricals:"Electricals", "home-automation":"Home automation", plumbing:"Plumbing", tiling:"Tiling", painting:"Painting", "appliance-repair":"Home appliance repair", other:"Other"}[x] || x)).join(", "))], ["Registrar / responsible person", esc(a.registrar)], ["Role in company", esc(a.position)], ["CAC number", esc(a.cac)], ["Support email", esc(a.supportEmail)], ["Business phone", esc(a.phone)], ["Office address", esc(a.address)], ["Website", esc(a.website)], ["Account email", esc(u.email)]] : isL ? [["Full name", esc(u.name)], ["Phone", esc(u.phone)], ["Location", esc([u.lga, u.state, u.country].filter(Boolean).join(", "))], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g.phone)], ["Experience", esc(g.experience)], ["Agency", esc(g.company)], ["Date of birth", esc(dob(g.dob))], ["Professional body", esc(g.registrationBody)], ["ID / licence no.", esc(g.licence)], ["Areas covered", esc(g.areas)], ["Account email", esc(u.email)]];
+        return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${label} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
+          ${dl(details)}
+          <div class="ax-vdocs-actions">${btn("View submitted documents", { size: "sm", ic: "fileCheck", attrs: `data-vdocs="${esc(u.id)}"` })}</div>
+          ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${checks.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
       const html = () => {
         const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
         const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
-        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
+        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New Business, agent and home owner requests appear here." })}</div>`)
           : tab === "decided" ? (dn.length ? `<div class="ax-vgrid">${dn.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." })}</div>`)
           : `<div class="ax-card ax-tablecard">${dd.length ? `<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>${dd.map((u) => `<tr><td data-label="Person" data-role="title"><div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}</b><small>${esc(u.email || "")}</small></div></div></td><td data-label="Role">${esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter")}</td><td data-label="Requested">${ago(u.deletion.requestedAt)}</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">${btn("Approve deletion", { v: "danger", size: "sm", attrs: `data-del=approved data-id="${esc(u.id)}"` })}${btn("Keep account", { size: "sm", attrs: `data-del=denied data-id="${esc(u.id)}"` })}</div></td></tr>`).join("")}</tbody></table></div>` : empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })}</div>`;
         return `${tb}<div style="margin-top:16px" id="vfMain">${main}</div>`;
