@@ -83,7 +83,7 @@ const ME_PATHS = ["/settings", "/saved", "/bookings", "/payments", "/documents",
 const pathIs = (path, h) => path === h || path.startsWith(h + "/");
 const navOn = (path, h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => pathIs(path, p)) : pathIs(path, h));
 const unreadTxt = (n) => (n > 99 ? "99+" : n || "");
-const roleLabel = () => (S.isOwner ? "Owner" : S.tenant ? "Tenant" : { renter: "Renter", landlord: "Home owner", agency: "Agency", agent: "Agent", support: "Support", admin: "Admin" }[S.role] || "Member");
+const roleLabel = () => (S.isOwner ? "Owner" : S.tenant ? "Tenant" : { renter: "Renter", landlord: "Home owner", agency: "Business", agent: "Agent", support: "Support", admin: "Admin" }[S.role] || "Member");
 // One list feeds both the desktop account menu and the phone sheet. A fourth entry of 1 means "the top bar already links here" (left out of the desktop menu).
 const meGroups = () => {
   const dash = S.isAdmin ? ["/admin", "building", "Admin console"] : ROLE_UI[S.role] ? [ROLE_UI[S.role].home, "building", "My dashboard"] : null;
