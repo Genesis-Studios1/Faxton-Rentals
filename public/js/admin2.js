@@ -116,6 +116,7 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
   const body = `${imgs[0] ? `<img class="ax-hero" src="${esc(imgs[0])}" alt="" loading="lazy">${imgs.length > 1 ? `<div class="ax-strip">${imgs.slice(1, 5).map((u) => `<img src="${esc(u)}" alt="" loading="lazy">`).join("")}</div>` : ""}` : `<div class="ax-hero" style="display:grid;place-items:center;color:var(--ax-faint)">${I("img", 32)}</div>`}
     <div style="margin-top:16px">${section("Summary", dl([["Agent", esc(l.agent?.name || "—")], ["Type", esc(l.type || "—")], ["Rent", l.price ? `${naira(l.price)} <span class="ax-muted">/ year</span>` : "—"], ["Bedrooms", l.beds === 0 ? "Studio" : fmt.num(l.beds)], ["Size", l.sqm ? l.sqm + " m²" : ""], ["Deposit", l.deposit ? naira(l.deposit) : ""], ["Service charge", l.service ? naira(l.service) : ""]]))}
     ${l.changeNote && /flag|reject/.test(s) ? section("Note sent to the owner", `<p class="ax-clamp" style="-webkit-line-clamp:6">${esc(l.changeNote)}</p>`) : ""}
+    ${l.ownerUid ? section("Ownership proof", l.ownershipProofPath ? `<div class="ax-doc-row"><span class="ax-doc-icon">${I("fileCheck", 20)}</span><div><b>Proof of ownership attached</b><small>${esc(l.ownershipProofName || "Private document")}</small></div>${btn("Preview", { size: "sm", attrs: "data-owner-proof" })}</div><p class="ax-sub">Private evidence. Review it before approving this listing.</p>` : `<p class="ax-sub">No proof of ownership is attached. This listing must not be approved.</p>`) : ""}
     ${section("Description", l.desc ? `<p class="ax-clamp" data-clamp>${esc(l.desc)}</p>${l.desc.length > 220 ? `<button type="button" class="ax-link" data-more style="border:0;background:none;padding:4px 0;cursor:pointer">Show more</button>` : ""}` : `<span class="ax-muted">No description yet.</span>`)}
     ${section("Media", `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${(l.videos || []).length} video${(l.videos || []).length === 1 ? "" : "s"}</span>${btn("Photos and videos", { size: "sm", ic: "img", attrs: "data-media" })}</div>`)}
     ${section("Owner", `<div class="ax-id" data-owner>${avatar(l.agent?.name, l.ownerUid || l.agent?.id, 36, l.agent?.photo || l.agent?.avatar)}<div><b>${esc(l.agent?.name || "Faxton")}</b><small data-ownersub>${l.ownerUid ? "Property owner account" : "Added by the Faxton team"}</small></div></div>${l.ownerUid ? `<div style="display:flex;gap:8px;margin-top:10px">${btn("Text", { size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}</div>` : ""}`)}
@@ -124,6 +125,21 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
   return { title: l.title, sub: `${chipFor("listing", s)}<span>${esc(where(l))}</span>`, body, footer,
     mount(el) {
       $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
+      $("[data-owner-proof]", el)?.addEventListener("click", async (e) => {
+        if (!l.ownershipProofPath) return;
+        const tab = window.open("about:blank", "_blank");
+        if (!tab) { toast("Allow pop-ups to preview the private ownership document.", { tone: "bad" }); return; }
+        busy(e.currentTarget, true);
+        try {
+          const blob = await getBlob(storageRef(storage, l.ownershipProofPath));
+          const url = URL.createObjectURL(blob);
+          tab.opener = null; tab.location.href = url;
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
+        } catch (x) {
+          tab.close(); console.error("Ownership proof preview failed", x);
+          toast("Couldn’t preview the private proof. Check Storage access and bucket CORS settings.", { tone: "bad" });
+        } finally { busy(e.currentTarget, false); }
+      });
       $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
       $("[data-text]", el)?.addEventListener("click", () => data.safe("users").then((us) => { const u = us.find((x) => x.id === l.ownerUid); if (u) openChat(ctx, u); else toast("We couldn’t find that owner’s account.", { tone: "bad" }); }));
       $("[data-call]", el)?.addEventListener("click", () => CALLS.startCall(ctx, { to: l.ownerUid, toName: l.agent?.name || "Owner", kind: "voice", title: "Faxton team" }));
@@ -132,7 +148,7 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
 }
 async function listingAct(ctx, l, act, api, b) {
   try {
-    if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
+    if (act === "approve") { if (l.ownerUid && l.ownerUid !== ctx.S.user?.uid && (!l.ownershipProofPath || !l.ownershipProofName)) { toast("Cannot approve this listing until the owner uploads proof of ownership.", { tone: "bad" }); return; } busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
     else if (act === "restore") await write("listings", l, { status: "active", archived: false }, { msg: "Listing restored.", after: api.refresh });
     else if (act === "archive") await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
     else if (act === "changes" || act === "reject") {
