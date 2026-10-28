@@ -222,9 +222,10 @@ service cloud.firestore {
                 && (request.resource.data.verification.get('status', '') != 'verified'
                   || (resource.data.role == 'agency'
                     && resource.data.agency is map
-                    && resource.data.agency.get('cac', '') is string
-                    && resource.data.agency.get('cac', '').size() > 0)
+                    && businessProfileOk(resource.data.agency))
                   || (resource.data.role == 'agent'
+                    && resource.data.get('agentInfo', null) is map
+                    && agentProfileOk(resource.data.agentInfo)
                     && resource.data.get('verificationDocs', null) is map
                     && 'identity' in resource.data.verificationDocs
                     && 'address' in resource.data.verificationDocs)
