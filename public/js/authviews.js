@@ -4,6 +4,9 @@
 import { $, $$, esc, icon, logoMark } from "./ui.js";
 import { GOOGLE, EMAIL_RE, authErr, strength, fieldHtml, fieldError } from "./authkit.js";
 import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence, mountResidence } from "./onboard.js";
+import { saveProfile, syncPublic } from "./store.js";
+import { storage } from "./firebase.js";
+import { ref as storageRef, uploadBytes, deleteObject } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
