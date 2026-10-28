@@ -1,7 +1,7 @@
 // Required setup after account creation. Verification files stay in private Storage; Firestore stores metadata only.
 import { $, $$, esc, icon, toast } from "./ui.js";
 import { db, storage } from "./firebase.js";
-import { doc, updateDoc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { doc, updateDoc, setDoc, getDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, deleteObject } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 import { locFields, mountLoc, resFields } from "./loc.js";
 
@@ -105,12 +105,16 @@ export function setupPage(ctx) {
         const locationFields=resFields({country:location.country,state:location.state,lga:location.lga,city:location.city});
         const onboarding={completed:true,source:source.value,sourceOther:source.value==="Other"?value(root,"os-source-other"):"",completedAt:serverTimestamp(),version:1};
         const update={...locationFields,onboarding,...(role==="agency"?{agency:data.agency,phone:data.agency.phone}:{}),...(role==="agent"?{agentInfo:data.agentInfo,phone:data.agentInfo.phone}:{}),...(role==="landlord"?{phone:data.phone}:{})};
-        if(verifying)update.verification={...(profile.verification||{}),status:"pending",kind:role==="agency"?"agency":role,requestedAt:profile.verification?.requestedAt||Date.now()};
+        const resubmitting=verifying&&profile.verification?.status==="rejected";
+        if(resubmitting)update.verification={status:"pending",kind:role==="agency"?"agency":role,requestedAt:Date.now()};
         if(verifying){
-          const requestRef=doc(db,"verificationRequests",user.uid),existing=await getDoc(requestRef);
-          if(existing.exists()&&existing.data().status!=="rejected")throw new Error("A verification request already exists. Please contact Faxton support if you need to replace documents.");
-          await updateDoc(doc(db,"users",user.uid),update);
-          await setDoc(requestRef,{uid:user.uid,role,status:"pending",documents,submittedAt:serverTimestamp(),updatedAt:serverTimestamp()});
+          const userRef=doc(db,"users",user.uid),requestRef=doc(db,"verificationRequests",user.uid),existing=await getDoc(requestRef);
+          if(existing.exists()&&existing.data().status!=="rejected")throw new Error("A verification request is already being reviewed. Contact Faxton support if you need help.");
+          const request={uid:user.uid,role,status:"pending",documents,submittedAt:serverTimestamp(),updatedAt:serverTimestamp()};
+          const batch=writeBatch(db);
+          batch.update(userRef,update);
+          batch.set(requestRef,request);
+          await batch.commit();
         }else await updateDoc(doc(db,"users",user.uid),update);
         try{sessionStorage.removeItem("signupDraft");}catch{}
         toast(verifying?"Setup complete. Your documents are waiting for review.":"Setup complete. Welcome to Faxton Rentals.");
