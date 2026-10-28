@@ -287,11 +287,31 @@ export function verifications(ctx) {
         const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
+          const openDoc = e.target.closest("[data-open-doc]");
           const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
-          if (bv) {
-            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
+          if (openDoc) {
+            const article = openDoc.closest("[data-uid]"), u = us.find((x) => x.id === article?.dataset.uid), key = openDoc.dataset.openDoc, path = u?.verificationDocs?.[key]?.path;
+            if (!path) return bad(new Error("That document is no longer available."));
+            const preview = window.open("about:blank", "_blank");
+            if (!preview) return bad(new Error("Allow pop-ups to open this private document preview."));
+            preview.opener = null;
+            busy(openDoc, true);
+            try {
+              const blob = await getBlob(storageRef(storage, path));
+              const url = URL.createObjectURL(blob);
+              preview.location.href = url;
+              setTimeout(() => URL.revokeObjectURL(url), 120000);
+            } catch (error) {
+              preview.close();
+              bad(new Error("Could not open the private document. Check that Firebase Storage is enabled and its rules are deployed."));
+            } finally { busy(openDoc, false); }
+          } else if (bv) {
+            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified";
+            const label = u.verification.kind === "agency" ? "business" : u.verification.kind === "landlord" ? "home-owner account" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
-            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            busy(bv, true);
+            const reviewItems = checksFor(u), checklist = Object.fromEntries($("[data-ck]", c).map((x) => [reviewItems[+x.dataset.ck], x.checked]));
+            if (ok && Object.values(checklist).some((checked) => !checked)) { busy(bv, false); return bad(new Error("Complete every review checklist item before approving verification.")); }
             try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
               await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
               toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }
