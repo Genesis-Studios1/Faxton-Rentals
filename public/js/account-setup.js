@@ -62,12 +62,7 @@ function roleFields(role, profile) {
     field("supportEmail", "Support email", "email", "support@yourbusiness.com", 'maxlength="120" autocomplete="email" required') +
     field("phone", "Business phone number", "tel", "+234 …", 'maxlength="30" inputmode="tel" autocomplete="tel" required') +
     field("website", "Business website (optional)", "url", "https://yourbusiness.com", 'maxlength="160" inputmode="url" autocomplete="url") +
-    '</div><div class="asu-conditional" id="asuBusinessDocs" hidden>' +
-    '<h3>Real-estate business checks</h3><p>If real estate is one of your services, submit an ID and proof of address for the authorised representative.</p>' +
-    '<div class="asu-grid">' + select("idType", "Government ID type", [["national-id", "National ID / NIN card"], ["passport", "International passport"], ["drivers-licence", "Driver’s licence"]]) +
-    fileField("identityFile", "Government-issued ID", "Upload a clear, current document.", true) +
-    fileField("addressFile", "Proof of address", "Recent utility bill or another accepted document showing your address.", true) +
-    fileField("cacFile", "CAC certificate", "Optional supporting document for the business registration number.", false) + '</div></div></section>';
+    '</div><div class="asu-grid">' + fileField("cacFile", "CAC certificate", "Optional supporting document for the business registration number.", false) + '</div></section>';
   if (role === "agent") return '<section class="asu-section" aria-labelledby="asu-agent-title">' +
     sectionHead("handshake", "Your agent profile", "Add contact details, experience and the areas you cover.", "asu-agent-title") +
     '<div class="asu-grid">' +
@@ -239,7 +234,8 @@ export function setupPage(ctx) {
       const isRe = business && (data.agency.types || []).includes("real-estate-company");
       const requiredFiles = needed();
       const hasVerification = requiredFiles.length > 0;
-      if (hasVerification) {
+      const needsConsent = hasVerification || business;
+      if (needsConsent) {
         const consent = $("#verificationConsent", root);
         if (!consent || !consent.checked) { putError("verificationConsent", "Please consent to document review."); errors.push("verificationConsent"); }
         else putError("verificationConsent", "");
@@ -249,7 +245,6 @@ export function setupPage(ctx) {
       if (isRe && !qv(root, "idType")) { putError("idType", "Choose your government ID type."); errors.push("idType"); }
       const uploadItems = {};
       const fileRequired = new Set(requiredFiles);
-      if (business) fileRequired.add("cacFile");
       if (role === "landlord") fileRequired.add("ownershipFile");
       const fileIds = ["identityFile", "addressFile", "ownershipFile", "cacFile"];
       fileIds.forEach((id) => {
