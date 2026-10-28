@@ -316,7 +316,7 @@ function wireViews(root, vws, rerender) {
 
 // ---------- property owner and agency dashboard ----------
 function portfolio(ctx, { ls, apps, views, offers, maint }, kind) {
-  const agency = kind === "agency", prof = ctx.S.profile || {}, needsV = agency && !prof.verified, vst = prof.verification?.status || "pending", bs = buckets("365"), L = bs.length - 1;
+  const agency = kind === "agency", prof = ctx.S.profile || {}, needsV = !prof.verified, vst = prof.verification?.status || "pending", bs = buckets("365"), L = bs.length - 1;
   const live = ls.filter(isActive), pend = ls.filter(isPendingL), tenants = apps.filter(approved), occupied = new Set([...tenants.map((a) => a.listingId), ...ls.filter((l) => l.available === false).map((l) => l.id)]);
   const occ = ls.length ? Math.round((occupied.size / ls.length) * 100) : 0, roll = ls.filter((l) => occupied.has(l.id)).reduce((s, l) => s + (+l.price || 0), 0), enq = [...apps, ...views], perL = (id) => enq.filter((x) => x.listingId === id).length;
   const bm = buckets("90"), eS = per(enq, bm), pv = views.filter((v) => v.status === "Requested"), open = offers.filter((o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status) && o.turn === "owner");
@@ -366,7 +366,7 @@ export async function ownerPage(ctx, kind, sub = "") {
   if (!allowed(ctx, kind)) return denied(ctx);
   const TITLE = { landlord: "Dashboard", agency: "Dashboard", agent: { leads: "Leads", clients: "Clients", viewings: "Viewings", listings: "Listings", "": "Overview" }[sub] || "Overview" }[kind] || "Dashboard";
   const eyebrow = { landlord: "Owner portal", agency: "Agency portal", agent: "Agent portal" }[kind], u = ctx.S.user.uid, prof = ctx.S.profile || {};
-  const needsV = kind !== "landlord" && !prof.verified, name = AX.first(prof.name || ctx.S.user.displayName);
+  const needsV = !prof.verified, name = AX.first(prof.name || ctx.S.user.displayName);
   const subt = { landlord: "Here’s what’s happening with your properties.", agency: "Here’s your team’s performance and business overview.", agent: "Your listings, leads and viewings at a glance." }[kind];
   const addBtn = btn("Add property", { v: "primary", ic: "plus", attrs: `id="addp" ${needsV ? 'aria-disabled="true" title="Available once your account is verified"' : ""}` });
   const v = pageView(ctx, { title: kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
