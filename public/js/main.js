@@ -214,18 +214,22 @@ export async function render() {
   S.cleanups.splice(0).forEach((f) => f());
   const { path, q } = parse();
   if (!S.ready) return;
-  // Everything except onboarding, login and sign-up needs an account. Signed-out visitors start at the onboarding.
-  const open = path.startsWith("/onboarding/") || path === "/login" || path === "/signup" || path === "/forgot" || path === "/download";
+  // Signup onboarding is authenticated and required for new profiles. Keep the three intro screens public.
+  const setupPath = path === "/onboarding/setup";
+  const open = (path.startsWith("/onboarding/") && !setupPath) || path === "/login" || path === "/signup" || path === "/forgot" || path === "/download";
   const pub = path === "/terms" || path === "/privacy" || path === "/license";
+  if (!S.user && setupPath) return go("#/signup");
   if (!S.user && !open && !pub) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
-  if (S.user && open) return go("#" + (q.next || "/"));
+  if (S.user && S.profile?.onboarding?.completed === false && !setupPath && !pub) return go("#/onboarding/setup");
+  if (S.user && setupPath && S.profile?.onboarding?.completed === true) return go("#" + (q.next || roleHome() || "/"));
+  if (S.user && open) return go("#" + (q.next || roleHome() || "/"));
   // Staff accounts open their own dashboard first, once per visit.
   if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
 
   const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, reauthGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
-  try { view = S.user && G.needsVerify(S.user) && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
+  try { view = S.user && G.needsVerify(S.user) && path !== "/onboarding/setup" && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
   if (id !== renderId) return;
   bar(false);
   if (!AXS && view && !view.full && S.user && (S.isAdmin || ROLE_UI[S.role]) && (view.admin || view.role || path.startsWith("/messages") || isSettings(path))) { try { AXS = await import("./ax-shell.js"); } catch (e) { console.error(e); } if (id !== renderId) return; }
@@ -273,12 +277,18 @@ async function ensureProfile(u, extra = {}) {
   const snap = await getDoc(ref);
   if (!snap.exists()) {
     let role = extra.role || "renter";
-    const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp() };
-    // Agencies and agents join unverified, with their business details attached, until an admin verifies them.
-    if (role === "agency" && extra.details) { d.agency = extra.details; d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() }; }
-    else if (role === "agent" && extra.details) { d.agentInfo = extra.details; d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() }; }
-    else if (role === "agency" || role === "agent") role = "renter";
-    d.role = role; if (extra.photo) d.photo = extra.photo; // a Google picture is offered after sign-in, never copied silently
+    const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
+    // Business, agent and home-owner accounts start in manual verification review. Account type is never promoted by client-side onboarding.
+    if (role === "agency") {
+      if (extra.details) d.agency = extra.details;
+      d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
+    } else if (role === "agent") {
+      if (extra.details) d.agentInfo = extra.details;
+      d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
+    } else if (role === "landlord") {
+      d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
+    }
+    d.role = role; if (extra.photo) d.photo = extra.photo;
     const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
     if (res?.country) Object.assign(d, resFields(res));
     await setDoc(ref, d); S.justCreated = role;
