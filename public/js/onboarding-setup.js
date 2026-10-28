@@ -5,7 +5,7 @@ import { fieldHtml, fieldError } from "./authkit.js";
 import { locFields, mountLoc, resFields, NIGERIA } from "./loc.js";
 import { saveProfile } from "./store.js";
 import { storage } from "./firebase.js";
-import { ref as storageRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
+import { deleteObject, ref as storageRef, uploadBytes } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 const SOURCES = [
   ["instagram", "Instagram"], ["tiktok", "TikTok"], ["x", "X"], ["facebook", "Facebook"],
@@ -199,12 +199,13 @@ export function onboardingSetup(ctx) {
       if (first) { if (!error.textContent) say("A few details need your attention. Please review the fields marked below."); first.focus?.(); first.scrollIntoView?.({ behavior: "smooth", block: "center" }); return false; }
       return true;
     };
-    const uploadPrivate = async (slot, file) => {
+const uploadPrivate = async (slot, file, uploadedPaths) => {
       const path = `verification/${ctx.S.user.uid}/${slot}`;
       await uploadBytes(storageRef(storage, path), file, {
         contentType: file.type,
         customMetadata: { ownerUid: ctx.S.user.uid, purpose: slot }
       });
+      uploadedPaths.push(path);
       return path;
     };
     formEl.onsubmit = async (event) => {
@@ -218,6 +219,8 @@ export function onboardingSetup(ctx) {
       busy = true; submit.disabled = true; submit.setAttribute("aria-busy", "true");
       const buttonText = $(".au-bl", submit); const originalLabel = buttonText.textContent;
       buttonText.textContent = hasKyc ? "Uploading secure documents…" : "Saving your details…";
+      const uploadedPaths = [];
+      let profileSaved = false;
       try {
         const source = fieldVal(root, "referralSource");
         const onboarding = { completed: true, referralSource: source, referralOther: source === "other" ? fieldVal(root, "referralOther") : "", completedAt: Date.now() };
@@ -243,8 +246,8 @@ export function onboardingSetup(ctx) {
         if (hasKyc) {
           const idFile = $("#identityFile", root).files[0];
           const addressFile = $("#addressFile", root).files[0];
-          const identityPath = await uploadPrivate("identity", idFile);
-          const addressPath = await uploadPrivate("address-proof", addressFile);
+await uploadPrivate("identity", idFile, uploadedPaths)
+await uploadPrivate("address-proof", addressFile, uploadedPaths)
           const kyc = {
             status: "submitted", idType: fieldVal(root, "idType"),
             identityPath, addressProofType: fieldVal(root, "addressProofType"),
@@ -252,11 +255,12 @@ export function onboardingSetup(ctx) {
           };
           if (isLandlord) {
             kyc.ownershipProofType = fieldVal(root, "ownershipProofType");
-            kyc.ownershipPath = await uploadPrivate("ownership-proof", $("#ownershipFile", root).files[0]);
+await uploadPrivate("ownership-proof", $("#ownershipFile", root).files[0], uploadedPaths)
           }
           payload.kyc = kyc;
         }
         await saveProfile(ctx.S.user.uid, payload);
+        profileSaved = true;
         ctx.S.profile = { ...(ctx.S.profile || {}), ...payload };
         await ctx.refreshProfile?.();
         try { sessionStorage.removeItem("faxtonOnboardingDraft"); } catch {}
@@ -266,6 +270,7 @@ export function onboardingSetup(ctx) {
         setTimeout(() => ctx.go("#" + destination), 220);
       } catch (error) {
         console.error("Onboarding save failed", error);
+        if (!profileSaved && uploadedPaths.length) await Promise.allSettled(uploadedPaths.map((path) => deleteObject(storageRef(storage, path))));
         const code = error?.code || "";
         say(code.includes("storage/") ? "We couldn’t upload your verification files. Check your connection and try again. If this keeps happening, contact Faxton support." :
           code.includes("permission-denied") ? "Your details could not be saved because the account permissions rejected the update. Please retry or contact Faxton support." :
