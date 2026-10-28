@@ -273,6 +273,235 @@ export function authPage(ctx, mode) {
   } };
 }
 
+// ---------- post-signup profile and verification onboarding ----------
+export function setupOnboarding(ctx) {
+  const profile = ctx.S.profile || {};
+  const role = profile.role || ctx.S.role || "renter";
+  const isBusiness = role === "agency", isAgent = role === "agent", isLandlord = role === "landlord";
+  const needsDocs = isAgent || isLandlord;
+  const oldOnboarding = profile.onboarding || {};
+  const ag = profile.agency || {}, ai = profile.agentInfo || {}, oldDocs = profile.verificationDocs || {};
+  const escv = (v) => esc(String(v == null ? "" : v));
+  const input = (id, label, val, placeholder, type, attrs, help) =>
+    '<div class="obx-field"><label for="' + id + '">' + label + '</label><input id="' + id + '" name="' + id + '" type="' + (type || "text") + '" value="' + escv(val) + '" placeholder="' + escv(placeholder || "") + '" ' + (attrs || "") + '><small class="obx-error" id="' + id + '-error" hidden></small>' + (help ? '<small class="obx-help">' + help + '</small>' : "") + "</div>";
+  const select = (id, label, options, selected, required = true, help = "") =>
+    '<div class="obx-field"><label for="' + id + '">' + label + '</label><select id="' + id + '" name="' + id + '"' + (required ? " required" : "") + ">" +
+    '<option value="">Choose an option</option>' + options.map((x) => '<option value="' + escv(x[0]) + '"' + (selected === x[0] ? " selected" : "") + ">" + escv(x[1]) + "</option>").join("") +
+    "</select><small class=\"obx-error\" id=\"" + id + '-error" hidden></small>' + (help ? '<small class="obx-help">' + help + "</small>" : "") + "</div>";
+  const sources = [
+    ["instagram", "Instagram"], ["tiktok", "TikTok"], ["x", "X (Twitter)"], ["facebook", "Facebook"],
+    ["youtube", "YouTube"], ["google", "Google / search"], ["friend", "Friend or family"], ["agent", "Real estate agent"],
+    ["event", "Event or community"], ["other", "Other"]
+  ];
+  const types = [
+    ["real_estate_company", "Real estate company"], ["electrical", "Electrical services"], ["home_automation", "Home automation"],
+    ["plumbing", "Plumbing"], ["tiling", "Tiling"], ["painting", "Painting"], ["appliance_repair", "Home appliance repair"], ["other", "Other home service"]
+  ];
+  const ids = [["national_id", "National identity card"], ["passport", "International passport"], ["drivers_licence", "Driver's licence"]];
+  const placeMarkup = residenceFields(profile.country || "Nigeria", profile.city || "", profile.state || "");
+  const fileInput = (id, label, detail, priorName, multiple = false) =>
+    '<div class="obx-upload"><div class="obx-upload-top"><span class="obx-upload-icon">' + icon("shield", 20, 1.7) + '</span><div><label for="' + id + '">' + label + '</label><p>' + detail + "</p></div></div>" +
+    '<input id="' + id + '" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"' + (multiple ? ' multiple data-max-files="3"' : "") + ">" +
+    '<small class="obx-file-state" id="' + id + '-state">' + escv(priorName || "No document uploaded yet.") + "</small></div>";
+  const ownershipPrior = ["ownership1", "ownership2", "ownership3"].map((k) => oldDocs[k]).filter(Boolean);
+  const businessMarkup = isBusiness
+    ? '<section class="obx-card"><div class="obx-section-head"><span class="obx-step">02</span><div><p class="obx-kicker">BUSINESS PROFILE</p><h2>Tell us what your business does</h2><p>These details help us review your business account. Your website is optional.</p></div></div><div class="obx-grid">' +
+      select("businessType", "Business type", types, ag.businessType || "") +
+      input("business", "Registered business name", ag.business || "", "As shown on your CAC documents", "text", 'maxlength="120" autocomplete="organization" required') +
+      input("cac", "CAC registration number", ag.cac || "", "e.g. RC 1234567", "text", 'maxlength="30" autocapitalize="characters" required') +
+      input("registrar", "Full name of registrar", ag.registrar || "", "Name on company registration", "text", 'maxlength="120" autocomplete="name" required') +
+      input("position", "Your role in the company", ag.position || "", "e.g. Director or Operations Manager", "text", 'maxlength="80" required') +
+      input("supportEmail", "Support email", ag.supportEmail || "", "support@yourbusiness.com", "email", 'maxlength="120" autocomplete="email" required') +
+      input("officeAddress", "Office address", ag.address || "", "Street, area and city", "text", 'maxlength="200" autocomplete="street-address" required') +
+      input("website", "Website (optional)", ag.website || "", "https://yourbusiness.com", "url", 'maxlength="160" inputmode="url"') +
+      '<div class="obx-field obx-wide" id="businessTypeOtherWrap" ' + (ag.businessType === "other" ? "" : "hidden") + '><label for="businessTypeOther">Describe your business type</label><input id="businessTypeOther" maxlength="100" value="' + escv(ag.businessTypeOther || "") + '" placeholder="e.g. Roofing and waterproofing"></div>' +
+      '<div class="obx-note obx-wide" id="professionalFields" ' + (ag.businessType === "real_estate_company" ? "" : "hidden") + '><b>Professional registration (where applicable)</b><div class="obx-grid">' +
+      input("registrationBody", "Professional body / regulator", ag.registrationBody || "", "Relevant professional body", "text", 'maxlength="120"') +
+      input("registrationNumber", "Registration / licence number", ag.registrationNumber || ag.licence || "", "Number if applicable", "text", 'maxlength="60"') +
+      '</div><p class="obx-help">Faxton reviews these details manually; live government register checks are not connected yet.</p></div></div></section>'
+    : "";
+  const agentMarkup = isAgent
+    ? '<section class="obx-card"><div class="obx-section-head"><span class="obx-step">02</span><div><p class="obx-kicker">AGENT PROFILE</p><h2>Tell us about your work</h2><p>Your phone number, experience and service areas help the team review your profile.</p></div></div><div class="obx-grid">' +
+      input("phone", "Phone number", ai.phone || profile.phone || "", "+234 800 000 0000", "tel", 'maxlength="30" autocomplete="tel" required') +
+      input("experience", "Years of experience", ai.experience == null ? "" : String(ai.experience), "e.g. 3", "number", 'min="0" max="60" step="1" required') +
+      input("company", "Agency you work for (optional)", ai.company || "", "Agency or company name", "text", 'maxlength="120" autocomplete="organization"') +
+      input("areas", "Areas you cover", ai.areas || "", "e.g. Lekki, Ikoyi, Victoria Island", "text", 'maxlength="180" required') +
+      input("dob", "Date of birth", ai.dob || "", "", "date", 'max="' + new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().slice(0, 10) + '" required') +
+      input("registrationBody", "Professional body / regulator (optional)", ai.registrationBody || "", "Relevant regulator", "text", 'maxlength="120"') +
+      input("registrationNumber", "Professional registration number (optional)", ai.registrationNumber || ai.licence || "", "Registration or licence number", "text", 'maxlength="60"') +
+      '</div><div class="obx-note"><b>Professional checks</b><p>Enter registration details where applicable. Faxton will review them; automated register lookups are not connected yet.</p></div></section>'
+    : "";
+  const landlordMarkup = isLandlord
+    ? '<section class="obx-card"><div class="obx-section-head"><span class="obx-step">02</span><div><p class="obx-kicker">PROPERTY OWNER</p><h2>Prepare to verify your identity and ownership</h2><p>Documents must be reviewed before your properties can be marked verified.</p></div></div><div class="obx-note"><b>What you’ll need</b><p>A government-issued ID, proof of address, and proof of ownership such as a land title, deed, tax receipt or a utility bill that matches the property address.</p></div></section>'
+    : "";
+  const docsMarkup = needsDocs
+    ? '<section class="obx-card"><div class="obx-section-head"><span class="obx-step">03</span><div><p class="obx-kicker">IDENTITY REVIEW</p><h2>' + (isLandlord ? "Verify your identity and property" : "Verify your identity") + '</h2><p>Supported files: JPG, PNG, WebP or PDF. Maximum 10 MB per file.</p></div></div><div class="obx-grid">' +
+      select("identityType", "Type of government-issued ID", ids, oldDocs.identityType || "") +
+      fileInput("identityDocument", "Government-issued ID", "National ID, passport or driver's licence.", oldDocs.identity?.name) +
+      fileInput("addressDocument", "Proof of address", "A recent utility bill or other accepted address document.", oldDocs.address?.name) +
+      (isLandlord ? fileInput("ownershipDocuments", "Proof of property ownership", "Land title, deed, tax receipt or address-matching utility bill. Up to 3 files.", ownershipPrior.map((x) => x.name).join(", ") || "", true) : "") +
+      '</div><div class="obx-note"><b>Private review</b><p>Uploads are kept in private storage, not on your public profile. The Faxton team reviews them manually; this does not automatically confirm a document against a government database.</p></div></section>'
+    : "";
+  const title = isBusiness ? "Business setup" : isAgent ? "Agent setup" : isLandlord ? "Home owner setup" : "Finish setting up your account";
+  const html =
+    '<div class="obx-setup"><header class="obx-head">' + logoLink("obx-logo", "#/onboarding/setup") +
+    '<span class="obx-account-pill">' + escv(ROLE_INFO[role]?.name || role) + " account</span></header>" +
+    '<main class="obx-main"><div class="obx-intro"><p class="obx-kicker">ACCOUNT SETUP</p><h1>Let’s finish setting up your account.</h1><p>Just a few details to personalize Faxton and help keep the community safer.</p>' +
+    '<div class="obx-progress"><span class="on"></span><span class="on"></span><span class="' + (needsDocs ? "on" : "") + '"></span><small>' + (needsDocs ? "Profile details · Identity review" : "Profile details · Ready to finish") + "</small></div></div>" +
+    '<form id="obx-form" novalidate><section class="obx-card"><div class="obx-section-head"><span class="obx-step">01</span><div><p class="obx-kicker">ABOUT YOU</p><h2>Help us personalize Faxton</h2><p>Where you heard about us and where you’re based.</p></div></div>' +
+    '<div class="obx-grid">' + select("heardFrom", "How did you hear about us?", sources, oldOnboarding.heardFrom || "") +
+    '<div class="obx-field" id="heardFromOtherWrap" ' + (oldOnboarding.heardFrom === "other" ? "" : "hidden") + '><label for="heardFromOther">Tell us where you heard about Faxton</label><input id="heardFromOther" maxlength="100" value="' + escv(oldOnboarding.heardFromOther || "") + '" placeholder="Type your answer"></div></div>' +
+    '<div class="obx-location"><h3>Where are you based?</h3><p>Choose your country, state and local area.</p>' + placeMarkup + "</div></section>" +
+    businessMarkup + agentMarkup + landlordMarkup + docsMarkup +
+    '<div class="obx-submit-row"><p class="obx-submit-note">Verification status is controlled by Faxton reviewers. Never upload payment details or passwords.</p><button class="obx-submit" type="submit" id="obx-submit">' + icon("check", 19, 2) + '<span>Save and continue</span></button></div><p class="obx-status" id="obx-status" role="status" aria-live="polite"></p><p class="obx-error-summary" id="obx-error" role="alert" aria-live="assertive"></p></form><footer class="obx-footer">Faxton Rentals · Safer homes, better living.</footer></main></div>';
+  return {
+    full: true, title: title, html,
+    mount(root) {
+      const form = $("#obx-form", root), submit = $("#obx-submit", root), status = $("#obx-status", root), errorBox = $("#obx-error", root);
+      const loc = mountResidence(root);
+      const value = (id) => $("#"+id, root)?.value?.trim() || "";
+      const otherWrap = $("#heardFromOtherWrap", root), typeWrap = $("#businessTypeOtherWrap", root), proWrap = $("#professionalFields", root);
+      const showConditional = () => {
+        if (otherWrap) otherWrap.hidden = value("heardFrom") !== "other";
+        if (typeWrap) typeWrap.hidden = value("businessType") !== "other";
+        if (proWrap) proWrap.hidden = value("businessType") !== "real_estate_company";
+      };
+      $("#heardFrom", root).addEventListener("change", showConditional);
+      $("#businessType", root)?.addEventListener("change", showConditional);
+      showConditional();
+      const fileState = (id, msg) => { const el = $("#"+id+"-state", root); if (el) el.textContent = msg; };
+      ["identityDocument", "addressDocument", "ownershipDocuments"].forEach((id) => $("#"+id, root)?.addEventListener("change", () => {
+        const files = Array.from($("#"+id, root).files || []);
+        if (id === "ownershipDocuments" && files.length > 3) { fileState(id, "Choose no more than 3 files."); return; }
+        fileState(id, files.length ? files.map((f) => f.name).join(", ") : "No new file selected; any previously saved file will remain.");
+      }));
+      const clearErrors = () => { errorBox.textContent = ""; root.querySelectorAll(".obx-field.invalid").forEach((x) => x.classList.remove("invalid")); root.querySelectorAll(".obx-error").forEach((x) => { x.hidden = true; x.textContent = ""; }); };
+      const fail = (id, message) => {
+        errorBox.textContent = message;
+        if (id) { const field = $("#"+id, root), group = field?.closest(".obx-field"); if (group) { group.classList.add("invalid"); const err = $("#"+id+"-error", group); if (err) { err.textContent = message; err.hidden = false; } } field?.focus(); field?.scrollIntoView?.({block:"center",behavior:"smooth"}); }
+        return false;
+      };
+      const validateFiles = () => {
+        if (!needsDocs) return true;
+        if (!value("identityType")) return fail("identityType", "Choose the type of ID you’ll upload.");
+        const identity = $("#identityDocument", root)?.files?.[0], address = $("#addressDocument", root)?.files?.[0];
+        const ownership = Array.from($("#ownershipDocuments", root)?.files || []);
+        if (!identity && !oldDocs.identity?.path) return fail("identityDocument", "Upload a government-issued ID.");
+        if (!address && !oldDocs.address?.path) return fail("addressDocument", "Upload proof of address.");
+        if (isLandlord && ownership.length === 0 && ownershipPrior.length === 0) return fail("ownershipDocuments", "Upload at least one proof of ownership.");
+        if (ownership.length > 3) return fail("ownershipDocuments", "Choose no more than 3 ownership documents.");
+        const candidates = [identity, address, ...ownership].filter(Boolean);
+        for (const file of candidates) {
+          const ext = (file.name.split(".").pop() || "").toLowerCase();
+          const id = file === identity ? "identityDocument" : file === address ? "addressDocument" : "ownershipDocuments";
+          if (!["jpg","jpeg","png","webp","pdf"].includes(ext)) return fail(id, "Use a JPG, PNG, WebP or PDF file.");
+          if (file.size <= 0 || file.size > 10*1024*1024) return fail(id, "Each file must be smaller than 10 MB.");
+        }
+        return true;
+      };
+      form.onsubmit = async (event) => {
+        event.preventDefault(); clearErrors();
+        if (submit.disabled) return;
+        loc?.commit();
+        const place = loc?.get?.() || { country:value("country"), state:value("state"), lga:value("city"), city:value("city") };
+        if (!value("heardFrom")) return fail("heardFrom", "Choose how you heard about Faxton.");
+        if (value("heardFrom") === "other" && value("heardFromOther").length < 2) return fail("heardFromOther", "Tell us where you heard about Faxton.");
+        if (!place.country) return fail("country", "Choose your country.");
+        if (place.country === "Nigeria" && !place.state) return fail("state", "Choose your state.");
+        if (place.country === "Nigeria" && !place.lga) return fail("city", "Choose your local government area (LGA).");
+        if (place.country !== "Nigeria" && !place.city) return fail("city", "Enter your city or district.");
+        let business = null, agent = null;
+        if (isBusiness) {
+          if (!value("businessType")) return fail("businessType", "Choose your business type.");
+          if (value("businessType") === "other" && value("businessTypeOther").length < 2) return fail("businessTypeOther", "Describe your business type.");
+          if (value("business").length < 2) return fail("business", "Enter the registered business name.");
+          if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(value("cac"))) return fail("cac", "Enter a CAC registration number, e.g. RC 1234567.");
+          if (value("registrar").length < 3) return fail("registrar", "Enter the full name of the registrar.");
+          if (value("position").length < 2) return fail("position", "Enter your role in the company.");
+          if (!EMAIL_RE.test(value("supportEmail"))) return fail("supportEmail", "Enter a valid support email.");
+          if (value("officeAddress").length < 5) return fail("officeAddress", "Enter your office address.");
+          if (value("website")) { try { const w = new URL(value("website")); if (!["https:","http:"].includes(w.protocol)) throw new Error(); } catch { return fail("website", "Enter a valid website URL."); } }
+          if (value("businessType") === "real_estate_company" && (!!value("registrationBody") !== !!value("registrationNumber"))) return fail("registrationNumber", "Provide both professional body and registration number, or leave both blank.");
+          business = {
+            business:value("business"), businessType:value("businessType"), businessTypeOther:value("businessType")==="other" ? value("businessTypeOther") : "",
+            cac:value("cac").replace(/\s+/g,"").toUpperCase(), registrar:value("registrar"), position:value("position"), supportEmail:value("supportEmail"),
+            address:value("officeAddress"), website:value("website"), registrationBody:value("businessType")==="real_estate_company" ? value("registrationBody") : "",
+            registrationNumber:value("businessType")==="real_estate_company" ? value("registrationNumber") : "",
+            country:place.country, state:place.state||"", lga:place.country==="Nigeria" ? place.lga : "", city:place.city||place.lga||""
+          };
+        }
+        if (isAgent) {
+          if (value("phone").replace(/\D/g,"").length < 8) return fail("phone", "Enter a valid phone number.");
+          if (value("experience")==="" || !Number.isFinite(+value("experience")) || +value("experience") < 0 || +value("experience") > 60) return fail("experience", "Enter years of experience between 0 and 60.");
+          if (value("areas").length < 3) return fail("areas", "Enter the areas you cover.");
+          if (!value("dob")) return fail("dob", "Enter your date of birth.");
+          const birth = new Date(value("dob")+"T00:00:00"); let age = new Date().getFullYear()-birth.getFullYear();
+          if (new Date() < new Date(new Date().getFullYear(),birth.getMonth(),birth.getDate())) age--;
+          if (Number.isNaN(birth.getTime()) || age < 18) return fail("dob", "You must be at least 18 to register as an agent.");
+          if (!!value("registrationBody") !== !!value("registrationNumber")) return fail("registrationNumber", "Provide both professional body and number, or leave both blank.");
+          agent = { phone:value("phone"), experience:+value("experience"), company:value("company"), areas:value("areas"), dob:value("dob"),
+            licence:value("registrationNumber"), registrationBody:value("registrationBody"), registrationNumber:value("registrationNumber"),
+            country:place.country, state:place.state||"", lga:place.country==="Nigeria" ? place.lga : "", city:place.city||place.lga||"" };
+        }
+        if (!validateFiles()) return;
+        submit.disabled = true; submit.classList.add("loading");
+        const label = $("span", submit); if (label) label.textContent = "Saving your details…";
+        status.textContent = needsDocs ? "Uploading documents securely…" : "Saving your profile…";
+        const uploaded = [], replaced = [];
+        const uploadOne = async (file, kind) => {
+          const ext0 = (file.name.split(".").pop() || "").toLowerCase(), ext = ext0 === "jpeg" ? "jpg" : ext0;
+          const contentType = ext === "pdf" ? "application/pdf" : ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+          const path = "verification/" + ctx.S.user.uid + "/" + kind + "_" + Date.now() + "_" + Math.random().toString(36).slice(2,9) + "." + ext;
+          await uploadBytes(storageRef(storage,path),file,{contentType});
+          uploaded.push(path);
+          return {path,name:file.name.slice(0,120),contentType,size:file.size,uploadedAt:Date.now()};
+        };
+        try {
+          const docs = { ...oldDocs };
+          const identity = $("#identityDocument",root)?.files?.[0], address = $("#addressDocument",root)?.files?.[0];
+          if (identity) { if (docs.identity?.path) replaced.push(docs.identity.path); docs.identity = await uploadOne(identity,"identity"); }
+          if (address) { if (docs.address?.path) replaced.push(docs.address.path); docs.address = await uploadOne(address,"address"); }
+          const ownership = Array.from($("#ownershipDocuments",root)?.files || []);
+          if (isLandlord && ownership.length) {
+            ["ownership1","ownership2","ownership3"].forEach((key) => { if (docs[key]?.path) replaced.push(docs[key].path); delete docs[key]; });
+            for (let i=0;i<ownership.length;i++) docs["ownership"+(i+1)] = await uploadOne(ownership[i],"ownership"+(i+1));
+          }
+          docs.identityType = value("identityType");
+          const onboarding = { completed:true, completedAt:Date.now(), heardFrom:value("heardFrom"),
+            heardFromOther:value("heardFrom")==="other" ? value("heardFromOther") : "",
+            country:place.country,state:place.state||"",city:place.city||place.lga||"",lga:place.country==="Nigeria" ? place.lga : "",
+            identityType:needsDocs ? value("identityType") : "" };
+          const residence = { country:place.country,state:place.state||"",city:place.city||place.lga||"",lga:place.country==="Nigeria" ? place.lga : "",
+            location:[place.lga||place.city,place.state,place.country].filter(Boolean).join(", ") };
+          const patch = { ...residence,onboarding, ...(needsDocs ? {verificationDocs:docs} : {}) };
+          if (isBusiness) patch.agency = business;
+          if (isAgent) { patch.agentInfo = agent; patch.phone = agent.phone; }
+          if (!ctx.S.profile?.verification || ctx.S.profile.verification.status !== "pending") {
+            if (needsDocs || isBusiness || isLandlord) throw new Error("Your verification request is not pending. Please contact Faxton support before submitting documents.");
+          }
+          await saveProfile(ctx.S.user.uid,patch);
+          await ctx.refreshProfile();
+          for (const path of replaced) { try { await deleteObject(storageRef(storage,path)); } catch {} }
+          try { await syncPublic(ctx.S.user.uid,{
+            name:isBusiness ? business.business : ctx.S.profile?.name || ctx.S.user.displayName || "Faxton member",
+            photo:ctx.S.profile?.photo||"",role:ctx.S.profile?.role||role,city:residence.city||"",country:residence.country||"",website:isBusiness ? business.website||"" : ""
+          }); } catch {}
+          status.textContent = "Saved. Your details are ready for review.";
+          ctx.go("#" + (ctx.dashHome() || "/"));
+        } catch (error) {
+          for (const path of uploaded) { try { await deleteObject(storageRef(storage,path)); } catch {} }
+          errorBox.textContent = /storage\/unauthorized|permission-denied/i.test(error?.code||"") ?
+            "The private upload was denied. Firebase Storage must be enabled and its security rules deployed before documents can be uploaded." :
+            (error?.message || "We couldn’t save your details. Please try again.");
+          status.textContent = "";
+          submit.disabled = false; submit.classList.remove("loading");
+          if (label) label.textContent = "Save and continue";
+        }
+      };
+    }
+  };
+}
+
 // ---------- forgot password ----------
 export function forgotPage(ctx) {
   const pre = ctx.q.email || "", sent = ctx.q.sent === "1";
