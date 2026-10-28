@@ -106,6 +106,7 @@ export function setupPage(ctx) {
         const onboarding={completed:true,source:source.value,sourceOther:source.value==="Other"?value(root,"os-source-other"):"",completedAt:serverTimestamp(),version:1};
         const update={...locationFields,onboarding,...(role==="agency"?{agency:data.agency,phone:data.agency.phone}:{}),...(role==="agent"?{agentInfo:data.agentInfo,phone:data.agentInfo.phone}:{}),...(role==="landlord"?{phone:data.phone}:{})};
         const resubmitting=verifying&&profile.verification?.status==="rejected";
+        if(verifying)update.verificationSubmitted=true;
         if(resubmitting)update.verification={status:"pending",kind:role==="agency"?"agency":role,requestedAt:Date.now()};
         if(verifying){
           const userRef=doc(db,"users",user.uid),requestRef=doc(db,"verificationRequests",user.uid),existing=await getDoc(requestRef);
