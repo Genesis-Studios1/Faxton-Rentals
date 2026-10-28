@@ -7,7 +7,7 @@ import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, r
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
-const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Run your agency’s listings, agents and clients.", agent: "Follow up leads, clients and your listings." };
+const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Run your business listings, team and clients.", agent: "Follow up leads, clients and your listings." };
 const safeGet = (k, s = sessionStorage) => { try { return s.getItem(k); } catch { return null; } };
 const safeSet = (k, v, s = sessionStorage) => { try { s.setItem(k, v); } catch {} };
 const logoLink = (cls = "", href = "#/") => `<a class="${cls}" href="${href}" aria-label="Faxton Rentals">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
