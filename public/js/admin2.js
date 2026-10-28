@@ -63,7 +63,7 @@ export const isPendingL = (l) => ["pending", "flagged"].includes(listingState(l)
 const thumbOf = (l) => l.thumb || l.images?.[0] || "";
 const where = (l) => [l.area, l.city].filter(Boolean).join(", ");
 export const roleOf = (ctx, u) => (u.id === ctx.S.ownerUid ? "owner" : u.role === "owner" ? "admin" : u.role || "renter");
-export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Agency", agent: "Agent", landlord: "Property owner", renter: "Renter" };
+export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Business", agent: "Agent", landlord: "Property owner", renter: "Renter" };
 export { emailPending };
 export const userVerified = (u) => u.verified === true || u.verification?.status === "verified";
 
@@ -219,7 +219,7 @@ export function userStatus(ctx, u) {
   if (u.banned) return chipFor("user", "banned", "Suspended");
   if (emailPending(u)) return chip("warn", "Pending · email not verified");
   const r = roleOf(ctx, u);
-  if (["agent", "agency"].includes(r)) { const v = u.verification?.status; return v === "verified" || u.verified ? chip("ok", "Verified") : v === "pending" ? chip("warn", "Pending verification") : v === "rejected" ? chip("bad", "Not verified") : chip("mute", "Unverified"); }
+  if (["agent", "agency", "landlord"].includes(r)) { const v = u.verification?.status; return v === "verified" || u.verified ? chip("ok", "Verified") : v === "pending" ? chip("warn", "Pending verification") : v === "rejected" ? chip("bad", "Not verified") : chip("mute", "Unverified"); }
   return chipFor("user", "active");
 }
 export function userDrawer(ctx, u, api) {
