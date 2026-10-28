@@ -278,6 +278,7 @@ service cloud.firestore {
       // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
       allow create: if (isAdmin() && listingVerificationOk(request.resource.data)) || (signedIn()
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
+        && request.resource.data.get('verified', false) != true
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120)
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('onboarding', {}).get('completed', false) == true
         && ((myRole() == 'landlord' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('kyc', {}).get('status', '') == 'submitted')
