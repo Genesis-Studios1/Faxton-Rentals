@@ -391,3 +391,14 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
  .os-grid{grid-template-columns:minmax(0,1fr)}
  .os-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+/* Biometric recovery actions: keep accessible alternatives visible on narrow devices. */
+.lk-fallbacks{display:grid;gap:9px;margin:12px 0 4px}
+.lk-fallbacks .btn{width:100%;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:9px;text-align:center}
+.lk-fallbacks .btn .ic{flex:none}
+.lk-note{margin:10px 0 0;color:var(--muted,#738078);font-size:11px;line-height:1.5}
+.os-rejected{margin:0 0 16px;padding:14px 16px;border-radius:14px;border:1px solid #edc0b9;background:#fff1ef;color:#913329}
+.os-rejected b{display:block;font-size:13px;margin-bottom:4px}
+.os-rejected p{margin:0;font-size:12px;line-height:1.5}
+:root[data-theme=dark] .os-rejected{background:#3a1d1a;color:#ffd0c9;border-color:#743e36}
