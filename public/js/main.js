@@ -221,7 +221,7 @@ export async function render() {
   if (!S.user && setupPath) return go("#/signup");
   if (!S.user && !open && !pub) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   if (S.user && S.profile?.onboarding?.completed === false && !setupPath && !pub) return go("#/onboarding/setup");
-  if (S.user && setupPath && S.profile?.onboarding?.completed === true) return go("#" + (q.next || roleHome() || "/"));
+  if (S.user && setupPath && S.profile?.onboarding?.completed === true && S.profile?.verification?.status !== "rejected") return go("#" + (q.next || roleHome() || "/"));
   if (S.user && open) return go("#" + (q.next || roleHome() || "/"));
   // Staff accounts open their own dashboard first, once per visit.
   if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
