@@ -221,9 +221,10 @@ export async function render() {
   if (!S.user && setupPath) return go("#/signup");
   if (!S.user && !open && !pub) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
   const reverify = S.user && S.profile?.verification?.status === "rejected";
-  if (S.user && reverify && !setupPath && !pub) return go("#/onboarding/setup");
+  const needsKycSetup = S.user && ["landlord", "agent", "agency"].includes(S.profile?.role) && S.profile?.verification?.status === "pending" && S.profile?.onboarding?.completed === true && S.profile?.verificationSubmitted !== true;
+  if (S.user && (reverify || needsKycSetup) && !setupPath && !pub) return go("#/onboarding/setup");
   if (S.user && S.profile?.onboarding?.completed === false && !setupPath && !pub) return go("#/onboarding/setup");
-  if (S.user && setupPath && S.profile?.onboarding?.completed === true && !reverify) return go("#" + (q.next || roleHome() || "/"));
+  if (S.user && setupPath && S.profile?.onboarding?.completed === true && !reverify && !needsKycSetup) return go("#" + (q.next || roleHome() || "/"));
   if (S.user && open) return go("#" + (q.next || roleHome() || "/"));
   // Staff accounts open their own dashboard first, once per visit.
   if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
