@@ -273,7 +273,7 @@ const vfChecks = (u) => {
   return result;
 };
 async function openVerificationDocument(path, label, trigger) {
-  if (!path || !path.startsWith("verification/")) return toast("The document path is invalid.", { tone: "bad" });
+  if (!path || !(path.startsWith("verification/") || path.startsWith("listing-verification/"))) { toast("The document path is invalid.", { tone: "bad" }); return false; }
   let objectUrl = "";
   const viewer = dialog({
     title: label,
@@ -292,9 +292,11 @@ async function openVerificationDocument(path, label, trigger) {
     } else {
       viewer.body.innerHTML = '<div class="ax-vdoc-pdf"><span class="ax-vdoc-icon">' + I("file", 30) + '</span><p class="ax-p">This is a PDF or document. Open it in a new tab or download it to review the contents.</p>' + link + '</div>';
     }
+    return true;
   } catch (e) {
     viewer.body.innerHTML = '<p class="ax-p">We could not load this private file. Check that Firebase Storage is enabled and that your admin account has permission to read verification documents.</p>';
     bad(e);
+    return false;
   } finally { busy(trigger, false); }
 }
 export function verifications(ctx) {
