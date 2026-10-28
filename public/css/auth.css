@@ -376,3 +376,18 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 @media (prefers-reduced-motion:reduce) {
   .asu *, .asu *::before, .asu *::after { scroll-behavior:auto!important; transition:none!important; animation:none!important; }
 }
+
+/* App-lock fallback: secure email-link option, kept visually secondary to device authentication. */
+.lk-email {
+  min-height:44px; padding:8px 14px; border:1px solid rgba(185,216,203,.32);
+  border-radius:12px; background:rgba(255,255,255,.045); color:#e6f5ee;
+  font:600 .9rem/1.35 var(--font-body),Inter,sans-serif; cursor:pointer;
+  transition:background .16s,border-color .16s,transform .16s;
+}
+.lk-email:hover { background:rgba(255,255,255,.09); border-color:rgba(185,216,203,.6); }
+.lk-email:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+.lk-email:disabled { cursor:wait; opacity:.65; }
+@media (max-width:420px) {
+  .lk-email { width:100%; }
+}
+@media (prefers-reduced-motion:reduce) { .lk-email { transition:none; } }
