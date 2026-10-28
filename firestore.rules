@@ -143,6 +143,7 @@ service cloud.firestore {
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500 && profileOk(request.resource.data)
+        && (!('onboarding' in request.resource.data) || (onboardingOk(request.resource.data.onboarding) && request.resource.data.onboarding.get('completed', false) == false))
         && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency', 'landlord']))
         && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
         && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
