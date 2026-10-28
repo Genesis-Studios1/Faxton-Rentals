@@ -241,7 +241,11 @@ export function userDrawer(ctx, u, api) {
 }
 // ---------- verifications ----------
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
-const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+const checksFor = (u) => u.verification?.kind === "landlord"
+  ? ["Government-issued ID matches the account", "Proof of address reviewed", "Ownership evidence matches the property"]
+  : u.verification?.kind === "agency"
+    ? ["CAC registration number reviewed", "Business registrar and office details reviewed", "Professional registration checked where applicable"]
+    : ["Government-issued ID matches the account", "Proof of address reviewed", "Professional registration checked where applicable"];
 export function verifications(ctx) {
   return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Review business, agent and home-owner identity requests, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
