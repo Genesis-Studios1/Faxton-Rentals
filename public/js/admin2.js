@@ -1,6 +1,8 @@
 // Console pages for the owner and admins: review queue, listings, users, verifications, applications and viewings.
 // The overview, payments, support inbox, suggestions, reports, call setup and the staff portals live in dash.js.
 import * as CALLS from "./calls.js";
+import { storage } from "./firebase.js";
+import { getBytes, getMetadata, ref as storageRef } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
 import * as VS from "./viewsafe.js";
@@ -17,6 +19,38 @@ const meName = (ctx) => ctx.S.profile?.name || ctx.S.user.displayName || ctx.S.u
 const DEF = { archived: false, changeNote: "", status: "pending" };
 const lines = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean);
 const naira = fmt.naira;
+
+const hasRequiredKyc = (u) => {
+  const k = u.kyc || {}, base = "verification/" + u.id + "/";
+  return k.status === "submitted"
+    && k.identityPath === base + "identity"
+    && k.addressPath === base + "address-proof"
+    && (u.verification?.kind !== "landlord" || k.ownershipPath === base + "ownership-proof");
+};
+async function openKycDocument(uid, slot) {
+  if (!["identity", "address-proof", "ownership-proof"].includes(slot)) throw new Error("Unknown verification document.");
+  const popup = window.open("about:blank", "_blank");
+  if (popup) popup.opener = null;
+  try {
+    const objectRef = storageRef(storage, "verification/" + uid + "/" + slot);
+    const meta = await getMetadata(objectRef);
+    const type = meta.contentType || "application/octet-stream";
+    if (!["application/pdf", "image/jpeg", "image/png"].includes(type)) throw new Error("This document type cannot be previewed.");
+    const bytes = await getBytes(objectRef, 10 * 1024 * 1024);
+    const url = URL.createObjectURL(new Blob([bytes], { type }));
+    if (popup && !popup.closed) popup.location.replace(url);
+    else {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = slot + (type === "application/pdf" ? ".pdf" : type === "image/png" ? ".png" : ".jpg");
+      document.body.append(anchor); anchor.click(); anchor.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (error) {
+    if (popup && !popup.closed) popup.close();
+    throw error;
+  }
+}
 
 // Write a change, keep the previous values in memory and offer Undo.
 async function write(col, row, patch, { msg, after, undo = true }) {
