@@ -216,7 +216,23 @@ service cloud.firestore {
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
               || (resource.data.role in ['agent', 'agency', 'landlord']
-                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification']))
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification'])
+                && (request.resource.data.verification.get('status', '') != 'verified'
+                  || (resource.data.role == 'agency'
+                    && resource.data.agency is map
+                    && resource.data.agency.get('cac', '') is string
+                    && resource.data.agency.get('cac', '').size() > 0)
+                  || (resource.data.role == 'agent'
+                    && resource.data.get('verificationDocs', null) is map
+                    && 'identity' in resource.data.verificationDocs
+                    && 'address' in resource.data.verificationDocs)
+                  || (resource.data.role == 'landlord'
+                    && resource.data.get('verificationDocs', null) is map
+                    && 'identity' in resource.data.verificationDocs
+                    && 'address' in resource.data.verificationDocs
+                    && (('ownership1' in resource.data.verificationDocs)
+                      || ('ownership2' in resource.data.verificationDocs)
+                      || ('ownership3' in resource.data.verificationDocs))))
               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
       allow delete: if signedIn() && request.auth.uid == uid && resource.data.get('deletion', {}).get('status', '') == 'approved'
