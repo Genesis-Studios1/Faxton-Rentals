@@ -23,6 +23,39 @@ service cloud.firestore {
     function ownsListing() { return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid; }
     function owns() { return signedIn() && resource.data.uid == request.auth.uid; }
     function short(v, n) { return v is string && v.size() <= n; }
+    function onboardingOk(d) {
+      return d is map
+        && d.keys().hasOnly(['completed', 'completedAt', 'heardFrom', 'heardFromOther', 'country', 'state', 'city', 'lga', 'identityType'])
+        && (!('completed' in d) || d.completed is bool)
+        && (!('completedAt' in d) || d.completedAt is int)
+        && short(d.get('heardFrom', ''), 40)
+        && short(d.get('heardFromOther', ''), 120)
+        && short(d.get('country', ''), 60)
+        && short(d.get('state', ''), 60)
+        && short(d.get('city', ''), 60)
+        && short(d.get('lga', ''), 60)
+        && short(d.get('identityType', ''), 30);
+    }
+    function verificationFileMeta(uid, d) {
+      return d is map
+        && d.keys().hasOnly(['path', 'name', 'contentType', 'size', 'uploadedAt'])
+        && d.get('path', '') is string
+        && d.path.startsWith('verification/' + uid + '/')
+        && short(d.get('name', ''), 120)
+        && d.get('contentType', '') in ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+        && d.get('size', 0) is int && d.size > 0 && d.size <= 10485760
+        && d.get('uploadedAt', 0) is int;
+    }
+    function verificationDocsOk(uid, d) {
+      return d is map
+        && d.keys().hasOnly(['identityType', 'identity', 'address', 'ownership1', 'ownership2', 'ownership3'])
+        && short(d.get('identityType', ''), 30)
+        && (!('identity' in d) || verificationFileMeta(uid, d.identity))
+        && (!('address' in d) || verificationFileMeta(uid, d.address))
+        && (!('ownership1' in d) || verificationFileMeta(uid, d.ownership1))
+        && (!('ownership2' in d) || verificationFileMeta(uid, d.ownership2))
+        && (!('ownership3' in d) || verificationFileMeta(uid, d.ownership3));
+    }
     // A booking, application or offer can only point at the real owner of the home it is about (no spamming other people's inboxes).
     function ownerMatchesListing(d) {
       return d.get('listingId', null) is string
@@ -106,11 +139,11 @@ service cloud.firestore {
       // Agencies and agents register with business details and start unverified (an admin verifies them).
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.role in ['renter', 'agent', 'landlord', 'agency']
-        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification', 'onboarding'])
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500 && profileOk(request.resource.data)
-        && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency']))
+        && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency', 'landlord']))
         && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
         && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
       // Users edit their own profile but never role, email, ban or verification. The owner can change anything;
@@ -122,12 +155,22 @@ service cloud.firestore {
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
           && request.resource.data.get('verification', null) == resource.data.get('verification', null)
-          && request.resource.data.get('agency', null) == resource.data.get('agency', null)
-          && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+          && (request.resource.data.get('agency', null) == resource.data.get('agency', null)
+              || (resource.data.role == 'agency' && resource.data.get('verification', {}).get('status', '') == 'pending'
+                  && request.resource.data.get('agency', null) is map && request.resource.data.agency.size() <= 20))
+          && (request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+              || (resource.data.role == 'agent' && resource.data.get('verification', {}).get('status', '') == 'pending'
+                  && request.resource.data.get('agentInfo', null) is map && request.resource.data.agentInfo.size() <= 20))
+          && (request.resource.data.get('onboarding', null) == resource.data.get('onboarding', null)
+              || (!resource.data.get('onboarding', {}).get('completed', false) || request.resource.data.get('onboarding', {}).get('completed', false)))
+          && (!('onboarding' in request.resource.data) || onboardingOk(request.resource.data.onboarding))
+          && (request.resource.data.get('verificationDocs', null) == resource.data.get('verificationDocs', null)
+              || (resource.data.get('verification', {}).get('status', '') == 'pending'
+                  && 'verificationDocs' in request.resource.data && verificationDocsOk(uid, request.resource.data.verificationDocs)))
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding', 'verificationDocs'])
           && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
@@ -136,7 +179,7 @@ service cloud.firestore {
         || (isAdmin() && uid != request.auth.uid
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
-              || (resource.data.role in ['agent', 'agency']
+              || (resource.data.role in ['agent', 'agency', 'landlord']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification']))
               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
@@ -188,7 +231,7 @@ service cloud.firestore {
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
       // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
-      allow create: if isAdmin() || (signedIn() && (myRole() == 'landlord' || (myRole() in ['agency', 'agent'] && isVerified()))
+      allow create: if isAdmin() || (signedIn() && (myRole() in ['landlord', 'agency', 'agent'] && isVerified())
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
       allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
