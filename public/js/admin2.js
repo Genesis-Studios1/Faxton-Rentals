@@ -3,6 +3,8 @@
 import * as CALLS from "./calls.js";
 import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
+import { storage } from "./firebase.js";
+import { ref as storageRef, getBlob } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 import * as VS from "./viewsafe.js";
 import * as SVC from "./services.js";
 import * as AX from "./ax.js";
@@ -61,7 +63,7 @@ export const isPendingL = (l) => ["pending", "flagged"].includes(listingState(l)
 const thumbOf = (l) => l.thumb || l.images?.[0] || "";
 const where = (l) => [l.area, l.city].filter(Boolean).join(", ");
 export const roleOf = (ctx, u) => (u.id === ctx.S.ownerUid ? "owner" : u.role === "owner" ? "admin" : u.role || "renter");
-export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Agency", agent: "Agent", landlord: "Property owner", renter: "Renter" };
+export const ROLE_LABEL = { owner: "Owner", admin: "Admin", support: "Support", agency: "Business", agent: "Agent", landlord: "Property owner", renter: "Renter" };
 export { emailPending };
 export const userVerified = (u) => u.verified === true || u.verification?.status === "verified";
 
@@ -241,7 +243,7 @@ export function userDrawer(ctx, u, api) {
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
 const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
 export function verifications(ctx) {
-  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
+  return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Review business, agent and home-owner identity requests, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
       let tab = hq().q.tab || "waiting";
       const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
@@ -256,7 +258,7 @@ export function verifications(ctx) {
       const html = () => {
         const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
         const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
-        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New agency and agent requests appear here." })}</div>`)
+        const main = tab === "waiting" ? (w.length ? `<div class="ax-vgrid">${w.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No one is waiting for verification.", hint: "New business, agent and home-owner requests appear here." })}</div>`)
           : tab === "decided" ? (dn.length ? `<div class="ax-vgrid">${dn.map(card).join("")}</div>` : `<div class="ax-card">${empty({ icon: "shield", title: "No decisions yet", hint: "Verified and rejected accounts are listed here." })}</div>`)
           : `<div class="ax-card ax-tablecard">${dd.length ? `<div class="ax-scroll"><table class="ax-table" aria-label="Deletion requests"><thead><tr><th>Person</th><th>Role</th><th>Requested</th><th class="al-right">Decision</th></tr></thead><tbody>${dd.map((u) => `<tr><td data-label="Person" data-role="title"><div class="ax-id">${avatar(u.name || u.email, u.id, 32, u.photo)}<div><b>${esc(u.name || "—")}</b><small>${esc(u.email || "")}</small></div></div></td><td data-label="Role">${esc(ROLE_LABEL[roleOf(ctx, u)] || "Renter")}</td><td data-label="Requested">${ago(u.deletion.requestedAt)}</td><td data-role="actions" class="al-right"><div class="ax-ra" style="justify-content:flex-end">${btn("Approve deletion", { v: "danger", size: "sm", attrs: `data-del=approved data-id="${esc(u.id)}"` })}${btn("Keep account", { size: "sm", attrs: `data-del=denied data-id="${esc(u.id)}"` })}</div></td></tr>`).join("")}</tbody></table></div>` : empty({ icon: "trash", title: "No deletion requests.", hint: "Requests from people who want their account removed appear here." })}</div>`;
         return `${tb}<div style="margin-top:16px" id="vfMain">${main}</div>`;
