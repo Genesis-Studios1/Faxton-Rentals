@@ -315,7 +315,7 @@ export function verifications(ctx) {
   return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Business, agent and home-owner accounts awaiting review, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
       let tab = hq().q.tab || "waiting";
-      const want = () => us.filter((u) => u.verification), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
+      const want = () => us.filter((u) => u.verification && u.onboarding?.completed !== false), by = (s) => want().filter((u) => u.verification.status === s).sort((a, b) => (b.verification.requestedAt || 0) - (a.verification.requestedAt || 0));
       const dels = () => us.filter((u) => u.deletion?.status === "pending");
       const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
       const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : (Math.floor(m / 1440) === 1 ? "1 day ago" : `${Math.floor(m / 1440)} days ago`); };
