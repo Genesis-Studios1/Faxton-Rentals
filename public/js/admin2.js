@@ -137,6 +137,23 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
 }
 async function listingAct(ctx, l, act, api, b) {
   try {
+    if (act === "approve" || act === "restore") {
+      if (l.ownerUid) {
+        const userRows = await data.safe("users"), owner = userRows.find((u) => u.id === l.ownerUid);
+        if (!owner || !(owner.verified === true || owner.verification?.status === "verified")) {
+          toast("This listing cannot go live until its owner or agent account is verified.", { tone: "bad" }); return;
+        }
+        if (owner.role === "landlord") {
+          const prefix = "listing-verification/" + owner.id + "/" + l.id + "/";
+          if (!l.ownershipDocPath || !l.ownershipDocPath.startsWith(prefix)) {
+            toast("This home needs its own private ownership document before approval.", { tone: "bad" }); return;
+          }
+          if (!l._ownershipDocOpenedThisDrawer || !l._ownershipReviewedThisDrawer) {
+            toast("Open the ownership proof and confirm you reviewed it before approving this property.", { tone: "bad" }); return;
+          }
+        }
+      }
+    }
     if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
     else if (act === "restore") await write("listings", l, { status: "active", archived: false }, { msg: "Listing restored.", after: api.refresh });
     else if (act === "archive") await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
