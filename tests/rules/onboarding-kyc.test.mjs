@@ -34,6 +34,7 @@ await env.withSecurityRulesDisabled(async (context) => {
   await setDoc(doc(db, "users/business"), incomplete("business", "agency", "business@example.com"));
   await setDoc(doc(db, "users/agent"), incomplete("agent", "agent", "agent@example.com"));
   await setDoc(doc(db, "users/landlord"), incomplete("landlord", "landlord", "landlord@example.com"));
+  await setDoc(doc(db, "users/bad-landlord"), incomplete("bad-landlord", "landlord", "bad-landlord@example.com"));
   await setDoc(doc(db, "users/unverified-landlord"), { role: "landlord", onboarding: { completed: true, referralSource: "friend", completedAt: Date.now() }, name: "No KYC", email: "no-kyc@example.com", saved: [] });
   await setDoc(doc(db, "users/lord"), {
     role: "landlord", onboarding: referral, kyc: kyc("lord", "landlord"),
@@ -59,8 +60,8 @@ const landlordPayload = {
   ...location, onboarding: referral, kyc: kyc("landlord", "landlord")
 };
 await t("landlord completes onboarding with ID, address, and ownership evidence", updateDoc(doc(landlord, "users/landlord"), landlordPayload));
-await t("landlord cannot complete onboarding without ownership evidence", updateDoc(doc(ctx("unverified-landlord", "no-kyc@example.com"), "users/unverified-landlord"), {
-  ...location, onboarding: referral, kyc: { ...kyc("unverified-landlord", "landlord"), ownershipPath: "", ownershipProofType: "" }
+await t("landlord cannot complete onboarding without ownership evidence", updateDoc(doc(ctx("bad-landlord", "bad-landlord@example.com"), "users/bad-landlord"), {
+  ...location, onboarding: referral, kyc: { ...kyc("bad-landlord", "landlord"), ownershipPath: "", ownershipProofType: "" }
 }), false);
 
 await t("agent completes onboarding with ID and address proof", updateDoc(doc(agent, "users/agent"), {
