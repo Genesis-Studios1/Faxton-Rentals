@@ -274,6 +274,34 @@ export function userDrawer(ctx, u, api) {
 // ---------- verifications ----------
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
 const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
+function kycDocuments(u) {
+  const kind = u.verification?.kind;
+  if (kind !== "agent" && kind !== "landlord") return "";
+  const k = u.kyc || {};
+  const docs = [
+    ["identity", "Government ID", "identityPath", k.idType],
+    ["address-proof", "Proof of address", "addressPath", k.addressProofType]
+  ];
+  if (kind === "landlord") docs.push(["ownership-proof", "Property ownership evidence", "ownershipPath", k.ownershipProofType]);
+  const labels = {
+    "national-id": "National identity card", passport: "International passport", "drivers-license": "Driver’s licence",
+    "utility-bill": "Utility bill", "bank-statement": "Bank statement", "tenancy-agreement": "Tenancy agreement",
+    title: "Land title / deed", "tax-receipt": "Property tax receipt", other: "Other document"
+  };
+  const base = "verification/" + u.id + "/";
+  const rows = docs.map(([slot, title, pathKey, type]) => {
+    const available = k[pathKey] === base + slot;
+    const typeText = labels[type] || "";
+    const open = available
+      ? btn("Open privately", { v: "outline", size: "sm", attrs: 'data-kyc-open="' + slot + '"' })
+      : '<span class="ax-sub">Not submitted</span>';
+    return '<div class="ax-kyc-row"><div><b>' + title + '</b>' + (typeText ? '<small>' + esc(typeText) + '</small>' : '') + '</div>' + open + '</div>';
+  }).join("");
+  const summary = hasRequiredKyc(u)
+    ? "Documents submitted. Open them using your authenticated reviewer session."
+    : "Required identity, address, or ownership documents are missing. Do not approve this account yet.";
+  return '<section class="ax-card ax-kyc-review"><span class="ax-eyebrow">Private verification documents</span><p class="ax-sub">' + summary + '</p><div class="ax-kyc-list">' + rows + '</div></section>';
+}
 export function verifications(ctx) {
   return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
