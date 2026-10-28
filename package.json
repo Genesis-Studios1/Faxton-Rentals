@@ -9,7 +9,7 @@
     "update": "git pull origin main && npm run deploy",
     "setup:site": "npx --yes firebase-tools hosting:sites:create faxton-rentals --project faxton-rentals",
     "sites": "npx --yes firebase-tools hosting:sites:list --project faxton-rentals",
-    "deploy:hosting": "npx --yes firebase-tools deploy --only hosting --project faxton-rentals",
+    "deploy:hosting": "npm run deploy",
     "deploy:rules": "npx --yes firebase-tools deploy --only storage --project faxton-rentals && npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals",
     "check": "node scripts/check-release.mjs",
     "deploy:all": "npm run deploy",
