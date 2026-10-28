@@ -58,6 +58,29 @@ service cloud.firestore {
               && !('ownershipPath' in d.kyc) && !('ownershipProofType' in d.kyc)))
       );
     }
+    function kycSubmittedFor(d, uid) {
+      return d.get('kyc', null) is map
+        && d.kyc.get('status', '') == 'submitted'
+        && d.kyc.get('idType', '') in ['national-id', 'passport', 'drivers-license']
+        && d.kyc.get('identityPath', '') == 'verification/' + uid + '/identity'
+        && d.kyc.get('addressProofType', '') in ['utility-bill', 'bank-statement', 'tenancy-agreement', 'other']
+        && d.kyc.get('addressPath', '') == 'verification/' + uid + '/address-proof'
+        && ((d.get('role', '') == 'landlord'
+              && d.kyc.get('ownershipProofType', '') in ['title', 'utility-bill', 'tax-receipt', 'other']
+              && d.kyc.get('ownershipPath', '') == 'verification/' + uid + '/ownership-proof')
+            || (d.get('role', '') == 'agent'
+              && !('ownershipPath' in d.kyc) && !('ownershipProofType' in d.kyc)));
+    }
+    function listingVerificationOk(d) {
+      return d.get('verified', false) != true
+        || !('ownerUid' in d) || d.ownerUid == null
+        || (d.ownerUid is string
+          && exists(/databases/$(database)/documents/users/$(d.ownerUid))
+          && ((get(/databases/$(database)/documents/users/$(d.ownerUid)).data.get('role', '') == 'landlord'
+                && kycSubmittedFor(get(/databases/$(database)/documents/users/$(d.ownerUid)).data, d.ownerUid))
+              || (get(/databases/$(database)/documents/users/$(d.ownerUid)).data.get('role', '') in ['agent', 'agency']
+                && get(/databases/$(database)/documents/users/$(d.ownerUid)).data.get('verified', false) == true)));
+    }
     function businessOnboardingOk(d) {
       return d.get('agency', null) is map
         && d.agency.keys().hasOnly(['business', 'businessTypes', 'cac', 'registrar', 'address', 'supportEmail', 'position', 'website', 'otherService'])
@@ -198,8 +221,11 @@ service cloud.firestore {
         || (isAdmin() && uid != request.auth.uid
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
-              || (resource.data.role in ['agent', 'agency']
-                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification']))
+              || (resource.data.role in ['agent', 'agency', 'landlord']
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification'])
+                && (request.resource.data.get('verified', false) != true
+                    || resource.data.role == 'agency'
+                    || kycSubmittedFor(resource.data, uid)))
               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
       allow delete: if signedIn() && request.auth.uid == uid && resource.data.get('deletion', {}).get('status', '') == 'approved'
@@ -256,8 +282,9 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('onboarding', {}).get('completed', false) == true
         && ((myRole() == 'landlord' && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('kyc', {}).get('status', '') == 'submitted')
           || (myRole() in ['agency', 'agent'] && isVerified())));
-      allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
+      allow update: if (isAdmin() && listingVerificationOk(request.resource.data)) || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.status == resource.data.status
+        && request.resource.data.get('verified', false) == resource.data.get('verified', false)
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
