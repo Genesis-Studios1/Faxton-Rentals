@@ -66,7 +66,7 @@ Windows: double-click **run-locally.bat**. Mac/Linux: `./run-locally.sh`. Or `np
    * `public/sw.js` (`BUILD`)
    * every `?v=` in `public/index.html` (css and js links, 13 of them)
 2. `npm run check` (it fails with a plain-English reason if the three disagree, a file is missing, or the code talks to a website the security policy would block).
-3. `npm run deploy` checks the release, then deploys Hosting, Firestore rules and Storage rules. Or push to `main` and GitHub does the same (`deploy.yml`). Storage must be enabled on the Firebase Blaze plan before this release can deploy.
+3. `npm run deploy` checks the release, then deploys Storage rules and Firestore rules before Hosting. Or push to `main` and GitHub does the same (`deploy.yml`). If Storage is not configured, the workflow stops before publishing Hosting.
 4. Run `node scripts/smoke-live.mjs https://faxton-rentals.web.app` and the by-hand test in LAUNCH.md.
 
 People who already have the app open see **"A new version is ready. Reload"**; everyone else gets it on their next visit.
