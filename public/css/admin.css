@@ -726,3 +726,23 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 /* The global form rule in shell.css gives every field min-height:44px (a phone tap target); inside the console on desktop each control sets its own 32-40px height. */
 @media (min-width:900px){:is(.ax,.ax-fl) :where(input:not([type=checkbox],[type=radio]),select,textarea){min-height:0}}
 @media (max-width:899px){.ax-main .rf-copy,.ax-main .rf-avcam{min-height:44px;min-width:44px}}
+
+
+/* Private KYC evidence in the verification review queue. */
+.ax-kyc-review { margin-top: 12px; padding: 14px; background: var(--ax-card, var(--panel)); }
+.ax-kyc-review > .ax-eyebrow { display: block; margin-bottom: 7px; }
+.ax-kyc-review > .ax-sub { margin: 0 0 12px; line-height: 1.45; }
+.ax-kyc-list { display: grid; gap: 8px; }
+.ax-kyc-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 10px 11px; border: 1px solid var(--ax-line, var(--line)); border-radius: 12px; background: var(--ax-bg, var(--panel-2)); }
+.ax-kyc-row > div { display: grid; gap: 3px; min-width: 0; }
+.ax-kyc-row b { color: var(--ax-text, var(--text)); font-size: .84rem; font-weight: 650; }
+.ax-kyc-row small { color: var(--ax-muted, var(--muted)); font-size: .75rem; overflow-wrap: anywhere; }
+.ax-kyc-row .ax-sub { flex: 0 0 auto; font-size: .75rem; }
+.ax-vc-f button:disabled { opacity: .45; cursor: not-allowed; }
+.ax-kyc-review .ax-btn { flex: 0 0 auto; }
+@media (max-width: 560px) {
+  .ax-kyc-review { padding: 11px; }
+  .ax-kyc-row { align-items: flex-start; padding: 9px; gap: 8px; }
+  .ax-kyc-row b { font-size: .8rem; }
+  .ax-kyc-row .ax-btn { padding-inline: 9px; font-size: .73rem; }
+}
