@@ -89,12 +89,28 @@ function lockScreen(user, logout) {
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
   const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
   const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
-  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or device PIN/passcode to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><button type="button" class="lk-email" id="lkEmail">Use an email link instead</button><p class="lk-err" id="lkErr" role="alert" aria-live="polite"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
   const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
-  const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
-  $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  const go = async () => {
+    const status = $("#lkErr", el); status.textContent = "";
+    try {
+      if (await redeemEmailUnlockLink(user)) { done(); return; }
+      await challenge(user, "Unlock Faxton Rentals"); done();
+    } catch (e) { if (e.message !== "cancelled") status.textContent = e.message; }
+  };
+  $("#lkGo", el).onclick = go;
+  const emailButton = $("#lkEmail", el);
+  if (isApp() || !user.email) emailButton.hidden = true;
+  emailButton.onclick = async () => {
+    emailButton.disabled = true;
+    const status = $("#lkErr", el); status.textContent = "";
+    try { await sendEmailUnlockLink(user, status); }
+    catch (e) { status.textContent = e?.message || "Could not send an email link. Try your device PIN/passcode or sign in again."; }
+    finally { emailButton.disabled = false; }
+  };
+  $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
   if (!waitSplash) return void setTimeout(go, 250);
   let freed = false;
   const free = () => { if (freed || !el.isConnected) return; freed = true; el.classList.remove("lk-wait"); setTimeout(go, 300); };
