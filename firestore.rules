@@ -135,8 +135,14 @@ service cloud.firestore {
           && request.resource.data.email == resource.data.email
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
-          && request.resource.data.get('verification', null) == resource.data.get('verification', null)
+          && (request.resource.data.get('verification', null) == resource.data.get('verification', null)
+            || (resource.data.get('verification', {}).get('status', '') == 'rejected'
+              && request.resource.data.get('verification', {}).get('status', '') == 'pending'
+              && request.resource.data.get('verification', {}).get('kind', '') == resource.data.get('verification', {}).get('kind', '')
+              && request.resource.data.get('verified', false) == false
+              && request.resource.data.get('verification', {}).diff(resource.data.get('verification', {})).affectedKeys().hasOnly(['status', 'requestedAt', 'reason'])))
           && (resource.data.get('onboarding', {}).get('completed', false) != true
+            || resource.data.get('verification', {}).get('status', '') == 'rejected'
             || (request.resource.data.get('agency', null) == resource.data.get('agency', null)
               && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)))
           && (resource.data.get('onboarding', {}).get('completed', false) != true
