@@ -262,7 +262,7 @@ export function authPage(ctx, mode) {
     };
     google.onclick = async () => {
       if (busy) return;
-      // On the sign-up page the chosen account type, its details and where the person lives all travel with the Google account.
+      // The account type is selected here; required location and role-specific details are collected on the post-sign-up onboarding screen.
       if (!login && !validateSignup({ google: true })) return;
       run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, null, null, photo || undefined), "google");
     };
