@@ -1,7 +1,8 @@
 import { detectTenant } from "./myhome.js";
 import * as G from "./gate.js";
 import * as LOCK from "./applock.js";
-import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup } from "./firebase.js";
+import { auth, db, google, storage, reauthenticateWithCredential, reauthenticateWithPopup } from "./firebase.js";
+import { deleteObject, ref as storageRef } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -520,10 +521,24 @@ function askNotifications() {
   $("#nfYes", m.el).onclick = async () => { m.close(); try { const r = await Notification.requestPermission(); toast(r === "granted" ? "Notifications are on." : "Notifications stay off. You can change this in your browser settings."); } catch {} };
 }
 // An approved deletion request is carried out once its one-day review period has passed.
+async function purgeVerificationDocuments(uid, profile) {
+  if (profile?.kyc?.status !== "submitted") return;
+  // These private objects must be removed before the user profile, because Storage rules check
+  // that the account deletion was approved.
+  for (const slot of ["identity", "address-proof", "ownership-proof"]) {
+    try { await deleteObject(storageRef(storage, "verification/" + uid + "/" + slot)); }
+    catch (error) { if (error?.code !== "storage/object-not-found") throw error; }
+  }
+}
 async function finalizeDeletion(u) {
   const recent = Date.now() - new Date(u.metadata.lastSignInTime || 0).getTime() < 5 * 60 * 1000;
   if (!recent) { S.deleteNote = true; try { await signOut(auth); } catch {} return refreshAuthState(null); }
-  try { await deleteProfile(u.uid); await deleteUser(u); toast("Your account has been deleted."); } catch (e) { toast(friendlyErr(e)); try { await signOut(auth); } catch {} }
+  try {
+    await purgeVerificationDocuments(u.uid, S.profile);
+    await deleteProfile(u.uid);
+    await deleteUser(u);
+    toast("Your account has been deleted.");
+  } catch (e) { toast(friendlyErr(e)); try { await signOut(auth); } catch {} }
   return refreshAuthState(null);
 }
 async function setSaved(id, on) {
