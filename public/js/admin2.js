@@ -275,12 +275,28 @@ export function verifications(ctx) {
         root.addEventListener("click", async (e) => {
           const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
           if (bv) {
-            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
-            let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
-            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
-            try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
-              await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
-              toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }
+            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified";
+            const label = u.verification.kind === "agency" ? "Business" : u.verification.kind === "landlord" ? "home owner" : "agent account";
+            let why = ""; if (!ok) { why = await reason({ title: "Reject " + (u.agency?.business || u.name || "this request"), presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
+            const checks = VF_CHECK(u);
+            if (ok) {
+              if ($$("[data-ck]", c).some((x) => !x.checked)) { toast("Review and tick every checklist item before approving.", { tone: "bad" }); return; }
+              try {
+                const req = await st.getVerificationRequest(u.id), docs = req?.documents || {};
+                const requiredDocs = ["governmentId", "proofOfAddress", ...(u.verification.kind === "landlord" ? ["ownershipProof"] : []), ...(u.verification.kind === "agency" ? ["cacCertificate"] : [])];
+                if (!req || req.status !== "pending" || requiredDocs.some((k) => !docs[k]?.path)) { toast("Required identity, address and supporting documents must be uploaded before approval.", { tone: "bad" }); return; }
+              } catch (x) { bad(x); return; }
+            }
+            const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [checks[+x.dataset.ck], x.checked]));
+            busy(bv, true);
+            try {
+              const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) };
+              await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
+              const req = await st.getVerificationRequest(u.id).catch(() => null);
+              if (req) await st.patch("verificationRequests", u.id, { status: ok ? "verified" : "rejected", updatedAt: Date.now(), decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}) }).catch(() => {});
+              await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: "Your " + label + " has been verified. You can now start listing properties." } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
+              toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint();
+            } catch (x) { busy(bv, false); bad(x); }
           } else if (bd) {
             const u = us.find((x) => x.id === bd.dataset.id), ok = bd.dataset.del === "approved";
             if (ok && !(await confirm({ title: `Approve deleting ${u.name || u.email}?`, body: "Their account will be removed the next time it’s opened after the one-day review.", confirmLabel: "Approve deletion", tone: "danger", icon: "trash" }))) return;
