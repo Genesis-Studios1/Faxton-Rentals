@@ -53,6 +53,7 @@ const statusPill = (s) => `<span class="pill ${/pending|review|requested|awaitin
 export async function route(ctx) {
   const { path } = ctx; let m;
   if ((m = path.match(/^\/onboarding\/([123])$/))) return AV.onboarding(ctx, +m[1]);
+  if (path === "/onboarding/setup") return AV.setupOnboarding(ctx);
   if (path === "/login") return AV.authPage(ctx, "login");
   if (path === "/signup") return AV.authPage(ctx, "signup");
   if (path === "/forgot") return AV.forgotPage(ctx);
