@@ -46,9 +46,10 @@ await env.withSecurityRulesDisabled(async (context) => {
 });
 
 const t = async (name, promise, expected = true) => {
-  let passed = true;
-  try { await promise; } catch (error) { passed = false; }
-  console.log(passed === expected ? "PASS" : "FAIL", name);
+  let passed = true, failure = "";
+  try { await promise; } catch (error) { passed = false; failure = (error?.code || "error") + ": " + (error?.message || "request failed"); }
+  const ok = passed === expected;
+  console.log(ok ? "PASS" : "FAIL", name, ok ? "" : failure);
 };
 const ctx = (uid, email) => env.authenticatedContext(uid, { email, email_verified: true }).firestore();
 const landlord = ctx("landlord", "landlord@example.com");
