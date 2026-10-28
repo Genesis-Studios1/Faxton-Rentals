@@ -137,8 +137,8 @@ export function setupPage(ctx) {
       if (!business) return;
       const selected = $$('input[name="businessTypes"]:checked', root).map((el) => el.value);
       const realEstate = selected.includes("real-estate-company");
-      $("#asuBusinessDocs", root).hidden = !realEstate;
-      $("#asuBusinessVerify", root).hidden = !realEstate;
+      const verifyWrap = $(".asu-role-verification", root);
+      if (verifyWrap) verifyWrap.hidden = !realEstate;
     };
     if (business) {
       const fills = { business: oldAgency.business, cac: oldAgency.cac, registrar: oldAgency.registrar, position: oldAgency.position,
