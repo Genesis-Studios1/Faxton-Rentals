@@ -224,7 +224,7 @@ service cloud.firestore {
               || (resource.data.role in ['agent', 'agency', 'landlord']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification'])
                 && (request.resource.data.get('verified', false) != true
-                    || resource.data.role == 'agency'
+                    || (resource.data.role == 'agency' && resource.data.get('onboarding', {}).get('completed', false) == true && businessOnboardingOk(resource.data))
                     || kycSubmittedFor(resource.data, uid)))
               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
