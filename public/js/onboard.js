@@ -11,7 +11,7 @@ const f = (id, label, ph = "", extra = "", hint = "") => `<div class="field"><la
 
 const AGENCY = (name) => `<h2>Tell us about your agency</h2><p class="muted" style="margin-bottom:12px">We use these details to verify your agency. Only the Faxton team can see them.</p>
   <form id="ob" class="a2-form ob-form" novalidate>
-    ${f("business", "Agency / business name", "e.g. Faxton Properties Ltd", 'required maxlength="120" autocomplete="organization"')}
+    ${f("business", "Business name", "e.g. Faxton Properties Ltd", 'required maxlength="120" autocomplete="organization"')}
     <div class="f2">${f("registrar", "Full name of registrar", "", `required maxlength="120" value="${esc(name)}" autocomplete="name"`)}${f("position", "Your role in the company", "e.g. Managing Director", 'required maxlength="80"')}</div>
     <div class="f2">${f("supportEmail", "Support email", "support@youragency.com", 'type="email" required maxlength="120"')}${f("phone", "Business phone number", "+234 …", 'type="tel" required maxlength="30"')}</div>
     <div class="f2">${f("cac", "CAC registration number", "RC 1234567", 'required maxlength="30"', "As shown on your CAC certificate.")}${f("opened", "Year the agency opened", String(thisYear - 5), `type="number" required min="1900" max="${thisYear}"`)}</div>
