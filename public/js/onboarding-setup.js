@@ -68,7 +68,7 @@ export function onboardingSetup(ctx) {
       </div>
       ${fieldHtml("address", "Office address", { ic: "pin", ph: "Street, area and city", attrs: 'maxlength="200" autocomplete="street-address" required' })}
       ${fieldHtml("website", "Website", { ic: "globe", type: "url", ph: "https://yourbusiness.com", req: false, attrs: 'maxlength="180" inputmode="url" autocapitalize="none" autocomplete="url"' })}
-      ${fieldHtml("businessOther", "Other business service", { ph: "Describe your service", req: false, attrs: 'maxlength="100"' })}
+      <div id="setup-business-other" hidden>${fieldHtml("businessOther", "Other business service", { ph: "Describe your service", req: false, attrs: 'maxlength="100"' })}</div>
     </section>` : "";
 
   const agentBlock = isAgent ? `
@@ -132,6 +132,15 @@ export function onboardingSetup(ctx) {
       otherWrap.hidden = referral.value !== "other";
       if (referral.value !== "other") fieldError(root, "referralOther", "");
     });
+    const otherServiceWrap = $("#setup-business-other", root);
+    const businessTypeInputs = $('input[name="businessTypes"]', root);
+    const syncOtherService = () => {
+      const show = businessTypeInputs.some((input) => input.checked && input.value === "other");
+      if (otherServiceWrap) otherServiceWrap.hidden = !show;
+      if (!show) fieldError(root, "businessOther", "");
+    };
+    businessTypeInputs.forEach((input) => input.addEventListener("change", syncOtherService));
+    syncOtherService();
     const fileIds = ["identityFile", "addressFile", "ownershipFile"];
     fileIds.forEach((id) => {
       const input = $("#" + id, root);
