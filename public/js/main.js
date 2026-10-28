@@ -1,7 +1,7 @@
 import { detectTenant } from "./myhome.js";
 import * as G from "./gate.js";
 import * as LOCK from "./applock.js";
-import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup } from "./firebase.js";
+import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup, isSignInWithEmailLink, signInWithEmailLink } from "./firebase.js";
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -65,7 +65,7 @@ function shell(path, inner, o = {}) {
 const ROLE_UI = {
   support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
   landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agency: { title: "Business portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
@@ -83,7 +83,7 @@ const ME_PATHS = ["/settings", "/saved", "/bookings", "/payments", "/documents",
 const pathIs = (path, h) => path === h || path.startsWith(h + "/");
 const navOn = (path, h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => pathIs(path, p)) : pathIs(path, h));
 const unreadTxt = (n) => (n > 99 ? "99+" : n || "");
-const roleLabel = () => (S.isOwner ? "Owner" : S.tenant ? "Tenant" : { renter: "Renter", landlord: "Home owner", agency: "Agency", agent: "Agent", support: "Support", admin: "Admin" }[S.role] || "Member");
+const roleLabel = () => (S.isOwner ? "Owner" : S.tenant ? "Tenant" : { renter: "Renter", landlord: "Home owner", agency: "Business", agent: "Agent", support: "Support", admin: "Admin" }[S.role] || "Member");
 // One list feeds both the desktop account menu and the phone sheet. A fourth entry of 1 means "the top bar already links here" (left out of the desktop menu).
 const meGroups = () => {
   const dash = S.isAdmin ? ["/admin", "building", "Admin console"] : ROLE_UI[S.role] ? [ROLE_UI[S.role].home, "building", "My dashboard"] : null;
@@ -220,8 +220,10 @@ export async function render() {
   const pub = path === "/terms" || path === "/privacy" || path === "/license";
   if (!S.user && setupPath) return go("#/signup");
   if (!S.user && !open && !pub) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
+  const reverify = S.user && S.profile?.verification?.status === "rejected";
+  if (S.user && reverify && !setupPath && !pub) return go("#/onboarding/setup");
   if (S.user && S.profile?.onboarding?.completed === false && !setupPath && !pub) return go("#/onboarding/setup");
-  if (S.user && setupPath && S.profile?.onboarding?.completed === true) return go("#" + (q.next || roleHome() || "/"));
+  if (S.user && setupPath && S.profile?.onboarding?.completed === true && !reverify) return go("#" + (q.next || roleHome() || "/"));
   if (S.user && open) return go("#" + (q.next || roleHome() || "/"));
   // Staff accounts open their own dashboard first, once per visit.
   if (S.user && path === "/" && roleHome()) { let seen = false; try { seen = sessionStorage.getItem("landed") === S.user.uid; sessionStorage.setItem("landed", S.user.uid); } catch {} if (!seen) return go("#" + roleHome()); }
@@ -591,7 +593,31 @@ async function refreshAuthState(u) {
     $$("[data-unread]").forEach((b) => { b.textContent = unreadTxt(n); b.hidden = !n; });
   });
 }
-onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
+// Firebase email-link fallback for devices where biometric unlock is unavailable.
+const emailLinkRecovery = (async () => {
+  if (!isSignInWithEmailLink(auth, window.location.href)) return;
+  const localKey = "faxton_email_link_email";
+  let email = "";
+  try { email = localStorage.getItem(localKey) || ""; } catch {}
+  if (!email) email = window.prompt("Confirm the email address that received your Faxton sign-in link.") || "";
+  if (!email.trim()) {
+    history.replaceState(null, "", location.origin + location.pathname + "#/login");
+    return;
+  }
+  try {
+    const result = await signInWithEmailLink(auth, email.trim(), window.location.href);
+    try { localStorage.removeItem(localKey); sessionStorage.setItem("applock_email_verified_" + result.user.uid, "1"); } catch {}
+    history.replaceState(null, "", location.origin + location.pathname + "#/");
+  } catch (e) {
+    console.error("Email-link sign-in failed", e);
+    try { localStorage.removeItem(localKey); } catch {}
+    history.replaceState(null, "", location.origin + location.pathname + "#/login");
+    window.alert(e?.code === "auth/invalid-action-code"
+      ? "That sign-in link has expired or has already been used. Sign in with your password and request a fresh link."
+      : "We couldn’t complete email-link sign-in. Please use your password, then check your biometric settings.");
+  }
+})();
+onAuthStateChanged(auth, async (u) => { try { await emailLinkRecovery; await refreshAuthState(auth.currentUser || u); } catch (e) { console.error(e); try { history.replaceState(null, "", location.origin + location.pathname + "#/login"); } catch {} } S.ready = true; render(); });
 // Opening or leaving a chat inside Messages swaps the thread in place (no new page, no new listeners); see views.js messages().
 addEventListener("hashchange", () => { if (AXS?.softNav() || S.msgNav?.(parse().path)) { S.nav++; return; } S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
