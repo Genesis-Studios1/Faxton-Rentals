@@ -849,7 +849,7 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 .ax-wl-pagination label{color:var(--ax-muted);font-size:11px}
 .ax-wl-pagination .ax-input{width:64px;min-width:64px;height:32px;padding:4px 7px}
 .ax-wl-pagination .ax-btn{display:inline-grid;place-items:center;width:32px;min-width:32px;height:32px;padding:0}
-.ax-wl-pagination #wlNext .ic{transform:rotate(180deg)}
+.ax-wl-pagination #wlPrev .ic{transform:rotate(180deg)}
 .ax-wl-pagination #wlPageState{min-width:34px;text-align:center;color:var(--ax-muted);font-size:11px;font-variant-numeric:tabular-nums}
 .ax-wl .ax-btn:disabled,.ax-wl .ax-input:disabled{opacity:.5;cursor:not-allowed}
 .ax-wl-no-results[hidden],.ax-wl-table-scroll[hidden]{display:none!important}
