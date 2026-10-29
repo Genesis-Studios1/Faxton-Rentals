@@ -338,7 +338,8 @@ export function setupPage(ctx) {
       if(source.value==="Other" && !(other?.value.trim())) return bad("referralOther","Tell us where you heard about us.");
       if(!residence.country) return bad("country","Choose your country.");
       if(residence.country==="Nigeria" && !residence.state) return bad("state","Choose your state.");
-      if(!residence.city || residence.city.trim().length<2) return bad("city",residence.country==="Nigeria"?"Choose your local government area (LGA).":"Enter your city or district.");
+      if(residence.country==="Nigeria" && !residence.lga) return bad("city","Choose your local government area (LGA).");
+      if(residence.country!=="Nigeria" && !residence.lga && !residence.state) return bad("city","Enter your city or district.");
       let patch={referralSource:source.value, referralOther:source.value==="Other"?(other?.value.trim()||""):"", ...resFields(residence), onboarding:{completed:true}};
       if(isBusiness){
         const required=["business","cac","registrar","position","supportEmail","address"];
