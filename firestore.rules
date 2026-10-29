@@ -506,62 +506,8 @@ service cloud.firestore {
         && d.city is string && d.city.size() >= 2 && d.city.size() <= 60
         && d.source == 'website'
         && d.createdAt is timestamp
-        && d.createdAt <= request.time
-        && d.createdAt >= request.time - duration.value(10, 'minutes');
-    }
-    match /waitlist/{entryId} {
-      allow create: if validWebsiteWaitlist(request.resource.data);
-      allow get, list: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    // Everything else is closed.
-    match /{document=**} { allow read, write: if false; }
-  }
-}
-)
-        && d.role in ['renter', 'owner', 'agency', 'agent']
-        && d.city is string && d.city.size() >= 2 && d.city.size() <= 60
-        && d.source == 'website'
-        && d.createdAt is timestamp
-        && d.createdAt <= request.time
-        && d.createdAt >= request.time - duration.value(10, 'minutes');
-    }
-    match /waitlist/{entryId} {
-      allow create: if validWebsiteWaitlist(request.resource.data);
-      allow get, list: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    // Everything else is closed.
-    match /{document=**} { allow read, write: if false; }
-  }
-}
-)
-        && d.role in ['renter', 'owner', 'agency', 'agent']
-        && d.city is string && d.city.size() >= 2 && d.city.size() <= 60
-        && d.source == 'website'
-        && d.createdAt is timestamp
-        && d.createdAt <= request.time
-        && d.createdAt >= request.time - duration.value(10, 'minutes');
-    }
-    match /waitlist/{entryId} {
-      allow create: if validWebsiteWaitlist(request.resource.data);
-      allow get, list: if isAdmin();
-      allow update, delete: if false;
-    }
-
-    // Everything else is closed.
-    match /{document=**} { allow read, write: if false; }
-  }
-}
-)
-        && d.role in ['renter', 'owner', 'agency', 'agent']
-        && d.city is string && d.city.size() >= 2 && d.city.size() <= 60
-        && d.source == 'website'
-        && d.createdAt is timestamp
-        && d.createdAt <= request.time
-        && d.createdAt >= request.time - duration.value(10, 'minutes');
+	&& d.createdAt <= request.time
+	&& d.createdAt >= request.time - duration.value(10, 'm');
     }
     match /waitlist/{entryId} {
       allow create: if validWebsiteWaitlist(request.resource.data);
