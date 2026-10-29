@@ -148,7 +148,7 @@ function websiteOptionHtml(ctx) {
       </div>
       <div class="dlx-web-actions">
         ${canInstall ? `<button type="button" class="dlx-web-install" data-install-website>${icon("download", 16)}<span>Install website</span></button>` : ""}
-        <a class="dlx-web-open" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">${icon("ext", 16)}<span>Open website</span></a>
+        <a class="dlx-web-open" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">${icon("arrow", 16)}<span>Open website</span></a>
       </div>
     </div>
     <div class="dlx-web-guidance">
