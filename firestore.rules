@@ -46,6 +46,72 @@ service cloud.firestore {
         && (!('provider' in d) || short(d.provider, 20))
         && (!('emailVerified' in d) || d.emailVerified is bool);
     }
+    // Fields that the signed-in person may set during the one-time post-signup form.
+    function onboardingOk(d) {
+      return (!('onboarding' in d) || (
+          d.onboarding is map
+          && d.onboarding.keys().hasOnly(['completed', 'completedAt', 'documentTypes'])
+          && d.onboarding.get('completed', false) is bool
+          && (!('completedAt' in d.onboarding) || d.onboarding.completedAt is int)
+          && (!('documentTypes' in d.onboarding) || (d.onboarding.documentTypes is list && d.onboarding.documentTypes.size() <= 3)))
+        )
+        && (!('discoverySource' in d) || short(d.discoverySource, 60))
+        && (!('discoveryOther' in d) || short(d.discoveryOther, 120));
+    }
+    function businessDetailsOk(a) {
+      return a is map && a.size() <= 20
+        && short(a.get('business', ''), 120)
+        && short(a.get('businessType', ''), 80)
+        && short(a.get('businessTypeOther', ''), 80)
+        && short(a.get('cac', ''), 40)
+        && short(a.get('registrar', ''), 120)
+        && short(a.get('position', ''), 80)
+        && short(a.get('supportEmail', ''), 120)
+        && short(a.get('phone', ''), 30)
+        && short(a.get('address', ''), 200)
+        && short(a.get('website', ''), 160)
+        && short(a.get('country', ''), 60)
+        && short(a.get('state', ''), 60)
+        && short(a.get('lga', ''), 60)
+        && short(a.get('city', ''), 60);
+    }
+    function agentDetailsOk(g) {
+      return g is map && g.size() <= 20
+        && short(g.get('phone', ''), 30)
+        && short(g.get('company', ''), 120)
+        && short(g.get('areas', ''), 240)
+        && short(g.get('dob', ''), 20)
+        && short(g.get('licenceType', ''), 60)
+        && short(g.get('licence', ''), 50)
+        && short(g.get('country', ''), 60)
+        && short(g.get('state', ''), 60)
+        && short(g.get('lga', ''), 60)
+        && short(g.get('city', ''), 60)
+        && g.get('experience', 0) is number
+        && g.get('experience', 0) >= 0 && g.get('experience', 0) <= 60;
+    }
+    function onboardingDetailsOk(d) {
+      return !d.get('onboarding', {}).get('completed', false)
+        || (d.get('discoverySource', '') is string
+          && d.get('discoverySource', '').size() > 0
+          && short(d.get('country', ''), 60)
+          && short(d.get('city', ''), 60)
+          && (d.get('role', '') == 'agency'
+            ? ('agency' in d && businessDetailsOk(d.agency)
+              && d.agency.get('business', '').size() >= 2
+              && d.agency.get('businessType', '').size() >= 2
+              && d.agency.get('cac', '').size() >= 4
+              && d.agency.get('supportEmail', '').size() >= 5
+              && d.agency.get('address', '').size() >= 5)
+            : d.get('role', '') == 'agent'
+              ? ('agentInfo' in d && agentDetailsOk(d.agentInfo)
+                && d.agentInfo.get('phone', '').size() >= 8
+                && d.agentInfo.get('areas', '').size() >= 3
+                && d.agentInfo.get('dob', '').size() >= 8)
+              : d.get('role', '') == 'landlord'
+                ? d.get('phone', '').size() >= 8
+                : true));
+    }
 
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
     match /config/bootstrap { allow read, write: if false; }
@@ -106,13 +172,15 @@ service cloud.firestore {
       // Agencies and agents register with business details and start unverified (an admin verifies them).
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.role in ['renter', 'agent', 'landlord', 'agency']
-        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification', 'onboarding', 'discoverySource', 'discoveryOther'])
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500 && profileOk(request.resource.data)
-        && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency']))
-        && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
-        && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
+        && onboardingOk(request.resource.data)
+        && (!('onboarding' in request.resource.data) || request.resource.data.onboarding.completed == false)
+        && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency', 'landlord']))
+        && (!('agency' in request.resource.data) || (request.resource.data.role == 'agency' && businessDetailsOk(request.resource.data.agency)))
+        && (!('agentInfo' in request.resource.data) || (request.resource.data.role == 'agent' && agentDetailsOk(request.resource.data.agentInfo)));
       // Users edit their own profile but never role, email, ban or verification. The owner can change anything;
       // an admin can ban or unban non-owners and verify agents and agencies, nothing else.
       allow update: if signedIn() && (
@@ -122,21 +190,38 @@ service cloud.firestore {
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
           && request.resource.data.get('verification', null) == resource.data.get('verification', null)
-          && request.resource.data.get('agency', null) == resource.data.get('agency', null)
-          && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+          && (request.resource.data.get('agency', null) == resource.data.get('agency', null)
+              || (!resource.data.get('onboarding', {}).get('completed', false)
+                  && request.resource.data.get('onboarding', {}).get('completed', false)
+                  && request.resource.data.role == 'agency'))
+          && (request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+              || (!resource.data.get('onboarding', {}).get('completed', false)
+                  && request.resource.data.get('onboarding', {}).get('completed', false)
+                  && request.resource.data.role == 'agent'))
+          && (request.resource.data.get('onboarding', null) == resource.data.get('onboarding', null)
+              || (!resource.data.get('onboarding', {}).get('completed', false)
+                  && request.resource.data.get('onboarding', {}).get('completed', false)
+                  && request.resource.data.get('onboarding', {}).get('completedAt', 0) is int))
+          && (!resource.data.get('onboarding', {}).get('completed', false)
+              || (request.resource.data.get('discoverySource', '') == resource.data.get('discoverySource', '')
+                  && request.resource.data.get('discoveryOther', '') == resource.data.get('discoveryOther', '')))
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding', 'discoverySource', 'discoveryOther'])
           && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
-          && profileOk(request.resource.data))
+          && profileOk(request.resource.data)
+          && onboardingOk(request.resource.data)
+          && onboardingDetailsOk(request.resource.data)
+          && (!('agency' in request.resource.data) || businessDetailsOk(request.resource.data.agency))
+          && (!('agentInfo' in request.resource.data) || agentDetailsOk(request.resource.data.agentInfo))
         || isOwner()
         || (isAdmin() && uid != request.auth.uid
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
-              || (resource.data.role in ['agent', 'agency']
+              || (resource.data.role in ['agent', 'agency', 'landlord']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification']))
               || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
@@ -188,7 +273,7 @@ service cloud.firestore {
     match /listings/{id} {
       allow read: if resource.data.status == 'active' || isAdmin() || ownsListing();
       // Landlords and agencies add their own listings (held for review) and edit them, but never change their review status.
-      allow create: if isAdmin() || (signedIn() && (myRole() == 'landlord' || (myRole() in ['agency', 'agent'] && isVerified()))
+      allow create: if isAdmin() || (signedIn() && (myRole() in ['landlord', 'agency', 'agent'] && isVerified())
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
       allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
