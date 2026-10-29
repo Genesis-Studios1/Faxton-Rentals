@@ -8,6 +8,7 @@ const env = await initializeTestEnvironment({
 });
 await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(ctx.firestore(), "config/owner"), { uid: "owner" });
+  await setDoc(doc(ctx.firestore(), "users/admin"), { role: "admin", name: "Admin", email: "admin@example.com", saved: [] });
 });
 const test = async (name, op, expected = true) => {
   let ok = true; try { await op; } catch { ok = false; }
