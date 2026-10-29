@@ -112,57 +112,44 @@ export async function installationsPage(ctx) {
 
 // ---------- public downloads: the "Download now" window and the #/download page ----------
 const GROUPS = [
+  { id: "website", name: "Website", sub: "Use the main site", title: "Main website options", opts: [["#openWebsite", "WEB", "Open main website", "Browse Faxton Rentals in your browser"], ["#installWebsite", "PWA", "Install website", "Add the main site to your device"], ["#websiteHelp", "INFO", "How to install", "Instructions for this device"]] },
   { id: "android", name: "Android", sub: "Get the app", img: "os-android.webp", title: "Choose Android package", opts: [["android", "APK", "Download .APK", "For direct installation"], ["android_x64", "APK", "Download .APK · x64", "For Intel/x86 devices and emulators"], ["android_aab", "AAB", "Download .AAB", "For developers (Play Store)"]] },
   { id: "ios", name: "iOS", sub: "Get the app", img: "os-apple.webp", title: "Install on iPhone", opts: [["#safari", "WEB", "Add to Home Screen", "Easiest: open this site in Safari"], ["iphone", "IPA", "Download .IPA", "Sideload with AltStore or Sideloadly"]] },
   { id: "windows", name: "Windows", sub: "Use on desktop", img: "os-windows.webp", title: "Choose Windows package", opts: [["windows_x64", "EXE", "Windows x64", "Intel and AMD PCs (most computers)"], ["windows_arm64", "EXE", "Windows ARM64", "Snapdragon and other ARM PCs"]] },
   { id: "mac", name: "macOS", sub: "Use on MacBook", title: "Choose Mac package", opts: [["mac_arm64", "DMG", "Apple Silicon (arm64)", "M1, M2, M3 and M4 MacBooks"], ["mac_x64", "DMG", "Intel (x64)", "Older Intel MacBooks"]] },
   { id: "linux", name: "Linux", sub: "Use on desktop", title: "Choose Linux package", opts: [["linux_x64", "APPIMG", "AppImage · x64", "Runs on most distributions"], ["linux_arm64", "APPIMG", "AppImage · ARM64", "Raspberry Pi and other ARM64"], ["linux_x64_deb", "DEB", "Debian/Ubuntu · x64", "Install with apt"], ["linux_arm64_deb", "DEB", "Debian/Ubuntu · ARM64", "Install with apt"]] },
 ];
-const gIcon = (g) => g.img ? `<img src="img/${g.img}" alt="" width="40" height="40">` : g.id === "mac" ? `<span class="dlx-tile mac">${icon("download", 22)}</span>` : `<span class="dlx-tile tux"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><ellipse cx="16" cy="19" rx="9" ry="10" fill="#1b1b1f"/><ellipse cx="16" cy="21.5" rx="5.5" ry="6.5" fill="#f4f1ea"/><circle cx="12.6" cy="12.5" r="1.5" fill="#fff"/><circle cx="19.4" cy="12.5" r="1.5" fill="#fff"/><circle cx="12.8" cy="12.7" r=".7" fill="#111"/><circle cx="19.2" cy="12.7" r=".7" fill="#111"/><path d="M14 15.2h4l-2 2.2z" fill="#f2b233"/><ellipse cx="11.5" cy="29" rx="4" ry="1.8" fill="#f2b233"/><ellipse cx="20.5" cy="29" rx="4" ry="1.8" fill="#f2b233"/></svg></span>`;
+const gIcon = (g) => g.img ? `<img src="img/${g.img}" alt="" width="40" height="40">` : g.id === "website" ? `<span class="dlx-tile web">${icon("globe", 22)}</span>` : g.id === "mac" ? `<span class="dlx-tile mac">${icon("download", 22)}</span>` : `<span class="dlx-tile tux"><svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><ellipse cx="16" cy="19" rx="9" ry="10" fill="#1b1b1f"/><ellipse cx="16" cy="21.5" rx="5.5" ry="6.5" fill="#f4f1ea"/><circle cx="12.6" cy="12.5" r="1.5" fill="#fff"/><circle cx="19.4" cy="12.5" r="1.5" fill="#fff"/><circle cx="12.8" cy="12.7" r=".7" fill="#111"/><circle cx="19.2" cy="12.7" r=".7" fill="#111"/><path d="M14 15.2h4l-2 2.2z" fill="#f2b233"/><ellipse cx="11.5" cy="29" rx="4" ry="1.8" fill="#f2b233"/><ellipse cx="20.5" cy="29" rx="4" ry="1.8" fill="#f2b233"/></svg></span>`;
 let relP = null;
 const loadRelease = () => (relP ||= githubLatest().catch(() => null));
 function detectGroup() {
   const ua = navigator.userAgent;
   return /Android/i.test(ua) ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "ios" : /Windows/i.test(ua) ? "windows" : /Mac/i.test(ua) ? "mac" : /Linux|X11/i.test(ua) ? "linux" : "";
 }
-const cardsHtml = (hot) => GROUPS.map((g) => `<article class="dlx-card ${g.id === hot ? "hot" : ""}" data-g="${g.id}"><button type="button" class="dlx-head" aria-expanded="false" aria-label="${esc(g.name)} downloads">${gIcon(g)}<span class="dlx-t"><b>${esc(g.name)}</b><small>${esc(g.sub)}</small></span><span class="dlx-btn">${icon("download", 16)} ${g.id === "ios" ? "Install" : "Download"}</span><span class="dlx-chev">${icon("chev", 18)}</span></button></article>`).join("");
+const cardsHtml = (hot) => GROUPS.map((g) => `<article class="dlx-card ${g.id === hot ? "hot" : ""}" data-g="${g.id}"><button type="button" class="dlx-head" aria-expanded="false" aria-label="${esc(g.id === "website" ? "Main website options" : g.name + " downloads")}">${gIcon(g)}<span class="dlx-t"><b>${esc(g.name)}</b><small>${esc(g.sub)}</small></span><span class="dlx-btn">${icon("download", 16)} ${g.id === "ios" ? "Install" : g.id === "website" ? "Open" : "Download"}</span><span class="dlx-chev">${icon("chev", 18)}</span></button></article>`).join("");
 function websiteInstallGuide() {
   const ua = navigator.userAgent;
   if (/iPhone|iPad|iPod/i.test(ua)) {
-    return "On your iPhone or iPad, open this site in Safari, tap Share, then choose Add to Home Screen.";
+    return "On your iPhone or iPad, open Faxton Rentals in Safari, tap Share, then choose Add to Home Screen.";
   }
   if (/Android/i.test(ua)) {
-    return "On Android, open this site in Chrome, tap the three-dot menu, then choose Install app or Add to Home Screen.";
+    return "On Android, open Faxton Rentals in Chrome, tap the three-dot menu, then choose Install app or Add to Home Screen.";
   }
   return "On your computer, look for the install icon in your browser's address bar or open the browser menu and choose Install Faxton Rentals. If that option is unavailable, bookmark the website for quick access.";
 }
-function websiteOptionHtml(ctx) {
-  const canInstall = Boolean(ctx?.canInstall?.());
-  return `<section class="dlx-webcard" aria-label="Main Faxton Rentals website">
-    <div class="dlx-web-main">
-      <span class="dlx-web-icon">${icon("monitor", 22)}</span>
-      <div class="dlx-web-copy">
-        <span class="dlx-web-eyebrow">MAIN WEBSITE</span>
-        <b>Use Faxton Rentals in your browser</b>
-        <p>Browse homes on the full website, or add a quick-access icon to your device.</p>
-      </div>
-      <div class="dlx-web-actions">
-        ${canInstall ? `<button type="button" class="dlx-web-install" data-install-website>${icon("download", 16)}<span>Install website</span></button>` : ""}
-        <a class="dlx-web-open" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">${icon("arrow", 16)}<span>Open website</span></a>
-      </div>
-    </div>
-    <div class="dlx-web-guidance">
-      <button type="button" class="dlx-web-how" data-web-how aria-expanded="false">${icon("info", 15)} How to add the website to your device</button>
-      <p class="dlx-web-guide" data-web-guide hidden>${websiteInstallGuide()}</p>
-    </div>
-  </section>`;
-}
+
 const sheetHtml = (g, rel) => `<div class="dlx-sheet" role="group" aria-label="${esc(g.title)}"><header><b>${esc(g.title)}</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header>${g.opts.map(([k, tag, name, sub]) => {
-  const f = k.startsWith("#") ? { url: "#" } : rel?.files?.[k];
-  const inner = `<span class="dlx-file">${tag}</span><span class="dlx-ot"><b>${esc(name)}</b><small>${esc(f ? sub : rel ? "Not available yet" : "Couldn’t reach the download server")}</small></span>${f ? icon("chev", 16) : ""}`;
-  return k === "#safari" ? `<button type="button" class="dlx-opt" data-safari>${inner}</button>` : f ? `<a class="dlx-opt" href="${esc(f.url)}" rel="noopener" download>${inner}</a>` : `<div class="dlx-opt off">${inner}</div>`;
+  const special = k.startsWith("#");
+  const f = special ? null : rel?.files?.[k];
+  const detail = f || special ? sub : rel ? "Not available yet" : "Couldn’t reach the download server";
+  const inner = `<span class="dlx-file">${tag}</span><span class="dlx-ot"><b>${esc(name)}</b><small>${esc(detail)}</small></span>${f || special ? icon("chev", 16) : ""}`;
+  if (k === "#safari") return `<button type="button" class="dlx-opt" data-safari>${inner}</button>`;
+  if (k === "#openWebsite") return `<a class="dlx-opt" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">${inner}</a>`;
+  if (k === "#installWebsite") return `<button type="button" class="dlx-opt" data-install-main-website>${inner}</button>`;
+  if (k === "#websiteHelp") return `<button type="button" class="dlx-opt" data-website-help>${inner}</button>`;
+  return f ? `<a class="dlx-opt" href="${esc(f.url)}" rel="noopener" download>${inner}</a>` : `<div class="dlx-opt off">${inner}</div>`;
 }).join("")}</div>`;
-function wirePicker(root, get) {
+function wirePicker(root, get, ctx = {}) {
   const mobile = () => matchMedia("(max-width: 700px)").matches;
   const close = () => { $$(".dlx-sheet", root).forEach((x) => x.remove()); $$(".dlx-card", root).forEach((c) => { c.classList.remove("open"); c.querySelector(".dlx-head").setAttribute("aria-expanded", "false"); }); };
   $$(".dlx-card", root).forEach((card) => {
@@ -174,6 +161,21 @@ function wirePicker(root, get) {
       if (mobile()) card.append(sh); else { const slot = $(".dlx-slot", root); slot.append(sh); sh.style.marginLeft = Math.max(0, Math.min(card.offsetLeft, slot.clientWidth - 330)) + "px"; }
       $(".dlx-x", sh).onclick = close;
       const sf = $("[data-safari]", sh); if (sf) sf.onclick = () => { sh.innerHTML = `<header><b>Add to Home Screen</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header><p class="dlx-how">On your iPhone, open <b>faxton-rentals.web.app</b> in <b>Safari</b>, tap the <b>Share</b> button, then choose <b>Add to Home Screen</b>.</p>`; $(".dlx-x", sh).onclick = close; };
+      const showWebsiteHelp = (title) => {
+        sh.innerHTML = `<header><b>${esc(title)}</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header><p class="dlx-how">${esc(websiteInstallGuide())}</p>`;
+        $(".dlx-x", sh).onclick = close;
+      };
+      const installWebsite = $("[data-install-main-website]", sh);
+      if (installWebsite) installWebsite.onclick = async () => {
+        installWebsite.disabled = true;
+        let opened = false;
+        try { opened = Boolean(await ctx.installApp?.()); } catch {}
+        if (opened) toast("Your browser's install prompt opened. Follow it to add Faxton Rentals.");
+        else showWebsiteHelp("Install the main website");
+        installWebsite.disabled = false;
+      };
+      const websiteHelp = $("[data-website-help]", sh);
+      if (websiteHelp) websiteHelp.onclick = () => showWebsiteHelp("How to install Faxton Rentals");
       sh.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
     };
   });
@@ -183,38 +185,12 @@ export async function openDownloadModal(ctx = {}) {
   if ($(".dlx-ov")) return;
   const ov = document.createElement("div"); ov.className = "dlx-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Get Faxton Rentals app or website");
   ov.innerHTML = `<div class="dlx-box"><button type="button" class="dlx-close" aria-label="Close">${icon("x", 20)}</button>
-    <div class="dlx-top"><div class="dlx-copy"><div class="dlx-brand"><img src="assets/mark.svg" alt="" width="34" height="30"><span><b>Faxton</b> Rentals</span></div><div class="dlx-eye">Get Faxton Rentals everywhere</div><h2>Start exploring on your device.</h2><p>Get the Faxton Rentals app, or install the main website for quick browser access.</p></div><img class="dlx-art" src="img/app-devices.webp" alt="Faxton Rentals on phone and laptop"></div>
-    <div class="dlx-panel"><div class="dlx-grid">${cardsHtml(detectGroup())}</div><div class="dlx-slot"></div>${websiteOptionHtml(ctx)}</div></div>`;
+    <div class="dlx-top"><div class="dlx-copy"><div class="dlx-brand"><img src="assets/mark.svg" alt="" width="34" height="30"><span><b>Faxton</b> Rentals</span></div><div class="dlx-eye">Get Faxton Rentals everywhere</div><h2>Start exploring on your device.</h2><p>Choose your device to download the app, or open the main website.</p></div><img class="dlx-art" src="img/app-devices.webp" alt="Faxton Rentals on phone and laptop"></div>
+    <div class="dlx-panel"><div class="dlx-grid">${cardsHtml(detectGroup())}</div><div class="dlx-slot"></div></div></div>`;
   document.body.append(ov); document.documentElement.classList.add("dlx-lock");
   let rel;
   loadRelease().then((r) => { rel = r || undefined; if (!r) relP = null; });
-  const closeSheet = wirePicker(ov, () => rel);
-  const installWeb = $("[data-install-website]", ov);
-  const webGuide = $("[data-web-guide]", ov);
-  const webHow = $("[data-web-how]", ov);
-  if (webHow && webGuide) webHow.onclick = () => {
-    webGuide.hidden = !webGuide.hidden;
-    webHow.setAttribute("aria-expanded", String(!webGuide.hidden));
-    if (!webGuide.hidden) webGuide.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
-  };
-  if (installWeb) installWeb.onclick = async () => {
-    installWeb.disabled = true;
-    try {
-      const opened = await ctx.installApp?.();
-      if (opened) toast("Your browser's website-install prompt opened. Follow it to finish.");
-      else {
-        if (webGuide) webGuide.hidden = false;
-        if (webHow) webHow.setAttribute("aria-expanded", "true");
-        toast("One-tap install is unavailable here. Use the instructions below.");
-      }
-    } catch {
-      if (webGuide) webGuide.hidden = false;
-      if (webHow) webHow?.setAttribute("aria-expanded", "true");
-      toast("Use the instructions below to add the website.", { tone: "bad" });
-    } finally {
-      installWeb.disabled = false;
-    }
-  };
+  const closeSheet = wirePicker(ov, () => rel, ctx);
   const shut = () => { ov.classList.add("out"); document.documentElement.classList.remove("dlx-lock"); document.removeEventListener("keydown", key); setTimeout(() => ov.remove(), 180); };
   const key = (e) => { if (e.key === "Escape") { if ($(".dlx-sheet", ov)) closeSheet(); else shut(); } };
   document.addEventListener("keydown", key);
@@ -233,5 +209,5 @@ export async function downloadPage(ctx) {
       <img class="rf-dl-art" src="img/app-devices.webp" alt="Faxton Rentals on a phone and a laptop" width="640" height="440"></section>
     <section class="dlx-panel dlx-page"><div class="dlx-grid">${cardsHtml(detectGroup())}</div><div class="dlx-slot"></div></section>
     <section class="rf-dl-how"><h2>How to install</h2><div>${how.map(([t, ic, d]) => `<article><span>${icon(ic, 20)}</span><b>${t}</b><p>${d}</p></article>`).join("")}</div></section></div></main>`;
-  return { full: true, title: "Get the app", html, mount(root) { const b = $("#pwa", root); if (b) b.onclick = () => ctx.installApp(); const rt = $("#dlRetry", root); if (rt) rt.onclick = () => { relP = null; ctx.render(); }; wirePicker(root, () => rel || undefined); } };
+  return { full: true, title: "Get the app", html, mount(root) { const b = $("#pwa", root); if (b) b.onclick = () => ctx.installApp(); const rt = $("#dlRetry", root); if (rt) rt.onclick = () => { relP = null; ctx.render(); }; wirePicker(root, () => rel || undefined, ctx); } };
 }
