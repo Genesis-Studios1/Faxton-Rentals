@@ -249,10 +249,50 @@ export function verifications(ctx) {
       const dob = (d) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "");
       const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - (t || Date.now())) / 60000)); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.floor(m / 60)} h ago` : (Math.floor(m / 1440) === 1 ? "1 day ago" : `${Math.floor(m / 1440)} days ago`); };
       const nameOf = (id) => us.find((x) => x.id === id)?.name || "";
-      const card = (u) => { const a = u.agency, g = u.agentInfo, v = u.verification, isA = v.kind === "agency", pend = v.status === "pending";
-        return `<article class="ax-card ax-vc" data-uid="${esc(u.id)}"><div class="ax-vc-h">${avatar((isA ? a?.business : u.name) || u.name, u.id, 40, u.photo)}<div><b>${esc((isA ? a?.business : u.name) || u.name || "Unnamed")}</b><small>${isA ? "Agency" : "Agent"} · requested ${ago(v.requestedAt)}</small></div>${chipFor("verification", v.status)}</div>
-          ${dl(isA ? [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Registrar", esc(a?.registrar)], ["Role", esc(a?.position)], ["Opened", esc(a?.opened)], ["Registrar’s DOB", esc(dob(a?.dob))], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]] : [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]])}
-          ${pend ? `<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Checklist</span>${VF_CHECK.map((c, i) => `<label class="ax-check"><input type="checkbox" data-ck="${i}"><span>${esc(c)}</span></label>`).join("")}</div><div class="ax-vc-f">${btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" })}${btn("Reject", { v: "danger", attrs: "data-v=rejected" })}</div>` : `<p class="ax-sub">${v.status === "verified" ? "Verified" : "Rejected"}${v.decidedAt ? " " + ago(v.decidedAt) : ""}${v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : ""}${v.reason ? ` · ${esc(v.reason)}` : ""}</p>`}</article>`; };
+      const docsByUid = Object.create(null);
+      await Promise.all(us.filter((u) => u.verification).map(async (u) => {
+        docsByUid[u.id] = (await st.verificationDocs(u.id)).filter((d) => ["kyc-id", "kyc-address", "kyc-cac"].includes(d.category));
+      }));
+      const checksFor = (u) => u.verification.kind === "agency"
+        ? ["Representative name matches ID", "Government ID reviewed", "Proof of address reviewed", "CAC certificate and number match"]
+        : u.verification.kind === "landlord"
+          ? ["Name matches ID", "Government ID reviewed", "Proof of address reviewed"]
+          : ["Name matches ID", "Government ID reviewed", "Proof of address reviewed", "Experience and coverage reviewed", "Professional registration reviewed where applicable"];
+      const expectedDocs = (u) => u.verification.kind === "agency"
+        ? ["kyc-id", "kyc-address", "kyc-cac"]
+        : ["kyc-id", "kyc-address"];
+      const docLabel = (d) => ({ "kyc-id": "Government ID", "kyc-address": "Proof of address", "kyc-cac": "CAC certificate" })[d.category] || d.category;
+      const card = (u) => {
+        const a = u.agency, g = u.agentInfo, v = u.verification;
+        const isBusiness = v.kind === "agency", isOwner = v.kind === "landlord", pend = v.status === "pending";
+        const title = isBusiness ? (a?.business || u.name) : (u.name || "Unnamed");
+        const role = isBusiness ? "Business" : isOwner ? "Home owner" : "Real estate agent";
+        const docs = docsByUid[u.id] || [], missing = expectedDocs(u).filter((cat) => !docs.some((d) => d.category === cat));
+        const docRows = docs.length
+          ? '<div class="ax-vdocs"><span class="ax-eyebrow">Private documents</span>' + docs.map((d) =>
+              '<div class="ax-vdoc"><span><b>' + esc(docLabel(d)) + '</b><small>' + esc(d.originalName || d.name || "Uploaded document") + ' · ' + Math.round((+d.size || 0) / 1024) + ' KB</small></span>' +
+              btn("Review", { size: "sm", ic: "eye", attrs: 'data-doc="' + esc(d.id) + '"' }) + '</div>'
+            ).join("") + '</div>'
+          : '<div class="ax-vdocs ax-vdocs-empty"><span class="ax-eyebrow">Private documents</span><p>No verification documents were found for this account.</p></div>';
+        let details;
+        if (isBusiness) {
+          details = [["Full name", esc(u.name)], ["Business name", esc(a?.business)], ["Business type", esc(a?.businessType)], ["Registrar / representative", esc(a?.registrar)], ["Role", esc(a?.position)], ["CAC number", esc(a?.cac)], ["Support email", esc(a?.supportEmail)], ["Business phone", esc(a?.phone)], ["Office address", esc(a?.address)], ["Website", esc(a?.website)], ["Account email", esc(u.email)]];
+        } else if (isOwner) {
+          details = [["Full name", esc(u.name)], ["Phone", esc(u.phone)], ["Residence", esc([u.city, u.state, u.country].filter(Boolean).join(", "))], ["Account email", esc(u.email)]];
+        } else {
+          details = [["Full name", esc(u.name)], ["Phone", esc(g?.phone)], ["Experience", esc(g?.experience)], ["Agency", esc(g?.company)], ["ID or licence no.", esc(g?.licence)], ["Registration type", esc(g?.licenceType)], ["Date of birth", esc(dob(g?.dob))], ["Areas covered", esc(g?.areas)], ["Account email", esc(u.email)]];
+        }
+        const checklist = checksFor(u);
+        return '<article class="ax-card ax-vc" data-uid="' + esc(u.id) + '"><div class="ax-vc-h">' +
+          avatar(title || "User", u.id, 40, u.photo) + '<div><b>' + esc(title || "Unnamed") + '</b><small>' + role + ' · requested ' + ago(v.requestedAt) + '</small></div>' + chipFor("verification", v.status) + '</div>' +
+          dl(details) + docRows +
+          (pend ? '<div class="ax-checks" role="group" aria-label="Checklist"><span class="ax-eyebrow">Review checklist</span>' +
+            checklist.map((c, i) => '<label class="ax-check"><input type="checkbox" data-ck="' + i + '"><span>' + esc(c) + '</span></label>').join("") +
+            (missing.length ? '<p class="ax-sub ax-vdocs-missing">Missing required documents: ' + esc(missing.map((cat) => docLabel({ category: cat })).join(", ")) + '</p>' : '') +
+            '<div class="ax-vc-f">' + btn("Verify", { v: "primary", ic: "check", attrs: "data-v=verified" }) + btn("Reject", { v: "danger", attrs: "data-v=rejected" }) + '</div></div>'
+            : '<p class="ax-sub">' + (v.status === "verified" ? "Verified" : "Rejected") + (v.decidedAt ? " " + ago(v.decidedAt) : "") + (v.decidedBy && nameOf(v.decidedBy) ? " by " + esc(nameOf(v.decidedBy)) : "") + (v.reason ? " · " + esc(v.reason) : "") + '</p>') +
+          '</article>';
+      };
       const html = () => {
         const w = by("pending"), dn = [...by("verified"), ...by("rejected")].sort((a, b) => (b.verification.decidedAt || 0) - (a.verification.decidedAt || 0)).slice(0, 12), dd = dels();
         const tb = tabs([{ k: "waiting", label: "Waiting", count: w.length }, { k: "decided", label: "Decided", count: dn.length }, { k: "deletions", label: "Deletion requests", count: dd.length }], tab, { label: "Verifications" });
