@@ -117,12 +117,21 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
     ${section("Description", l.desc ? `<p class="ax-clamp" data-clamp>${esc(l.desc)}</p>${l.desc.length > 220 ? `<button type="button" class="ax-link" data-more style="border:0;background:none;padding:4px 0;cursor:pointer">Show more</button>` : ""}` : `<span class="ax-muted">No description yet.</span>`)}
     ${section("Media", `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${(l.videos || []).length} video${(l.videos || []).length === 1 ? "" : "s"}</span>${btn("Photos and videos", { size: "sm", ic: "img", attrs: "data-media" })}</div>`)}
     ${section("Owner", `<div class="ax-id" data-owner>${avatar(l.agent?.name, l.ownerUid || l.agent?.id, 36, l.agent?.photo || l.agent?.avatar)}<div><b>${esc(l.agent?.name || "Faxton")}</b><small data-ownersub>${l.ownerUid ? "Property owner account" : "Added by the Faxton team"}</small></div></div>${l.ownerUid ? `<div style="display:flex;gap:8px;margin-top:10px">${btn("Text", { size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}</div>` : ""}`)}
+    ${section("Ownership evidence", l.ownershipProofDocId ? ('<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="ax-muted">' + (l.ownershipProofStatus === "verified" ? "Proof reviewed" : "Submitted · review before approval") + '</span>' + btn("Download proof", { size: "sm", ic: "download", attrs: "data-proof" }) + '</div>') : '<p class="ax-sub">No ownership proof is attached. This listing cannot be approved until ownership evidence is submitted and reviewed.</p>')}
     ${section("History", timeline([{ title: "Submitted", meta: fmt.dateTime(l.createdAt) }, ...(s === "active" ? [{ title: "Live on Faxton", meta: "Approved" }] : []), ...(s === "flagged" ? [{ title: "Changes requested", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "rejected" ? [{ title: "Rejected", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "archived" ? [{ title: "Archived", tone: "mute" }] : [])]))}</div>`;
   const footer = viewOnly ? "" : s === "active" ? btn("Archive listing", { v: "outline", attrs: "data-do=archive" }) + (l.status === "active" ? btn("View live page", { v: "ghost", href: "#/home/" + encodeURIComponent(l.id) }) : "") : s === "archived" || s === "rejected" ? btn("Restore listing", { v: "primary", attrs: "data-do=restore" }) : btn("Approve listing", { v: "primary", attrs: "data-do=approve" }) + btn("Request changes", { attrs: "data-do=changes" }) + btn("Reject", { v: "danger", attrs: "data-do=reject" });
   return { title: l.title, sub: `${chipFor("listing", s)}<span>${esc(where(l))}</span>`, body, footer,
     mount(el) {
       $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
       $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
+      $("[data-proof]", el)?.addEventListener("click", async () => {
+        try {
+          const proof = await st.getDocument(l.ownershipProofDocId);
+          if (!proof || proof.category !== "ownership-proof" || proof.uid !== l.ownerUid || !proof.data) return toast("The ownership document could not be verified.", { tone: "bad" });
+          const a = document.createElement("a"); a.href = proof.data; a.download = proof.originalName || proof.name || "ownership-proof"; a.rel = "noopener"; document.body.append(a); a.click(); a.remove();
+        } catch (e) { bad(e); }
+      });
+
       $("[data-text]", el)?.addEventListener("click", () => data.safe("users").then((us) => { const u = us.find((x) => x.id === l.ownerUid); if (u) openChat(ctx, u); else toast("We couldn’t find that owner’s account.", { tone: "bad" }); }));
       $("[data-call]", el)?.addEventListener("click", () => CALLS.startCall(ctx, { to: l.ownerUid, toName: l.agent?.name || "Owner", kind: "voice", title: "Faxton team" }));
       el.querySelectorAll("[data-do]").forEach((b) => (b.onclick = () => listingAct(ctx, l, b.dataset.do, api, b)));
@@ -130,14 +139,21 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
 }
 async function listingAct(ctx, l, act, api, b) {
   try {
-    if (act === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: api.refresh }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved and is now on Faxton Rentals.` }); }
-    else if (act === "restore") await write("listings", l, { status: "active", archived: false }, { msg: "Listing restored.", after: api.refresh });
-    else if (act === "archive") await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
-    else if (act === "changes" || act === "reject") {
-      const rej = act === "reject", why = await reason({ title: rej ? "Reject this listing" : "Request changes", body: `${esc(l.title)}`, presets: REJ_PRESETS, confirmLabel: rej ? "Reject listing" : "Send request", tone: rej ? "bad" : "", helper: "This message is shown to the owner." });
+    if (act === "approve" || act === "restore") {
+      if (!l.ownershipProofDocId) return toast("This listing needs proof of ownership before it can go live.", { tone: "bad" });
+      const proof = await st.getDocument(l.ownershipProofDocId);
+      if (!proof || proof.category !== "ownership-proof" || proof.uid !== l.ownerUid) return toast("The ownership document is missing or does not belong to this listing owner.", { tone: "bad" });
+      const patch = { status: "active", archived: false, ownershipProofStatus: "verified", ownershipReviewedAt: Date.now(), ownershipReviewedBy: ctx.S.user.uid };
+      busy(b, true);
+      await write("listings", l, patch, { msg: act === "approve" ? "Listing approved." : "Listing restored.", after: api.refresh });
+      if (act === "approve") notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: l.title + " has been approved and is now on Faxton Rentals." });
+    } else if (act === "archive") {
+      await write("listings", l, { archived: true }, { msg: "Listing archived.", after: api.refresh });
+    } else if (act === "changes" || act === "reject") {
+      const rej = act === "reject", why = await reason({ title: rej ? "Reject this listing" : "Request changes", body: esc(l.title), presets: REJ_PRESETS, confirmLabel: rej ? "Reject listing" : "Send request", tone: rej ? "bad" : "", helper: "This message is shown to the owner." });
       if (!why) return;
       await write("listings", l, { status: rej ? "rejected" : "flagged", changeNote: why }, { msg: rej ? "Listing rejected." : "Changes requested. The owner has been told.", after: api.refresh });
-      notify(l.ownerUid, { kind: rej ? "rejected" : "info", title: rej ? "Listing not approved" : "Changes requested on your listing", body: `${l.title}: ${why}` });
+      notify(l.ownerUid, { kind: rej ? "rejected" : "info", title: rej ? "Listing not approved" : "Changes requested on your listing", body: l.title + ": " + why });
     }
   } catch (e) { bad(e); } finally { busy(b, false); }
 }
