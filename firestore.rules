@@ -286,14 +286,14 @@ service cloud.firestore {
           && request.resource.data.status == 'pending'
           && ownershipProofOk(request.resource.data)
           && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
-      allow update: if (isAdmin() && (request.resource.data.status != 'active' || ownershipProofOk(request.resource.data)))
+      allow update: if (isAdmin() && (request.resource.data.status != 'active' || resource.data.status == 'active' || ownershipProofOk(request.resource.data)))
         || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
           && request.resource.data.status == resource.data.status
           && request.resource.data.get('ownershipProofDocId', '') == resource.data.get('ownershipProofDocId', '')
           && request.resource.data.get('ownershipProofStatus', 'pending') == resource.data.get('ownershipProofStatus', 'pending')
           && request.resource.data.get('ownershipReviewedAt', null) == resource.data.get('ownershipReviewedAt', null)
           && request.resource.data.get('ownershipReviewedBy', null) == resource.data.get('ownershipReviewedBy', null)
-          && ownershipProofOk(request.resource.data)
+          && (resource.data.status == 'active' || ownershipProofOk(request.resource.data))
           && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
