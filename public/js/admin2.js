@@ -35,6 +35,7 @@ export async function route(ctx, sub) {
   switch (sub) {
     case "": return (await D()).overview(ctx);
     case "queue": return queue(ctx);
+    case "waitlist": return (await import("./waitlist.js")).page(ctx);
     case "listings": return listings(ctx);
     case "users": return (await import("./ax-sections.js")).usersPage(ctx);
     case "agents": return (await import("./ax-sections.js")).agents(ctx);

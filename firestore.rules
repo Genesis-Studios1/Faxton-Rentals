@@ -495,6 +495,26 @@ service cloud.firestore {
         || exists(/databases/$(database)/documents/conversations/$(request.auth.uid + '__dm_' + uid)));
     }
 
+    // Public website waitlist: visitors may submit a strictly validated entry; only authorised admins may read it.
+    function validWebsiteWaitlist(d) {
+      return d.keys().hasAll(['name', 'email', 'role', 'city', 'source', 'createdAt'])
+        && d.keys().hasOnly(['name', 'email', 'role', 'city', 'source', 'createdAt'])
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 80
+        && d.email is string && d.email.size() >= 6 && d.email.size() <= 120
+        && d.email.matches('^[^@ ]+@[^@ ]+[.][^@ .]+')
+        && d.role in ['renter', 'owner', 'agency', 'agent']
+        && d.city is string && d.city.size() >= 2 && d.city.size() <= 60
+        && d.source == 'website'
+        && d.createdAt is timestamp
+	&& d.createdAt <= request.time
+	&& d.createdAt >= request.time - duration.value(10, 'm');
+    }
+    match /waitlist/{entryId} {
+      allow create: if validWebsiteWaitlist(request.resource.data);
+      allow get, list: if isAdmin();
+      allow update, delete: if false;
+    }
+
     // Everything else is closed.
     match /{document=**} { allow read, write: if false; }
   }
