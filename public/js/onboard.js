@@ -289,7 +289,7 @@ export function setupOnboarding(ctx) {
         if (!val("agentDob") || age(val("agentDob")) < 18) return bad("You must be at least 18 to register as a professional agent.", "agentDob");
         if (val("licenceType") && val("licenceType") !== "Not registered / not applicable" && !val("licence")) return bad("Enter your professional registration number, or choose not applicable.", "licence");
       } else if (owner && val("ownerPhone").replace(/\D/g, "").length < 8) return bad("Enter a valid phone number.", "ownerPhone");
-      const requiredDocs = business ? [["doc-id", "kyc-id"], ["doc-address", "kyc-address"], ["doc-cac", "kyc-cac"]] : [["doc-id", "kyc-id"], ["doc-address", "kyc-address"]];
+      const requiredDocs = (business || agent || owner) ? (business ? [["doc-id", "kyc-id"], ["doc-address", "kyc-address"], ["doc-cac", "kyc-cac"]] : [["doc-id", "kyc-id"], ["doc-address", "kyc-address"]]) : [];
       for (const [id] of requiredDocs) {
         const file = $("#" + id, root)?.files?.[0];
         if (!file) return bad("Select every required verification document before continuing.", id);
