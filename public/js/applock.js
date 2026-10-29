@@ -9,6 +9,7 @@ export const AFTER_CHOICES = [[30, "30 seconds"], [60, "1 minute"], [120, "2 min
 export const settings = (uid) => { const v = read(uid) || {}; return { mode: MODES[v.mode] ? v.mode : "after", secs: AFTER_CHOICES.some((c) => c[0] === v.secs) ? v.secs : 30 }; };
 const setSettings = (uid, patch) => { const v = read(uid); if (v) write(uid, { ...v, ...patch }); };
 const SKEY = (uid) => "applock_s_" + uid;
+const FALLBACK_KEY = (uid) => "applock_fallback_" + uid;
 const unlockedThisLaunch = (uid) => { try { return sessionStorage.getItem(SKEY(uid)) === "1"; } catch { return false; } };
 const isApp = () => /FaxtonApp\/mobile/.test(navigator.userAgent) && !!window.Capacitor?.registerPlugin;
 let native = null;
@@ -51,12 +52,19 @@ function lockScreen(user, logout) {
   // Opening the app: the Faxton splash plays first, and the lock waits underneath it (so nothing of the app shows when the splash leaves).
   const sp = document.getElementById("splash"), waitSplash = !!sp && sp.isConnected && !document.documentElement.classList.contains("no-splash");
   const el = document.createElement("div"); el.className = "lk-ov" + (waitSplash ? " lk-wait" : " lk-fade"); el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Locked");
-  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkOut">Sign out instead</button></div>`;
+  el.innerHTML = `<div class="lk-card"><span class="lk-logo">${logoMark()}</span><h1>Faxton Rentals is locked</h1><p>Use your fingerprint, face or screen lock to continue.</p><button type="button" class="btn primary lk-go" id="lkGo">${icon("lock", 20)} Unlock</button><p class="lk-err" id="lkErr" role="alert"></p><button type="button" class="lk-out" id="lkFallback">Use another sign-in method</button><button type="button" class="lk-out" id="lkOut">Sign out and turn off app lock</button></div>`;
   document.querySelectorAll("dialog[open]").forEach((d) => { try { d.close(); } catch {} }); // an open dialog would make the lock screen unclickable
   document.body.append(el); document.documentElement.classList.add("locked");
   const done = () => { el.remove(); showing = false; unlockedAt = Date.now(); hiddenAt = 0; try { sessionStorage.setItem(SKEY(user.uid), "1"); } catch {} document.documentElement.classList.remove("locked"); document.dispatchEvent(new Event("applock-open")); };
   const go = async () => { $("#lkErr", el).textContent = ""; try { await challenge(user, "Unlock Faxton Rentals"); done(); } catch (e) { if (e.message !== "cancelled") $("#lkErr", el).textContent = e.message; } };
-  $("#lkGo", el).onclick = go; $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
+  $("#lkGo", el).onclick = go;
+  $("#lkFallback", el).onclick = async () => {
+    const fallback = $("#lkFallback", el); fallback.disabled = true;
+    try { sessionStorage.setItem(FALLBACK_KEY(user.uid), "1"); } catch {}
+    armed = null; hiddenAt = 0; el.remove(); showing = false; document.documentElement.classList.remove("locked");
+    await logout();
+  };
+  $("#lkOut", el).onclick = async () => { disable(user.uid); done(); await logout(); };
   if (!waitSplash) return void setTimeout(go, 250);
   let freed = false;
   const free = () => { if (freed || !el.isConnected) return; freed = true; el.classList.remove("lk-wait"); setTimeout(go, 300); };
@@ -65,8 +73,12 @@ function lockScreen(user, logout) {
 }
 // Call after sign-in: locks now (the app was just opened), then again as the chosen option says.
 export function arm(user, logout) {
+  let alternateSignIn = false;
+  if (user?.uid) {
+    try { alternateSignIn = sessionStorage.getItem(FALLBACK_KEY(user.uid)) === "1"; if (alternateSignIn) sessionStorage.removeItem(FALLBACK_KEY(user.uid)); } catch {}
+  }
   armed = enabled(user?.uid) ? { user, logout } : null;
-  if (armed && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
+  if (armed && !alternateSignIn && !(settings(user.uid).mode === "session" && unlockedThisLaunch(user.uid))) lockScreen(user, logout);
   if (!arm.wired) {
     arm.wired = true;
     document.addEventListener("visibilitychange", () => {
