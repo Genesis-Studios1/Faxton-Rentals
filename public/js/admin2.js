@@ -118,12 +118,20 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
     ${section("Media", `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>${imgs.length} photo${imgs.length === 1 ? "" : "s"}, ${(l.videos || []).length} video${(l.videos || []).length === 1 ? "" : "s"}</span>${btn("Photos and videos", { size: "sm", ic: "img", attrs: "data-media" })}</div>`)}
     ${section("Owner", `<div class="ax-id" data-owner>${avatar(l.agent?.name, l.ownerUid || l.agent?.id, 36, l.agent?.photo || l.agent?.avatar)}<div><b>${esc(l.agent?.name || "Faxton")}</b><small data-ownersub>${l.ownerUid ? "Property owner account" : "Added by the Faxton team"}</small></div></div>${l.ownerUid ? `<div style="display:flex;gap:8px;margin-top:10px">${btn("Text", { size: "sm", ic: "msg", attrs: "data-text" })}${btn("Call", { size: "sm", ic: "phone", attrs: "data-call" })}</div>` : ""}`)}
     ${section("Ownership evidence", l.ownershipProofDocId ? ('<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="ax-muted">' + (l.ownershipProofStatus === "verified" ? "Proof reviewed" : "Submitted · review before approval") + '</span>' + btn("Download proof", { size: "sm", ic: "download", attrs: "data-proof" }) + '</div>') : '<p class="ax-sub">No ownership proof is attached. This listing cannot be approved until ownership evidence is submitted and reviewed.</p>')}
+    ${section("Ownership evidence", l.ownershipProofDocId ? ('<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><span class="ax-muted">' + (l.ownershipProofStatus === "verified" ? "Proof reviewed" : "Submitted · review before approval") + '</span>' + btn("Download proof", { size: "sm", ic: "download", attrs: "data-proof" }) + '</div>') : '<p class="ax-sub">No ownership proof is attached. This listing cannot be approved until ownership evidence is submitted and reviewed.</p>')}
     ${section("History", timeline([{ title: "Submitted", meta: fmt.dateTime(l.createdAt) }, ...(s === "active" ? [{ title: "Live on Faxton", meta: "Approved" }] : []), ...(s === "flagged" ? [{ title: "Changes requested", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "rejected" ? [{ title: "Rejected", text: l.changeNote || "", tone: "bad" }] : []), ...(s === "archived" ? [{ title: "Archived", tone: "mute" }] : [])]))}</div>`;
   const footer = viewOnly ? "" : s === "active" ? btn("Archive listing", { v: "outline", attrs: "data-do=archive" }) + (l.status === "active" ? btn("View live page", { v: "ghost", href: "#/home/" + encodeURIComponent(l.id) }) : "") : s === "archived" || s === "rejected" ? btn("Restore listing", { v: "primary", attrs: "data-do=restore" }) : btn("Approve listing", { v: "primary", attrs: "data-do=approve" }) + btn("Request changes", { attrs: "data-do=changes" }) + btn("Reject", { v: "danger", attrs: "data-do=reject" });
   return { title: l.title, sub: `${chipFor("listing", s)}<span>${esc(where(l))}</span>`, body, footer,
     mount(el) {
       $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
       $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
+      $("[data-proof]", el)?.addEventListener("click", async () => {
+        try {
+          const proof = await st.getDocument(l.ownershipProofDocId);
+          if (!proof || proof.category !== "ownership-proof" || proof.uid !== l.ownerUid || !proof.data) return toast("The ownership document could not be verified.", { tone: "bad" });
+          const a = document.createElement("a"); a.href = proof.data; a.download = proof.originalName || proof.name || "ownership-proof"; a.rel = "noopener"; document.body.append(a); a.click(); a.remove();
+        } catch (e) { bad(e); }
+      });
       $("[data-proof]", el)?.addEventListener("click", async () => {
         try {
           const proof = await st.getDocument(l.ownershipProofDocId);
