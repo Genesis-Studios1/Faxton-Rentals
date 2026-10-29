@@ -325,13 +325,13 @@ export function setupPage(ctx) {
     if(other) other.value=profile.referralOther || "";
     const syncOther=()=>{ if(otherWrap) otherWrap.hidden=source.value!=="Other"; };
     source.addEventListener("change",syncOther); syncOther();
-    if(isBusiness && Array.isArray(profile.businessTypes)) $('#obp-form input[name="businessType"]',root).forEach(i=>i.checked=profile.businessTypes.includes(i.value));
+    if(isBusiness && Array.isArray(profile.businessTypes)) $$('#obp-form input[name="businessType"]',root).forEach(i=>i.checked=profile.businessTypes.includes(i.value));
     const say=(message)=>{err.textContent=message||"";};
     form.onsubmit=async(e)=>{
       e.preventDefault(); if(submit.disabled) return;
       say("");
       const v=Object.fromEntries(new FormData(form));
-      const selectedTypes=$('#obp-form input[name="businessType"]:checked',root).map(i=>i.value);
+      const selectedTypes=$$('#obp-form input[name="businessType"]:checked',root).map(i=>i.value);
       const residence=loc?.commit?.() || {};
       const bad=(id,msg)=>{const input=$("#"+id,root); if(input){input.setAttribute("aria-invalid","true");input.focus();} say(msg); return false;};
       if(!source.value) return bad("referralSource","Choose where you heard about Faxton Rentals.");
