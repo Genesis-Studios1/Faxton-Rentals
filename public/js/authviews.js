@@ -3,11 +3,12 @@
 // ids #f #err #email #password #name #terms #remember #forgot #google #avBtn #avFile, [data-role] tabs, the signupDraft in sessionStorage.
 import { $, $$, esc, icon, logoMark } from "./ui.js";
 import { GOOGLE, EMAIL_RE, authErr, strength, fieldHtml, fieldError } from "./authkit.js";
-import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence, mountResidence } from "./onboard.js";
+import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence, mountResidence, setupOnboarding } from "./onboard.js";
+export { setupOnboarding };
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
-const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Run your agency’s listings, agents and clients.", agent: "Follow up leads, clients and your listings." };
+const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Manage your business listings, services, agents and clients.", agent: "Follow up leads, clients and your listings." };
 const safeGet = (k, s = sessionStorage) => { try { return s.getItem(k); } catch { return null; } };
 const safeSet = (k, v, s = sessionStorage) => { try { s.setItem(k, v); } catch {} };
 const logoLink = (cls = "", href = "#/") => `<a class="${cls}" href="${href}" aria-label="Faxton Rentals">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
