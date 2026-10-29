@@ -44,7 +44,9 @@ service cloud.firestore {
         && (!('privacy' in d) || d.privacy is map)
         && (!('lastActive' in d) || d.lastActive is timestamp)
         && (!('provider' in d) || short(d.provider, 20))
-        && (!('emailVerified' in d) || d.emailVerified is bool);
+        && (!('emailVerified' in d) || d.emailVerified is bool)
+        && (!('referralSource' in d) || short(d.referralSource, 40))
+        && (!('onboarding' in d) || (d.onboarding is map && d.onboarding.get('completed', false) is bool));
     }
 
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
@@ -106,13 +108,15 @@ service cloud.firestore {
       // Agencies and agents register with business details and start unverified (an admin verifies them).
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.role in ['renter', 'agent', 'landlord', 'agency']
-        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification', 'onboarding', 'referralSource'])
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500 && profileOk(request.resource.data)
         && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency']))
         && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
-        && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
+        && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20)
+        && (!('onboarding' in request.resource.data) || (request.resource.data.onboarding is map && request.resource.data.onboarding.get('completed', false) == false))
+        && (!('referralSource' in request.resource.data) || short(request.resource.data.referralSource, 40));
       // Users edit their own profile but never role, email, ban or verification. The owner can change anything;
       // an admin can ban or unban non-owners and verify agents and agencies, nothing else.
       allow update: if signedIn() && (
@@ -122,12 +126,21 @@ service cloud.firestore {
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
           && request.resource.data.get('verification', null) == resource.data.get('verification', null)
-          && request.resource.data.get('agency', null) == resource.data.get('agency', null)
-          && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+          && (request.resource.data.get('onboarding', resource.data.get('onboarding', {})) == resource.data.get('onboarding', {})
+              || (resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).get('completed', false) == true))
+          && (request.resource.data.get('agency', null) == resource.data.get('agency', null)
+              || (resource.data.get('onboarding', {}).get('completed', false) == false
+                  && resource.data.role == 'agency' && request.resource.data.get('agency', null) is map
+                  && request.resource.data.agency.size() <= 20))
+          && (request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+              || (resource.data.get('onboarding', {}).get('completed', false) == false
+                  && resource.data.role == 'agent' && request.resource.data.get('agentInfo', null) is map
+                  && request.resource.data.agentInfo.size() <= 20))
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding', 'referralSource'])
           && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
