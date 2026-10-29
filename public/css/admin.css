@@ -827,3 +827,58 @@ select.ax-input{appearance:none;padding-right:34px;background:var(--ax-surface) 
 @media(prefers-reduced-motion:reduce){
   .ax-card.ax-wl-stat,.ax-wl-table tbody tr{transition:none}
 }
+
+
+/* ---------- waitlist refresh: responsive stats, row actions and reliable pagination ---------- */
+.ax-wl-stats{grid-template-columns:repeat(5,minmax(0,1fr))}
+.ax-wl-stat-icon[data-tone=violet]{background:#eee9ff;color:#6a45bc}
+.ax-wl-stat-icon[data-tone=teal]{background:#dff6ef;color:#087c63}
+.ax-wl-activity{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--ax-border);border-radius:12px;background:var(--ax-surface)}
+.ax-wl-activity-icon{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:var(--ax-tint);color:var(--ax-primary)}
+.ax-wl-activity>span:last-child{display:grid;gap:2px;min-width:0}
+.ax-wl-activity b{color:var(--ax-head);font-size:12px;font-weight:650}
+.ax-wl-activity small{color:var(--ax-muted);font-size:11px}
+.ax-wl-toolbar{grid-template-columns:minmax(200px,1.5fr) minmax(125px,.7fr) minmax(125px,.7fr) minmax(125px,.7fr) auto}
+.ax-wl-source-tag{display:inline-flex;align-items:center;min-height:24px;padding:4px 8px;border:1px solid var(--ax-border);border-radius:999px;background:var(--ax-surface-2);color:var(--ax-muted);font-size:11px;font-weight:600;white-space:nowrap}
+.ax-wl-actions-cell{text-align:right!important}
+.ax-wl-row-actions{display:flex;justify-content:flex-end;align-items:center;gap:5px}
+.ax-wl-row-action{display:inline-grid;place-items:center;width:32px;height:32px;flex:none;border:1px solid var(--ax-border);border-radius:9px;background:var(--ax-surface);color:var(--ax-muted);text-decoration:none;cursor:pointer}
+.ax-wl-row-action:hover{border-color:var(--ax-primary);background:var(--ax-tint);color:var(--ax-primary)}
+.ax-wl-row-action:disabled{opacity:.4;cursor:not-allowed}
+.ax-wl-pagination{display:flex;align-items:center;gap:8px}
+.ax-wl-pagination label{color:var(--ax-muted);font-size:11px}
+.ax-wl-pagination .ax-input{width:64px;min-width:64px;height:32px;padding:4px 7px}
+.ax-wl-pagination .ax-btn{display:inline-grid;place-items:center;width:32px;min-width:32px;height:32px;padding:0}
+.ax-wl-pagination #wlPrev .ic{transform:rotate(180deg)}
+.ax-wl-pagination #wlPageState{min-width:34px;text-align:center;color:var(--ax-muted);font-size:11px;font-variant-numeric:tabular-nums}
+.ax-wl .ax-btn:disabled,.ax-wl .ax-input:disabled{opacity:.5;cursor:not-allowed}
+.ax-wl-no-results[hidden],.ax-wl-table-scroll[hidden]{display:none!important}
+@media(max-width:1250px){
+  .ax-wl-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ax-wl-toolbar{grid-template-columns:minmax(180px,1.4fr) repeat(2,minmax(130px,.8fr))}
+  .ax-wl-filter:nth-of-type(4){grid-column:2}
+  .ax-wl-actions{grid-column:1/-1;justify-content:flex-end}
+}
+@media(max-width:899px){
+  .ax-wl .ax-wl-table{display:block;width:100%;min-width:0}
+  .ax-wl .ax-wl-table tbody tr{position:relative;padding:15px;gap:11px}
+  .ax-wl .ax-wl-table td.ax-wl-actions-cell{display:flex;justify-content:flex-end;align-items:center}
+  .ax-wl .ax-wl-table td.ax-wl-actions-cell::before{margin-right:auto}
+  .ax-wl .ax-wl-row-actions{justify-content:flex-start}
+  .ax-wl-panel-foot{gap:12px}
+  .ax-wl-pagination{flex-wrap:wrap}
+}
+@media(max-width:720px){
+  .ax-wl-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ax-card.ax-wl-stat{min-width:0;gap:10px;padding:12px}
+  .ax-wl-stat-icon{width:36px;height:36px}
+  .ax-wl-stat-copy>strong{font-size:22px;line-height:27px}
+  .ax-wl-stat-copy>small{font-size:10px;overflow-wrap:anywhere}
+  .ax-wl-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .ax-wl-filter:nth-of-type(4){grid-column:auto}
+  .ax-wl-actions{grid-column:1/-1;display:flex}
+  .ax-wl-actions .ax-btn{height:auto;min-height:40px;padding:8px;white-space:normal}
+  .ax-wl-activity{align-items:flex-start}
+  .ax-wl-panel-foot{align-items:flex-start;flex-direction:column}
+  .ax-wl-pagination{width:100%;justify-content:flex-start}
+}
