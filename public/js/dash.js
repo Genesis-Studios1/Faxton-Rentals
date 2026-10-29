@@ -9,6 +9,7 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { listingState, isPendingL, roleOf, emailPending } from "./admin2.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+const fileAsDataUrl = (file) => new Promise((resolve, reject) => { const r = new FileReader(); r.onerror = () => reject(new Error("Could not read the ownership document.")); r.onload = () => typeof r.result === "string" ? resolve(r.result) : reject(new Error("Could not read the ownership document.")); r.readAsDataURL(file); });
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, csv, pageView, pageHead, kpi, mini, attn, spark, areaChart, barChart, donut, rank, progress, pctDelta, mountCharts, animateCounts, bulkRun, ms, staffFlags } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -279,6 +280,7 @@ export function addProperty(ctx, done) {
     <label class="ax-field"><span>Agency fee (₦, blank is 10%)</span><input class="ax-input" name="agencyFee" type="number" min="0" placeholder="Leave blank for 10%"></label><label class="ax-field"><span>Legal fee (₦, blank is 5%)</span><input class="ax-input" name="legalFee" type="number" min="0" placeholder="Leave blank for 5%"></label>
     <div class="ax-field full"><span>Features</span><div class="ax-am">${amen.map((a) => `<label><input type="checkbox" name="am" value="${a}"> ${a}</label>`).join("")}</div></div>
     <label class="ax-field full"><span>Floor plan link (optional)</span><input class="ax-input" name="floorPlan" type="url" placeholder="https://…"></label>
+    <label class="ax-field full"><span>Proof of property ownership or authority (required)</span><input class="ax-input" name="ownershipProof" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" required><small class="ax-muted">Upload a title, deed, approved ownership record or written authority to list this specific property. PDF or image up to 550 KB. This is reviewed before the listing can go live.</small></label>
     <label class="ax-field full"><span>Description</span><textarea class="ax-input" name="desc" rows="3" maxlength="800"></textarea></label>
     <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px">${btn("Set location on map", { size: "sm", ic: "pin", attrs: "id=npLoc" })}<span class="ax-muted" id="npLocT">Not set yet</span></div></div>
     <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label><label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
@@ -290,14 +292,22 @@ export function addProperty(ctx, done) {
     if (!f.title.trim()) return (err.textContent = "Add a title."); { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
     const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
+    const proof = f.ownershipProof;
+    if (!proof || !proof.size) return (err.textContent = "Upload proof of ownership or authority to list this property.");
+    if (proof.size > 550 * 1024) return (err.textContent = "The ownership document must be 550 KB or smaller.");
+    if (!/^(application\/pdf|image\/(jpeg|png|webp))$/i.test(proof.type || "")) return (err.textContent = "Use a PDF, JPG, PNG or WebP ownership document.");
     const im = ln(f.im), vd = ln(f.vd);
     if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const imgs = im.slice(0, 20); if (!imgs.length) imgs.push("img/palm-court.webp");
     const u = ctx.S.user, id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4); busy(e.currentTarget, true);
+    let proofDocId = "";
     try {
-      await st.createListing({ id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
+      const proofData = await fileAsDataUrl(proof);
+      const proofDoc = await st.addDocument(u, { name: proof.name.slice(0, 160), originalName: proof.name.slice(0, 160), size: proof.size, data: proofData, category: "ownership-proof", title: f.title.trim().slice(0, 160), propertyAddress: [P.area, P.city, P.state, P.country].filter(Boolean).join(", ").slice(0, 200) });
+      proofDocId = proofDoc.id;
+      await st.createListing({ id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", ownershipProofDocId: proofDocId, ownershipProofStatus: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
       data.invalidate("listings"); d.close(); toast("Property submitted for review."); done?.();
-    } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
+    } catch (x) { if (proofDocId) await st.removeDocument(proofDocId).catch(() => {}); err.textContent = fe(x); busy(e.currentTarget, false); }
   };
 }
 
