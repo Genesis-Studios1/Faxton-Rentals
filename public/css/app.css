@@ -1945,3 +1945,36 @@ dialog.nodismiss .close{display:none!important}
 @media (max-width:640px){.mh-tbl td,.mh-tbl th{white-space:normal}.sf-choices{min-height:40px}}
 .day:disabled{color:#7f8b86}
 .stat4 b{display:block}.stat4 .btn{display:inline-flex}
+
+
+/* ---------- main website option in the download dialog ---------- */
+.dlx-webcard{margin-top:16px;padding:16px;border:1px solid rgba(110,231,183,.25);border-radius:16px;background:rgba(255,255,255,.045)}
+.dlx-web-main{display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;gap:14px}
+.dlx-web-icon{display:grid;place-items:center;width:46px;height:46px;border:1px solid rgba(110,231,183,.3);border-radius:13px;background:rgba(52,211,153,.14);color:#6ee7b7}
+.dlx-web-copy{display:grid;gap:3px;min-width:0}
+.dlx-web-eyebrow{color:#6ee7b7;font-size:.64rem;font-weight:800;letter-spacing:.13em}
+.dlx-web-copy>b{color:#fff;font-size:.96rem;font-weight:700;line-height:1.35}
+.dlx-web-copy>p{margin:0;color:#a9d4c3;font-size:.8rem;line-height:1.5;max-width:46ch}
+.dlx-web-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-wrap:wrap}
+.dlx-web-install,.dlx-web-open{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 12px;border:1px solid rgba(110,231,183,.34);border-radius:10px;color:#fff;font:600 .8rem/1 var(--font-body);text-decoration:none;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s}
+.dlx-web-install{background:#0f6b4f}
+.dlx-web-install:hover{background:#13926f;border-color:#6ee7b7}
+.dlx-web-install:disabled{opacity:.6;cursor:wait}
+.dlx-web-open{background:rgba(255,255,255,.045)}
+.dlx-web-open:hover{background:rgba(255,255,255,.12);border-color:rgba(110,231,183,.6)}
+.dlx-web-guidance{margin-top:12px;padding-top:10px;border-top:1px solid rgba(110,231,183,.15)}
+.dlx-web-how{display:inline-flex;align-items:center;gap:6px;padding:4px 0;border:0;background:none;color:#a9d4c3;font:500 .76rem/1.4 var(--font-body);cursor:pointer;text-align:left}
+.dlx-web-how:hover{color:#fff}
+.dlx-web-how .ic{flex:none}
+.dlx-web-guide{margin:8px 0 0;padding:10px 12px;border:1px solid rgba(110,231,183,.19);border-radius:10px;background:rgba(0,0,0,.12);color:#dff3ea;font-size:.8rem;line-height:1.55}
+.dlx-web-guide[hidden]{display:none}
+@media(max-width:760px){
+  .dlx-webcard{margin-top:12px;padding:13px}
+  .dlx-web-main{grid-template-columns:42px minmax(0,1fr);gap:10px}
+  .dlx-web-icon{width:42px;height:42px}
+  .dlx-web-actions{grid-column:1/-1;justify-content:stretch}
+  .dlx-web-install,.dlx-web-open{flex:1;min-height:42px}
+}
+@media(prefers-reduced-motion:reduce){
+  .dlx-web-install,.dlx-web-open{transition:none}
+}
