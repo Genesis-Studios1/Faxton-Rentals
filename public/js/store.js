@@ -63,6 +63,17 @@ export const myApplications = (u) => mine("applications", u);
 export const myDocs = (u) => mine("documents", u);
 export const addDocument = (u, d) => addDoc(collection(db, "documents"), { ...d, uid: u.uid, status: "Uploaded", createdAt: serverTimestamp() });
 export const removeDocument = (id) => deleteDoc(doc(db, "documents", id));
+/** Private KYC/ownership documents for the signed-in user or the admin review queue. */
+export async function verificationDocs(uid) {
+  if (!uid) return [];
+  try {
+    const snap = await getDocs(query(collection(db, "documents"), where("uid", "==", uid)));
+    return snap.docs
+      .map((d) => ({ ...d.data(), id: d.id }))
+      .filter((d) => ["kyc-id", "kyc-address", "kyc-cac", "ownership-proof"].includes(d.category));
+  } catch { return []; }
+}
+
 
 // ---- support tickets ----
 export const myTickets = (u) => mine("tickets", u);
