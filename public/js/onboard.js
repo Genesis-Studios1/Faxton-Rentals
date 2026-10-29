@@ -1,6 +1,6 @@
 import * as profileStore from "./store.js";
 // Sign-up extras for agencies and agents: the business details form and the "verification is on its way" pop-ups.
-import { $, esc, icon, modal } from "./ui.js";
+import { $, esc, icon, modal, logoMark } from "./ui.js";
 import { locFields, mountLoc, NIGERIA } from "./loc.js";
 import { fieldHtml } from "./authkit.js";
 
