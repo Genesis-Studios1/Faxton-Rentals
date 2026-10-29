@@ -126,7 +126,7 @@ function detectGroup() {
   const ua = navigator.userAgent;
   return /Android/i.test(ua) ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "ios" : /Windows/i.test(ua) ? "windows" : /Mac/i.test(ua) ? "mac" : /Linux|X11/i.test(ua) ? "linux" : "";
 }
-const cardsHtml = (hot) => GROUPS.map((g) => `<article class="dlx-card ${g.id === hot ? "hot" : ""}" data-g="${g.id}"><button type="button" class="dlx-head" aria-expanded="false" aria-label="${esc(g.name)} downloads">${gIcon(g)}<span class="dlx-t"><b>${esc(g.name)}</b><small>${esc(g.sub)}</small></span><span class="dlx-btn">${icon("download", 16)} ${g.id === "ios" ? "Install" : "Download"}</span><span class="dlx-chev">${icon("chev", 18)}</span></button></article>`).join("");
+const cardsHtml = (hot) => GROUPS.map((g) => `<article class="dlx-card ${g.id === hot ? "hot" : ""}" data-g="${g.id}"><button type="button" class="dlx-head" aria-expanded="false" aria-label="${esc(g.id === "website" ? "Main website options" : g.name + " downloads")}">${gIcon(g)}<span class="dlx-t"><b>${esc(g.name)}</b><small>${esc(g.sub)}</small></span><span class="dlx-btn">${icon("download", 16)} ${g.id === "ios" ? "Install" : g.id === "website" ? "Open" : "Download"}</span><span class="dlx-chev">${icon("chev", 18)}</span></button></article>`).join("");
 function websiteInstallGuide() {
   const ua = navigator.userAgent;
   if (/iPhone|iPad|iPod/i.test(ua)) {
