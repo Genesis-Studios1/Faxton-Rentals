@@ -5,6 +5,8 @@ import * as st from "./store.js";
 import { app } from "./firebase.js";
 
 const REPO = "musazaneerah4-crypto/Faxton-Rentals-Downloads";
+// Release v1.2.0 uses Electron Builder's default Linux x64 name (x86_64). Accept it as the x64 AppImage.
+const ASSET_ALIASES = { linux_x64: ["Faxton-Rentals-Linux-x64.AppImage", "Faxton-Rentals-Linux-x86_64.AppImage"] };
 export const PLATFORMS = [
   ["android", "Android · APK", "phone", "Faxton-Rentals-Android.apk", "Open the file on your phone and allow “install unknown apps” when asked."],
   ["android_x64", "Android · APK x64", "phone", "Faxton-Rentals-Android-x64.apk", "For Intel/x86 Android devices, Chromebooks and emulators."],
@@ -94,7 +96,7 @@ async function githubLatest() {
   const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } });
   if (!r.ok) throw new Error("No GitHub release yet");
   const j = await r.json();
-  return { version: String(j.tag_name || "").replace(/^v/, ""), notes: j.body || "", files: Object.fromEntries(PLATFORMS.map(([k, , , name]) => { const a = (j.assets || []).find((x) => x.name === name); return [k, a ? { url: a.browser_download_url, name: a.name, size: a.size, source: "github" } : null]; }).filter(([, v]) => v)) };
+  return { version: String(j.tag_name || "").replace(/^v/, ""), notes: j.body || "", files: Object.fromEntries(PLATFORMS.map(([k, , , name]) => { const a = (j.assets || []).find((x) => x.name === name) || (ASSET_ALIASES[k] || []).map((alias) => (j.assets || []).find((x) => x.name === alias)).find(Boolean); return [k, a ? { url: a.browser_download_url, name: a.name, size: a.size, source: "github" } : null]; }).filter(([, v]) => v)) };
 }
 async function uploadInstaller(file, version, onProgress) {
   const { getStorage, ref, uploadBytesResumable, getDownloadURL } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js");
