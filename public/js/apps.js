@@ -138,24 +138,24 @@ function websiteInstallGuide() {
 }
 function websiteOptionHtml(ctx) {
   const canInstall = Boolean(ctx?.canInstall?.());
-  return \`<section class="dlx-webcard" aria-label="Main Faxton Rentals website">
+  return `<section class="dlx-webcard" aria-label="Main Faxton Rentals website">
     <div class="dlx-web-main">
-      <span class="dlx-web-icon">\${icon("monitor", 22)}</span>
+      <span class="dlx-web-icon">${icon("monitor", 22)}</span>
       <div class="dlx-web-copy">
         <span class="dlx-web-eyebrow">MAIN WEBSITE</span>
         <b>Use Faxton Rentals in your browser</b>
         <p>Browse homes on the full website, or add a quick-access icon to your device.</p>
       </div>
       <div class="dlx-web-actions">
-        \${canInstall ? \`<button type="button" class="dlx-web-install" data-install-website>\${icon("download", 16)}<span>Install website</span></button>\` : ""}
-        <a class="dlx-web-open" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">\${icon("ext", 16)}<span>Open website</span></a>
+        ${canInstall ? `<button type="button" class="dlx-web-install" data-install-website>${icon("download", 16)}<span>Install website</span></button>` : ""}
+        <a class="dlx-web-open" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">${icon("ext", 16)}<span>Open website</span></a>
       </div>
     </div>
     <div class="dlx-web-guidance">
-      <button type="button" class="dlx-web-how" data-web-how aria-expanded="false">\${icon("info", 15)} How to add the website to your device</button>
-      <p class="dlx-web-guide" data-web-guide hidden>\${websiteInstallGuide()}</p>
+      <button type="button" class="dlx-web-how" data-web-how aria-expanded="false">${icon("info", 15)} How to add the website to your device</button>
+      <p class="dlx-web-guide" data-web-guide hidden>${websiteInstallGuide()}</p>
     </div>
-  </section>\`;
+  </section>`;
 }
 const sheetHtml = (g, rel) => `<div class="dlx-sheet" role="group" aria-label="${esc(g.title)}"><header><b>${esc(g.title)}</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header>${g.opts.map(([k, tag, name, sub]) => {
   const f = k.startsWith("#") ? { url: "#" } : rel?.files?.[k];
