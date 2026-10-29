@@ -22,10 +22,10 @@ export function page(ctx) {
     eyebrow: "Growth",
     sub: "People who joined the waitlist from the Faxton Rentals website.",
     what: "the website waitlist",
-    cols: [{ key: "waitlist", source: async () => {
+    cols: [["waitlist", async () => {
       const snap = await getDocs(query(collection(db, "waitlist"), orderBy("createdAt", "desc")));
       return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    }}],
+    }]],
     render: ({ waitlist }) => {
       const rows = Array.isArray(waitlist) ? waitlist : [];
       const cities = new Set(rows.map(r => String(r.city || "").trim()).filter(Boolean));
