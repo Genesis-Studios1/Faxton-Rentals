@@ -191,32 +191,6 @@ export async function openDownloadModal(ctx = {}) {
   let rel;
   loadRelease().then((r) => { rel = r || undefined; if (!r) relP = null; });
   const closeSheet = wirePicker(ov, () => rel, ctx);
-  const installWeb = $("[data-install-website]", ov);
-  const webGuide = $("[data-web-guide]", ov);
-  const webHow = $("[data-web-how]", ov);
-  if (webHow && webGuide) webHow.onclick = () => {
-    webGuide.hidden = !webGuide.hidden;
-    webHow.setAttribute("aria-expanded", String(!webGuide.hidden));
-    if (!webGuide.hidden) webGuide.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
-  };
-  if (installWeb) installWeb.onclick = async () => {
-    installWeb.disabled = true;
-    try {
-      const opened = await ctx.installApp?.();
-      if (opened) toast("Your browser's website-install prompt opened. Follow it to finish.");
-      else {
-        if (webGuide) webGuide.hidden = false;
-        if (webHow) webHow.setAttribute("aria-expanded", "true");
-        toast("One-tap install is unavailable here. Use the instructions below.");
-      }
-    } catch {
-      if (webGuide) webGuide.hidden = false;
-      if (webHow) webHow?.setAttribute("aria-expanded", "true");
-      toast("Use the instructions below to add the website.", { tone: "bad" });
-    } finally {
-      installWeb.disabled = false;
-    }
-  };
   const shut = () => { ov.classList.add("out"); document.documentElement.classList.remove("dlx-lock"); document.removeEventListener("keydown", key); setTimeout(() => ov.remove(), 180); };
   const key = (e) => { if (e.key === "Escape") { if ($(".dlx-sheet", ov)) closeSheet(); else shut(); } };
   document.addEventListener("keydown", key);
