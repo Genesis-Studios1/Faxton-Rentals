@@ -63,6 +63,7 @@ export const myApplications = (u) => mine("applications", u);
 export const myDocs = (u) => mine("documents", u);
 export const addDocument = (u, d) => addDoc(collection(db, "documents"), { ...d, uid: u.uid, status: "Uploaded", createdAt: serverTimestamp() });
 export const removeDocument = (id) => deleteDoc(doc(db, "documents", id));
+export async function getDocument(id) { if (!id) return null; const snap = await getDoc(doc(db, "documents", id)); return snap.exists() ? { ...snap.data(), id: snap.id } : null; }
 /** Private KYC/ownership documents for the signed-in user or the admin review queue. */
 export async function verificationDocs(uid) {
   if (!uid) return [];
