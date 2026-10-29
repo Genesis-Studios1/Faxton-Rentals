@@ -126,6 +126,37 @@ function detectGroup() {
   return /Android/i.test(ua) ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "ios" : /Windows/i.test(ua) ? "windows" : /Mac/i.test(ua) ? "mac" : /Linux|X11/i.test(ua) ? "linux" : "";
 }
 const cardsHtml = (hot) => GROUPS.map((g) => `<article class="dlx-card ${g.id === hot ? "hot" : ""}" data-g="${g.id}"><button type="button" class="dlx-head" aria-expanded="false" aria-label="${esc(g.name)} downloads">${gIcon(g)}<span class="dlx-t"><b>${esc(g.name)}</b><small>${esc(g.sub)}</small></span><span class="dlx-btn">${icon("download", 16)} ${g.id === "ios" ? "Install" : "Download"}</span><span class="dlx-chev">${icon("chev", 18)}</span></button></article>`).join("");
+function websiteInstallGuide() {
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return "On your iPhone or iPad, open this site in Safari, tap Share, then choose Add to Home Screen.";
+  }
+  if (/Android/i.test(ua)) {
+    return "On Android, open this site in Chrome, tap the three-dot menu, then choose Install app or Add to Home Screen.";
+  }
+  return "On your computer, look for the install icon in your browser's address bar or open the browser menu and choose Install Faxton Rentals. If that option is unavailable, bookmark the website for quick access.";
+}
+function websiteOptionHtml(ctx) {
+  const canInstall = Boolean(ctx?.canInstall?.());
+  return `<section class="dlx-webcard" aria-label="Main Faxton Rentals website">
+    <div class="dlx-web-main">
+      <span class="dlx-web-icon">${icon("monitor", 22)}</span>
+      <div class="dlx-web-copy">
+        <span class="dlx-web-eyebrow">MAIN WEBSITE</span>
+        <b>Use Faxton Rentals in your browser</b>
+        <p>Browse homes on the full website, or add a quick-access icon to your device.</p>
+      </div>
+      <div class="dlx-web-actions">
+        ${canInstall ? `<button type="button" class="dlx-web-install" data-install-website>${icon("download", 16)}<span>Install website</span></button>` : ""}
+        <a class="dlx-web-open" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">${icon("arrow", 16)}<span>Open website</span></a>
+      </div>
+    </div>
+    <div class="dlx-web-guidance">
+      <button type="button" class="dlx-web-how" data-web-how aria-expanded="false">${icon("info", 15)} How to add the website to your device</button>
+      <p class="dlx-web-guide" data-web-guide hidden>${websiteInstallGuide()}</p>
+    </div>
+  </section>`;
+}
 const sheetHtml = (g, rel) => `<div class="dlx-sheet" role="group" aria-label="${esc(g.title)}"><header><b>${esc(g.title)}</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header>${g.opts.map(([k, tag, name, sub]) => {
   const f = k.startsWith("#") ? { url: "#" } : rel?.files?.[k];
   const inner = `<span class="dlx-file">${tag}</span><span class="dlx-ot"><b>${esc(name)}</b><small>${esc(f ? sub : rel ? "Not available yet" : "Couldn’t reach the download server")}</small></span>${f ? icon("chev", 16) : ""}`;
@@ -148,16 +179,42 @@ function wirePicker(root, get) {
   });
   return close;
 }
-export async function openDownloadModal() {
+export async function openDownloadModal(ctx = {}) {
   if ($(".dlx-ov")) return;
-  const ov = document.createElement("div"); ov.className = "dlx-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Get the Faxton Rentals app");
+  const ov = document.createElement("div"); ov.className = "dlx-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Get Faxton Rentals app or website");
   ov.innerHTML = `<div class="dlx-box"><button type="button" class="dlx-close" aria-label="Close">${icon("x", 20)}</button>
-    <div class="dlx-top"><div class="dlx-copy"><div class="dlx-brand"><img src="assets/mark.svg" alt="" width="34" height="30"><span><b>Faxton</b> Rentals</span></div><div class="dlx-eye">Get Faxton Rentals everywhere</div><h2>Start exploring on your device.</h2><p>Download the Faxton Rentals app or continue on web.</p></div><img class="dlx-art" src="img/app-devices.webp" alt="Faxton Rentals on phone and laptop"></div>
-    <div class="dlx-panel"><div class="dlx-grid">${cardsHtml(detectGroup())}</div><div class="dlx-slot"></div></div></div>`;
+    <div class="dlx-top"><div class="dlx-copy"><div class="dlx-brand"><img src="assets/mark.svg" alt="" width="34" height="30"><span><b>Faxton</b> Rentals</span></div><div class="dlx-eye">Get Faxton Rentals everywhere</div><h2>Start exploring on your device.</h2><p>Get the Faxton Rentals app, or install the main website for quick browser access.</p></div><img class="dlx-art" src="img/app-devices.webp" alt="Faxton Rentals on phone and laptop"></div>
+    <div class="dlx-panel"><div class="dlx-grid">${cardsHtml(detectGroup())}</div><div class="dlx-slot"></div>${websiteOptionHtml(ctx)}</div></div>`;
   document.body.append(ov); document.documentElement.classList.add("dlx-lock");
   let rel;
   loadRelease().then((r) => { rel = r || undefined; if (!r) relP = null; });
   const closeSheet = wirePicker(ov, () => rel);
+  const installWeb = $("[data-install-website]", ov);
+  const webGuide = $("[data-web-guide]", ov);
+  const webHow = $("[data-web-how]", ov);
+  if (webHow && webGuide) webHow.onclick = () => {
+    webGuide.hidden = !webGuide.hidden;
+    webHow.setAttribute("aria-expanded", String(!webGuide.hidden));
+    if (!webGuide.hidden) webGuide.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  };
+  if (installWeb) installWeb.onclick = async () => {
+    installWeb.disabled = true;
+    try {
+      const opened = await ctx.installApp?.();
+      if (opened) toast("Your browser's website-install prompt opened. Follow it to finish.");
+      else {
+        if (webGuide) webGuide.hidden = false;
+        if (webHow) webHow.setAttribute("aria-expanded", "true");
+        toast("One-tap install is unavailable here. Use the instructions below.");
+      }
+    } catch {
+      if (webGuide) webGuide.hidden = false;
+      if (webHow) webHow?.setAttribute("aria-expanded", "true");
+      toast("Use the instructions below to add the website.", { tone: "bad" });
+    } finally {
+      installWeb.disabled = false;
+    }
+  };
   const shut = () => { ov.classList.add("out"); document.documentElement.classList.remove("dlx-lock"); document.removeEventListener("keydown", key); setTimeout(() => ov.remove(), 180); };
   const key = (e) => { if (e.key === "Escape") { if ($(".dlx-sheet", ov)) closeSheet(); else shut(); } };
   document.addEventListener("keydown", key);
