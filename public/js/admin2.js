@@ -305,13 +305,22 @@ export function verifications(ctx) {
         const root = $("#vfRoot", el), paint = () => { root.innerHTML = html(); mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); }); };
         mountTabs(root, (k) => { tab = k; setQ({ tab: k === "waiting" ? "" : k }); paint(); });
         root.addEventListener("click", async (e) => {
-          const bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
-          if (bv) {
-            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "agency" : "agent account";
+          const docBtn = e.target.closest("[data-doc]"), bv = e.target.closest("[data-v]"), bd = e.target.closest("[data-del]");
+          if (docBtn) {
+            const c = docBtn.closest("[data-uid]"), doc = (docsByUid[c?.dataset.uid] || []).find((d) => d.id === docBtn.dataset.doc);
+            if (!doc || !doc.data) return bad("This document is no longer available.");
+            try { const a = document.createElement("a"); a.href = doc.data; a.download = doc.originalName || doc.name || "verification-document"; a.rel = "noopener"; document.body.append(a); a.click(); a.remove(); }
+            catch { bad("This document could not be opened. Try downloading it again."); }
+          } else if (bv) {
+            const c = bv.closest("[data-uid]"), u = us.find((x) => x.id === c.dataset.uid), ok = bv.dataset.v === "verified", label = u.verification.kind === "agency" ? "business" : u.verification.kind === "landlord" ? "home owner account" : "agent account";
             let why = ""; if (!ok) { why = await reason({ title: `Reject ${u.agency?.business || u.name || "this request"}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad", helper: "This message is shown to the person." }); if (!why) return; }
-            busy(bv, true); const checklist = Object.fromEntries($$("[data-ck]", c).map((x) => [VF_CHECK[+x.dataset.ck], x.checked]));
+            const checks = checksFor(u), userDocs = docsByUid[u.id] || [];
+            if (ok && expectedDocs(u).some((cat) => !userDocs.some((d) => d.category === cat))) return bad("Do not verify this account until all required documents are uploaded.");
+            const checkboxes = $("[data-ck]", c);
+            if (ok && checkboxes.some((x) => !x.checked)) return bad("Review the documents and tick every checklist item before verifying.");
+            busy(bv, true); const checklist = Object.fromEntries(checkboxes.map((x) => [checks[+x.dataset.ck], x.checked]));
             try { const nv = { ...u.verification, status: ok ? "verified" : "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, ...(why ? { reason: why } : {}), ...(ok ? { checklist } : {}) }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = ok; changed();
-              await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now start listing properties.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
+              await st.notify(u.id, ok ? { kind: "verified", title: "You’re verified!", body: `Your ${label} has been verified. You can now use the listing features available to your account.` } : { kind: "rejected", title: "Verification not approved", body: why || "Please contact support." }).catch(() => {});
               toast(ok ? "Verified. They’ve been told." : "Rejected. They’ve been told."); paint(); } catch (x) { busy(bv, false); bad(x); }
           } else if (bd) {
             const u = us.find((x) => x.id === bd.dataset.id), ok = bd.dataset.del === "approved";
