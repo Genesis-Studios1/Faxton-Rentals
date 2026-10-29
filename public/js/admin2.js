@@ -194,12 +194,36 @@ export function listings(ctx) {
 }
 async function bulkListings(rs, c, act, ctx) {
   let why = "";
-  if (act === "changes") { why = await reason({ title: `Request changes on ${rs.length} listing${rs.length === 1 ? "" : "s"}`, presets: REJ_PRESETS, confirmLabel: "Send request", helper: "One message goes to every owner." }); if (!why) return; }
-  const label = { approve: "Approving", changes: "Requesting changes on", archive: "Archiving", restore: "Restoring" }[act], prev = new Map(rs.map((l) => [l.id, { status: l.status, archived: !!l.archived, changeNote: l.changeNote || "" }]));
-  const patch = act === "approve" || act === "restore" ? { status: "active", archived: false } : act === "archive" ? { archived: true } : { status: "flagged", changeNote: why };
-  const r = await bulkRun(rs.map((l) => l.id), async (id) => { const l = rs.find((x) => x.id === id); await st.patch("listings", id, patch); Object.assign(l, patch); if (act === "changes") notify(l.ownerUid, { kind: "info", title: "Changes requested on your listing", body: `${l.title}: ${why}` }); if (act === "approve") notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved.` }); }, { label });
+  if (act === "changes") { why = await reason({ title: "Request changes on " + rs.length + " listing" + (rs.length === 1 ? "" : "s"), presets: REJ_PRESETS, confirmLabel: "Send request", helper: "One message goes to every owner." }); if (!why) return; }
+  if (act === "approve" || act === "restore") {
+    for (const l of rs) {
+      if (!l.ownershipProofDocId) return toast("Every listing needs proof of ownership before approval.", { tone: "bad" });
+      const proof = await st.getDocument(l.ownershipProofDocId);
+      if (!proof || proof.category !== "ownership-proof" || proof.uid !== l.ownerUid) return toast("One selected listing has missing or mismatched ownership proof.", { tone: "bad" });
+    }
+  }
+  const label = { approve: "Approving", changes: "Requesting changes on", archive: "Archiving", restore: "Restoring" }[act];
+  const prev = new Map(rs.map((l) => [l.id, {
+    status: l.status, archived: !!l.archived, changeNote: l.changeNote || "",
+    ownershipProofStatus: l.ownershipProofStatus || "pending",
+    ownershipReviewedAt: l.ownershipReviewedAt || null,
+    ownershipReviewedBy: l.ownershipReviewedBy || null
+  }]));
+  const patch = act === "approve" || act === "restore"
+    ? { status: "active", archived: false, ownershipProofStatus: "verified", ownershipReviewedAt: Date.now(), ownershipReviewedBy: ctx.S.user.uid }
+    : act === "archive" ? { archived: true } : { status: "flagged", changeNote: why };
+  const r = await bulkRun(rs.map((l) => l.id), async (id) => {
+    const l = rs.find((x) => x.id === id);
+    await st.patch("listings", id, patch); Object.assign(l, patch);
+    if (act === "changes") notify(l.ownerUid, { kind: "info", title: "Changes requested on your listing", body: l.title + ": " + why });
+    if (act === "approve") notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: l.title + " has been approved." });
+  }, { label });
   changed(); c.clear();
-  toast(r.bad ? `${r.ok.length} done, ${r.bad} failed. Try the failed ones again.` : `${r.ok.length} listing${r.ok.length === 1 ? "" : "s"} updated.`, { tone: r.bad ? "bad" : "", action: r.ok.length ? "Undo" : "", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const l = rs.find((x) => x.id === id), p = prev.get(id); await st.patch("listings", id, p); Object.assign(l, p); })); changed(); c.list.repaint(); } });
+  toast(r.bad ? r.ok.length + " done, " + r.bad + " failed. Try the failed ones again." : r.ok.length + " listing" + (r.ok.length === 1 ? "" : "s") + " updated.",
+    { tone: r.bad ? "bad" : "", action: r.ok.length ? "Undo" : "", onAction: async () => {
+      await Promise.allSettled(r.ok.map(async (id) => { const l = rs.find((x) => x.id === id), p = prev.get(id); await st.patch("listings", id, p); Object.assign(l, p); }));
+      changed(); c.list.repaint();
+    } });
 }
 
 // ---------- users ----------
