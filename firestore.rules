@@ -501,7 +501,8 @@ service cloud.firestore {
         && d.keys().hasOnly(['name', 'email', 'role', 'city', 'source', 'createdAt'])
         && d.name is string && d.name.size() >= 2 && d.name.size() <= 80
         && d.email is string && d.email.size() >= 6 && d.email.size() <= 120
-        && d.email.matches('^[^@ ]+@[^@ ]+[.][^@ .]+
+        && d.email.matches('^[^@ ]+@[^@ ]+[.][^@ .]+')
+        && d.role in ['renter', 'owner', 'agency', 'agent']
         && d.city is string && d.city.size() >= 2 && d.city.size() <= 60
         && d.source == 'website'
         && d.createdAt is timestamp
