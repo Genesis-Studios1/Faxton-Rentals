@@ -213,6 +213,13 @@ export function setupOnboarding(ctx) {
   const docLead = business
     ? "Upload the authorised representative’s ID, proof of address and CAC certificate."
     : "Upload a government-issued ID and proof of address. These files are private and visible only to you and authorised reviewers.";
+  const docSection = (business || agent || owner) ? (
+'<section class="onb3-section" aria-labelledby="onb3-docs-title"><div class="onb3-section-head"><span class="onb3-step">' + ((business || agent || owner) ? "03" : "02") + '</span><div><h2 id="onb3-docs-title">' + docTitle + '</h2><p>' + docLead + '</p></div></div><div class="onb3-upload-grid">' +
+    setupUpload("doc-id", "Government-issued ID", "Passport, national ID or driver’s licence · PDF/image · up to 550 KB") +
+    setupUpload("doc-address", "Proof of address", "A recent utility bill or other accepted address document · up to 550 KB") +
+    (business ? setupUpload("doc-cac", "CAC certificate / business registration", "Certificate or registration record · up to 550 KB") : "") +
+    '</div><p class="onb3-note">Upload genuine documents only. Submitting a document does not automatically verify an account; authorised reviewers must check it first.</p></section>'
+  ) : "";
   const html = '<div class="onb3"><header class="onb3-head"><a class="onb3-brand" href="#/" aria-label="Faxton Rentals">' + logoMark() + '<span>Faxton Rentals</span></a><span class="onb3-secure">' + icon("shield", 16, 1.8) + ' Secure account setup</span></header>' +
     '<main class="onb3-main"><div class="onb3-progress"><span>ACCOUNT SETUP</span><b>Step 1 of 1</b><div><i></i></div></div>' +
     '<section class="onb3-intro"><p class="onb3-eyebrow">Welcome to Faxton Rentals</p><h1>Let’s personalise your account.</h1><p>These details help us show relevant homes and keep the marketplace safer. You can review your profile later in Settings.</p><div class="onb3-role">' + icon(role === "agency" ? "building" : role === "agent" ? "handshake" : role === "landlord" ? "home" : "search", 18, 1.8) + ' Setting up as <b>' + onboardingRoleName(role) + '</b></div></section>' +
@@ -221,11 +228,7 @@ export function setupOnboarding(ctx) {
     setupField("heardOther", "Tell us where you heard about us", profile.discoveryOther || "", 'maxlength="120" placeholder="For example, a community group"') +
     '</div><div class="onb3-subhead"><span>' + icon("pin", 18, 1.8) + '</span><div><b>Where are you based?</b><small>Choose your location manually. We do not need your device’s GPS location.</small></div></div>' +
     locationHtml + '</section>' + businessFields + agentFields + ownerFields +
-    '<section class="onb3-section" aria-labelledby="onb3-docs-title"><div class="onb3-section-head"><span class="onb3-step">' + ((business || agent || owner) ? "03" : "02") + '</span><div><h2 id="onb3-docs-title">' + docTitle + '</h2><p>' + docLead + '</p></div></div><div class="onb3-upload-grid">' +
-    setupUpload("doc-id", "Government-issued ID", "Passport, national ID or driver’s licence · PDF/image · up to 550 KB") +
-    setupUpload("doc-address", "Proof of address", "A recent utility bill or other accepted address document · up to 550 KB") +
-    (business ? setupUpload("doc-cac", "CAC certificate / business registration", "Certificate or registration record · up to 550 KB") : "") +
-    '</div><p class="onb3-note">Upload genuine documents only. Submitting a document does not automatically verify an account; authorised reviewers must check it first.</p></section>' +
+    docSection +
     '<div class="onb3-error" id="onb3-error" role="alert" aria-live="assertive"></div><div class="onb3-actions"><p>By continuing, you confirm that the information you entered is accurate and that you are allowed to submit these documents.</p><button class="btn primary" type="submit" id="onb3-submit">Save and continue ' + icon("arrow", 18, 1.9) + '</button></div></form>' +
     '<footer class="onb3-foot">Your information is used for account setup and verification. Identity documents are stored privately, not shown on your public profile.</footer></main></div>';
   return { full: true, title: "Finish setting up your account", html, mount(root) {
