@@ -1,3 +1,4 @@
+import * as profileStore from "./store.js";
 // Sign-up extras for agencies and agents: the business details form and the "verification is on its way" pop-ups.
 import { $, esc, icon, modal } from "./ui.js";
 import { locFields, mountLoc, NIGERIA } from "./loc.js";
@@ -148,4 +149,190 @@ export function askResidence({ required = false, country = "Nigeria", state = ""
       sent = true; m.close(); resolve({ country: r.country, state: r.state, lga: ng ? r.lga : "", city: r.lga });
     };
   });
+}
+
+
+// Authenticated post-signup setup. The route is required until this form saves successfully.
+const DISCOVERY_SOURCES = ["Instagram", "TikTok", "X", "Facebook", "Google search", "YouTube", "Friend or family", "Referral", "Event or advert", "Other"];
+const BUSINESS_TYPES = ["Real estate company", "Electrical services", "Home automation", "Plumbing", "Tiling", "Painting", "Home appliance repair", "Cleaning", "Handyman / carpentry", "AC repair", "Other"];
+const setupField = (id, label, value, attrs, hint) =>
+  '<label class="onb3-field" for="' + id + '"><span>' + label + '</span><input id="' + id + '" name="' + id + '" value="' + esc(value || "") + '" ' + (attrs || "") + '>' + (hint ? '<small>' + hint + '</small>' : '') + '</label>';
+const setupSelect = (id, label, opts, value, attrs) =>
+  '<label class="onb3-field" for="' + id + '"><span>' + label + '</span><select id="' + id + '" name="' + id + '" ' + (attrs || "") + '><option value="">Choose an option</option>' +
+  opts.map((x) => '<option value="' + esc(x) + '"' + (x === value ? ' selected' : '') + '>' + esc(x) + '</option>').join("") + '</select></label>';
+const setupUpload = (id, label, hint) =>
+  '<label class="onb3-upload" for="' + id + '"><span class="onb3-upload-icon">' + icon("upload", 20, 1.8) + '</span><span class="onb3-upload-copy"><b>' + label + '</b><small>' + hint + '</small><em id="' + id + '-name">No file selected</em></span><input id="' + id + '" name="' + id + '" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" required></label>';
+const fileAsDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error("That file could not be read. Try selecting it again."));
+  reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("That file could not be read."));
+  reader.readAsDataURL(file);
+});
+const onboardingRoleName = (role) => role === "agency" ? "Business" : role === "landlord" ? "Home owner" : role === "agent" ? "Real estate agent" : "Renter";
+
+export function setupOnboarding(ctx) {
+  const profile = ctx.S.profile || {};
+  const role = ["agency", "agent", "landlord", "renter"].includes(profile.role) ? profile.role : "renter";
+  if (profile.onboarding?.completed === true) {
+    ctx.go("#" + (ctx.q.next || ctx.dashHome?.() || "/"));
+    return { title: "Account setup complete", full: true, html: '<div class="onb3"><main class="onb3-main"><h1>Your account is ready.</h1></main></div>' };
+  }
+  const business = role === "agency", agent = role === "agent", owner = role === "landlord";
+  const detail = business ? (profile.agency || {}) : agent ? (profile.agentInfo || {}) : {};
+  const locationHtml = residenceFields(profile.country || NIGERIA, profile.lga || profile.city || "", profile.state || "");
+  const businessFields = business ? (
+    '<section class="onb3-section" aria-labelledby="onb3-business-title"><div class="onb3-section-head"><span class="onb3-step">02</span><div><h2 id="onb3-business-title">Tell us about your business</h2><p>These details help us review your business profile.</p></div></div><div class="onb3-grid">' +
+    setupSelect("businessType", "Business type", BUSINESS_TYPES, detail.businessType || "", "required") +
+    setupField("business", "Registered business name", detail.business || profile.name || "", 'required maxlength="120" autocomplete="organization"') +
+    setupField("cac", "CAC registration number", detail.cac || "", 'required maxlength="40" autocapitalize="characters"', "Enter the number as shown on your CAC record.") +
+    setupField("registrar", "Authorised representative", detail.registrar || profile.name || "", 'required maxlength="120" autocomplete="name"') +
+    setupField("position", "Your role in the company", detail.position || "", 'required maxlength="80"') +
+    setupField("supportEmail", "Support email", detail.supportEmail || profile.email || ctx.S.user?.email || "", 'type="email" required maxlength="120" autocomplete="email"') +
+    setupField("phone", "Business phone number", detail.phone || profile.phone || "", 'type="tel" required maxlength="30" autocomplete="tel"') +
+    setupField("address", "Office address", detail.address || "", 'required maxlength="200" autocomplete="street-address"') +
+    setupField("website", "Business website (optional)", detail.website || "", 'type="url" maxlength="160" placeholder="https://yourbusiness.com"') +
+    '<div id="businessTypeOtherWrap" hidden></div></div></section>'
+  ) : "";
+  const agentFields = agent ? (
+    '<section class="onb3-section" aria-labelledby="onb3-agent-title"><div class="onb3-section-head"><span class="onb3-step">02</span><div><h2 id="onb3-agent-title">Your agent profile</h2><p>Help landlords and renters understand your experience and coverage.</p></div></div><div class="onb3-grid">' +
+    setupField("agentPhone", "Phone number", detail.phone || profile.phone || "", 'type="tel" required maxlength="30" autocomplete="tel"') +
+    setupField("experience", "Years of experience", detail.experience == null ? "" : String(detail.experience), 'type="number" required min="0" max="60" inputmode="numeric"') +
+    setupField("company", "Agency you work for (optional)", detail.company || "", 'maxlength="120" autocomplete="organization"') +
+    setupField("areas", "Areas you cover", detail.areas || "", 'required maxlength="240" placeholder="Lekki, Ajah, Ikoyi, Victoria Island"') +
+    setupField("agentDob", "Date of birth", detail.dob || "", 'type="date" required autocomplete="bday"') +
+    setupSelect("licenceType", "Professional registration (where applicable)", ["ESVARBON", "NIESV", "Other professional body", "Not registered / not applicable"], detail.licenceType || "", "") +
+    setupField("licence", "Registration / licence number (if applicable)", detail.licence || "", 'maxlength="50"') +
+    '</div><p class="onb3-note">A registration number is not proof of a licence by itself. Faxton may check the relevant professional body where an official verification service is available.</p></section>'
+  ) : "";
+  const ownerFields = owner ? (
+    '<section class="onb3-section" aria-labelledby="onb3-owner-title"><div class="onb3-section-head"><span class="onb3-step">02</span><div><h2 id="onb3-owner-title">Home owner details</h2><p>We review your identity before allowing property listings.</p></div></div><div class="onb3-grid">' +
+    setupField("ownerPhone", "Phone number", profile.phone || "", 'type="tel" required maxlength="30" autocomplete="tel"') +
+    '</div><p class="onb3-note">Proof of ownership is collected separately for each property you submit, because ownership documents must match that specific property.</p></section>'
+  ) : "";
+  const docTitle = business ? "Business verification documents" : "Identity verification documents";
+  const docLead = business
+    ? "Upload the authorised representative’s ID, proof of address and CAC certificate."
+    : "Upload a government-issued ID and proof of address. These files are private and visible only to you and authorised reviewers.";
+  const html = '<div class="onb3"><header class="onb3-head"><a class="onb3-brand" href="#/" aria-label="Faxton Rentals">' + logoMark() + '<span>Faxton Rentals</span></a><span class="onb3-secure">' + icon("shield", 16, 1.8) + ' Secure account setup</span></header>' +
+    '<main class="onb3-main"><div class="onb3-progress"><span>ACCOUNT SETUP</span><b>Step 1 of 1</b><div><i></i></div></div>' +
+    '<section class="onb3-intro"><p class="onb3-eyebrow">Welcome to Faxton Rentals</p><h1>Let’s personalise your account.</h1><p>These details help us show relevant homes and keep the marketplace safer. You can review your profile later in Settings.</p><div class="onb3-role">' + icon(role === "agency" ? "building" : role === "agent" ? "handshake" : role === "landlord" ? "home" : "search", 18, 1.8) + ' Setting up as <b>' + onboardingRoleName(role) + '</b></div></section>' +
+    '<form id="onb3-form" novalidate><section class="onb3-section" aria-labelledby="onb3-about-title"><div class="onb3-section-head"><span class="onb3-step">01</span><div><h2 id="onb3-about-title">A little about you</h2><p>Choose how you found Faxton and set your area.</p></div></div><div class="onb3-grid">' +
+    setupSelect("heardFrom", "How did you hear about Faxton?", DISCOVERY_SOURCES, profile.discoverySource || "", "required") +
+    setupField("heardOther", "Tell us where you heard about us", profile.discoveryOther || "", 'maxlength="120" placeholder="For example, a community group"') +
+    '</div><div class="onb3-subhead"><span>' + icon("pin", 18, 1.8) + '</span><div><b>Where are you based?</b><small>Choose your location manually. We do not need your device’s GPS location.</small></div></div>' +
+    locationHtml + '</section>' + businessFields + agentFields + ownerFields +
+    '<section class="onb3-section" aria-labelledby="onb3-docs-title"><div class="onb3-section-head"><span class="onb3-step">' + ((business || agent || owner) ? "03" : "02") + '</span><div><h2 id="onb3-docs-title">' + docTitle + '</h2><p>' + docLead + '</p></div></div><div class="onb3-upload-grid">' +
+    setupUpload("doc-id", "Government-issued ID", "Passport, national ID or driver’s licence · PDF/image · up to 550 KB") +
+    setupUpload("doc-address", "Proof of address", "A recent utility bill or other accepted address document · up to 550 KB") +
+    (business ? setupUpload("doc-cac", "CAC certificate / business registration", "Certificate or registration record · up to 550 KB") : "") +
+    '</div><p class="onb3-note">Upload genuine documents only. Submitting a document does not automatically verify an account; authorised reviewers must check it first.</p></section>' +
+    '<div class="onb3-error" id="onb3-error" role="alert" aria-live="assertive"></div><div class="onb3-actions"><p>By continuing, you confirm that the information you entered is accurate and that you are allowed to submit these documents.</p><button class="btn primary" type="submit" id="onb3-submit">Save and continue ' + icon("arrow", 18, 1.9) + '</button></div></form>' +
+    '<footer class="onb3-foot">Your information is used for account setup and verification. Identity documents are stored privately, not shown on your public profile.</footer></main></div>';
+  return { full: true, title: "Finish setting up your account", html, mount(root) {
+    const form = $("#onb3-form", root), error = $("#onb3-error", root), submit = $("#onb3-submit", root);
+    const locationPicker = mountLoc(root, { ids: { country: "country", state: "state", lga: "city" } });
+    const heardFrom = $("#heardFrom", root), heardOther = $("#heardOther", root), bizType = $("#businessType", root);
+    const paintOther = () => {
+      if (heardOther) heardOther.closest(".onb3-field").hidden = heardFrom?.value !== "Other";
+      const wrap = $("#businessTypeOtherWrap", root);
+      if (!wrap || !bizType) return;
+      wrap.hidden = bizType.value !== "Other";
+      if (bizType.value === "Other" && !$("#businessTypeOther", root)) wrap.innerHTML = setupField("businessTypeOther", "Describe your business type", detail.businessTypeOther || "", 'required maxlength="80"');
+      if (bizType.value !== "Other") wrap.innerHTML = "";
+    };
+    heardFrom?.addEventListener("change", paintOther);
+    bizType?.addEventListener("change", paintOther);
+    paintOther();
+    ["doc-id", "doc-address", "doc-cac"].forEach((id) => {
+      const input = $("#" + id, root);
+      if (!input) return;
+      input.addEventListener("change", () => {
+        const file = input.files?.[0], label = $("#" + id + "-name", root);
+        if (label) label.textContent = file ? file.name + " · " + (file.size < 1024 ? file.size + " B" : Math.round(file.size / 1024) + " KB") : "No file selected";
+      });
+    });
+    const setBusy = (on) => {
+      submit.disabled = on;
+      submit.classList.toggle("is-busy", on);
+      submit.innerHTML = on ? icon("loader", 18, 1.8) + " Saving securely…" : "Save and continue " + icon("arrow", 18, 1.9);
+      form.setAttribute("aria-busy", String(on));
+    };
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (submit.disabled) return;
+      error.textContent = "";
+      const loc = locationPicker.commit();
+      const val = (id) => ($("#" + id, root)?.value || "").trim();
+      const bad = (message, id) => { error.textContent = message; $("#" + id, root)?.focus(); };
+      if (!val("heardFrom")) return bad("Choose how you heard about Faxton.", "heardFrom");
+      if (!loc.country) return bad("Choose your country.", "country");
+      if (loc.country === NIGERIA && !loc.state) return bad("Choose your state.", "state");
+      if (String(loc.lga || "").trim().length < 2) return bad(loc.country === NIGERIA ? "Choose your local government area (LGA)." : "Enter your city or district.", "city");
+      if (business) {
+        if (!val("businessType")) return bad("Choose your business type.", "businessType");
+        if (val("businessType") === "Other" && !val("businessTypeOther")) return bad("Describe your business type.", "businessTypeOther");
+        if (!val("business")) return bad("Enter your registered business name.", "business");
+        if (!/^(RC|BN|IT)?[\s-]?\d{4,12}$/i.test(val("cac"))) return bad("Enter a valid CAC registration number.", "cac");
+        if (val("registrar").length < 3) return bad("Enter the authorised representative’s full name.", "registrar");
+        if (!val("position")) return bad("Enter your role in the company.", "position");
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(val("supportEmail"))) return bad("Enter a valid support email.", "supportEmail");
+        if (val("phone").replace(/\D/g, "").length < 8) return bad("Enter a valid business phone number.", "phone");
+        if (val("address").length < 5) return bad("Enter the office address.", "address");
+        if (val("website") && !/^https?:\/\//i.test(val("website"))) return bad("The website must start with https://.", "website");
+      } else if (agent) {
+        if (val("agentPhone").replace(/\D/g, "").length < 8) return bad("Enter a valid phone number.", "agentPhone");
+        if (val("experience") === "" || +val("experience") < 0 || +val("experience") > 60) return bad("Enter your years of experience.", "experience");
+        if (!val("areas")) return bad("Enter the areas you cover.", "areas");
+        if (!val("agentDob") || age(val("agentDob")) < 18) return bad("You must be at least 18 to register as a professional agent.", "agentDob");
+        if (val("licenceType") && val("licenceType") !== "Not registered / not applicable" && !val("licence")) return bad("Enter your professional registration number, or choose not applicable.", "licence");
+      } else if (owner && val("ownerPhone").replace(/\D/g, "").length < 8) return bad("Enter a valid phone number.", "ownerPhone");
+      const requiredDocs = business ? [["doc-id", "kyc-id"], ["doc-address", "kyc-address"], ["doc-cac", "kyc-cac"]] : [["doc-id", "kyc-id"], ["doc-address", "kyc-address"]];
+      for (const [id] of requiredDocs) {
+        const file = $("#" + id, root)?.files?.[0];
+        if (!file) return bad("Select every required verification document before continuing.", id);
+        if (file.size > 550 * 1024) return bad(file.name + " is larger than 550 KB. Choose a smaller PDF or image.", id);
+        if (!/^(application\/pdf|image\/jpeg|image\/png|image\/webp)$/i.test(file.type || "")) return bad("Use a PDF, JPG, PNG or WebP file.", id);
+      }
+      setBusy(true);
+      try {
+        const uploaded = [];
+        for (const [id, category] of requiredDocs) {
+          const file = $("#" + id, root).files[0];
+          const data = await fileAsDataUrl(file);
+          const docRef = await profileStore.addDocument(ctx.S.user, {
+            name: file.name.slice(0, 160), size: file.size, data, category,
+            title: category + " submitted during account setup",
+            originalName: file.name.slice(0, 160)
+          });
+          uploaded.push({ category, id: docRef.id, name: file.name });
+        }
+        const res = {
+          country: loc.country, state: loc.state || "",
+          lga: loc.country === NIGERIA ? loc.lga : "",
+          city: loc.lga,
+          location: [loc.lga, loc.state === "Federal Capital Territory" ? "FCT" : loc.state, loc.country].filter(Boolean).join(", ").slice(0, 80)
+        };
+        const patch = {
+          ...res,
+          discoverySource: val("heardFrom"),
+          discoveryOther: val("heardFrom") === "Other" ? val("heardOther").slice(0, 120) : "",
+          onboarding: { completed: true, completedAt: Date.now(), documentTypes: uploaded.map((x) => x.category) }
+        };
+        if (business) {
+          const d = { business: val("business"), businessType: val("businessType"), businessTypeOther: val("businessType") === "Other" ? val("businessTypeOther") : "", cac: val("cac").toUpperCase(), registrar: val("registrar"), position: val("position"), supportEmail: val("supportEmail"), phone: val("phone"), address: val("address"), website: val("website"), country: loc.country, state: loc.state || "", lga: loc.country === NIGERIA ? loc.lga : "", city: loc.lga };
+          patch.agency = d; patch.phone = d.phone; patch.name = d.business;
+        } else if (agent) {
+          const d = { phone: val("agentPhone"), experience: +val("experience"), company: val("company"), areas: val("areas"), dob: val("agentDob"), licenceType: val("licenceType"), licence: val("licence"), country: loc.country, state: loc.state || "", lga: loc.country === NIGERIA ? loc.lga : "", city: loc.lga };
+          patch.agentInfo = d; patch.phone = d.phone;
+        } else if (owner) patch.phone = val("ownerPhone");
+        await profileStore.saveProfile(ctx.S.user.uid, patch);
+        ctx.S.profile = { ...ctx.S.profile, ...patch };
+        ctx.go("#" + (ctx.q.next || ctx.dashHome?.() || "/"));
+      } catch (e) {
+        error.textContent = e?.code === "permission-denied"
+          ? "Faxton could not save these details because your profile permissions need updating. Please try again later or contact support."
+          : e?.message || "We couldn’t save your onboarding details. Please try again.";
+      } finally { setBusy(false); }
+    });
+  } };
 }
