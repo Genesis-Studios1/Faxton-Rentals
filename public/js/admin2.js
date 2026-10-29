@@ -497,7 +497,20 @@ export function queue(ctx) {
           const b = e.target.closest("[data-q]"); if (!b) return; const c = b.closest("[data-k]"), [type, id] = c.dataset.k.split(":"), q = b.dataset.q;
           try {
             if (type === "sos") { const v = vw.find((x) => x.id === id); if (q === "call") callTo(ctx, v.uid, v.name, v.title); else if (q === "resolve") { busy(b, true); await resolveSos(ctx, v, { refresh() {} }); leave(c); } }
-            else if (type === "listing") { const l = ls.find((x) => x.id === id); if (q === "approve") { busy(b, true); await write("listings", l, { status: "active", archived: false }, { msg: "Listing approved.", after: () => {} }); notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: `${l.title} has been approved.` }); leave(c); } else if (q === "review") { const api = apiFor(l, () => { drawer.set(listingDrawer(ctx, l, api)); paint(); }); drawer.open(listingDrawer(ctx, l, api)); } }
+            else if (type === "listing") {
+              const l = ls.find((x) => x.id === id);
+              if (q === "approve") {
+                if (!l.ownershipProofDocId) return toast("This listing needs proof of ownership before approval.", { tone: "bad" });
+                const proof = await st.getDocument(l.ownershipProofDocId);
+                if (!proof || proof.category !== "ownership-proof" || proof.uid !== l.ownerUid) return toast("The ownership proof is missing or mismatched.", { tone: "bad" });
+                busy(b, true);
+                await write("listings", l, { status: "active", archived: false, ownershipProofStatus: "verified", ownershipReviewedAt: Date.now(), ownershipReviewedBy: ctx.S.user.uid }, { msg: "Listing approved.", after: () => {} });
+                notify(l.ownerUid, { kind: "info", title: "Your listing is live", body: l.title + " has been approved." }); leave(c);
+              } else if (q === "review") {
+                const api = apiFor(l, () => { drawer.set(listingDrawer(ctx, l, api)); paint(); });
+                drawer.open(listingDrawer(ctx, l, api));
+              }
+            }
             else if (type === "verif") { const u = us.find((x) => x.id === id); if (q === "verify") { busy(b, true); const nv = { ...u.verification, status: "verified", decidedAt: Date.now(), decidedBy: ctx.S.user.uid }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = true; changed(); st.notify(u.id, { kind: "verified", title: "You’re verified!", body: `Your ${u.verification.kind === "agency" ? "agency" : "agent account"} has been verified. You can now start listing properties.` }).catch(() => {}); toast("Verified. They’ve been told."); leave(c); } else if (q === "reject") { const why = await reason({ title: `Reject ${u.agency?.business || u.name}`, presets: VF_PRESETS, confirmLabel: "Reject", tone: "bad" }); if (!why) return; const nv = { ...u.verification, status: "rejected", decidedAt: Date.now(), decidedBy: ctx.S.user.uid, reason: why }; await st.verifyUser(u.id, nv); u.verification = nv; u.verified = false; changed(); st.notify(u.id, { kind: "rejected", title: "Verification not approved", body: why }).catch(() => {}); toast("Rejected. They’ve been told."); leave(c); } }
             else if (type === "del") { const u = us.find((x) => x.id === id), ok = q === "deldo"; if (ok && !(await confirm({ title: `Approve deleting ${u.name || u.email}?`, body: "Their account will be removed the next time it’s opened after the one-day review.", confirmLabel: "Approve deletion", tone: "danger", icon: "trash" }))) return; busy(b, true); const nd = { ...u.deletion, status: ok ? "approved" : "denied", decidedAt: Date.now() }; await st.decideDeletion(u.id, nd); u.deletion = nd; changed(); st.notify(u.id, { kind: "info", title: ok ? "Deletion approved" : "Account kept", body: ok ? "Your account will be removed after the one-day review period." : "We’ve kept your account as it is." }).catch(() => {}); toast(ok ? "Deletion approved." : "Account kept."); leave(c); }
           } catch (x) { busy(b, false); bad(x); }
