@@ -126,7 +126,7 @@ export function page(ctx) {
                 <label class="ax-wl-filter"><span>City</span><select id="wlCity" class="ax-input" aria-label="Filter by city"><option value="">All cities</option>${cityOptions}</select></label>
                 <div class="ax-wl-actions">
                   <button class="ax-btn" data-v="ghost" type="button" id="wlReset" disabled>${I("undo", 16)}<span>Clear</span></button>
-                  <button class="ax-btn" data-v="primary" type="button" id="wlExport" ${rows.length ? "" : "disabled"}>${I("down", 16)}<span>Export CSV</span></button>
+                  <button class="ax-btn" data-v="primary" type="button" id="wlExport" ${rows.length ? "" : "disabled"}>${I("download", 16)}<span>Export CSV</span></button>
                 </div>
               </div>
 
