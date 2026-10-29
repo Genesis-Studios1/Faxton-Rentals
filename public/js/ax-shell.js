@@ -14,7 +14,7 @@ const ADMIN = [
   { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users"], ["/admin/agents", "handshake", "Agents"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
   { l: "Activity", items: [["/admin/applications", "doc", "Applications", "apps"], ["/admin/viewings", "calDots", "Viewings", "sos"], ["/admin/services", "wrench", "Service requests", "svc"], ["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"], ["/admin/payments", "card", "Payments", "proofs"]] },
   { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/data-requests", "download", "Data requests"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
-  { l: "Insights", items: [["/admin/reports", "bars3", "Reports"]] },
+  { l: "Insights", items: [["/admin/reports", "bars3", "Reports"], ["/admin/waitlist", "users", "Website waitlist"]] },
   { l: "System", items: [["/admin/team", "crown", "Team access"], ["/admin/get-app", "download", "Installations"], ["/settings", "gear", "Settings"]] },
 ];
 const OWNER = (home) => [{ l: "Portfolio", items: [[home, "home", "Dashboard"]] }, { l: "Rentals", items: [["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"]] }, { l: "Communication", items: [["/messages", "msg", "Messages", "unread"]] }, { l: "Account", items: [["/settings", "gear", "Settings"]] }];
