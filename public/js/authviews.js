@@ -4,10 +4,12 @@
 import { $, $$, esc, icon, logoMark } from "./ui.js";
 import { GOOGLE, EMAIL_RE, authErr, strength, fieldHtml, fieldError } from "./authkit.js";
 import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence, mountResidence } from "./onboard.js";
+import { saveProfile } from "./store.js";
+import { resFields } from "./loc.js";
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
-const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Run your agency’s listings, agents and clients.", agent: "Follow up leads, clients and your listings." };
+const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Manage your business, services and property listings.", agent: "Follow up leads, clients and your listings." };
 const safeGet = (k, s = sessionStorage) => { try { return s.getItem(k); } catch { return null; } };
 const safeSet = (k, v, s = sessionStorage) => { try { s.setItem(k, v); } catch {} };
 const logoLink = (cls = "", href = "#/") => `<a class="${cls}" href="${href}" aria-label="Faxton Rentals">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
@@ -268,6 +270,103 @@ export function authPage(ctx, mode) {
     };
     const f = $("#forgot", root); if (f) f.onclick = (e) => { e.preventDefault(); const em = ($("#email", root)?.value || "").trim(); ctx.go("#/forgot" + (em ? "?email=" + encodeURIComponent(em) : "")); };
   } };
+}
+
+
+const BUSINESS_TYPES = ["Real estate company", "Electrical services", "Home automation", "Plumbing", "Tiling", "Painting", "Home appliance repairs", "Cleaning services", "Interior design", "Property maintenance", "Other"];
+const REFERRAL_SOURCES = ["Instagram", "TikTok", "X", "Facebook", "Google", "YouTube", "Friend or family", "Other"];
+
+// Required, post-signup profile setup. Account type is read from the existing authenticated profile,
+// never from form input, so onboarding cannot promote an account to a privileged role.
+export function setupPage(ctx) {
+  const profile = ctx.S.profile || {};
+  const role = profile.role || "renter";
+  const isBusiness = role === "agency";
+  const isAgent = role === "agent";
+  const title = isBusiness ? "Tell us about your business" : isAgent ? "Set up your agent profile" : role === "landlord" ? "Tell us about yourself" : "Let’s personalise your experience";
+  const subtitle = isBusiness ? "A few details help us understand your services and review your business." : isAgent ? "Tell us a little about your real estate work and the areas you cover." : "Answer a few quick questions so Faxton Rentals feels more relevant to you.";
+  const businessFields = isBusiness ? `
+    <div class="obp-grid">
+      ${fieldHtml("business", "Business name", { ph: "e.g. Faxton Properties Ltd", attrs: 'maxlength="120" autocomplete="organization"' })}
+      ${fieldHtml("cac", "CAC registration number", { ph: "e.g. RC 1234567", attrs: 'maxlength="30" autocapitalize="characters"' })}
+      ${fieldHtml("registrar", "Name of registered representative", { ph: "Full name", attrs: 'maxlength="120" autocomplete="name"' })}
+      ${fieldHtml("position", "Your role in the company", { ph: "e.g. Operations manager", attrs: 'maxlength="80"' })}
+      ${fieldHtml("supportEmail", "Support email", { type: "email", ph: "support@yourbusiness.com", attrs: 'maxlength="120" autocomplete="email"' })}
+      ${fieldHtml("address", "Office address", { ph: "Street, area and city", attrs: 'maxlength="200" autocomplete="street-address"' })}
+      ${fieldHtml("website", "Business website", { type: "url", ph: "https://example.com", req: false, attrs: 'maxlength="180" inputmode="url"' })}
+    </div>
+    <fieldset class="obp-types"><legend>What type of business do you run?</legend><p class="obp-hint">Select all services that apply.</p><div class="obp-type-grid">${BUSINESS_TYPES.map((t,i)=>`<label class="obp-type"><input type="checkbox" name="businessType" value="${esc(t)}"><span>${esc(t)}</span></label>`).join("")}</div></fieldset>` : "";
+  const agentFields = isAgent ? `
+    <div class="obp-grid">
+      ${fieldHtml("phone", "Phone number", { type: "tel", ph: "+234 …", attrs: 'maxlength="30" autocomplete="tel" inputmode="tel"' })}
+      ${fieldHtml("experience", "Years of experience", { type: "number", ph: "e.g. 2", attrs: 'min="0" max="60" step="1" inputmode="numeric"' })}
+      ${fieldHtml("company", "Agency you work for", { ph: "Agency name (optional)", req: false, attrs: 'maxlength="120" autocomplete="organization"' })}
+      ${fieldHtml("dob", "Date of birth", { type: "date", attrs: 'autocomplete="bday"' })}
+    </div>
+    ${fieldHtml("areas", "Areas you cover", { ph: "e.g. Lekki, Ikoyi, Victoria Island", attrs: 'maxlength="240"', hint: "Separate locations with commas." })}` : "";
+  const html = `<main class="obp-page"><header class="obp-head">${logoLink("obp-logo", "#/")}<span class="obp-step">PROFILE SETUP · 1 OF 1</span></header>
+    <section class="obp-card" aria-labelledby="obp-title"><div class="obp-mark">${icon("sparkle", 25, 1.8)}</div><p class="obp-kicker">WELCOME TO FAXTON RENTALS</p><h1 id="obp-title">${title}</h1><p class="obp-sub">${subtitle}</p>
+    <form id="obp-form" novalidate>
+      <section class="obp-section"><h2>First, how did you hear about us?</h2><label class="obp-label" for="referralSource">Where did you discover Faxton Rentals?</label>
+      <select id="referralSource" name="referralSource" required><option value="">Choose a source</option>${REFERRAL_SOURCES.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("")}</select>
+      <div id="obp-other-wrap" hidden>${fieldHtml("referralOther", "Tell us where you heard about us", { ph: "Enter a source", req: false, attrs: 'maxlength="120"' })}</div></section>
+      <section class="obp-section"><h2>Where are you based?</h2><p class="obp-hint">We use this to show relevant homes and services. You can update it later.</p>${residenceFields(profile.country || "Nigeria", profile.lga || profile.city || "", profile.state || "")}</section>
+      ${businessFields ? `<section class="obp-section"><h2>Business information</h2>${businessFields}</section>` : ""}
+      ${agentFields ? `<section class="obp-section"><h2>Professional information</h2>${agentFields}</section>` : ""}
+      <p class="obp-error" id="obp-error" role="alert" aria-live="polite"></p><button class="obp-submit" id="obp-submit" type="submit"><span>Save and continue</span>${icon("arrow",19,1.8)}</button>
+      <p class="obp-foot">Your details are protected and only used to provide Faxton Rentals services.</p>
+    </form></section></main>`;
+  return { full:true, title:"Complete your profile", html, mount(root) {
+    const form=$("#obp-form",root), err=$("#obp-error",root), submit=$("#obp-submit",root), source=$("#referralSource",root);
+    const loc=mountResidence(root);
+    source.value = profile.referralSource || "";
+    const otherWrap=$("#obp-other-wrap",root);
+    const other=$("#referralOther",root);
+    if(other) other.value=profile.referralOther || "";
+    const syncOther=()=>{ if(otherWrap) otherWrap.hidden=source.value!=="Other"; };
+    source.addEventListener("change",syncOther); syncOther();
+    if(isBusiness && Array.isArray(profile.businessTypes)) $('#obp-form input[name="businessType"]',root).forEach(i=>i.checked=profile.businessTypes.includes(i.value));
+    const say=(message)=>{err.textContent=message||"";};
+    form.onsubmit=async(e)=>{
+      e.preventDefault(); if(submit.disabled) return;
+      say("");
+      const v=Object.fromEntries(new FormData(form));
+      const selectedTypes=$('#obp-form input[name="businessType"]:checked',root).map(i=>i.value);
+      const residence=loc?.commit?.() || {};
+      const bad=(id,msg)=>{const input=$("#"+id,root); if(input){input.setAttribute("aria-invalid","true");input.focus();} say(msg); return false;};
+      if(!source.value) return bad("referralSource","Choose where you heard about Faxton Rentals.");
+      if(source.value==="Other" && !(other?.value.trim())) return bad("referralOther","Tell us where you heard about us.");
+      if(!residence.country) return bad("country","Choose your country.");
+      if(residence.country==="Nigeria" && !residence.state) return bad("state","Choose your state.");
+      if(!residence.city || residence.city.trim().length<2) return bad("city",residence.country==="Nigeria"?"Choose your local government area (LGA).":"Enter your city or district.");
+      let patch={referralSource:source.value, referralOther:source.value==="Other"?(other?.value.trim()||""):"", ...resFields(residence), onboarding:{completed:true}};
+      if(isBusiness){
+        const required=["business","cac","registrar","position","supportEmail","address"];
+        for(const id of required){const input=$("#"+id,root);if(!input?.value.trim())return bad(id,"Please complete this field.");}
+        if(!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v.supportEmail.trim())) return bad("supportEmail","Enter a valid support email.");
+        if(!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(v.cac.trim())) return bad("cac","Enter a valid CAC registration number, such as RC 1234567.");
+        if(!selectedTypes.length) return bad("businessType","Select at least one business category.");
+        if(v.website && !/^https?:\/\//i.test(v.website.trim())) return bad("website","Enter a website beginning with https://");
+        patch.businessTypes=selectedTypes;
+        patch.agency={business:v.business.trim(),cac:v.cac.trim().toUpperCase(),registrar:v.registrar.trim(),position:v.position.trim(),supportEmail:v.supportEmail.trim(),address:v.address.trim(),website:v.website.trim(),businessTypes:selectedTypes,country:residence.country,state:residence.state||"",city:residence.city,lga:residence.lga||""};
+      } else if(isAgent){
+        for(const id of ["phone","experience","dob","areas"]){const input=$("#"+id,root);if(!input?.value.trim())return bad(id,"Please complete this field.");}
+        if(String(v.phone).replace(/\D/g,"").length<8) return bad("phone","Enter a valid phone number.");
+        if(+v.experience<0 || +v.experience>60 || !Number.isInteger(+v.experience)) return bad("experience","Enter a whole number from 0 to 60.");
+        const dob=new Date(v.dob); if(Number.isNaN(dob.getTime()) || dob>=new Date()) return bad("dob","Enter a valid date of birth.");
+        if(new Date().getFullYear()-dob.getFullYear()>120) return bad("dob","Enter a valid date of birth.");
+        patch.phone=v.phone.trim();
+        patch.agentInfo={phone:v.phone.trim(),experience:+v.experience,company:v.company.trim(),areas:v.areas.trim(),dob:v.dob,country:residence.country,state:residence.state||"",city:residence.city,lga:residence.lga||""};
+      }
+      submit.disabled=true; submit.classList.add("loading"); $("span",submit).textContent="Saving your details…";
+      try{
+        await saveProfile(ctx.S.user.uid,patch);
+        ctx.S.profile={...(ctx.S.profile||{}),...patch};
+        ctx.go("#"+(ctx.dashHome?.()||"/"));
+      }catch(e){say(e?.code==="permission-denied"?"We couldn’t save your details because the account permissions need updating. Please try again shortly.":"We couldn’t save your details. Check your connection and try again.");}
+      finally{submit.disabled=false;submit.classList.remove("loading");$("span",submit).textContent="Save and continue";}
+    };
+  }};
 }
 
 // ---------- forgot password ----------
