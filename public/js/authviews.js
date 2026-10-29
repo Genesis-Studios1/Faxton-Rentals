@@ -115,7 +115,7 @@ export function authPage(ctx, mode) {
     const gatherDetails = () => { const o = {}; $$("#xtraBody input, #xtraBody select", root).forEach((i) => (o[i.id] = i.value)); return o; };
     const paintRole = (restore) => {
       const R = ROLE_INFO[role], asks = !login && R.ask.length;
-      info.innerHTML = `<span class="au-ri">${icon(ROLE_ICON[role], 22, 1.6)}</span><div><b>${R.name}</b><p>${login ? SIGNIN_BLURB[role] : R.blurb}</p>${!login ? (asks ? `<p class="au-ask"><span>We’ll ask for:</span> ${R.ask.map((a) => `<em>${a}</em>`).join("")}<em class="more">${R.more}</em></p>` : `<p class="au-ask none">${icon("check", 14, 2.4)} Nothing extra to fill in.</p>`) : ""}</div>`;
+      info.innerHTML = `<span class="au-ri">${icon(ROLE_ICON[role], 22, 1.6)}</span><div><b>${R.name}</b><p>${login ? SIGNIN_BLURB[role] : R.blurb}</p>${!login ? (asks ? `<p class="au-ask"><span>After signup, we’ll ask for:</span> ${R.ask.map((a) => `<em>${a}</em>`).join("")}<em class="more">${R.more}</em></p>` : `<p class="au-ask none">${icon("check", 14, 2.4)} A few quick setup questions follow signup.</p>`) : ""}</div>`;
       if (login) return;
       if (xtra) { xtra.hidden = true; xtra.open = false; const xb = $("#xtraBody", root); if (xb) xb.innerHTML = ""; }
     };
@@ -289,7 +289,7 @@ export function setupPage(ctx) {
     <div class="obp-grid">
       ${fieldHtml("business", "Business name", { ph: "e.g. Faxton Properties Ltd", attrs: 'maxlength="120" autocomplete="organization"' })}
       ${fieldHtml("cac", "CAC registration number", { ph: "e.g. RC 1234567", attrs: 'maxlength="30" autocapitalize="characters"' })}
-      ${fieldHtml("registrar", "Name of registered representative", { ph: "Full name", attrs: 'maxlength="120" autocomplete="name"' })}
+      ${fieldHtml("registrar", "Name of registrar", { ph: "Full name", attrs: 'maxlength="120" autocomplete="name"' })}
       ${fieldHtml("position", "Your role in the company", { ph: "e.g. Operations manager", attrs: 'maxlength="80"' })}
       ${fieldHtml("supportEmail", "Support email", { type: "email", ph: "support@yourbusiness.com", attrs: 'maxlength="120" autocomplete="email"' })}
       ${fieldHtml("address", "Office address", { ph: "Street, area and city", attrs: 'maxlength="200" autocomplete="street-address"' })}
