@@ -66,7 +66,7 @@ export function discover(ctx) {
     ${SVC.homeServices()}
     ${SVC.ownerBanner()}
     <section class="hx-app" id="hxApp" aria-labelledby="hxAppH">
-      <div class="hx-app-top"><div><p class="hx-eyebrow light">Get Faxton Rentals everywhere</p><h2 id="hxAppH">Start exploring on your device.</h2><p class="hx-app-p">Download the Faxton Rentals app or continue on web.</p>
+      <div class="hx-app-top"><div><p class="hx-eyebrow light">Get Faxton Rentals everywhere</p><h2 id="hxAppH">Start exploring on your device.</h2><p class="hx-app-p">Get the Faxton Rentals app, or install the main website for quick browser access.</p>
         <button type="button" class="hx-dl" data-dlnow>${icon("download", 18)} Download now</button></div>
         <img src="img/app-devices.webp" alt="Faxton Rentals on a phone and a laptop" width="900" height="711" loading="lazy" decoding="async"></div>
       <div class="hx-os-row">${os("os-android.webp", "Android", "Get the app")}${os("os-apple.webp", "iOS", "Get the app")}${os("os-windows.webp", "Windows", "Use on desktop")}${macTile}${tuxTile}</div>
@@ -81,7 +81,7 @@ export function discover(ctx) {
     $("#sb", root).onsubmit = (e) => { e.preventDefault(); c1.commit(); const p = new URLSearchParams(); new FormData(e.target).forEach((v, k) => v && v !== "0" && k !== "area" && p.set(k, v)); Object.entries(placeParams(c1.get(), o1)).forEach(([k, v]) => p.set(k, v)); go(p); };
     $("#sbm", root).onsubmit = (e) => { e.preventDefault(); c2.commit(); const p = new URLSearchParams(); Object.entries(placeParams(c2.get(), o2)).forEach(([k, v]) => p.set(k, v)); go(p); };
     SVC.bindOwnerBanner(root, ctx);
-    $$("[data-dlnow]", root).forEach((b) => (b.onclick = () => APPS.openDownloadModal()));
+    $$("[data-dlnow]", root).forEach((b) => (b.onclick = () => APPS.openDownloadModal(ctx)));
     // "Get the app" links land on the app section
     if (ctx.q.to === "app") setTimeout(() => $("#hxApp", root)?.scrollIntoView({ behavior: "smooth", block: "center" }), 450);
     paintHome(ctx, root, pr);
