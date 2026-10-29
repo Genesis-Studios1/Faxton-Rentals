@@ -173,13 +173,13 @@ const onboardingRoleName = (role) => role === "agency" ? "Business" : role === "
 export function setupOnboarding(ctx) {
   const profile = ctx.S.profile || {};
   const role = ["agency", "agent", "landlord", "renter"].includes(profile.role) ? profile.role : "renter";
+  const roleDestination = () => ctx.q?.next || ({ agency: "/agency", agent: "/agent-dashboard", landlord: "/portfolio" }[role] || "/");
   if (profile.onboarding?.completed === true) {
     ctx.go("#" + roleDestination());
     return { title: "Account setup complete", full: true, html: '<div class="onb3"><main class="onb3-main"><h1>Your account is ready.</h1></main></div>' };
   }
   const business = role === "agency", agent = role === "agent", owner = role === "landlord";
   const detail = business ? (profile.agency || {}) : agent ? (profile.agentInfo || {}) : {};
-  const roleDestination = () => ctx.q?.next || ({ agency: "/agency", agent: "/agent-dashboard", landlord: "/portfolio" }[role] || "/");
   const locationHtml = residenceFields(profile.country || NIGERIA, profile.lga || profile.city || "", profile.state || "");
   const businessFields = business ? (
     '<section class="onb3-section" aria-labelledby="onb3-business-title"><div class="onb3-section-head"><span class="onb3-step">02</span><div><h2 id="onb3-business-title">Tell us about your business</h2><p>These details help us review your business profile.</p></div></div><div class="onb3-grid">' +
