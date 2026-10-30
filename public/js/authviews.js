@@ -389,7 +389,7 @@ export function setupPage(ctx) {
         const isHome = type.value === "Home services provider";
         real.hidden = isHome;
         home.hidden = !isHome;
-        $( "input[name=\"businessService\"]", isHome ? real : home).forEach((el) => { el.checked = false; });
+        $("input[name=\"businessService\"]", isHome ? real : home).forEach((el) => { el.checked = false; });
       };
       type.addEventListener("change", syncBusinessType); syncBusinessType();
     }
