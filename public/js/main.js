@@ -220,7 +220,7 @@ export async function render() {
   const pub = path === "/terms" || path === "/privacy" || path === "/license";
   if (!S.user && setupPath) return go("#/signup");
   if (!S.user && !open && !pub) return go(path === "/" ? "#/onboarding/1" : "#/login?next=" + encodeURIComponent(location.hash.slice(1)));
-  if (S.user && S.profile?.onboarding?.completed === false && !setupPath && !pub) return go("#/onboarding/setup");
+  if (S.user && !G.needsVerify(S.user) && S.profile?.onboarding?.completed === false && !setupPath && !pub) return go("#/onboarding/setup");
   if (S.user && setupPath && S.profile?.onboarding?.completed === true) return go("#" + (q.next || roleHome() || "/"));
   if (S.user && open) return go("#" + (q.next || roleHome() || "/"));
   // Staff accounts open their own dashboard first, once per visit.
@@ -229,7 +229,22 @@ export async function render() {
   const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, reauthGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
-  try { view = S.user && G.needsVerify(S.user) && path !== "/onboarding/setup" && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
+  try { view = S.user && G.needsVerify(S.user) && path !== "/onboarding/setup" && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) {
+    console.error("Faxton page render failed", { path, err });
+    if (id !== renderId) return;
+    bar(false);
+    const code = String(err?.code || err?.name || "page-load-error");
+    const detail = String(err?.message || "").replace(/https?:\/\/\S+/g, "[URL]").slice(0, 140);
+    const isNetwork = /network|unavailable|failed to fetch|load failed|internet disconnected/i.test(code + " " + detail);
+    const isDenied = /permission-denied|unauth/i.test(code + " " + detail);
+    const message = isNetwork
+      ? "Faxton couldn’t reach a required service. Check your connection and try again."
+      : isDenied
+        ? "Your account does not have permission to open this section. Contact the Faxton owner if you believe this is a mistake."
+        : "This section hit an app loading error. It may not be your internet connection; try again and share the error details with the Faxton team if it continues.";
+    app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>We couldn’t load this page</h2><p>${esc(message)}</p><small class="fx-state-detail">Error: ${esc(code)}${detail ? " · " + esc(detail) : ""}</small><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`);
+    return wire();
+  }
   if (id !== renderId) return;
   bar(false);
   if (!AXS && view && !view.full && S.user && (S.isAdmin || ROLE_UI[S.role]) && (view.admin || view.role || path.startsWith("/messages") || isSettings(path))) { try { AXS = await import("./ax-shell.js"); } catch (e) { console.error(e); } if (id !== renderId) return; }
@@ -581,7 +596,7 @@ async function refreshAuthState(u) {
       const was = S.profile; S.profile = p;
       // A role change or a verification decision made by an admin shows up straight away.
       if (was && (p.role !== was.role)) refreshAuthState(auth.currentUser || u).then(render);
-      else if (was && (p.verified !== was.verified || p.verification?.status !== was.verification?.status)) render();
+      else if (was && (p.verified !== was.verified || p.verification?.status !== was.verification?.status || p.onboarding?.completed !== was.onboarding?.completed)) render();
     });
     S.unsubNotes?.(); S.unsubNotes = watchAllNotifications(u.uid, (list) => { S.notes = list; paintBell(); list.filter((n) => !n.read).forEach((n) => { if (S.shownNotes.has(n.id)) return; S.shownNotes.add(n.id); showNotification(n); }); if ($("#notePanel")) drawNotes(); });
     // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
