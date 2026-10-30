@@ -31,6 +31,8 @@ jobs:
           node --experimental-default-type=module --test tests/listing-media.test.mjs
           node --experimental-default-type=module --check public/js/admin2.js
           node --experimental-default-type=module --check public/js/main.js
+          node --experimental-default-type=module --check public/js/gate.js
+          node --experimental-default-type=module --check public/js/views.js
           node --experimental-default-type=module --check public/js/store.js
           node --experimental-default-type=module --check public/js/ax-shell.js
           node --experimental-default-type=module --check public/js/listing-media.js
