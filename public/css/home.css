@@ -751,3 +751,12 @@
 .hx-lc .cmb-list{left:-44px;right:-16px;min-width:270px;top:calc(100% + 12px)}
 .hx-m-cb{flex:1;min-width:0}
 @media (max-width:860px){.hx-search-m .hx-m-cb,.hx-search-m .hx-m-cb .cmb-row{position:static}.hx-m-cb .cmb-chev{display:none}.hx-m-cb .cmb-row .cmb-in{padding-right:4px!important}.hx-search-m .cmb-list{left:0;right:0;top:calc(100% + 8px)}}
+
+
+/* Compact download call-to-action: platform cards now live on the public Features page. */
+.hx-app-compact{display:flex;align-items:center;justify-content:space-between;gap:28px;margin-top:38px;padding:clamp(22px,3vw,34px) clamp(20px,3vw,40px)}
+.hx-app-compact-copy{max-width:660px;min-width:0}
+.hx-app-compact h2{max-width:24ch;margin:9px 0 7px;font-size:clamp(24px,2.2vw,34px)}
+.hx-app-compact .hx-app-p{margin:0;max-width:58ch}
+.hx-app-compact .hx-dl{flex:none}
+@media(max-width:640px){.hx-app-compact{align-items:flex-start;flex-direction:column;gap:18px}.hx-app-compact .hx-dl{width:100%;justify-content:center}}
