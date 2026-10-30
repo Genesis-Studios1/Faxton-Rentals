@@ -138,7 +138,7 @@ service cloud.firestore {
                   && short(request.resource.data.agency.get('businessType', ''), 40)
                   && short(request.resource.data.agency.get('phone', ''), 30)
                   && short(request.resource.data.agency.get('areas', ''), 240)
-                  && short(request.resource.data.agency.get('description', ''), 500))
+                  && short(request.resource.data.agency.get('description', ''), 500)))
           && (request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
               || (resource.data.role == 'agent' && resource.data.get('onboarding', {}).get('completed', false) == false
                   && request.resource.data.get('onboarding', {}).get('completed', false) == true
