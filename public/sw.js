@@ -10,7 +10,7 @@
 //  - A new release waits until the person taps "Reload" in the "A new version is ready" message (see js/robust.js).
 //
 // RELEASE: BUILD below must equal BUILD in js/ui.js and the ?v= in public/app/index.html. Run `node scripts/check-release.mjs` before deploying.
-const BUILD = "2026-10-30.03";
+const BUILD = "2026-10-30.04";
 const PRE = "faxton-" + BUILD;   // saved on install, thrown away on the next release
 const RT = "faxton-rt";          // pictures, fonts, SDK scripts picked up while browsing (size-capped, survives releases)
 const RT_MAX = 160;
@@ -106,7 +106,8 @@ self.addEventListener("fetch", (e) => {
   }
   if (u.search.startsWith("?v=") || p.startsWith("/fonts/") || p.startsWith("/vendor/")) { e.respondWith(cacheFirst(req, PRE).catch(() => caches.match(req).then((h) => h || Response.error()))); return; }
   if (req.destination === "image" || p.startsWith("/img/") || p.startsWith("/assets/") || p.startsWith("/icons/")) { e.respondWith(staleWhileRevalidate(e, req)); return; }
-  if (p.startsWith("/js/") || p.startsWith("/css/") || p.endsWith(".webmanifest") || p.endsWith(".json")) { e.respondWith(networkFirst(e, req, PRE, 6000)); return; }
+  if (p.startsWith("/js/") || p.startsWith("/css/")) { e.respondWith(cacheFirst(req, PRE).catch(() => caches.match(req).then((h) => h || Response.error()))); return; }
+  if (p.endsWith(".webmanifest") || p.endsWith(".json")) { e.respondWith(networkFirst(e, req, PRE, 1500)); return; }
 });
 
 // Incoming-call notifications: the Accept and Decline buttons are handled here and passed to the open app.
