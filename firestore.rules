@@ -214,7 +214,7 @@ service cloud.firestore {
                   && request.resource.data.get('onboarding', {}).get('draft', {}).size() == 0))
           && short(request.resource.data.get('referralSource', ''), 40)
           && short(request.resource.data.get('referralOther', ''), 120)
-          && (!('businessTypes' in request.resource.data) || (request.resource.data.businessTypes is list && request.resource.data.businessTypes.size() <= 11))
+          && (!('businessTypes' in request.resource.data) || (request.resource.data.businessTypes is list && request.resource.data.businessTypes.size() <= 11)))
         || isOwner()
         || (isAdmin() && uid != request.auth.uid
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
