@@ -7,12 +7,12 @@ await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); awai
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
 const ctxOf = (u, verified = true) => env.authenticatedContext(u, { email_verified: verified, email: u + "@x.com" }).firestore();
 const ren = ctxOf("ren", false), renV = ctxOf("ren"), adm = ctxOf("adm"), own = ctxOf("own"), sup = ctxOf("sup"), oth = ctxOf("oth"), anon = env.unauthenticatedContext().firestore();
-const E = (o = {}) => ({ type: "login", uid: "ren", name: "Ren", role: "renter", at: serverTimestamp(), ...o });
+const E = (o = {}) => ({ type: "signup", uid: "ren", name: "Ren", role: "renter", at: serverTimestamp(), ...o });
 // ---- staffEvents ----
 await t("user records their own sign-up (fixed id)", setDoc(doc(ren, "staffEvents/signup_ren"), E({ type: "signup" })));
 await t("the sign-up cannot be repeated by its owner (no update)", setDoc(doc(ren, "staffEvents/signup_ren"), E({ type: "signup" })), false);
 await t("sign-up under a random id is refused", addDoc(collection(ren, "staffEvents"), E({ type: "signup" })), false);
-await t("user records their own sign-in", addDoc(collection(ren, "staffEvents"), E()));
+await t("routine sign-ins are not recorded", addDoc(collection(ren, "staffEvents"), E({ type: "login" })), false);
 await t("cannot record an event about someone else", addDoc(collection(ren, "staffEvents"), E({ uid: "oth" })), false);
 await t("cannot use an unknown type", addDoc(collection(ren, "staffEvents"), E({ type: "ban" })), false);
 await t("cannot add an extra field (email)", addDoc(collection(ren, "staffEvents"), E({ email: "ren@x.com" })), false);
