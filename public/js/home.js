@@ -27,10 +27,6 @@ const placeParams = (text, o) => {
 
 // ============================================================ HOME
 const TABS = [["", "All homes"], ["Apartment", "Apartments"], ["House", "Houses"], ["Studio", "Studios"]];
-const os = (img, name, sub) => `<div class="hx-os"><img src="img/${img}" alt="" width="36" height="36" loading="lazy" decoding="async"><span><b>${name}</b><small>${sub}</small></span></div>`;
-const macTile = `<div class="hx-os"><span class="hx-os-ic">${icon("download", 20)}</span><span><b>macOS</b><small>Use on MacBook</small></span></div>`;
-const tuxTile = `<div class="hx-os"><span class="hx-os-ic tux"><svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true"><ellipse cx="16" cy="19" rx="9" ry="10" fill="#1b1b1f"/><ellipse cx="16" cy="21.5" rx="5.5" ry="6.5" fill="#f4f1ea"/><circle cx="12.6" cy="12.5" r="1.5" fill="#fff"/><circle cx="19.4" cy="12.5" r="1.5" fill="#fff"/><path d="M14 15.2h4l-2 2.2z" fill="#f2b233"/></svg></span><span><b>Linux</b><small>Use on desktop</small></span></div>`;
-
 export function discover(ctx) {
   const S = ctx.S, pr = S.profile?.prefs || {}, first = String(S.profile?.name || S.user?.displayName || "").trim().split(/\s+/)[0];
   const POP = [["lekki", "Lekki"], ["ajah", "Ajah"], ["yaba", "Yaba"], ["ikeja", "Ikeja"], ["victoria", "Victoria Island"]];
@@ -65,11 +61,13 @@ export function discover(ctx) {
     ${MATCH.matchBanner("wide")}
     ${SVC.homeServices()}
     ${SVC.ownerBanner()}
-    <section class="hx-app" id="hxApp" aria-labelledby="hxAppH">
-      <div class="hx-app-top"><div><p class="hx-eyebrow light">Get Faxton Rentals everywhere</p><h2 id="hxAppH">Start exploring on your device.</h2><p class="hx-app-p">Get the Faxton Rentals app, or install the main website for quick browser access.</p>
-        <button type="button" class="hx-dl" data-dlnow>${icon("download", 18)} Download now</button></div>
-        <img src="img/app-devices.webp" alt="Faxton Rentals on a phone and a laptop" width="900" height="711" loading="lazy" decoding="async"></div>
-      <div class="hx-os-row">${os("os-android.webp", "Android", "Get the app")}${os("os-apple.webp", "iOS", "Get the app")}${os("os-windows.webp", "Windows", "Use on desktop")}${macTile}${tuxTile}</div>
+    <section class="hx-app hx-app-compact" id="hxApp" aria-labelledby="hxAppH">
+      <div class="hx-app-compact-copy">
+        <p class="hx-eyebrow light">Faxton Rentals on every device</p>
+        <h2 id="hxAppH">Your next home search goes with you.</h2>
+        <p class="hx-app-p">Browse on the web or get the app for your device. Your conversations and property search stay together.</p>
+      </div>
+      <button type="button" class="hx-dl" data-dlnow>${icon("download", 18)} Download now</button>
     </section>
     <div class="hx-feats"><div><span class="hx-fi">${icon("pin", 22)}</span><span><b>Find your neighbourhood</b><small>Discover great areas, with everything you need nearby.</small></span></div><div><span class="hx-fi">${icon("cal", 22)}</span><span><b>Book a viewing</b><small>Schedule and tour your shortlisted homes with ease.</small></span></div><div><span class="hx-fi">${icon("user", 22)}</span><span><b>Manage your rental</b><small>Keep track of your enquiries, viewings and tenancy in one place.</small></span></div></div>
   </div>`;

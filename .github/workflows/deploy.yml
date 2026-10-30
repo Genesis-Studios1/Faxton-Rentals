@@ -62,6 +62,7 @@ jobs:
           curl -fsS "$HOST/" | grep -q "Find a home that feels like"
           curl -fsS "$HOST/app/" -o /dev/null
           curl -fsS "$HOST/about" -o /dev/null
+          curl -fsS "$HOST/features" -o /dev/null
           curl -fsS "$HOST/how-it-works" -o /dev/null
           curl -fsS "$HOST/properties" -o /dev/null
           curl -fsS "$HOST/sitemap.xml" -o /dev/null
