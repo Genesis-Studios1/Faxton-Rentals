@@ -1,163 +1,34 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Faxton Rentals | Find and rent homes in Nigeria</title>
-<meta name="description" content="Find, view and rent homes across Nigeria. Verified agents, safer viewings, direct messages and simple rental applications, all in one app.">
-<meta name="robots" content="index,follow,max-image-preview:large">
-<link rel="canonical" href="https://faxtonrentals.com/">
-<meta name="theme-color" content="#073b2d">
-<meta name="color-scheme" content="light dark">
-<meta name="format-detection" content="telephone=no">
-<meta name="application-name" content="Faxton Rentals">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Faxton">
-<!-- Sharing cards (WhatsApp, Facebook, X, LinkedIn). The picture is img/og-image.jpg (1200x630). -->
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="Faxton Rentals">
-<meta property="og:locale" content="en_NG">
-<meta property="og:title" content="Faxton Rentals | Find and rent homes in Nigeria">
-<meta property="og:description" content="Find, view and rent homes across Nigeria. Verified agents, safer viewings and simple applications.">
-<meta property="og:url" content="https://faxtonrentals.com/">
-<meta property="og:image" content="https://faxtonrentals.com/img/og-image.jpg">
-<meta property="og:image:type" content="image/jpeg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Faxton Rentals: find, view and rent your next home across Nigeria.">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Faxton Rentals | Find and rent homes in Nigeria">
-<meta name="twitter:description" content="Find, view and rent homes across Nigeria. Verified agents, safer viewings and simple applications.">
-<meta name="twitter:image" content="https://faxtonrentals.com/img/og-image.jpg">
-<meta name="twitter:image:alt" content="Faxton Rentals: find, view and rent your next home across Nigeria.">
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://faxtonrentals.com/#org","name":"Faxton Rentals","url":"https://faxtonrentals.com/","logo":"https://faxtonrentals.com/icons/icon-512.png","description":"A rental marketplace for Nigeria: find, view and rent homes with verified agents."},{"@type":"WebSite","@id":"https://faxtonrentals.com/#site","url":"https://faxtonrentals.com/","name":"Faxton Rentals","inLanguage":"en-NG","publisher":{"@id":"https://faxtonrentals.com/#org"}}]}</script>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png">
-<link rel="shortcut icon" type="image/png" href="/icons/icon-512.png">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<!-- Connections the app always needs, opened early. Nothing third-party blocks the first paint. -->
-<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
-<link rel="preload" href="fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/inter-tight-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
-<script src="js/boot.js?v=2026-10-29.01"></script>
-<script type="module" src="js/robust.js?v=2026-10-29.01"></script>
-<link rel="stylesheet" href="css/fonts.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/app.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/theme.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/shell.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/home.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/flow.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/admin.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/chat.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/auth.css?v=2026-10-29.01">
-<link rel="stylesheet" href="css/robust.css?v=2026-10-29.01">
-<!-- Start downloading the app modules in parallel (after the stylesheets, so styles are never queued behind them). -->
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js">
-<link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js">
-<link rel="modulepreload" href="js/applock.js">
-<link rel="modulepreload" href="js/receipts.js">
-<link rel="modulepreload" href="js/presence.js">
-<link rel="modulepreload" href="js/mydata.js">
-<link rel="modulepreload" href="js/mydata-ui.js">
-<link rel="modulepreload" href="js/apps.js">
-<link rel="modulepreload" href="js/area.js">
-<link rel="modulepreload" href="js/authkit.js">
-<link rel="modulepreload" href="js/authviews.js">
-<link rel="modulepreload" href="js/calls.js">
-<link rel="modulepreload" href="js/lightbox.js">
-<link rel="modulepreload" href="js/cards.js">
-<link rel="modulepreload" href="js/countries.js">
-<link rel="modulepreload" href="js/dd.js">
-<link rel="modulepreload" href="js/firebase.js">
-<link rel="modulepreload" href="js/feedback.js">
-<link rel="modulepreload" href="js/footer.js">
-<link rel="modulepreload" href="js/fx.js">
-<link rel="modulepreload" href="js/gate.js">
-<link rel="modulepreload" href="js/home.js">
-<link rel="modulepreload" href="js/legal.js">
-<link rel="modulepreload" href="js/loc.js">
-<link rel="modulepreload" href="js/ng-lga.js">
-<link rel="modulepreload" href="js/maps.js">
-<link rel="modulepreload" href="js/match.js">
-<link rel="modulepreload" href="js/myhome.js">
-<link rel="modulepreload" href="js/offers.js">
-<link rel="modulepreload" href="js/onboard.js">
-<link rel="modulepreload" href="js/pages.js">
-<link rel="modulepreload" href="js/paymentinfo.js">
-<link rel="modulepreload" href="js/pdp.js">
-<link rel="modulepreload" href="js/profile.js">
-<link rel="modulepreload" href="js/safety.js">
-<link rel="modulepreload" href="js/services.js">
-<link rel="modulepreload" href="js/store.js">
-<link rel="modulepreload" href="js/tenants.js">
-<link rel="modulepreload" href="js/tour.js">
-<link rel="modulepreload" href="js/ui.js">
-<link rel="modulepreload" href="js/views.js">
-<link rel="modulepreload" href="js/viewsafe.js">
-<style>
-  /* Splash screen: inline so it paints before anything else loads. The artwork is your image: its lines are revealed (drawn) over 2 seconds. */
-  #splash{position:fixed;inset:0;z-index:1000;overflow:hidden;color:#fff;background:#01100c;font-family:var(--font-body,system-ui),system-ui,sans-serif;clip-path:circle(150% at 50% 44%);transition:clip-path .95s cubic-bezier(.75,0,.2,1),opacity .95s ease-in}
-  #splash.leave{clip-path:circle(0% at 50% 44%);opacity:0;pointer-events:none}
-  #splash.leave .sp-center{transform:translateX(-50%) scale(.8);opacity:0;transition:transform .7s cubic-bezier(.6,0,.4,1),opacity .6s}
-  html.no-splash #splash{display:none}
-  #splash .sp-art{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;object-position:50% 100%;background:#01100c}
-  #splash .sp-fb{pointer-events:none;opacity:0;transform:translateY(3%);animation:spArt 1.6s .25s cubic-bezier(.2,.8,.2,1) forwards}
-  @keyframes spArt{to{opacity:1;transform:none}}
-  #splash .sp-center{position:absolute;left:50%;top:21%;transform:translateX(-50%);display:grid;justify-items:center;text-align:center;width:max-content}
-  #splash .sp-mark{display:block;width:clamp(84px,8vw,140px);height:auto;overflow:visible}
-  #splash .sp-mark path{transform-box:fill-box;opacity:0}
-  #splash .sp-f{fill:#34d399;transform-origin:left center;animation:spF .8s .2s cubic-bezier(.2,.9,.25,1) forwards}
-  #splash .sp-s{fill:#fff;transform-origin:center bottom;animation:spS .6s .6s cubic-bezier(.2,.9,.25,1) forwards}
-  #splash .sp-r{fill:#fff;transform-origin:left bottom;animation:spR .8s .4s cubic-bezier(.2,.9,.25,1) forwards}
-  #splash .sp-word{font:400 clamp(1.5rem,2.6vw,2.4rem)/1.1 var(--font-display,system-ui),system-ui,sans-serif;letter-spacing:-.03em;margin-top:clamp(12px,1.6vw,24px);white-space:nowrap}
-  #splash .sp-word b{font-weight:800;display:inline-block;opacity:0;animation:spWord .9s .9s cubic-bezier(.2,.8,.2,1) forwards}
-  #splash .sp-word span{display:inline-block;opacity:0;animation:spWord .9s 1.1s cubic-bezier(.2,.8,.2,1) forwards}
-  #splash .sp-tag{margin:clamp(10px,1.4vw,22px) 0 0;font:400 clamp(.78rem,1vw,1.05rem)/1.4 var(--font-body,system-ui),system-ui,sans-serif;color:#a9d9c6;letter-spacing:.2em;opacity:0;animation:spTag 1.1s 1.4s ease-out forwards}
-  #splash .sp-load{position:absolute;left:0;right:0;bottom:clamp(48px,10vh,110px);display:grid;justify-items:center;gap:14px;opacity:0;animation:spFin .5s .5s forwards}
-  #splash .sp-bar{width:min(220px,56vw);height:3px;border-radius:3px;background:rgba(255,255,255,.18);overflow:hidden}
-  #splash .sp-bar i{display:block;height:100%;border-radius:3px;background:#34d399;transform:scaleX(0);transform-origin:left;animation:spFill 2.2s .6s cubic-bezier(.45,.05,.25,1) forwards}
-  #splash .sp-cap{position:relative;height:1.3em;width:14em;text-align:center;font:500 .8125rem/1.3 var(--font-body,system-ui),system-ui,sans-serif;letter-spacing:.06em;color:#a9d9c6}
-  #splash .sp-cap span{position:absolute;inset:0;opacity:0}
-  #splash .sp-cap span:nth-child(1){animation:spCap 1.4s .6s ease-in-out forwards}
-  #splash .sp-cap span:nth-child(2){animation:spCapIn .6s 2s ease-out forwards}
-  @keyframes spDraw{to{stroke-dashoffset:0}}
-  @keyframes spFin{to{opacity:1}}
-  @keyframes spF{from{opacity:0;transform:translateX(-45%) scaleX(.4)}to{opacity:1;transform:none}}
-  @keyframes spS{from{opacity:0;transform:scaleY(0)}to{opacity:1;transform:none}}
-  @keyframes spR{from{opacity:0;transform:translate(35%,25%) rotate(10deg)}to{opacity:1;transform:none}}
-  @keyframes spWord{from{opacity:0;transform:translateY(18px);letter-spacing:.14em}to{opacity:1;transform:none;letter-spacing:-.01em}}
-  @keyframes spTag{from{opacity:0;letter-spacing:.42em}to{opacity:1;letter-spacing:.2em}}
-  @keyframes spCap{0%{opacity:0;transform:translateY(4px)}20%,75%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-4px)}}
-  @keyframes spCapIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-  @keyframes spFill{to{transform:scaleX(1)}}
-  @media (max-aspect-ratio:1/1){
-    #splash{background:radial-gradient(70% 26% at 50% 24%,#04704a 0%,#02452f 45%,#01100c 100%)}
-    #splash .sp-art{inset:auto 0 0 0;height:calc(100vw * 941 / 1672);-webkit-mask-image:linear-gradient(180deg,transparent 42%,#000 50%);mask-image:linear-gradient(180deg,transparent 42%,#000 50%)}
-    #splash .sp-center{top:22%}
-  }
-  @media (prefers-reduced-motion:reduce){#splash *,#splash{animation-duration:.01s!important;animation-delay:0s!important;transition-duration:.2s!important}#splash .sp-bar i{transform:scaleX(1)}#splash .sp-cap span:nth-child(1){display:none}#splash .sp-cap span:nth-child(2){opacity:1}}
-</style>
-</head>
-<body>
-<div id="splash" role="status" aria-label="Loading Faxton Rentals">
-  <img class="sp-art sp-fb" src="img/splash-final.webp" alt="" aria-hidden="true">
-  <div class="sp-center">
-    <svg class="sp-mark" viewBox="570 235 415 355" aria-hidden="true">
-      <path class="sp-f" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/>
-      <path class="sp-s" d="M702 455L775 429V581H702Z"/>
-      <path class="sp-r" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/>
-    </svg>
-    <div class="sp-word"><b>Faxton</b> <span>Rentals</span></div>
-    <p class="sp-tag">Your next home starts here.</p>
-  </div>
-  <div class="sp-load" aria-hidden="true"><div class="sp-bar"><i></i></div><div class="sp-cap"><span>Finding your place</span><span>Almost there</span></div></div>
-</div>
-<div id="app"></div>
-<noscript><main style="font-family:system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:0 20px;line-height:1.5"><h1>Faxton Rentals</h1><p>Find, view and rent homes across Nigeria. Faxton Rentals needs JavaScript to run, so please turn it on in your browser settings and reload this page.</p></main></noscript>
-<script type="module" src="js/main.js?v=2026-10-29.01"></script>
-</body>
-</html>
+<html lang="en-NG"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Faxton Rentals | Find homes to rent across Nigeria</title>
+<meta name="description" content="Discover rental homes across Nigeria, compare property details and costs, and connect with property owners and agents through Faxton Rentals.">
+<meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="https://faxtonrentals.com/"><meta name="theme-color" content="#073b2d">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Faxton Rentals"><meta property="og:locale" content="en_NG">
+<meta property="og:title" content="Faxton Rentals | Find homes to rent across Nigeria"><meta property="og:description" content="Discover rental homes, compare details and costs, and connect with property owners and agents.">
+<meta property="og:url" content="https://faxtonrentals.com/"><meta property="og:image" content="https://faxtonrentals.com/img/og-image.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Faxton Rentals | Find homes to rent across Nigeria"><meta name="twitter:description" content="Discover rental homes, compare details and costs, and connect with property owners and agents."><meta name="twitter:image" content="https://faxtonrentals.com/img/og-image.jpg">
+<link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png"><link rel="icon" type="image/png" sizes="48x48" href="/icons/favicon-48.png"><link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/fonts.css"><link rel="stylesheet" href="/css/marketing.css"><script defer src="/js/legacy-redirect.js"></script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://faxtonrentals.com/#organization","name":"Faxton Rentals","url":"https://faxtonrentals.com/","logo":{"@type":"ImageObject","url":"https://faxtonrentals.com/icons/icon-512.png","width":512,"height":512},"description":"A property rental platform that helps people discover homes and connect with property owners and agents across Nigeria."},{"@type":"WebSite","@id":"https://faxtonrentals.com/#website","url":"https://faxtonrentals.com/","name":"Faxton Rentals","inLanguage":"en-NG","publisher":{"@id":"https://faxtonrentals.com/#organization"}}]}</script>
+</head><body><a class="skip" href="#main">Skip to content</a>
+<header class="site-head"><div class="nav-wrap"><a class="brand" href="/" aria-label="Faxton Rentals home"><img src="/assets/mark.svg" alt="" width="42" height="38"><span>Faxton <b>Rentals</b></span></a>
+<nav class="main-nav" aria-label="Main navigation"><a href="/properties">Find homes</a><a href="/how-it-works">How it works</a><a href="/agents">For agents</a><a href="/property-owners">For owners</a><a href="/about">About</a></nav>
+<div class="nav-actions"><a class="nav-login" href="/app/#/login">Sign in</a><a class="btn btn-small" href="/app/#/signup">Get started ↗</a></div><a class="mobile-cta" href="/app/#/signup">Get started</a></div></header>
+<main id="main">
+<section class="hero"><div class="hero-copy"><p class="eyebrow"><span></span> BETTER HOMES. BRIGHTER FUTURES.</p><h1>Find a home that feels like <em>your next chapter.</em></h1>
+<p class="hero-lead">Discover rental homes across Nigeria, compare the details that matter, and connect with property owners and agents from one place.</p>
+<div class="hero-actions"><a class="btn" href="/properties">Explore available homes ↗</a><a class="btn btn-quiet" href="/how-it-works">See how it works</a></div>
+<ul class="hero-points"><li>Explore property details</li><li>Arrange viewings</li><li>Keep conversations together</li></ul></div>
+<div class="hero-photo"><img src="/img/hero-hd.webp" alt="Contemporary home surrounded by tropical greenery" width="1718" height="1386" fetchpriority="high"><div class="photo-note"><span class="note-dot"></span><span><b>A clearer way to rent</b><small>Search, connect and take your next step.</small></span></div></div></section>
+<section class="trust-strip" aria-label="Faxton Rentals features"><div><b>01</b><span>Discover homes</span></div><div><b>02</b><span>Compare key details</span></div><div><b>03</b><span>Arrange a viewing</span></div><div><b>04</b><span>Connect with people</span></div></section>
+<section class="section"><div class="section-head"><div><p class="eyebrow">A PLACE TO START</p><h2>Explore homes worth a closer look.</h2><p>Browse currently published rental listings and open each home for its details.</p></div><a class="text-link" href="/properties">View all homes ↗</a></div>
+<div class="property-grid" id="featured-properties"><!-- GENERATED_FEATURED_START --><article class="empty-property"><span class="empty-icon">⌂</span><h3>New homes are on the way</h3><p>Published properties will appear here as they become available.</p><a class="text-link" href="/app/#/signup">Join Faxton Rentals ↗</a></article><!-- GENERATED_FEATURED_END --></div></section>
+<section class="section"><div class="section-head"><div><p class="eyebrow">A MORE STRAIGHTFORWARD JOURNEY</p><h2>From search to viewing, in a few steps.</h2><p>Keep the important parts of your home search moving in one place.</p></div><a class="text-link" href="/how-it-works">Learn how it works ↗</a></div>
+<div class="steps-grid"><article class="step-card"><span>01</span><div class="step-icon">⌕</div><h3>Find a home</h3><p>Explore rental listings and review the location, photos, price and property details.</p></article><article class="step-card"><span>02</span><div class="step-icon">↗</div><h3>Connect directly</h3><p>Ask questions and speak with the property owner or agent through Faxton Rentals.</p></article><article class="step-card"><span>03</span><div class="step-icon">✓</div><h3>Arrange a viewing</h3><p>Coordinate a property visit and keep track of your next steps.</p></article></div></section>
+<section class="split-section"><div class="split-image"><img src="/img/apartment-2bed.webp" alt="Bright modern apartment interior" width="1200" height="800" loading="lazy"></div><div class="split-copy"><p class="eyebrow">FOR PROPERTY PROFESSIONALS</p><h2>Bring your property journey together.</h2><p>Faxton Rentals gives property owners, agents and agencies a place to manage listings, respond to enquiries and coordinate viewings.</p><div class="split-links"><a class="btn" href="/property-owners">For property owners ↗</a><a class="text-link" href="/agents">For agents and agencies ↗</a></div></div></section>
+<section class="section"><div class="section-head"><div><p class="eyebrow">THE HOME SEARCH NOTES</p><h2>Make your next move with more clarity.</h2><p>Practical information for comparing homes and preparing for viewings.</p></div><a class="text-link" href="/guides/renting-a-home-in-nigeria">Read our guides ↗</a></div>
+<div class="guide-grid"><a class="guide-card" href="/guides/renting-a-home-in-nigeria"><span>RENTING BASICS</span><h3>A practical guide to renting a home in Nigeria</h3><p>What to compare, what to ask and what to confirm before you commit.</p><b>Read guide ↗</b></a><a class="guide-card" href="/guides/property-viewing-checklist"><span>VIEWING CHECKLIST</span><h3>What to check when viewing a property</h3><p>A simple checklist to help you make the most of a property visit.</p><b>Read guide ↗</b></a><a class="guide-card" href="/guides/renting-in-lagos"><span>LOCAL SEARCH</span><h3>Planning a rental search in Lagos</h3><p>Ways to narrow your search by area, budget and daily routine.</p><b>Read guide ↗</b></a></div></section>
+<section class="final-cta"><div><p class="eyebrow">YOUR NEXT HOME STARTS HERE</p><h2>Make room for a better home search.</h2><p>Explore published homes or create your Faxton Rentals account to get started.</p></div><div><a class="btn btn-light" href="/properties">Explore homes ↗</a><a class="cta-secondary" href="/app/#/signup">Create an account</a></div></section>
+</main>
+<footer class="marketing-foot"><div class="foot-main"><a class="brand brand-light" href="/"><img src="/assets/mark.svg" alt="" width="42" height="38"><span>Faxton <b>Rentals</b></span></a><p>Better Homes. Brighter Futures.</p><nav aria-label="Footer navigation"><a href="/about">About</a><a href="/how-it-works">How it works</a><a href="/properties">Find homes</a><a href="/property-owners">Property owners</a><a href="/agents">Agents</a><a href="/safety">Safety</a><a href="/guides/renting-a-home-in-nigeria">Rental guides</a><a href="/contact">Contact</a><a href="/app/#/privacy">Privacy</a><a href="/app/#/terms">Terms</a></nav></div><div class="foot-bottom"><span>© Faxton Rentals</span><span>Built for the Nigerian rental journey.</span></div></footer></body></html>

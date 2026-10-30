@@ -14,7 +14,8 @@ const bad = (m) => problems.push(m);
 // 1. One version number everywhere ------------------------------------------------------------
 const uiBuild = /export const BUILD = "([^"]+)"/.exec(read("public/js/ui.js"))?.[1];
 const swBuild = /const BUILD = "([^"]+)"/.exec(read("public/sw.js"))?.[1];
-const html = read("public/index.html");
+const html = read("public/app/index.html");
+const site = read("public/index.html");
 const vs = [...html.matchAll(/(?:src|href)="(?:css|js)\/[^"?]+\?v=([^"]+)"/g)].map((m) => m[1]);
 if (!uiBuild) bad("js/ui.js has no BUILD constant.");
 if (!swBuild) bad("sw.js has no BUILD constant.");
@@ -45,13 +46,18 @@ for (const f of graph) {
 }
 
 // 4. Head essentials ------------------------------------------------------------------------
-for (const [re, what] of [[/<title>[^<]{10,}<\/title>/, "a <title>"], [/name="description"/, "a meta description"], [/rel="canonical"/, "a canonical link"], [/property="og:image"/, "an og:image"], [/name="twitter:card"/, "a twitter:card"], [/application\/ld\+json/, "JSON-LD"], [/rel="manifest"/, "the manifest link"], [/<html lang=/, "a lang attribute"]]) if (!re.test(html)) bad(`index.html is missing ${what}.`);
+for (const [re, what] of [[/<title>[^<]{10,}<\/title>/, "a <title>"], [/name="description"/, "a meta description"], [/rel="canonical"/, "a canonical link"], [/property="og:image"/, "an og:image"], [/name="twitter:card"/, "a twitter:card"], [/application\/ld\+json/, "JSON-LD"], [/rel="manifest"/, "the manifest link"], [/<html lang=/, "a lang attribute"]]) if (!re.test(html)) bad(`app/index.html is missing ${what}.`);
 for (const f of ["img/og-image.jpg", "robots.txt", "sitemap.xml", "404.html", "offline.html", ".well-known/assetlinks.json", "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png"]) if (!existsSync(join(pub, f))) bad(`public/${f} is missing.`);
 try { const m = JSON.parse(read("public/manifest.webmanifest")); for (const i of m.icons) if (!existsSync(join(pub, i.src))) bad(`manifest icon ${i.src} is missing.`); } catch (e) { bad("manifest.webmanifest is not valid JSON."); }
 try { JSON.parse(read("public/.well-known/assetlinks.json")); } catch { bad(".well-known/assetlinks.json is not valid JSON."); }
 let cfg; try { cfg = JSON.parse(read("firebase.json")); } catch { bad("firebase.json is not valid JSON."); }
 const csp = JSON.stringify(cfg?.hosting?.headers || []);
 if (cfg && !/Content-Security-Policy/.test(csp)) bad("firebase.json has no Content-Security-Policy.");
+
+for (const [re, what] of [[/<title>[^<]{10,}<\/title>/, "a public-page title"], [/name="description"/, "a public-page description"], [/rel="canonical" href="https:\/\/faxtonrentals\.com\//, "a custom-domain canonical"], [/property="og:image"/, "a social image"], [/application\/ld\+json/, "Organization structured data"]]) if (!re.test(site)) bad("public/index.html is missing " + what + ".");
+if (/faxton-rentals\.web\.app/.test(site)) bad("Public SEO homepage still contains the Firebase subdomain.");
+for (const p of ["about","how-it-works","find-homes","properties","property-owners","agents","safety","contact","guides/renting-a-home-in-nigeria","guides/property-viewing-checklist","guides/renting-in-lagos"]) if (!existsSync(join(pub,p,"index.html"))) bad("Generated public page /" + p + " is missing.");
+if (!read("public/sitemap.xml").includes("https://faxtonrentals.com/")) bad("Sitemap is not using the custom domain.");
 
 // 5. Every outside website the code talks to must be allowed by the security policy --------------------
 const cspText = (cfg?.hosting?.headers || []).flatMap((h) => h.headers).find((h) => h.key === "Content-Security-Policy")?.value || "";
@@ -72,7 +78,6 @@ const socials = read("public/js/footer.js");
 const emptySocials = [...socials.matchAll(/\["(Instagram|LinkedIn|X|YouTube|TikTok|Pinterest)", ""/g)].map((m) => m[1]);
 if (emptySocials.length) todo.push(`Add real page addresses for: ${emptySocials.join(", ")} (SOCIALS in public/js/footer.js), or leave them as "coming soon".`);
 if (/0C:72:5F:9B/.test(read("public/.well-known/assetlinks.json"))) todo.push("Android app links still use the sideload key. After Play App Signing is on, add the Play signing SHA-256 to public/.well-known/assetlinks.json.");
-if (/faxton-rentals\.web\.app/.test(html) && !process.argv.includes("--no-domain-note")) todo.push("Using the free web.app address. When you add a custom domain, replace faxton-rentals.web.app in index.html, sitemap.xml, robots.txt and rebuild img/og-image.jpg (LAUNCH.md, step 1).");
 
 // ---------------------------------------------------------------------------------------------
 const real = problems.filter((p) => !p.startsWith("Slower start") && !p.startsWith("Offline:"));

@@ -14,6 +14,7 @@
     "check": "node scripts/check-release.mjs",
     "deploy:all": "npx --yes firebase-tools deploy --project faxton-rentals",
     "deploy:indexes": "npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals",
-    "test:rules": "npm --prefix tests/rules install --silent && npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton \"node tests/rules/run.mjs\""
+    "test:rules": "npm --prefix tests/rules install --silent && npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton \"node tests/rules/run.mjs\"",
+    "build:seo": "node scripts/build-public-site.mjs"
   }
 }
