@@ -3,8 +3,9 @@ import { auth } from "./firebase.js";
 import { $, esc, icon, toast, logoMark } from "./ui.js";
 import { errText } from "./authkit.js";
 
-// Keep email checks tied to Firebase Auth, not the age of the account.
-export const emailPending = (d) => !!d && d.emailVerified !== true && d.provider !== "google" && typeof d.email === "string" && d.email.includes("@");
+// Only reset accounts whose stored Firebase Auth state explicitly says the email is unverified.
+// A missing flag is unknown (often a legacy profile), so do not accidentally reset a verified account.
+export const emailPending = (d) => !!d && d.emailVerified === false && d.provider !== "google" && typeof d.email === "string" && d.email.includes("@");
 export const needsVerify = (u) => !!u && !u.emailVerified && u.providerData.some((p) => p.providerId === "password");
 
 export function verifyView(ctx) {
