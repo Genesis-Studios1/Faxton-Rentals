@@ -121,6 +121,7 @@ service cloud.firestore {
           && request.resource.data.role == resource.data.role
           && request.resource.data.email == resource.data.email
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
+          && request.resource.data.get('bannedAt', null) == resource.data.get('bannedAt', null)
           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
           && request.resource.data.get('verification', null) == resource.data.get('verification', null)
           && (request.resource.data.get('agency', null) == resource.data.get('agency', null)
@@ -217,6 +218,7 @@ service cloud.firestore {
           && (!('businessTypes' in request.resource.data) || (request.resource.data.businessTypes is list && request.resource.data.businessTypes.size() <= 11)))
         || isOwner())
         || (isAdmin() && uid != request.auth.uid
+          && (!exists(ownerDoc()) || uid != get(ownerDoc()).data.uid)
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
               || (resource.data.role in ['agent', 'agency']
