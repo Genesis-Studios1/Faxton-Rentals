@@ -11,7 +11,7 @@ export const counts = {};
 // [route, icon, label, badge key]
 const ADMIN = [
   { l: "", items: [["/admin", "home", "Overview"], ["/admin/queue", "doccheck", "Review queue", "queue"]] },
-  { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users"], ["/admin/agents", "handshake", "Agents"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
+  { l: "Marketplace", items: [["/admin/listings", "clipList", "Listings", "listings"], ["/admin/users", "users", "Users", "newusers"], ["/admin/agents", "handshake", "Agents"], ["/admin/verifications", "shield", "Verifications", "verif"]] },
   { l: "Activity", items: [["/admin/applications", "doc", "Applications", "apps"], ["/admin/viewings", "calDots", "Viewings", "sos"], ["/admin/services", "wrench", "Service requests", "svc"], ["/offers", "tag", "Offers", "offers"], ["/tenants", "building", "Tenants", "maint"], ["/admin/payments", "card", "Payments", "proofs"]] },
   { l: "Support", items: [["/admin/support", "chatdots", "Ticket center", "tickets"], ["/messages", "msg", "Messages", "unread"], ["/admin/feedback", "star", "Feedback", "fbk"], ["/admin/suggestions", "chatlines", "Suggestions", "sugg"], ["/admin/data-requests", "download", "Data requests"], ["/admin/user-reports", "flag", "User reports", "reports"]] },
   { l: "Insights", items: [["/admin/reports", "bars3", "Reports"], ["/admin/waitlist", "users", "Website waitlist"]] },
@@ -31,12 +31,12 @@ export const ROLES = {
 };
 const cfgFor = (role) => ROLES[role] || ROLES.admin;
 const isOn = (path, h, home) => (h === home || h === "/admin" ? path === h : path === h || path.startsWith(h + "/"));
-const BADGE_TONE = { sos: "alert", svc: "amber", sugg: "grey", fbk: "grey", unread: "mint", proofs: "amber" };
+const BADGE_TONE = { sos: "alert", newusers: "alert", svc: "amber", sugg: "grey", fbk: "grey", unread: "alert", proofs: "amber" };
 // Pages with the new header: a big page title and a search that filters that page ("Search feedback…").
 const BAR = { "/admin/feedback": ["Feedback", "Search feedback…"], "/admin/agents": ["Agents", "Search agents…"], "/admin/team": ["Team access", "Search team access…"], "/admin/support": ["Ticket center", "Search ticket center…"], "/support/tickets": ["Ticket center", "Search ticket center…"], "/admin/users": ["Users", "Search users…"] };
 
 const badge = (key) => { const n = badgeVal(key); return `<b class="ax-badge" data-axb="${key}" data-t="${key === "queue" && counts.sos ? "alert" : BADGE_TONE[key] || "amber"}" ${key === "verif" ? "data-vbadge" : ""} ${key === "unread" ? "data-unread" : ""} ${n ? "" : "hidden"}>${n > 99 ? "99+" : n || ""}</b>`; };
-const badgeVal = (key) => (key === "verif" ? (host?.S.pendingV || 0) + (counts.dels || 0) : key === "unread" ? host?.S.unread || 0 : counts[key] || 0);
+const badgeVal = (key) => (key === "verif" ? (host?.S.pendingV || 0) + (counts.dels || 0) : key === "unread" ? (host?.S.unread || 0) + (host?.S.staffUnread || 0) : counts[key] || 0);
 
 const flat = (c) => c.groups.flatMap((g) => g.items.map((i) => ({ i, g: g.l })));
 const findItem = (c, path) => flat(c).filter((x) => isOn(path, x.i[0], c.home)).sort((a, b) => b.i[0].length - a.i[0].length)[0];
@@ -85,6 +85,7 @@ const BADGE_COLS = ["listings", "applications", "viewings", "tickets", "offers",
 const OPEN_OFFER = (o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status);
 export function recompute() {
   const S = host?.S; if (!S?.user) return; const g = (c, u) => data.peek(c, u) || [], k = roleKey();
+  counts.newusers = (S.evNotes || []).filter((n) => n.eventType === "signup" && !n.read).length; counts.staffUnread = S.staffUnread || 0;
   if (k === "admin") {
     const ls = g("listings"), ap = g("applications"), vw = g("viewings"), tk = g("tickets"), of = g("offers"), mt = g("maintenance"), rp = g("reports"), sg = g("suggestions"), us = g("users");
     counts.listings = ls.filter((l) => /pending|flag/i.test(l.status || "") && !l.archived).length; counts.dels = us.filter((u) => u.deletion?.status === "pending").length;
@@ -97,7 +98,7 @@ export function recompute() {
   paintBadges();
 }
 export function paintBadges() {
-  $$("[data-axb]").forEach((b) => { const key = b.dataset.axb; if (key === "more") { b.hidden = !(counts.sos || host.S.pendingV || counts.reports); b.dataset.t = counts.sos ? "alert" : "amber"; return; } const n = badgeVal(key); b.textContent = n > 99 ? "99+" : n || ""; b.hidden = !n; if (key === "queue") b.dataset.t = counts.sos ? "alert" : "amber"; });
+  $$("[data-axb]").forEach((b) => { const key = b.dataset.axb; if (key === "more") { b.hidden = !(counts.sos || host.S.pendingV || counts.reports || counts.newusers || counts.staffUnread); b.dataset.t = counts.sos || counts.newusers || counts.staffUnread ? "alert" : "amber"; return; } const n = badgeVal(key); b.textContent = n > 99 ? "99+" : n || ""; b.hidden = !n; if (key === "queue") b.dataset.t = counts.sos ? "alert" : "amber"; });
   const bell = $(".ax-top .bell"); if (bell) bell.dataset.alert = counts.sos ? "1" : "";
 }
 let badgeTimer;
