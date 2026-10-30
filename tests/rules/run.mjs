@@ -11,6 +11,8 @@ for (const f of readdirSync(dir).filter((x) => x.endsWith(".test.mjs")).sort()) 
   pass += p; fail += bad.length || (r.status ? 1 : 0);
   console.log(`${bad.length || r.status ? "FAIL" : "ok  "}  ${f}: ${p} passed${bad.length ? ", " + bad.length + " failed" : ""}${!lines.length ? " (no results: " + (r.stderr || "").split("\n")[0] + ")" : ""}`);
   bad.forEach((l) => console.log("      " + l));
+  if (!lines.length && r.stderr) console.error(r.stderr.trim());
+  if (!lines.length && r.stdout) console.log(r.stdout.trim());
 }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
