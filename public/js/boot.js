@@ -9,6 +9,18 @@
     try { Object.defineProperty(window, n, { value: st, configurable: true }); } catch (e) {}
   });
 })();
+// Keep in-app hash routes on the app document. The root base URL is used for shared assets,
+// but native anchor resolution would otherwise send href="#/login" to the public homepage.
+document.addEventListener("click", function (event) {
+  var link = event.target && event.target.closest ? event.target.closest('a[href^="#/"]') : null;
+  if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  var href = link.getAttribute("href");
+  if (!href) return;
+  event.preventDefault();
+  if (location.hash === href) window.dispatchEvent(new HashChangeEvent("hashchange"));
+  else location.hash = href.slice(1);
+}, true);
+
 // 2) Uncaught errors and unhandled promise rejections are queued here; js/robust.js turns them into a calm, friendly message.
 (function () {
   var q = (window.__fxq = []), add = function (k, e) { if (window.__fxReport) window.__fxReport(k, e); else if (q.length < 20) q.push([k, e]); };
