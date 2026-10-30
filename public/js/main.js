@@ -344,7 +344,7 @@ const evKey = (u, w) => `staffEv${w}_${u.uid}`;
 const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const ROLE_NAME = { owner: "Owner", admin: "Admin", agent: "Agent", landlord: "Property owner", agency: "Agency", support: "Support", renter: "Renter" };
-function markEvRead(id) { const u = S.user; if (!u) return; const r = lsGet(evKey(u, "Read"), []); if (!r.includes(id)) lsSet(evKey(u, "Read"), [...r, id].slice(-120)); }
+function markEvRead(id) { const u = S.user; if (!u) return; const r = lsGet(evKey(u, "Read"), []); if (!r.includes(id)) lsSet(evKey(u, "Read"), [...r, id].slice(-120)); AXS?.recompute?.(); }
 function startStaffEvents(u) {
   let base = lsGet(evKey(u, "Base"), 0); if (!base) { base = Date.now(); lsSet(evKey(u, "Base"), base); }
   const staffHref = S.isAdmin ? "/admin/users" : undefined;
@@ -376,7 +376,7 @@ function startStaffMessages(u) {
     });
     const fresh = first ? [] : unread.filter((c) => {
       const stamp = (c.lastAt?.seconds || 0) + "." + (c.lastAt?.nanoseconds || 0);
-      return previous.get(c.id) !== stamp;
+      return previous.get(c.id) !== stamp && !(document.visibilityState === "visible" && S.openChat === c.id);
     });
     previous = new Map(list.map((c) => [c.id, (c.lastAt?.seconds || 0) + "." + (c.lastAt?.nanoseconds || 0)]));
     S.staffUnread = unread.length;
