@@ -337,10 +337,11 @@ service cloud.firestore {
     match /serviceRequests/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'New'
         && request.resource.data.keys().hasAll(['uid', 'name', 'phone', 'category', 'description', 'status', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'email', 'area', 'category', 'description', 'preferredDate', 'status', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'phone', 'email', 'addressLine1', 'addressLine2', 'area', 'category', 'description', 'preferredDate', 'status', 'createdAt'])
         && short(request.resource.data.name, 120) && request.resource.data.name.size() > 0
         && short(request.resource.data.phone, 30) && request.resource.data.phone.size() >= 6
-        && short(request.resource.data.get('email', ''), 120) && short(request.resource.data.get('area', ''), 80)
+        && short(request.resource.data.get('email', ''), 120) && short(request.resource.data.get('addressLine1', ''), 180) && request.resource.data.get('addressLine1', '').size() > 0
+        && short(request.resource.data.get('addressLine2', ''), 180) && short(request.resource.data.get('area', ''), 80)
         && short(request.resource.data.category, 60) && request.resource.data.category.size() > 0
         && short(request.resource.data.description, 1500) && request.resource.data.description.size() > 0
         && short(request.resource.data.get('preferredDate', ''), 20);
