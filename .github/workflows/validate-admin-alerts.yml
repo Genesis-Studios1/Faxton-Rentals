@@ -1,0 +1,33 @@
+name: Validate admin alerts
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "public/js/main.js"
+      - "public/js/store.js"
+      - "public/js/ax-shell.js"
+      - "firestore.rules"
+      - "tests/rules/**"
+      - ".github/workflows/validate-admin-alerts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check changed app modules
+        run: |
+          node --experimental-default-type=module --check public/js/main.js
+          node --experimental-default-type=module --check public/js/store.js
+          node --experimental-default-type=module --check public/js/ax-shell.js
+      - name: Install Firestore rules test dependencies
+        run: npm --prefix tests/rules ci --no-audit --no-fund
+      - name: Run Firestore security-rule tests
+        run: npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton "node tests/rules/run.mjs"
