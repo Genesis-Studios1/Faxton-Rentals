@@ -392,12 +392,12 @@ export function setupPage(ctx) {
     const queueDraft = () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft(), 650); };
     form.addEventListener("input", () => { say(""); queueDraft(); });
     form.addEventListener("change", () => { say(""); queueDraft(); });
-    back.onclick = async () => { clearTimeout(draftTimer); await saveDraft(current); showStep(current - 1); };
+    back.onclick = async () => { clearTimeout(draftTimer); await saveDraft(current - 1); showStep(current - 1); };
     next.onclick = async () => {
       clearTimeout(draftTimer);
       if (!validatePanel()) return;
+      if (current < panels.length - 1) { await saveDraft(current + 1); showStep(current + 1); return; }
       await saveDraft(current);
-      if (current < panels.length - 1) { showStep(current + 1); return; }
       const v = allValues();
       if (v.referralSource === "Other" && !String(v.referralOther || "").trim()) { say("Please tell us where you heard about Faxton Rentals."); $("#referralOther", form)?.focus(); return; }
       const patch = { referralSource: v.referralSource, referralOther: v.referralSource === "Other" ? String(v.referralOther || "").trim() : "", onboarding: { completed: true } };
