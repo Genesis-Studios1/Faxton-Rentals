@@ -146,7 +146,7 @@ const sheetHtml = (g, rel) => `<div class="dlx-sheet" role="group" aria-label="$
   const detail = f || special ? sub : rel ? "Not available yet" : "Couldn’t reach the download server";
   const inner = `<span class="dlx-file">${tag}</span><span class="dlx-ot"><b>${esc(name)}</b><small>${esc(detail)}</small></span>${f || special ? icon("chev", 16) : ""}`;
   if (k === "#safari") return `<button type="button" class="dlx-opt" data-safari>${inner}</button>`;
-  if (k === "#openWebsite") return `<a class="dlx-opt" href="https://faxton-rentals.web.app/" target="_blank" rel="noopener">${inner}</a>`;
+  if (k === "#openWebsite") return `<a class="dlx-opt" href="https://faxtonrentals.com/" target="_blank" rel="noopener">${inner}</a>`;
   if (k === "#installWebsite") return `<button type="button" class="dlx-opt" data-install-main-website>${inner}</button>`;
   if (k === "#websiteHelp") return `<button type="button" class="dlx-opt" data-website-help>${inner}</button>`;
   return f ? `<a class="dlx-opt" href="${esc(f.url)}" rel="noopener" download>${inner}</a>` : `<div class="dlx-opt off">${inner}</div>`;
@@ -162,7 +162,7 @@ function wirePicker(root, get, ctx = {}) {
       const wrap = document.createElement("div"); wrap.innerHTML = sheetHtml(g, get()); const sh = wrap.firstElementChild;
       if (mobile()) card.append(sh); else { const slot = $(".dlx-slot", root); slot.append(sh); sh.style.marginLeft = Math.max(0, Math.min(card.offsetLeft, slot.clientWidth - 330)) + "px"; }
       $(".dlx-x", sh).onclick = close;
-      const sf = $("[data-safari]", sh); if (sf) sf.onclick = () => { sh.innerHTML = `<header><b>Add to Home Screen</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header><p class="dlx-how">On your iPhone, open <b>faxton-rentals.web.app</b> in <b>Safari</b>, tap the <b>Share</b> button, then choose <b>Add to Home Screen</b>.</p>`; $(".dlx-x", sh).onclick = close; };
+      const sf = $("[data-safari]", sh); if (sf) sf.onclick = () => { sh.innerHTML = `<header><b>Add to Home Screen</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header><p class="dlx-how">On your iPhone, open <b>faxtonrentals.com</b> in <b>Safari</b>, tap the <b>Share</b> button, then choose <b>Add to Home Screen</b>.</p>`; $(".dlx-x", sh).onclick = close; };
       const showWebsiteHelp = (title) => {
         sh.innerHTML = `<header><b>${esc(title)}</b><button type="button" class="dlx-x" aria-label="Close">${icon("x", 16)}</button></header><p class="dlx-how">${esc(websiteInstallGuide())}</p>`;
         $(".dlx-x", sh).onclick = close;
