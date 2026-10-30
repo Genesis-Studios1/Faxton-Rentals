@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "public/js/main.js"
+      - "public/js/admin2.js"
       - "public/js/store.js"
       - "public/js/ax-shell.js"
       - "public/js/ui.js"
@@ -29,6 +30,7 @@ jobs:
       - name: Check changed app modules
         run: |
           node --experimental-default-type=module --check public/js/main.js
+          node --experimental-default-type=module --check public/js/admin2.js
           node --experimental-default-type=module --check public/js/store.js
           node --experimental-default-type=module --check public/js/ax-shell.js
           node scripts/check-app-cache-version.mjs
