@@ -61,6 +61,7 @@ export async function uploadListingMedia({ uid, listingId, images = [], videos =
     return {
       images: uploaded.filter((x) => x.kind === "image").map((x) => x.url),
       videos: uploaded.filter((x) => x.kind === "video").map((x) => x.url),
+      media: uploaded.map(({ kind, url, path }) => ({ kind, url, path })),
       paths: uploaded.map((x) => x.path)
     };
   } catch (error) {
