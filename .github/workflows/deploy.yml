@@ -68,27 +68,45 @@ jobs:
       # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
       - name: Smoke test the live site
         run: |
-          set -e
+          set -euo pipefail
           HOST=https://faxton-rentals.web.app
-          H=$(curl -fsSI "$HOST/")
-          echo "$H" | grep -qi '^content-security-policy:' || { echo "::error::Firebase Hosting is missing its Content-Security-Policy header"; exit 1; }
-          echo "$H" | grep -qi '^strict-transport-security:' || { echo "::error::Firebase Hosting is missing HSTS"; exit 1; }
-          curl -fsS "$HOST/" | grep -q "Find a home that feels like"
-          curl -fsS "$HOST/" | grep -q 'id="open-app"'
-          curl -fsS "$HOST/" | grep -q 'Download now'
-          curl -fsS "$HOST/" | grep -q 'href="/app/#/signup">Open the web app'
-          curl -fsS "$HOST/app/" -o /dev/null
-          curl -fsS "$HOST/about" -o /dev/null
-          curl -fsS "$HOST/features" -o /dev/null
-          curl -fsS "$HOST/how-it-works" -o /dev/null
-          curl -fsS "$HOST/properties" -o /dev/null
-          curl -fsS "$HOST/sitemap.xml" -o /dev/null
-          curl -fsS "$HOST/robots.txt" -o /dev/null
-          curl -fsS "$HOST/sw.js" -o /dev/null
-          curl -fsS "$HOST/manifest.webmanifest" -o /dev/null
-          curl -fsS "$HOST/.well-known/assetlinks.json" -o /dev/null
-          code=$(curl -s -o /dev/null -w '%{http_code}' "$HOST/this-page-does-not-exist")
-          [ "$code" = "404" ] || { echo "::error::Unknown Firebase Hosting pages should answer 404, got $code"; exit 1; }
+
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          check_home_text() {
+            local label="$1"
+            local expected="$2"
+            local html
+            html="$(curl -fsS "$HOST/")" || fail "Could not fetch the Firebase homepage while checking: $label"
+            if ! printf '%s' "$html" | grep -Fq -- "$expected"; then
+              fail "Firebase homepage is missing $label (expected: $expected)"
+            fi
+          }
+
+          check_page() {
+            local path="$1"
+            curl -fsS "$HOST$path" -o /dev/null || fail "Firebase Hosting route did not respond successfully: $path"
+          }
+
+          H="$(curl -fsSI "$HOST/")" || fail "Could not reach Firebase Hosting at $HOST/"
+          echo "$H" | grep -qi '^content-security-policy:' || fail "Firebase Hosting is missing its Content-Security-Policy header"
+          echo "$H" | grep -qi '^strict-transport-security:' || fail "Firebase Hosting is missing HSTS"
+
+          check_home_text "the homepage hero" "Find a home that feels like"
+          check_home_text "the app CTA section" 'id="open-app"'
+          check_home_text "the current CTA panel" "Ready to get started?"
+          check_home_text "the signup CTA link" 'href="/app/#/signup">Open the web app'
+
+          for path in /app/ /about /features /how-it-works /properties /sitemap.xml /robots.txt /sw.js /manifest.webmanifest /.well-known/assetlinks.json; do
+            check_page "$path"
+          done
+
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "$HOST/this-page-does-not-exist")" || fail "Could not check the unknown-page response"
+          [ "$code" = "404" ] || fail "Unknown Firebase Hosting pages should answer 404, got $code"
+
           if curl -fsS https://faxtonrentals.com/ > "$RUNNER_TEMP/custom-domain.html"; then
             if grep -q "Find a home that feels like" "$RUNNER_TEMP/custom-domain.html"; then
               echo "Custom domain is serving the new Faxton public SEO homepage."
