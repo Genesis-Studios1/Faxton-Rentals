@@ -425,7 +425,7 @@ export function setupPage(ctx) {
       if (role === "agency") {
         if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(String(v.cac || "").trim())) { say("Enter a valid CAC registration number, such as RC 1234567."); showStep(0); $("#cac", form)?.focus(); return; }
         const servicePanel = $(v.businessType === "Home services provider" ? "#ob-home-services" : "#ob-real-estate-services", form);
-        const selected = $('input[name="businessService"]:checked', servicePanel).map((el) => el.value);
+        const selected = Array.from(servicePanel.querySelectorAll('input[name="businessService"]:checked'), (el) => el.value);
         patch.businessTypes = selected;
         patch.agency = { business: String(v.business || "").trim(), cac: String(v.cac || "").trim().toUpperCase(), position: String(v.position || "").trim(), supportEmail: String(v.supportEmail || "").trim(), phone, address: String(v.officeAddress || "").trim(), city: String(v.officeCity || "").trim(), state: String(v.officeState || "").trim(), areas: String(v.areas || "").trim(), website: String(v.website || "").trim(), businessType: v.businessType, businessTypes: selected, description: String(v.description || "").trim() };
       } else if (role === "agent") {
