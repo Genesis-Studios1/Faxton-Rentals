@@ -9,6 +9,8 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
+import { uploadListingMedia, removeListingMedia, validateListingMedia } from "./listing-media.js";
+import { collectListingFeatures } from "./listing-media-core.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
 const fe = (e) => friendlyErr(e).replace(/\s*\([^)]*\)\s*$/, "");
@@ -68,48 +70,127 @@ export const userVerified = (u) => u.verified === true || u.verification?.status
 
 // ---------- listings ----------
 const REJ_PRESETS = ["Photos too dark", "Missing details", "Price looks wrong"];
-function mediaDialog(l, done) {
-  const d = dialog({ title: "Photos and videos", size: "md", icon: "img", body: `<form id="mf"><label class="ax-lbl" for="mfi">Photo links (one per line, the first is the cover)</label><textarea id="mfi" class="ax-input" rows="5" placeholder="https://…">${esc((l.images || []).join("\n"))}</textarea><label class="ax-lbl" for="mfv" style="margin-top:12px">Video links (YouTube, Vimeo or a direct .mp4)</label><textarea id="mfv" class="ax-input" rows="3" placeholder="https://www.youtube.com/watch?v=…">${esc((l.videos || []).join("\n"))}</textarea><p class="ax-err" id="mfe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Save", { v: "primary", attrs: "data-ok" })}` });
-  $("[data-ok]", d.el).onclick = async (e) => {
-    const im = lines($("#mfi", d.el).value), vd = lines($("#mfv", d.el).value), err = $("#mfe", d.el); err.textContent = "";
-    if (!im.length) return (err.textContent = "Add at least one photo link.");
-    if (im.length > 20 || vd.length > 6) return (err.textContent = "Use up to 20 photos and 6 videos.");
+function mediaDialog(ctx, l, done) {
+  const d = dialog({ title: "Photos and videos", size: "md", icon: "img", body: `<form id="mf">
+    <label class="ax-lbl" for="mfi">Photo links (one per line; first photo is the cover)</label>
+    <textarea id="mfi" class="ax-input" rows="4" placeholder="https://…">${esc((l.images || []).join("\n"))}</textarea>
+    <label class="ax-lbl" for="mfp" style="margin-top:12px">Upload photos</label>
+    <input id="mfp" class="ax-input" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+    <label class="ax-lbl" for="mfv" style="margin-top:12px">Video links (YouTube, Vimeo or direct video URL)</label>
+    <textarea id="mfv" class="ax-input" rows="3" placeholder="https://…">${esc((l.videos || []).join("\n"))}</textarea>
+    <label class="ax-lbl" for="mfvf" style="margin-top:12px">Upload videos</label>
+    <input id="mfvf" class="ax-input" type="file" accept="video/mp4,video/webm,video/quicktime" multiple>
+    <small class="ax-muted">Up to 20 photos (15 MB each) and 6 videos (100 MB each).</small>
+    <div id="mfp-progress" class="ax-muted" role="status" aria-live="polite"></div>
+    <p class="ax-err" id="mfe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Save", { v: "primary", attrs: "data-ok" })}` });
+  $(" [data-ok]".trim(), d.el).onclick = async (e) => {
+    const im = lines($("#mfi", d.el).value), vd = lines($("#mfv", d.el).value);
+    const images = [...$("#mfp", d.el).files], videos = [...$("#mfvf", d.el).files];
+    const err = $("#mfe", d.el), progress = $("#mfp-progress", d.el); err.textContent = "";
+    const invalid = validateListingMedia(images, videos, im.length, vd.length);
+    if (invalid) return (err.textContent = invalid);
+    if (!im.length && !images.length) return (err.textContent = "Add at least one photo link or upload a photo.");
     if (im.some((u) => !/^(https:\/\/|img\/)/.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Links must start with https://");
     busy(e.currentTarget, true);
-    try { await st.patch("listings", l.id, { images: im, thumb: im[0], videos: vd }); Object.assign(l, { images: im, thumb: im[0], videos: vd }); d.close(); toast("Photos and videos saved."); done?.(); } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
+    let uploaded = { images: [], videos: [], media: [], paths: [] };
+    try {
+      if (images.length || videos.length) uploaded = await uploadListingMedia({ uid: ctx.S.user.uid, listingId: l.id, images, videos, linkedImages: im.length, linkedVideos: vd.length, onProgress: (pct, name) => { progress.textContent = name ? `Uploading ${name} · ${pct}%` : "Uploads complete."; } });
+      const nextImages = [...im, ...uploaded.images], nextVideos = [...vd, ...uploaded.videos];
+      const kept = (l.mediaItems || []).filter((item) => nextImages.includes(item.url) || nextVideos.includes(item.url));
+      const removed = (l.mediaItems || []).filter((item) => item.path && !kept.includes(item));
+      await st.patch("listings", l.id, { images: nextImages, thumb: nextImages[0] || "", videos: nextVideos, mediaItems: [...kept, ...uploaded.media] });
+      Object.assign(l, { images: nextImages, thumb: nextImages[0] || "", videos: nextVideos, mediaItems: [...kept, ...uploaded.media] });
+      await removeListingMedia(removed.map((item) => item.path));
+      d.close(); toast("Photos and videos saved."); done?.();
+    } catch (x) {
+      await removeListingMedia(uploaded.paths);
+      err.textContent = fe(x); busy(e.currentTarget, false);
+    }
   };
 }
 async function loadUsers() { return data.safe("users"); }
 async function addListingDialog(ctx, ls, list) {
   const users = await loadUsers(), me = ctx.S.user.uid;
   const agents = users.filter((u) => ["agent", "agency", "landlord"].includes(u.role) || u.id === me).sort((a, b) => (a.id === me ? -1 : b.id === me ? 1 : String(a.name).localeCompare(String(b.name))));
-  const d = dialog({ title: "Add listing", size: "md", icon: "clipList", body: `<form id="nl" class="ax-form" novalidate>
+  const d = dialog({ title: "Add listing", size: "lg", icon: "clipList", body: `<form id="nl" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
     ${locFields({ style: "ax", flow: true, ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "nlCity" })}
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
-    <label class="ax-field"><span>Type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
-    <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="20" value="2" required></label>
-    <label class="ax-field"><span>Bathrooms</span><input class="ax-input" name="baths" type="number" min="1" max="20" value="2" required></label>
+    <label class="ax-field"><span>Property type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
+    <label class="ax-field"><span>House structure</span><select class="ax-input" name="buildingType" id="nlBuildingType"><option value="Bungalow">Bungalow</option><option value="Storey building">Storey building</option><option value="Other">Other</option></select></label>
+    <div class="ax-field full" id="nlStoryFields" hidden><span>Building location</span><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+      <label><span class="ax-lbl">Floor number <b aria-hidden="true">*</b></span><input class="ax-input" name="floorNumber" type="number" min="0" max="100" placeholder="e.g. 2"></label>
+      <label><span class="ax-lbl">Room / apartment number (optional)</span><input class="ax-input" name="roomNumber" maxlength="30" placeholder="e.g. Flat 2B"></label>
+    </div><small class="ax-muted">Use 0 for the ground floor.</small></div>
+    <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="99" value="2" required></label>
+    <label class="ax-field"><span>Bathrooms</span><input class="ax-input" name="baths" type="number" min="0" max="99" value="2" required></label>
     <label class="ax-field full"><span>Listed by</span><select class="ax-input" name="agent">${agents.map((u) => `<option value="${esc(u.id)}" ${u.id === me ? "selected" : ""}>${esc(u.name || u.email)}${u.id === me ? " (me)" : ""} · ${esc(ROLE_LABEL[roleOf(ctx, u)] || "")}</option>`).join("") || `<option value="${esc(me)}">${esc(meName(ctx))} (me)</option>`}</select></label>
     <label class="ax-field full"><span>Description</span><textarea class="ax-input" name="desc" rows="3" maxlength="800"></textarea></label>
-    <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label>
-    <label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
+    <div class="ax-field full" style="padding:14px;border:1px solid var(--ax-border);border-radius:12px">
+      <strong>Property features</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Enter how many of each feature the property has. You can add your own too.</small>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+        <label><span class="ax-lbl">Kitchens</span><input class="ax-input" name="kitchens" type="number" min="0" max="99" value="1"></label>
+        <label><span class="ax-lbl">Parlours / living rooms</span><input class="ax-input" name="parlours" type="number" min="0" max="99" value="1"></label>
+        <label><span class="ax-lbl">Swimming pools</span><input class="ax-input" name="swimmingPools" type="number" min="0" max="99" value="0"></label>
+        <label><span class="ax-lbl">Gardens</span><input class="ax-input" name="gardens" type="number" min="0" max="99" value="0"></label>
+        <label><span class="ax-lbl">Parking spaces</span><input class="ax-input" name="parking" type="number" min="0" max="99" value="0"></label>
+      </div>
+      <div id="nlCustomFeatures" style="display:grid;gap:8px;margin-top:10px"></div>
+      <button type="button" class="ax-btn" id="nlAddFeature" style="margin-top:10px">+ Add another feature</button>
+    </div>
+    <div class="ax-field full" style="padding:14px;border:1px solid var(--ax-border);border-radius:12px">
+      <strong>Property photos and videos</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Upload files directly or paste links. Up to 20 photos (15 MB each) and 6 videos (100 MB each).</small>
+      <label class="ax-lbl" for="nlPhotoLinks">Photo links (one per line)</label><textarea class="ax-input" name="im" id="nlPhotoLinks" rows="2" placeholder="https://…"></textarea>
+      <label class="ax-lbl" for="nlPhotoFiles" style="margin-top:10px">Upload photos</label><input class="ax-input" name="photoFiles" id="nlPhotoFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+      <label class="ax-lbl" for="nlVideoLinks" style="margin-top:10px">Video links (one per line)</label><textarea class="ax-input" name="vd" id="nlVideoLinks" rows="2" placeholder="YouTube, Vimeo or direct video URL"></textarea>
+      <label class="ax-lbl" for="nlVideoFiles" style="margin-top:10px">Upload videos</label><input class="ax-input" name="videoFiles" id="nlVideoFiles" type="file" accept="video/mp4,video/webm,video/quicktime" multiple>
+      <div id="nlUploadProgress" class="ax-muted" role="status" aria-live="polite"></div>
+    </div>
     <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea" }, cityId: "nlCity" });
+  const form = $("#nl", d.el), structure = $("#nlBuildingType", d.el), storyFields = $("#nlStoryFields", d.el);
+  const syncStructure = () => { storyFields.hidden = structure.value !== "Storey building"; };
+  structure.addEventListener("change", syncStructure); syncStructure();
+  $("#nlAddFeature", d.el).addEventListener("click", () => {
+    const wrap = $("#nlCustomFeatures", d.el);
+    if (wrap.children.length >= 20) return toast("You can add up to 20 custom features.", { tone: "bad" });
+    const row = document.createElement("div"); row.className = "nl-feature-row";
+    row.style.cssText = "display:grid;grid-template-columns:minmax(0,1fr) 100px auto;gap:8px;align-items:end";
+    row.innerHTML = `<label><span class="ax-lbl">Feature name</span><input class="ax-input" maxlength="40" data-feature-name placeholder="e.g. Balconies"></label><label><span class="ax-lbl">Quantity</span><input class="ax-input" data-feature-count type="number" min="1" max="99" value="1"></label><button type="button" class="ax-btn" data-remove-feature aria-label="Remove feature">Remove</button>`;
+    wrap.append(row);
+  });
+  $("#nlCustomFeatures", d.el).addEventListener("click", (e) => { if (e.target.closest("[data-remove-feature]")) e.target.closest(".nl-feature-row").remove(); });
   $("[data-ok]", d.el).onclick = async (e) => {
-    const L = loc.commit(), f = Object.fromEntries(new FormData($("#nl", d.el))), err = $("#nle", d.el); err.textContent = "";
-    const im = lines(f.im), vd = lines(f.vd), P = listingLoc(L, f.area);
-    if (!f.title.trim()) return (err.textContent = "Add a title."); { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
+    const L = loc.commit(), f = Object.fromEntries(new FormData(form)), err = $("#nle", d.el), progress = $("#nlUploadProgress", d.el);
+    err.textContent = ""; const im = lines(f.im), vd = lines(f.vd), photoFiles = [...$("#nlPhotoFiles", d.el).files], videoFiles = [...$("#nlVideoFiles", d.el).files], P = listingLoc(L, f.area);
+    if (!f.title?.trim()) return (err.textContent = "Add a title.");
+    { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
-    if (im.length > 20 || vd.length > 6) return (err.textContent = "Use up to 20 photos and 6 videos.");
     if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
+    const invalid = validateListingMedia(photoFiles, videoFiles, im.length, vd.length);
+    if (invalid) return (err.textContent = invalid);
+    if (f.buildingType === "Storey building" && (f.floorNumber === "" || !Number.isInteger(+f.floorNumber) || +f.floorNumber < 0)) return (err.textContent = "Enter the floor number for this storey building. Use 0 for ground floor.");
+    const customRows = [...$("#nlCustomFeatures", d.el).querySelectorAll(".nl-feature-row")].map((row) => ({ name: $("[data-feature-name]", row).value, count: $("[data-feature-count]", row).value }));
+    let features;
+    try { features = collectListingFeatures({ bedrooms: f.beds, bathrooms: f.baths, kitchens: f.kitchens, parlours: f.parlours, swimmingPools: f.swimmingPools, gardens: f.gardens, parking: f.parking }, customRows); }
+    catch (x) { return (err.textContent = fe(x)); }
     const u = users.find((x) => x.id === f.agent), self = !u || u.id === me, name = (u?.name || u?.email || meName(ctx)), photo = u?.photo || (self ? ctx.S.profile?.photo : "") || "";
     const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
-    const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: Math.max(1, +f.baths), sqm: 0, type: f.type, desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images: im, thumb: im[0] || "", videos: vd, amenities: [], ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
     busy(e.currentTarget, true);
-    try { await st.createListing(doc); ls.unshift({ ...doc, createdAt: { seconds: Math.floor(Date.now() / 1000) } }); changed(); list.repaint(); d.close(); toast("Listing created."); } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
+    let uploaded = { images: [], videos: [], media: [], paths: [] };
+    try {
+      if (photoFiles.length || videoFiles.length) uploaded = await uploadListingMedia({ uid: me, listingId: id, images: photoFiles, videos: videoFiles, linkedImages: im.length, linkedVideos: vd.length, onProgress: (pct, name) => { progress.textContent = name ? `Uploading ${name} · ${pct}%` : "Uploads complete."; } });
+      const images = [...im, ...uploaded.images], videos = [...vd, ...uploaded.videos];
+      const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: Math.max(0, +f.beds || 0), baths: Math.max(0, +f.baths || 0), sqm: 0, type: f.type, buildingType: f.buildingType, ...(f.buildingType === "Storey building" ? { floorNumber: +f.floorNumber, ...(f.roomNumber.trim() ? { roomNumber: f.roomNumber.trim() } : {}) } : {}), desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images, thumb: images[0] || "", videos, mediaItems: uploaded.media, features, amenities: features.map((x) => x.name), parking: +f.parking || 0, ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
+      await st.createListing(doc);
+      ls.unshift({ ...doc, createdAt: { seconds: Math.floor(Date.now() / 1000) } }); changed(); list.repaint(); d.close(); toast("Listing created.");
+    } catch (x) {
+      await removeListingMedia(uploaded.paths);
+      err.textContent = fe(x); busy(e.currentTarget, false);
+    }
   };
 }
+
 function listingDrawer(ctx, l, api, { viewOnly } = {}) {
   const s = listingState(l), imgs = (l.images || []).filter(Boolean);
   const body = `${imgs[0] ? `<img class="ax-hero" src="${esc(imgs[0])}" alt="" loading="lazy">${imgs.length > 1 ? `<div class="ax-strip">${imgs.slice(1, 5).map((u) => `<img src="${esc(u)}" alt="" loading="lazy">`).join("")}</div>` : ""}` : `<div class="ax-hero" style="display:grid;place-items:center;color:var(--ax-faint)">${I("img", 32)}</div>`}
@@ -123,7 +204,7 @@ function listingDrawer(ctx, l, api, { viewOnly } = {}) {
   return { title: l.title, sub: `${chipFor("listing", s)}<span>${esc(where(l))}</span>`, body, footer,
     mount(el) {
       $("[data-more]", el)?.addEventListener("click", (e) => { $("[data-clamp]", el).classList.remove("ax-clamp"); e.target.remove(); });
-      $("[data-media]", el)?.addEventListener("click", () => mediaDialog(l, () => api.refresh()));
+      $("[data-media]", el)?.addEventListener("click", () => mediaDialog(ctx, l, () => api.refresh()));
       $("[data-text]", el)?.addEventListener("click", () => data.safe("users").then((us) => { const u = us.find((x) => x.id === l.ownerUid); if (u) openChat(ctx, u); else toast("We couldn’t find that owner’s account.", { tone: "bad" }); }));
       $("[data-call]", el)?.addEventListener("click", () => CALLS.startCall(ctx, { to: l.ownerUid, toName: l.agent?.name || "Owner", kind: "voice", title: "Faxton team" }));
       el.querySelectorAll("[data-do]").forEach((b) => (b.onclick = () => listingAct(ctx, l, b.dataset.do, api, b)));
@@ -166,7 +247,7 @@ export function listings(ctx) {
           csv: { name: "faxton-listings", head: ["Title", "Area", "City", "Type", "Rent", "Status", "Agent", "Submitted"], row: (l) => [l.title, l.area, l.city, l.type, l.price, listingState(l), l.agent?.name || "", fmt.date(l.createdAt)] },
           quick: (l) => (isPendingL(l) ? `${btn("Approve", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=approve" })}${btn("Review", { v: "ghost", size: "xs", cls: "ax-qa", attrs: "data-qa=review" })}` : ""),
           onQuick: (k, l, b, api) => (k === "review" ? api.list.open(l.id) : listingAct(ctx, l, k, { refresh: api.refresh }, b)),
-          menu: (l, api) => { const s = listingState(l); return [{ label: "Review", icon: "eye", act: api.open }, ...(s === "active" && l.status === "active" ? [{ label: "View live page", icon: "ext", act: () => ctx.go("#/home/" + encodeURIComponent(l.id)) }] : []), { label: "Edit photos and videos", icon: "img", act: () => mediaDialog(l, api.refresh) }, { sep: 1 },
+          menu: (l, api) => { const s = listingState(l); return [{ label: "Review", icon: "eye", act: api.open }, ...(s === "active" && l.status === "active" ? [{ label: "View live page", icon: "ext", act: () => ctx.go("#/home/" + encodeURIComponent(l.id)) }] : []), { label: "Edit photos and videos", icon: "img", act: () => mediaDialog(ctx, l, api.refresh) }, { sep: 1 },
             ...(isPendingL(l) ? [{ label: "Approve", icon: "check", act: () => listingAct(ctx, l, "approve", api) }, { label: "Request changes", icon: "msg", act: () => listingAct(ctx, l, "changes", api) }] : []), s === "archived" || s === "rejected" ? { label: "Restore", icon: "refresh", act: () => listingAct(ctx, l, "restore", api) } : { label: "Archive", icon: "folder", act: () => listingAct(ctx, l, "archive", api) }, { sep: 1 }, { label: "Copy link", icon: "copy", act: () => copy(location.origin + "/#/home/" + l.id, "Link copied.") }]; },
           drawer: (l, api) => listingDrawer(ctx, l, api),
           onQuery: (q) => { if (q.new) { setQ({ new: "" }); add(); } },
