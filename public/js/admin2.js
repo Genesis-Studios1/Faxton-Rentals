@@ -1,6 +1,8 @@
 // Console pages for the owner and admins: review queue, listings, users, verifications, applications and viewings.
 // The overview, payments, support inbox, suggestions, reports, call setup and the staff portals live in dash.js.
 import * as CALLS from "./calls.js";
+import { db } from "./firebase.js";
+import { collection, doc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
 import * as VS from "./viewsafe.js";
@@ -70,6 +72,44 @@ export const userVerified = (u) => u.verified === true || u.verification?.status
 
 // ---------- listings ----------
 const REJ_PRESETS = ["Photos too dark", "Missing details", "Price looks wrong"];
+
+async function requireEmailVerification(ctx, button) {
+  if (!ctx.S.isOwner) return toast("Only the Faxton owner can reset onboarding for accounts.");
+  if (!(await confirm({
+    title: "Require verification and onboarding again?",
+    body: "Every other account with an unverified email address will be asked to verify through the Firebase email link and complete the onboarding screens again. This does not mark anyone as verified.",
+    confirmLabel: "Continue",
+    tone: "warning",
+    icon: "shield",
+  }))) return;
+
+  busy(button, true);
+  try {
+    const snapshot = await getDocs(collection(db, "users"));
+    const pending = snapshot.docs
+      .map((item) => ({ id: item.id, ...item.data() }))
+      .filter((user) => user.id !== ctx.S.user.uid && emailPending(user));
+    if (!pending.length) {
+      toast("No unverified email accounts were found.");
+      return;
+    }
+
+    for (let i = 0; i < pending.length; i += 450) {
+      const batch = writeBatch(db);
+      pending.slice(i, i + 450).forEach((user) => {
+        batch.update(doc(db, "users", user.id), {
+          onboarding: { completed: false, step: 0, draft: {} },
+        });
+      });
+      await batch.commit();
+    }
+    toast(`${pending.length} unverified account${pending.length === 1 ? "" : "s"} will be asked to verify and complete onboarding again.`);
+  } catch (error) {
+    bad(error);
+  } finally {
+    busy(button, false);
+  }
+}
 function mediaDialog(ctx, l, done) {
   const d = dialog({ title: "Photos and videos", size: "md", icon: "img", body: `<form id="mf">
     <label class="ax-lbl" for="mfi">Photo links (one per line; first photo is the cover)</label>
@@ -225,7 +265,9 @@ async function listingAct(ctx, l, act, api, b) {
   } catch (e) { bad(e); } finally { busy(b, false); }
 }
 export function listings(ctx) {
-  return pageView(ctx, { title: "Listings", eyebrow: "Marketplace", sub: "Review, approve and manage every listing on Faxton Rentals.", cols: ["listings"], what: "listings", actions: btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add" }),
+  const actions = btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add" })
+    + (ctx.S.isOwner ? btn("Require verification", { v: "outline", ic: "shield", attrs: "data-act=require-verification" }) : "");
+  return pageView(ctx, { title: "Listings", eyebrow: "Marketplace", sub: "Review, approve and manage every listing on Faxton Rentals.", cols: ["listings"], what: "listings", actions,
     async render({ listings: ls }, { root, body }) {
       return { html: `<div id="lst"></div>`, mount(el) {
         const list = createList($("#lst", el), { noun: "listings", label: "Listings", rows: ls, placeholder: "Search listings, areas or agents…",
@@ -254,7 +296,10 @@ export function listings(ctx) {
           onQuery: (q) => { if (q.new) { setQ({ new: "" }); add(); } },
           empty: { icon: "clipList", title: "No listings yet", hint: "Add the first listing, or wait for agents to submit.", action: btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add2" }) } });
         const add = () => addListingDialog(ctx, ls, list);
-        root.querySelector("[data-act=add]")?.addEventListener("click", add); el.addEventListener("click", (e) => e.target.closest("[data-act=add2]") && add());
+        root.querySelector("[data-act=add]")?.addEventListener("click", add);
+        const resetBtn = root.querySelector("[data-act=require-verification]");
+        resetBtn?.addEventListener("click", () => requireEmailVerification(ctx, resetBtn));
+        el.addEventListener("click", (e) => e.target.closest("[data-act=add2]") && add());
         if (hq().q.new) { setQ({ new: "" }); add(); }
       } };
     } });
