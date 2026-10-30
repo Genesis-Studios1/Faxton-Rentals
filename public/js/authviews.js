@@ -292,7 +292,7 @@ function setupPanels(role) {
     { title: "Services and profile", hint: "The options below change depending on your business type.", html: \`
       <div id="ob-real-estate-services">\${obChecks("businessService", "Real estate services offered", REAL_ESTATE_SERVICES)}</div>
       <div id="ob-home-services" hidden>\${obChecks("businessService", "Home services offered", HOME_SERVICES)}</div>
-      \${obField("website", "Business website (optional)", { type: "url", ph: "https://yourbusiness.com", req: false, attrs: 'maxlength="180" inputmode="url"' })}
+      \${obField("website", "Business website (optional)", { type: "url", ph: "https://", req: false, attrs: 'maxlength="180" inputmode="url"' })}
       <div class="au-f"><label for="description">Short business description</label><textarea id="description" name="description" maxlength="500" rows="4" required placeholder="Briefly describe your business and the services you provide"></textarea></div>\` },
     { title: "One last thing", hint: "This helps us understand how people discover Faxton Rentals.", html: obReferral },
   ];
