@@ -30,6 +30,8 @@ export function validateListingMedia(imageFiles = [], videoFiles = [], linkedIma
 
 export function collectListingFeatures(counts = {}, customRows = []) {
   const builtIns = [
+    ["Bedrooms", counts.bedrooms],
+    ["Bathrooms", counts.bathrooms],
     ["Kitchen", counts.kitchens],
     ["Parlour", counts.parlours],
     ["Swimming pool", counts.swimmingPools],
