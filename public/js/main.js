@@ -229,7 +229,26 @@ export async function render() {
   const ctx = { confirmSignOut, dashHome: () => roleHome() || "/", path, q, S, go, refreshUser, setThemePref, themePref, resendVerification, refreshProfile, resetTour, installApp, canInstall: () => !!installPrompt, shell, render, toggleTheme, themeBtn, signIn, signUp, signInGoogle, reauthGoogle, logout, setSaved, resetPassword };
   bar(true);
   let view;
-  try { view = S.user && G.needsVerify(S.user) && path !== "/onboarding/setup" && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx); } catch (err) { console.error(err); if (id !== renderId) return; bar(false); app.innerHTML = shell(path, `<div class="fx-state" role="alert"><span class="fx-st-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0115.5-6.2L21 8M21 3v5h-5M21 12a9 9 0 01-15.5 6.2L3 16M3 21v-5h5"/></svg></span><h2>This page didn’t load</h2><p>Check your internet connection and try again.</p><div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>`); return wire(); }
+  try {
+    view = S.user && G.needsVerify(S.user) && path !== "/onboarding/setup" && !LEGAL_PATHS.includes(path) ? G.verifyView(ctx) : await V.route(ctx);
+  } catch (err) {
+    console.error("Faxton route failed:", err);
+    if (id !== renderId) return;
+    bar(false);
+    const rawCode = String(err?.code || "");
+    const code = rawCode.slice(rawCode.lastIndexOf("/") + 1);
+    const failure = code === "permission-denied" || code === "unauthenticated"
+      ? { title: "You don’t have access to this section", message: code === "unauthenticated" ? "Your sign-in may have expired. Sign in again, then reopen this page." : "Your account does not currently have permission to open this section. Check that you are using the correct staff account. If you should have access, ask the Faxton owner to review your role." }
+      : code === "failed-precondition"
+        ? { title: "This page needs a database update", message: "The request reached the database, but this query needs an index or configuration change. Please try again later or contact support." }
+        : ["unavailable", "deadline-exceeded", "network-request-failed"].includes(code)
+          ? { title: "The service could not be reached", message: "Faxton could not reach the service just now. Check your connection and try again." }
+          : { title: "This page didn’t load", message: "Something went wrong while opening this section. Try again. If the problem continues, contact support and share the error code shown below." };
+    const codeLine = code ? '<p class="fx-st-code">Error code: ' + esc(code) + "</p>" : "";
+    const failedView = '<div class="fx-state" role="alert"><h2>' + esc(failure.title) + "</h2><p>" + esc(failure.message) + "</p>" + codeLine + '<div class="fx-st-row"><button type="button" class="btn primary" data-fx-retry>Try again</button><a class="btn" href="#/">Go home</a></div></div>';
+    app.innerHTML = shell(path, failedView);
+    return wire();
+  }
   if (id !== renderId) return;
   bar(false);
   if (!AXS && view && !view.full && S.user && (S.isAdmin || ROLE_UI[S.role]) && (view.admin || view.role || path.startsWith("/messages") || isSettings(path))) { try { AXS = await import("./ax-shell.js"); } catch (e) { console.error(e); } if (id !== renderId) return; }
