@@ -419,7 +419,7 @@ export function setupPage(ctx) {
       catch { return; }
       const v = allValues();
       if (v.referralSource === "Other" && !String(v.referralOther || "").trim()) { say("Please tell us where you heard about Faxton Rentals."); $("#referralOther", form)?.focus(); return; }
-      const patch = { referralSource: v.referralSource, referralOther: v.referralSource === "Other" ? String(v.referralOther || "").trim() : "", onboarding: { completed: true } };
+      const patch = { referralSource: v.referralSource, referralOther: v.referralSource === "Other" ? String(v.referralOther || "").trim() : "", onboarding: { completed: true, step: current, draft: {} } };
       const phone = String(v.phone || "").trim();
       if (phone.replace(/\D/g, "").length < 8) { say("Enter a valid phone number."); await saveDraft(0); showStep(0); $("#phone", form)?.focus(); return; }
       patch.phone = phone;
