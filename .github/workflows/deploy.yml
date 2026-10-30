@@ -55,19 +55,33 @@ jobs:
       - name: Smoke test the live site
         run: |
           set -e
-          H=$(curl -fsSI https://faxtonrentals.com/)
-          echo "$H" | grep -qi '^content-security-policy:' || { echo "::error::Live site is missing its Content-Security-Policy header"; exit 1; }
-          echo "$H" | grep -qi '^strict-transport-security:' || { echo "::error::Live site is missing HSTS"; exit 1; }
-          curl -fsS https://faxtonrentals.com/app/ -o /dev/null
-          curl -fsS https://faxtonrentals.com/about -o /dev/null
-          curl -fsS https://faxtonrentals.com/properties -o /dev/null
-          curl -fsS https://faxtonrentals.com/sitemap.xml -o /dev/null
-          curl -fsS https://faxtonrentals.com/robots.txt -o /dev/null
-          curl -fsS https://faxtonrentals.com/sw.js -o /dev/null
-          curl -fsS https://faxtonrentals.com/manifest.webmanifest -o /dev/null
-          curl -fsS https://faxtonrentals.com/.well-known/assetlinks.json -o /dev/null
-          code=$(curl -s -o /dev/null -w '%{http_code}' https://faxtonrentals.com/this-page-does-not-exist)
-          [ "$code" = "404" ] || { echo "::error::Unknown pages should answer 404, got $code"; exit 1; }
+          HOST=https://faxton-rentals.web.app
+          H=$(curl -fsSI "$HOST/")
+          echo "$H" | grep -qi '^content-security-policy:' || { echo "::error::Firebase Hosting is missing its Content-Security-Policy header"; exit 1; }
+          echo "$H" | grep -qi '^strict-transport-security:' || { echo "::error::Firebase Hosting is missing HSTS"; exit 1; }
+          curl -fsS "$HOST/" | grep -q "Find a home that feels like"
+          curl -fsS "$HOST/app/" -o /dev/null
+          curl -fsS "$HOST/about" -o /dev/null
+          curl -fsS "$HOST/how-it-works" -o /dev/null
+          curl -fsS "$HOST/properties" -o /dev/null
+          curl -fsS "$HOST/sitemap.xml" -o /dev/null
+          curl -fsS "$HOST/robots.txt" -o /dev/null
+          curl -fsS "$HOST/sw.js" -o /dev/null
+          curl -fsS "$HOST/manifest.webmanifest" -o /dev/null
+          curl -fsS "$HOST/.well-known/assetlinks.json" -o /dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$HOST/this-page-does-not-exist")
+          [ "$code" = "404" ] || { echo "::error::Unknown Firebase Hosting pages should answer 404, got $code"; exit 1; }
+          if curl -fsS https://faxtonrentals.com/ > "$RUNNER_TEMP/custom-domain.html"; then
+            if grep -q "Find a home that feels like" "$RUNNER_TEMP/custom-domain.html"; then
+              echo "Custom domain is serving the new Faxton public SEO homepage."
+            else
+              echo "::warning::faxtonrentals.com is not yet serving the new Firebase SEO homepage. Check which host/deployment currently owns the custom domain."
+              grep -io '<title>[^<]*</title>' "$RUNNER_TEMP/custom-domain.html" | head -1 || true
+            fi
+            curl -sSI https://faxtonrentals.com/ | grep -iE '^(server|via|x-vercel-id|x-served-by|content-type):' || true
+          else
+            echo "::warning::Custom domain could not be reached during the smoke test."
+          fi
       - name: Remove key
         if: always()
         run: rm -f "$RUNNER_TEMP/sa.json"
