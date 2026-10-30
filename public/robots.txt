@@ -6,4 +6,4 @@ Disallow: /__/
 Disallow: /offline
 Disallow: /404
 
-Sitemap: https://faxton-rentals.web.app/sitemap.xml
+Sitemap: https://faxtonrentals.com/sitemap.xml
