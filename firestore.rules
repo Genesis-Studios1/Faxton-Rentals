@@ -144,15 +144,15 @@ service cloud.firestore {
         && request.time.toMillis() >= resource.data.deletion.requestedAt + 86400000;
     }
 
-    // Live "someone signed up / signed in" entries for the team. A person may only record an event about themselves; the app sends a sign-up once
-    // (the id is fixed per person, so it cannot be repeated) and a sign-in at most once per 30 minutes. Only admins, the owner and support read them.
+    // First-time sign-up events for the team. A person may record one event about themselves; routine sign-ins are deliberately excluded.
+    // Only admins, the owner and support can read the event feed.
     match /staffEvents/{id} {
       allow create: if signedIn() && request.resource.data.keys().hasOnly(['type', 'uid', 'name', 'role', 'at'])
-        && request.resource.data.type in ['signup', 'login']
+        && request.resource.data.type == 'signup'
         && request.resource.data.uid == request.auth.uid
         && short(request.resource.data.name, 120) && short(request.resource.data.role, 20)
         && request.resource.data.at == request.time
-        && (request.resource.data.type != 'signup' || id == 'signup_' + request.auth.uid);
+        && id == 'signup_' + request.auth.uid;
       allow read: if isAdmin() || isSupport();
       allow update: if (isAdmin() || isSupport()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['seen']);
       allow delete: if false;
