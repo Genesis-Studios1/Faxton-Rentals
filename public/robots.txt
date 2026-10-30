@@ -1,5 +1,5 @@
 # Faxton Rentals
-# The app lives behind hash routes (#/...), which search engines do not crawl, so only the front page is indexable.
+# Public Faxton Rentals pages are crawlable. The signed-in application declares noindex.
 User-agent: *
 Allow: /
 Disallow: /__/
