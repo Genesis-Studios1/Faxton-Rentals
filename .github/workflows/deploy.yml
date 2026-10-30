@@ -6,6 +6,8 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "23 */6 * * *"
 concurrency:
   group: deploy
   cancel-in-progress: true
@@ -24,16 +26,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Stops a broken release (mismatched version numbers, missing files, blocked web addresses) before it reaches visitors.
-      - name: Release check
-        run: node scripts/check-release.mjs
-      - name: Deploy hosting
+      # Build crawlable HTML from currently published Firestore records before checking and deploying.
+      - name: Build public SEO pages and deploy hosting
         env:
           KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           printf '%s' "$KEY" > "$RUNNER_TEMP/sa.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
-          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          REQUIRE_PUBLIC_LISTINGS=1 node scripts/build-public-site.mjs
+          node scripts/check-release.mjs
+          npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
       # Not continue-on-error: if the rules can't be published the run turns red, so a stale ruleset is never silent.
       - name: Deploy Firestore rules (needs the Firestore database to exist)
         run: npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals --non-interactive
@@ -48,13 +50,18 @@ jobs:
       - name: Smoke test the live site
         run: |
           set -e
-          H=$(curl -fsSI https://faxton-rentals.web.app/)
+          H=$(curl -fsSI https://faxtonrentals.com/)
           echo "$H" | grep -qi '^content-security-policy:' || { echo "::error::Live site is missing its Content-Security-Policy header"; exit 1; }
           echo "$H" | grep -qi '^strict-transport-security:' || { echo "::error::Live site is missing HSTS"; exit 1; }
-          curl -fsS https://faxton-rentals.web.app/sw.js -o /dev/null
-          curl -fsS https://faxton-rentals.web.app/manifest.webmanifest -o /dev/null
-          curl -fsS https://faxton-rentals.web.app/.well-known/assetlinks.json -o /dev/null
-          code=$(curl -s -o /dev/null -w '%{http_code}' https://faxton-rentals.web.app/this-page-does-not-exist)
+          curl -fsS https://faxtonrentals.com/app/ -o /dev/null
+          curl -fsS https://faxtonrentals.com/about -o /dev/null
+          curl -fsS https://faxtonrentals.com/properties -o /dev/null
+          curl -fsS https://faxtonrentals.com/sitemap.xml -o /dev/null
+          curl -fsS https://faxtonrentals.com/robots.txt -o /dev/null
+          curl -fsS https://faxtonrentals.com/sw.js -o /dev/null
+          curl -fsS https://faxtonrentals.com/manifest.webmanifest -o /dev/null
+          curl -fsS https://faxtonrentals.com/.well-known/assetlinks.json -o /dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://faxtonrentals.com/this-page-does-not-exist)
           [ "$code" = "404" ] || { echo "::error::Unknown pages should answer 404, got $code"; exit 1; }
       - name: Remove key
         if: always()

@@ -68,7 +68,7 @@ if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   };
   navigator.serviceWorker.addEventListener("controllerchange", () => { if (reloading) location.reload(); });
   const start = async () => {
-    let reg; try { reg = await navigator.serviceWorker.register("sw.js"); } catch { return; }
+    let reg; try { reg = await navigator.serviceWorker.register("/sw.js", { scope: "/app/" }); } catch { return; }
     if (!reg) return;
     if (reg.waiting && navigator.serviceWorker.controller) offer(reg);
     reg.addEventListener("updatefound", () => { const w = reg.installing; if (!w) return; w.addEventListener("statechange", () => { if (w.state === "installed" && navigator.serviceWorker.controller) offer(reg); }); });

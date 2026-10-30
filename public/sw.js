@@ -10,7 +10,7 @@
 //  - A new release waits until the person taps "Reload" in the "A new version is ready" message (see js/robust.js).
 //
 // RELEASE: BUILD below must equal BUILD in js/ui.js and the ?v= in index.html. Run `node scripts/check-release.mjs` before deploying.
-const BUILD = "2026-10-29.01";
+const BUILD = "2026-10-30.01";
 const PRE = "faxton-" + BUILD;   // saved on install, thrown away on the next release
 const RT = "faxton-rt";          // pictures, fonts, SDK scripts picked up while browsing (size-capped, survives releases)
 const RT_MAX = 160;
@@ -18,7 +18,7 @@ const V = "?v=" + BUILD;
 
 // Must work or the worker does not install.
 const OFFLINE = "offline"; // offline.html, served without the .html because Firebase cleanUrls redirects the long form (a redirected page cannot be used as a navigation answer)
-const CORE = ["./", OFFLINE, "manifest.webmanifest", "css/fonts.css" + V, "css/theme.css" + V, "css/app.css" + V, "css/shell.css" + V, "css/home.css" + V, "css/flow.css" + V, "css/admin.css" + V, "css/chat.css" + V, "css/auth.css" + V, "css/robust.css" + V, "js/boot.js" + V, "js/robust.js" + V, "js/main.js" + V, "js/lightbox.js" + V];
+const CORE = ["./", "/app/", OFFLINE, "manifest.webmanifest", "css/fonts.css" + V, "css/theme.css" + V, "css/app.css" + V, "css/shell.css" + V, "css/home.css" + V, "css/flow.css" + V, "css/admin.css" + V, "css/chat.css" + V, "css/auth.css" + V, "css/robust.css" + V, "js/boot.js" + V, "js/robust.js" + V, "js/main.js" + V, "js/lightbox.js" + V];
 // Nice to have offline: the rest of the app's modules and the first screens' pictures. A missing one never breaks the install.
 const EXTRA = [
   "assets/mark.svg", "img/splash-final.webp", "icons/icon-192.png", "icons/favicon.svg?v=2",
@@ -87,11 +87,17 @@ self.addEventListener("fetch", (e) => {
   const p = u.pathname;
   if (p.startsWith("/__/") || p === "/sw.js") return; // Firebase auth helper pages and this file itself
   if (req.mode === "navigate") {
-    if (p === "/" || p === "/index.html") {
+    if (p === "/app" || p === "/app/") {
       e.respondWith((async () => {
-        const res = await networkFirst(e, new Request("./", { credentials: "same-origin" }), PRE, 5000);
+        const res = await networkFirst(e, new Request("/app/", { credentials: "same-origin" }), PRE, 5000);
         if (res && res.ok) return res;
-        return (await caches.match("./")) || (await caches.match(OFFLINE)) || res;
+        return (await caches.match("/app/")) || (await caches.match(OFFLINE)) || res;
+      })());
+    } else if (p === "/" || p === "/index.html") {
+      e.respondWith((async () => {
+        const res = await networkFirst(e, new Request("/", { credentials: "same-origin" }), PRE, 5000);
+        if (res && res.ok) return res;
+        return (await caches.match("/")) || (await caches.match(OFFLINE)) || res;
       })());
     } else {
       e.respondWith(fetch(req).catch(async () => (await caches.match(OFFLINE)) || Response.error()));
