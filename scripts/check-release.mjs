@@ -56,7 +56,7 @@ if (cfg && !/Content-Security-Policy/.test(csp)) bad("firebase.json has no Conte
 
 for (const [re, what] of [[/<title>[^<]{10,}<\/title>/, "a public-page title"], [/name="description"/, "a public-page description"], [/rel="canonical" href="https:\/\/faxtonrentals\.com\//, "a custom-domain canonical"], [/property="og:image"/, "a social image"], [/application\/ld\+json/, "Organization structured data"]]) if (!re.test(site)) bad("public/index.html is missing " + what + ".");
 if (/faxton-rentals\.web\.app/.test(site)) bad("Public SEO homepage still contains the Firebase subdomain.");
-for (const p of ["about","how-it-works","find-homes","properties","property-owners","agents","safety","contact","guides/renting-a-home-in-nigeria","guides/property-viewing-checklist","guides/renting-in-lagos"]) if (!existsSync(join(pub,p,"index.html"))) bad("Generated public page /" + p + " is missing.");
+for (const p of ["about","features","how-it-works","find-homes","properties","property-owners","agents","safety","contact","guides/renting-a-home-in-nigeria","guides/property-viewing-checklist","guides/renting-in-lagos"]) if (!existsSync(join(pub,p,"index.html"))) bad("Generated public page /" + p + " is missing.");
 if (!read("public/sitemap.xml").includes("https://faxtonrentals.com/")) bad("Sitemap is not using the custom domain.");
 
 // 5. Every outside website the code talks to must be allowed by the security policy --------------------
