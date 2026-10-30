@@ -26,6 +26,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Test property listing media and syntax
+        run: |
+          node --experimental-default-type=module --test tests/listing-media.test.mjs
+          node --experimental-default-type=module --check public/js/admin2.js
+          node --experimental-default-type=module --check public/js/listing-media.js
+          node --experimental-default-type=module --check public/js/listing-media-core.js
+          node --experimental-default-type=module --check public/js/pdp.js
       # Build crawlable HTML from currently published Firestore records before checking and deploying.
       - name: Build public SEO pages and deploy hosting
         env:
