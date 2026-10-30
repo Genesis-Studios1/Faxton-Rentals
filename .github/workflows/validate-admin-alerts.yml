@@ -7,6 +7,10 @@ on:
       - "public/js/main.js"
       - "public/js/store.js"
       - "public/js/ax-shell.js"
+      - "public/js/ui.js"
+      - "public/sw.js"
+      - "public/app/index.html"
+      - "scripts/check-app-cache-version.mjs"
       - "firestore.rules"
       - "tests/rules/**"
       - ".github/workflows/validate-admin-alerts.yml"
@@ -27,6 +31,7 @@ jobs:
           node --experimental-default-type=module --check public/js/main.js
           node --experimental-default-type=module --check public/js/store.js
           node --experimental-default-type=module --check public/js/ax-shell.js
+          node scripts/check-app-cache-version.mjs
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
