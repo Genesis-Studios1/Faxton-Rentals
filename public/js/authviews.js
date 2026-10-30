@@ -325,9 +325,7 @@ export function setupPage(ctx) {
   const role = profile.role || "renter";
   const labels = { agency: "Business / agency", agent: "Real estate agent", landlord: "Homeowner", renter: "Renter" };
   const panels = setupPanels(role);
-  const draftKey = "faxton-onboarding-" + (ctx.S.user?.uid || "unknown");
-  let draft = {};
-  try { draft = { ...(profile.onboarding?.draft || {}), ...JSON.parse(localStorage.getItem(draftKey) || "{}") }; } catch { draft = { ...(profile.onboarding?.draft || {}) }; }
+  let draft = { ...(profile.onboarding?.draft || {}) };
   let current = Math.min(Math.max(Number(profile.onboarding?.step ?? 0), 0), panels.length - 1);
   const panelHtml = panels.map((p, i) => \`<section class="obp-section" data-ob-panel="\${i}" \${i === current ? "" : "hidden"}><h2>\${p.title}</h2><p class="obp-hint">\${p.hint}</p>\${p.html}</section>\`).join("");
   const html = \`<main class="obp-page"><header class="obp-head">\${logoLink("obp-logo", "#/")}<span class="obp-step" id="obp-progress">STEP \${current + 1} OF \${panels.length}</span></header>
@@ -358,9 +356,13 @@ export function setupPage(ctx) {
     };
     const saveDraft = async (step = current) => {
       draft = allValues();
-      try { localStorage.setItem(draftKey, JSON.stringify(draft)); } catch {}
-      try { await saveProfile(ctx.S.user.uid, { onboarding: { completed: false, step, draft } }); ctx.S.profile = { ...(ctx.S.profile || {}), onboarding: { completed: false, step, draft } }; }
-      catch { /* Keep the local draft; the user can retry when they have a connection. */ }
+      try {
+        await saveProfile(ctx.S.user.uid, { onboarding: { completed: false, step, draft } });
+        ctx.S.profile = { ...(ctx.S.profile || {}), onboarding: { completed: false, step, draft } };
+      } catch (e) {
+        say("We couldn't save your progress. Check your connection and try again before continuing.");
+        throw e;
+      }
     };
     const showStep = (n) => {
       current = Math.max(0, Math.min(n, panels.length - 1));
@@ -383,21 +385,38 @@ export function setupPage(ctx) {
     };
     if (role === "agency") {
       const type = $("#businessType", form), real = $("#ob-real-estate-services", form), home = $("#ob-home-services", form);
-      const syncBusinessType = () => { const isHome = type.value === "Home services provider"; real.hidden = isHome; home.hidden = !isHome; $("input[name=\"businessService\"]", isHome ? real : home).forEach((el) => { el.checked = false; }); };
+      const syncBusinessType = () => {
+        const isHome = type.value === "Home services provider";
+        real.hidden = isHome;
+        home.hidden = !isHome;
+        $( "input[name=\"businessService\"]", isHome ? real : home).forEach((el) => { el.checked = false; });
+      };
       type.addEventListener("change", syncBusinessType); syncBusinessType();
     }
     restore();
     if (role === "agency") $("#businessType", form)?.dispatchEvent(new Event("change"));
     let draftTimer = 0;
-    const queueDraft = () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft(), 650); };
+    const queueDraft = () => {
+      clearTimeout(draftTimer);
+      draftTimer = setTimeout(() => saveDraft().catch(() => {}), 650);
+    };
     form.addEventListener("input", () => { say(""); queueDraft(); });
     form.addEventListener("change", () => { say(""); queueDraft(); });
-    back.onclick = async () => { clearTimeout(draftTimer); await saveDraft(current - 1); showStep(current - 1); };
+    back.onclick = async () => {
+      clearTimeout(draftTimer);
+      try { await saveDraft(current - 1); showStep(current - 1); }
+      catch { /* Keep the user on this step until progress can be saved. */ }
+    };
     next.onclick = async () => {
       clearTimeout(draftTimer);
       if (!validatePanel()) return;
-      if (current < panels.length - 1) { await saveDraft(current + 1); showStep(current + 1); return; }
-      await saveDraft(current);
+      if (current < panels.length - 1) {
+        try { await saveDraft(current + 1); showStep(current + 1); }
+        catch { /* Do not move forward if the draft could not be saved. */ }
+        return;
+      }
+      try { await saveDraft(current); }
+      catch { return; }
       const v = allValues();
       if (v.referralSource === "Other" && !String(v.referralOther || "").trim()) { say("Please tell us where you heard about Faxton Rentals."); $("#referralOther", form)?.focus(); return; }
       const patch = { referralSource: v.referralSource, referralOther: v.referralSource === "Other" ? String(v.referralOther || "").trim() : "", onboarding: { completed: true } };
@@ -423,7 +442,6 @@ export function setupPage(ctx) {
       try {
         await saveProfile(ctx.S.user.uid, patch);
         ctx.S.profile = { ...(ctx.S.profile || {}), ...patch };
-        try { localStorage.removeItem(draftKey); } catch {}
         ctx.go("#" + (ctx.dashHome?.() || "/"));
       } catch (e) {
         say(e?.code === "permission-denied" ? "We couldn't save your details because the account permissions need updating. Please try again shortly." : "We couldn't save your details. Check your connection and try again.");
