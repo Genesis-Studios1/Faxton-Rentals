@@ -9,7 +9,7 @@
 //  - Firestore, sign-in, maps tiles and every other website are NEVER touched: this file only handles Faxton's own files and the Firebase SDK scripts.
 //  - A new release waits until the person taps "Reload" in the "A new version is ready" message (see js/robust.js).
 //
-// RELEASE: BUILD below must equal BUILD in js/ui.js and the ?v= in index.html. Run `node scripts/check-release.mjs` before deploying.
+// RELEASE: BUILD below must equal BUILD in js/ui.js and the ?v= in public/app/index.html. Run `node scripts/check-release.mjs` before deploying.
 const BUILD = "2026-10-30.01";
 const PRE = "faxton-" + BUILD;   // saved on install, thrown away on the next release
 const RT = "faxton-rt";          // pictures, fonts, SDK scripts picked up while browsing (size-capped, survives releases)

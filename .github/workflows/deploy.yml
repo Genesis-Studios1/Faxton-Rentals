@@ -35,6 +35,8 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
           node --check scripts/build-public-site.mjs
           node --check public/js/legacy-redirect.js
+          node --check public/js/robust.js
+          node --check public/sw.js
           REQUIRE_PUBLIC_LISTINGS=1 node scripts/build-public-site.mjs
           node scripts/check-release.mjs
           npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
