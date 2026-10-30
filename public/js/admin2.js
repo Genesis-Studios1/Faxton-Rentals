@@ -311,12 +311,26 @@ export function userDrawer(ctx, u, api) {
     ${section("Details", dl([["Phone", esc(u.phone || ag?.phone || gi?.phone || "")], ["Residence", esc(u.location || [u.city, u.country].filter(Boolean).join(", "))], ["Joined", fmt.date(u.createdAt) === "—" ? "" : fmt.date(u.createdAt)], ["Last active", u.lastActive ? fmt.rel(u.lastActive) : ""], ["Sign-in", u.provider === "google" || /googleusercontent\.com/.test(u.photo || "") ? "Google" : "Email"], ["Saved homes", fmt.num((u.saved || []).length)], ...(ag ? [["Business", esc(ag.business)], ["Registrar", esc([ag.registrar, ag.position].filter(Boolean).join(" · "))], ["CAC number", esc(ag.cac)], ["Opened", esc(ag.opened)], ["Support email", esc(ag.supportEmail)], ["Office address", esc(ag.address)], ["Website", ag.website ? esc(ag.website) : ""]] : []), ...(gi ? [["Agency", esc(gi.company)], ["Licence", esc(gi.licence)], ["Experience", esc(gi.experience)], ["Areas", esc(gi.areas)]] : [])]))}
     ${u.verification ? section("Verification", dl([["Status", chipFor("verification", u.verification.status)], ["Reason", esc(u.verification.reason || "")]])) : ""}
     ${section("Role", r === "owner" ? `<p class="ax-muted">The owner account can’t be changed here.</p>` : ctx.S.isOwner && !mine ? `<select class="ax-input" data-role aria-label="Role">${ROLES.map(([v, l]) => `<option value="${v}" ${r === v ? "selected" : ""}>${l}</option>`).join("")}</select><p class="ax-help">Takes effect straight away.</p>` : `<p class="ax-muted">${mine ? "You can’t change your own role." : "Only the owner can change roles."}</p>`)}
-    ${ban || (ctx.S.isOwner && !mine && r !== "owner") ? section("Danger zone", `<div style="display:flex;gap:8px;flex-wrap:wrap">${ban ? btn(u.banned ? "Lift suspension" : "Suspend this user", { v: u.banned ? "outline" : "danger", attrs: "data-ban" }) : ""}${ctx.S.isOwner && !mine && r !== "owner" ? btn("Transfer ownership", { v: "outline", attrs: "data-xfer" }) : ""}</div>${u.banned ? `<p class="ax-help">Suspended people are signed out and can’t sign back in until you lift it.</p>` : ""}`) : ""}`;
+    ${ban || (ctx.S.isOwner && !mine && r !== "owner") ? section("Danger zone", `<div style="display:flex;gap:8px;flex-wrap:wrap">${ban ? btn(u.banned ? "Lift suspension" : "Suspend this user", { v: u.banned ? "outline" : "danger", attrs: "data-ban" }) : ""}${ctx.S.isOwner && !mine && r !== "owner" ? btn("Transfer ownership", { v: "outline", attrs: "data-xfer" }) : ""}</div>${u.banned ? `<p class="ax-help">Suspended people are signed out and can’t sign back in until you lift it.</p>` : ""}`) : ""}`
+    ${ctx.S.isOwner && !mine && !["owner", "admin", "support"].includes(r) && !userVerified(u) ? section("Onboarding", `<p class="ax-help">This account is not verified. You can require the person to complete their role-specific onboarding again before continuing.</p>${btn("Require onboarding again", { v: "outline", ic: "refresh", attrs: "data-reset-onboarding" })}`) : ""};
   return { title: u.name || u.email || "User", sub: `<span>${esc(ROLE_LABEL[r] || r)}</span>`, body,
     mount(el) {
       $("[data-text]", el)?.addEventListener("click", () => openChat(ctx, u));
       $$("[data-call]", el).forEach((b) => (b.onclick = () => CALLS.startCall(ctx, { to: u.id, toName: u.name || u.email, kind: b.dataset.call, title: "Faxton team" })));
       $("[data-ban]", el)?.addEventListener("click", () => banAct(ctx, u, api)); $("[data-xfer]", el)?.addEventListener("click", () => transferAct(ctx, u, api));
+      $("[data-reset-onboarding]", el)?.addEventListener("click", async (e) => {
+        if (!ctx.S.isOwner || mine || ["owner", "admin", "support"].includes(r) || userVerified(u)) return;
+        const ok = await confirm({ title: "Require onboarding again?", body: `${u.name || u.email || "This user"} will be sent through the onboarding screens the next time they open Faxton Rentals. Their account and saved details will remain in place.`, confirmLabel: "Require onboarding", icon: "refresh" });
+        if (!ok) return;
+        const b = e.currentTarget; busy(b, true);
+        try {
+          const onboarding = { completed: false, step: 0, draft: {} };
+          await st.patch("users", u.id, { onboarding });
+          await notify(u.id, { kind: "info", title: "Complete your Faxton profile", body: "The Faxton team needs you to complete your onboarding again. Your next visit will take you through the setup screens." });
+          api.update({ onboarding });
+          toast("Onboarding required. They’ll see the setup screens next time they open the app.");
+        } catch (x) { busy(b, false); bad(x); }
+      });
       const rs = $("[data-role]", el); if (rs) rs.onchange = async () => { const prev = u.role; try { await st.setRole(u.id, rs.value); u.role = rs.value; changed(); api.refresh(); toast("Role updated.", { action: "Undo", onAction: async () => { try { await st.setRole(u.id, prev || "renter"); u.role = prev; changed(); api.refresh(); } catch (e) { bad(e); } } }); } catch (e) { rs.value = prev || "renter"; bad(e); } };
     } };
 }
