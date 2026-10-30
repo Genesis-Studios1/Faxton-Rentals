@@ -267,37 +267,216 @@ export async function mountRelayCard(host, ctx) {
 // ---------- add property (landlords, agencies and agents) ----------
 export function addProperty(ctx, done) {
   let where = null;
-  const amen = ["Parking", "Water supply", "Security", "Generator", "Solar / inverter", "Balcony", "Gym", "Pool", "Garden", "Wi-Fi"];
+  const amenities = ["Water supply", "Security", "Generator", "Solar / inverter", "Balcony", "Gym", "Wi-Fi"];
   const d = dialog({ title: "Add a property", size: "lg", icon: "home", body: `<p class="ax-p ax-muted">New listings are reviewed by the Faxton team before they go live.</p><form id="np" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
     ${locFields({ style: "ax", flow: true, ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "npCity" })}
-    <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label><label class="ax-field"><span>Type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
-    <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="20" value="2" required></label><label class="ax-field"><span>Bathrooms</span><input class="ax-input" name="baths" type="number" min="1" max="20" value="2" required></label>
-    <label class="ax-field"><span>Year built</span><input class="ax-input" name="yearBuilt" type="number" min="1900" max="2100" placeholder="2022"></label><label class="ax-field"><span>Parking spaces</span><input class="ax-input" name="parking" type="number" min="0" max="50" placeholder="2"></label>
-    <label class="ax-field"><span>Size (m²)</span><input class="ax-input" name="sqm" type="number" min="0" placeholder="120"></label><label class="ax-field"><span>Furnishing</span><select class="ax-input" name="furnished"><option value="">Not stated</option><option>Furnished</option><option>Semi-furnished</option><option>Unfurnished</option></select></label>
-    <label class="ax-field"><span>Service charge (₦ / year)</span><input class="ax-input" name="service" type="number" min="0" placeholder="350000"></label><label class="ax-field"><span>Caution deposit (₦, refundable)</span><input class="ax-input" name="deposit" type="number" min="0" placeholder="200000"></label>
-    <label class="ax-field"><span>Agency fee (₦, blank is 10%)</span><input class="ax-input" name="agencyFee" type="number" min="0" placeholder="Leave blank for 10%"></label><label class="ax-field"><span>Legal fee (₦, blank is 5%)</span><input class="ax-input" name="legalFee" type="number" min="0" placeholder="Leave blank for 5%"></label>
-    <div class="ax-field full"><span>Features</span><div class="ax-am">${amen.map((a) => `<label><input type="checkbox" name="am" value="${a}"> ${a}</label>`).join("")}</div></div>
-    <label class="ax-field full"><span>Floor plan link (optional)</span><input class="ax-input" name="floorPlan" type="url" placeholder="https://…"></label>
+    <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
+    <label class="ax-field"><span>Property category</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
+    <label class="ax-field"><span>Building type</span><select class="ax-input" name="buildingType" id="npBuildingType"><option>Bungalow</option><option>Storey building</option><option>Block of flats</option><option>Duplex</option><option>Terrace</option><option>Detached house</option><option>Other</option></select></label>
+    <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="30" value="2" required></label>
+    <label class="ax-field"><span>Bathrooms</span><input class="ax-input" name="baths" type="number" min="0" max="30" value="2" required></label>
+    <div class="ax-field full np-floor" id="npFloorDetails" hidden>
+      <p class="np-section-title">Apartment location in the building</p>
+      <div class="ax-form">
+        <label class="ax-field"><span>Floor <b aria-hidden="true">*</b></span><input class="ax-input" name="floor" id="npFloor" maxlength="40" placeholder="e.g. 2nd floor or Ground floor"></label>
+        <label class="ax-field"><span>Room / unit number <small>Optional</small></span><input class="ax-input" name="roomNumber" maxlength="40" placeholder="e.g. Flat 4B"></label>
+      </div>
+    </div>
+    <label class="ax-field"><span>Year built</span><input class="ax-input" name="yearBuilt" type="number" min="1900" max="2100" placeholder="2022"></label>
+    <label class="ax-field"><span>Parking spaces</span><input class="ax-input" name="parking" type="number" min="0" max="50" placeholder="0"></label>
+    <label class="ax-field"><span>Size (m²)</span><input class="ax-input" name="sqm" type="number" min="0" placeholder="120"></label>
+    <label class="ax-field"><span>Furnishing</span><select class="ax-input" name="furnished"><option value="">Not stated</option><option>Furnished</option><option>Semi-furnished</option><option>Unfurnished</option></select></label>
+    <div class="ax-field full">
+      <span>Room and facility counts</span>
+      <p class="ax-muted np-help">Enter how many of each feature the property has. Leave a field at zero or blank if it does not apply.</p>
+      <div class="np-count-grid">
+        <label><span>Kitchens</span><input class="ax-input" name="kitchens" type="number" min="0" max="99" value="1"></label>
+        <label><span>Parlours / living rooms</span><input class="ax-input" name="parlours" type="number" min="0" max="99" value="1"></label>
+        <label><span>Swimming pools</span><input class="ax-input" name="swimmingPools" type="number" min="0" max="99" value="0"></label>
+        <label><span>Gardens</span><input class="ax-input" name="gardens" type="number" min="0" max="99" value="0"></label>
+      </div>
+    </div>
+    <div class="ax-field full">
+      <span>Additional features with quantities</span>
+      <p class="ax-muted np-help">Add any other feature and set its number, such as balconies, storage rooms or study rooms.</p>
+      <div id="npCustomFeatures" class="np-custom-features"></div>
+      ${btn("Add a feature", { size: "sm", ic: "plus", attrs: "id=npAddFeature" })}
+    </div>
+    <div class="ax-field full"><span>Other amenities</span><div class="ax-am">${amenities.map((a) => `<label><input type="checkbox" name="am" value="${esc(a)}"> ${esc(a)}</label>`).join("")}</div></div>
+    <label class="ax-field"><span>Service charge (₦ / year)</span><input class="ax-input" name="service" type="number" min="0" placeholder="350000"></label>
+    <label class="ax-field"><span>Caution deposit (₦, refundable)</span><input class="ax-input" name="deposit" type="number" min="0" placeholder="200000"></label>
+    <label class="ax-field"><span>Agency fee (₦, blank is 10%)</span><input class="ax-input" name="agencyFee" type="number" min="0" placeholder="Leave blank for 10%"></label>
+    <label class="ax-field"><span>Legal fee (₦, blank is 5%)</span><input class="ax-input" name="legalFee" type="number" min="0" placeholder="Leave blank for 5%"></label>
+    <label class="ax-field full"><span>Floor plan link <small>Optional</small></span><input class="ax-input" name="floorPlan" type="url" placeholder="https://…"></label>
     <label class="ax-field full"><span>Description</span><textarea class="ax-input" name="desc" rows="3" maxlength="800"></textarea></label>
     <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px">${btn("Set location on map", { size: "sm", ic: "pin", attrs: "id=npLoc" })}<span class="ax-muted" id="npLocT">Not set yet</span></div></div>
-    <label class="ax-field full"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label><label class="ax-field full"><span>Video links (optional)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
+    <div class="ax-field full np-media-field">
+      <span>Property photos</span>
+      <p class="ax-muted np-help">Upload JPG, PNG or WebP files (up to 20 photos, 15 MB each). You can also paste image links below.</p>
+      <input class="ax-input np-file-input" id="npPhotoFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+      <label class="ax-field"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label>
+    </div>
+    <div class="ax-field full np-media-field">
+      <span>Property videos</span>
+      <p class="ax-muted np-help">Upload MP4, WebM or MOV files (up to 6 videos, 100 MB each), or paste video links.</p>
+      <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm,video/quicktime" multiple>
+      <label class="ax-field"><span>Video links (one per line)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
+    </div>
+    <div class="ax-field full np-upload-status" id="npUploadStatus" hidden>
+      <div class="np-upload-top"><span id="npUploadText">Preparing uploads…</span><b id="npUploadPercent">0%</b></div>
+      <div class="np-upload-track"><span id="npUploadBar"></span></div>
+    </div>
     <p class="ax-err full" id="npe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Submit for review", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea" }, cityId: "npCity" });
-  $("#npLoc", d.el).onclick = async () => { const r = await pickLocation({ lat: where?.lat, lng: where?.lng }); if (r) { where = r; $("#npLocT", d.el).textContent = `Saved (${r.lat.toFixed(4)}, ${r.lng.toFixed(4)})`; } };
+  const typeField = $("#npType", d.el), buildingField = $("#npBuildingType", d.el), floorDetails = $("#npFloorDetails", d.el), floorInput = $("#npFloor", d.el);
+  const syncFloorFields = () => {
+    const show = typeField.value === "Apartment" && ["Storey building", "Block of flats"].includes(buildingField.value);
+    floorDetails.hidden = !show;
+    floorInput.required = show;
+    if (!show) { floorInput.value = ""; $("#np input[name=roomNumber]", d.el).value = ""; }
+  };
+  typeField.addEventListener("change", syncFloorFields);
+  buildingField.addEventListener("change", syncFloorFields);
+  syncFloorFields();
+
+  const customFeatures = $("#npCustomFeatures", d.el);
+  const addFeatureRow = (name = "", count = 1) => {
+    const row = document.createElement("div");
+    row.className = "np-feature-row";
+    const nameLabel = document.createElement("label");
+    nameLabel.innerHTML = '<span>Feature name</span>';
+    const nameInput = document.createElement("input");
+    nameInput.className = "ax-input";
+    nameInput.name = "customFeatureName";
+    nameInput.maxLength = 40;
+    nameInput.placeholder = "e.g. Store rooms";
+    nameInput.value = name;
+    nameLabel.append(nameInput);
+    const countLabel = document.createElement("label");
+    countLabel.innerHTML = '<span>Number</span>';
+    const countInput = document.createElement("input");
+    countInput.className = "ax-input";
+    countInput.name = "customFeatureCount";
+    countInput.type = "number";
+    countInput.min = "0";
+    countInput.max = "99";
+    countInput.value = String(count);
+    countLabel.append(countInput);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn ghost sm np-remove-feature";
+    remove.textContent = "Remove";
+    remove.addEventListener("click", () => row.remove());
+    row.append(nameLabel, countLabel, remove);
+    customFeatures.append(row);
+  };
+  $("#npAddFeature", d.el).onclick = () => {
+    if ($$(".np-feature-row", d.el).length >= 20) return toast("You can add up to 20 custom feature types.", { tone: "bad" });
+    addFeatureRow();
+  };
+  $("#npLoc", d.el).onclick = async () => {
+    const r = await pickLocation({ lat: where?.lat, lng: where?.lng });
+    if (r) { where = r; $("#npLocT", d.el).textContent = `Saved (${r.lat.toFixed(4)}, ${r.lng.toFixed(4)})`; }
+  };
+
+  $("#npPhotoFiles", d.el).addEventListener("change", () => {
+    const files = Array.from($("#npPhotoFiles", d.el).files || []);
+    $("#npPhotoFiles", d.el).title = files.length ? `${files.length} photo file(s) selected` : "";
+  });
+  $("#npVideoFiles", d.el).addEventListener("change", () => {
+    const files = Array.from($("#npVideoFiles", d.el).files || []);
+    $("#npVideoFiles", d.el).title = files.length ? `${files.length} video file(s) selected` : "";
+  });
+
   $("[data-ok]", d.el).onclick = async (e) => {
-    const L = loc.commit(), fd = new FormData($("#np", d.el)), f = Object.fromEntries(fd), err = $("#npe", d.el), am = fd.getAll("am").map(String).slice(0, 12), ln = (t) => String(t || "").split("\n").map((x) => x.trim()).filter(Boolean); err.textContent = "";
-    if (!f.title.trim()) return (err.textContent = "Add a title."); { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
+    const form = $("#np", d.el);
+    const L = loc.commit();
+    const fd = new FormData(form), f = Object.fromEntries(fd), err = $("#npe", d.el);
+    const amenityValues = fd.getAll("am").map(String).slice(0, 20);
+    const lines = (value) => String(value || "").split("\\n").map((x) => x.trim()).filter(Boolean);
+    const photoLinks = lines(f.im), videoLinks = lines(f.vd);
+    const photoFiles = Array.from($("#npPhotoFiles", d.el).files || []);
+    const videoFiles = Array.from($("#npVideoFiles", d.el).files || []);
+    err.textContent = "";
+    if (!f.title.trim()) return (err.textContent = "Add a title.");
+    { const message = listingLocError(L, f.area); if (message) return (err.textContent = message); }
     const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
-    const im = ln(f.im), vd = ln(f.vd);
-    if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
-    const imgs = im.slice(0, 20); if (!imgs.length) imgs.push("img/palm-court.webp");
-    const u = ctx.S.user, id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4); busy(e.currentTarget, true);
+    if (photoLinks.some((u) => !/^https:\\/\\//.test(u)) || videoLinks.some((u) => !/^https:\\/\\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
+    const buildingIsMultiStorey = f.type === "Apartment" && ["Storey building", "Block of flats"].includes(f.buildingType);
+    if (buildingIsMultiStorey && !String(f.floor || "").trim()) return (err.textContent = "Enter the floor where this apartment is located.");
+    const customRows = $$(".np-feature-row", d.el).map((row) => ({
+      name: $("input[name=customFeatureName]", row)?.value || "",
+      count: $("input[name=customFeatureCount]", row)?.value || 0
+    }));
+    const mediaCore = await import("./listing-media-core.js");
+    const fileError = mediaCore.validateListingMedia(photoFiles, videoFiles, photoLinks.length, videoLinks.length);
+    if (fileError) return (err.textContent = fileError);
+    let features;
     try {
-      await st.createListing({ id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths, sqm: +f.sqm || 0, type: f.type, yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking, furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "", desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0, ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}), ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}), lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where, images: imgs, thumb: imgs[0], videos: vd.slice(0, 6), amenities: am, ownerUid: u.uid, agent: { id: u.uid, name: u.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" } });
-      data.invalidate("listings"); d.close(); toast("Property submitted for review."); done?.();
-    } catch (x) { err.textContent = fe(x); busy(e.currentTarget, false); }
+      features = mediaCore.collectListingFeatures({
+        kitchens: f.kitchens, parlours: f.parlours, swimmingPools: f.swimmingPools,
+        gardens: f.gardens, parking: f.parking
+      }, customRows);
+    } catch (error) { return (err.textContent = error.message); }
+    const user = ctx.S.user;
+    const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
+    const submitButton = e.currentTarget;
+    busy(submitButton, true);
+    let uploadPaths = [];
+    let mediaApi = null;
+    try {
+      let uploaded = { images: [], videos: [], paths: [] };
+      if (photoFiles.length || videoFiles.length) {
+        mediaApi = await import("./listing-media.js");
+        const status = $("#npUploadStatus", d.el), bar = $("#npUploadBar", d.el), label = $("#npUploadText", d.el), percent = $("#npUploadPercent", d.el);
+        status.hidden = false;
+        label.textContent = "Uploading property media…";
+        uploaded = await mediaApi.uploadListingMedia({
+          uid: user.uid, listingId: id, images: photoFiles, videos: videoFiles,
+          linkedImages: photoLinks.length, linkedVideos: videoLinks.length,
+          onProgress: (value, currentName) => {
+            percent.textContent = value + "%";
+            bar.style.width = value + "%";
+            label.textContent = currentName ? "Uploading " + currentName : "Finishing uploads…";
+          }
+        });
+        uploadPaths = uploaded.paths;
+      }
+      const images = [...photoLinks, ...uploaded.images].slice(0, 20);
+      const videos = [...videoLinks, ...uploaded.videos].slice(0, 6);
+      if (!images.length) images.push("img/palm-court.webp");
+      await st.createListing({
+        id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths,
+        sqm: +f.sqm || 0, type: f.type, buildingType: f.buildingType,
+        floor: buildingIsMultiStorey ? String(f.floor || "").trim() : "",
+        roomNumber: buildingIsMultiStorey ? String(f.roomNumber || "").trim() : "",
+        yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking,
+        furnished: f.furnished || "", floorPlan: /^https:\\/\\//.test(f.floorPlan || "") ? f.floorPlan : "",
+        kitchens: +f.kitchens || 0, parlours: +f.parlours || 0, swimmingPools: +f.swimmingPools || 0, gardens: +f.gardens || 0,
+        features, desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0,
+        ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}),
+        ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}),
+        lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where,
+        images, thumb: images[0], videos, amenities: amenityValues, ownerUid: user.uid,
+        agent: { id: user.uid, name: user.displayName || ctx.S.profile?.name || "Faxton owner", avatar: ctx.S.profile?.photo || "img/av-daniel.webp", photo: ctx.S.profile?.photo || "img/av-daniel.webp" }
+      });
+      uploadPaths = [];
+      data.invalidate("listings");
+      d.close();
+      toast("Property submitted for review.");
+      done?.();
+    } catch (error) {
+      if (uploadPaths.length && mediaApi) await mediaApi.removeListingMedia(uploadPaths);
+      const code = error?.code || "";
+      if (code === "storage/unauthorized" || code === "storage/bucket-not-found" || code === "storage/project-not-found" || code === "storage/quota-exceeded") {
+        err.textContent = "Cloud photo/video uploads are not enabled for this Firebase project yet. You can still add secure HTTPS media links, or ask the project owner to enable Cloud Storage.";
+      } else {
+        err.textContent = fe(error);
+      }
+      busy(submitButton, false);
+    }
   };
 }
 
