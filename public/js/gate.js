@@ -1,14 +1,11 @@
-// New accounts must confirm their email before they can use the app: Firebase mails a verification link, and this screen waits for it.
+// Accounts using email and password must confirm their address with Firebase's verification link.
 import { auth } from "./firebase.js";
 import { $, esc, icon, toast, logoMark } from "./ui.js";
 import { errText } from "./authkit.js";
 
-const CUTOFF = Date.parse("2026-10-09T00:00:00Z"); // accounts made before this keep working as they did
-// Admin side: a profile counts as pending until the person verifies their email. The app writes emailVerified to the profile on sign-in;
-// a missing value means pending only for password accounts made after the gate date (older accounts count as verified).
-const tms = (c) => (c?.toMillis ? c.toMillis() : c?.seconds ? c.seconds * 1000 : +c || 0);
-export const emailPending = (d) => { if (!d || d.emailVerified === true) return false; const made = tms(d.createdAt); return made >= CUTOFF && d.provider !== "google"; };
-export const needsVerify = (u) => !!u && !u.emailVerified && u.providerData.some((p) => p.providerId === "password") && Date.parse(u.metadata?.creationTime || 0) >= CUTOFF;
+// Keep email checks tied to Firebase Auth, not the age of the account.
+export const emailPending = (d) => !!d && d.emailVerified !== true && d.provider !== "google" && typeof d.email === "string" && d.email.includes("@");
+export const needsVerify = (u) => !!u && !u.emailVerified && u.providerData.some((p) => p.providerId === "password");
 
 export function verifyView(ctx) {
   const email = ctx.S.user.email || "", dom = email.split("@")[1]?.toLowerCase() || "";
