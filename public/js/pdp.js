@@ -102,8 +102,10 @@ export async function detail(ctx, id) {
   const hasPin = l.lat != null && l.lng != null && l.hasPin !== false && isFinite(+l.lat) && isFinite(+l.lng);
   const lid = "FR-" + String([...String(l.id)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 9000, 7) + 1000);
   const amen = Array.isArray(l.amenities) ? l.amenities : [];
+  const featureRows = Array.isArray(l.features) ? l.features.filter((x) => x && typeof x.name === "string" && +x.count > 0) : [];
+  const featureNames = new Set(featureRows.map((x) => x.name.toLowerCase()));
   const parking = l.parking != null && l.parking !== "" ? `${l.parking} space${+l.parking === 1 ? "" : "s"}` : amen.includes("Parking") ? "Available" : "None listed";
-  const info = [["home", "Property type", catName(l)], ["area", "Size", l.sqm ? `${l.sqm} m²` : ""], ["cal", "Year built", l.yearBuilt || ""], ["car", "Parking", parking === "None listed" ? "" : parking], ["building", "Furnishing", l.furnished || ""], ["list", "Listing ID", lid]];
+  const info = [["home", "Property type", catName(l)], ...(l.buildingType ? [["building", "Building", l.buildingType]] : []), ...(l.floorNumber != null ? [["layers", "Floor", +l.floorNumber === 0 ? "Ground floor" : l.floorNumber]] : []), ...(l.roomNumber ? [["door-open", "Room / apartment", l.roomNumber]] : []), ["area", "Size", l.sqm ? `${l.sqm} m²` : ""], ["cal", "Year built", l.yearBuilt || ""], ["car", "Parking", parking === "None listed" ? "" : parking], ["building", "Furnishing", l.furnished || ""], ["list", "Listing ID", lid]];
   const bkDays = []; for (let k = 1; bkDays.length < 7; k++) { const d = new Date(Date.now() + k * 864e5); if (d.getDay() === 0) continue; bkDays.push([d.toISOString().slice(0, 10), d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })]); }
   const desc = String(l.desc || "").split(/\n+/).map((x) => x.trim()).filter(Boolean), long = desc.join(" ").length > 520;
   const agent = l.agent || {}, aName = agent.name || "Faxton agent", place = PLACE(l), crumbArea = String(l.area || "").split(",")[0].trim();
@@ -148,7 +150,7 @@ export async function detail(ctx, id) {
         <p class="pd-listed">Listed by ${esc(aName)}. Rent is paid per year. Documents are available for inspection after your viewing.</p>
         <div class="pd-info">${info.map(([ic, k, v]) => `<div><span>${icon(ic, 17)} ${k}</span><b class="${v ? "" : "no"}">${v ? esc(v) : "Not listed"}</b></div>`).join("")}</div>
         ${AREA.costHtml(l)}</section>
-      <section class="pd-pane" id="p-features" role="tabpanel" aria-labelledby="tab-features" hidden><h2>Features and amenities</h2>${amen.length ? `<div class="pd-am">${amen.map((a) => `<div class="pd-amc"><span>${icon(amenIcon(a), 20)}</span><b>${esc(a)}</b></div>`).join("")}</div>` : `<p class="muted">No features have been listed yet.</p>`}
+      <section class="pd-pane" id="p-features" role="tabpanel" aria-labelledby="tab-features" hidden><h2>Features and amenities</h2>${featureRows.length || amen.length ? `<div class="pd-am">${[...featureRows.map((f) => ({ name: f.name, label: `${f.name} · ${f.count}` })), ...amen.filter((a) => !featureNames.has(String(a).toLowerCase())).map((a) => ({ name: a, label: a }))].map((f) => `<div class="pd-amc"><span>${icon(amenIcon(f.name), 20)}</span><b>${esc(f.label)}</b></div>`).join("")}</div>` : `<p class="muted">No features have been listed yet.</p>`}
         <div class="pd-info two"><div><span>Bedrooms</span><b>${l.beds === 0 ? "Studio" : esc(l.beds ?? "–")}</b></div><div><span>Bathrooms</span><b>${esc(l.baths ?? "–")}</b></div><div><span>Area</span><b class="${l.sqm ? "" : "no"}">${l.sqm ? l.sqm + " m²" : "Not listed"}</b></div><div><span>Parking</span><b>${esc(parking)}</b></div></div></section>
       <section class="pd-pane" id="p-location" role="tabpanel" aria-labelledby="tab-location" hidden><h2>Location</h2>
         ${hasPin ? `<div class="pd-map" id="dmap"><span class="pd-map-pill">${esc(place)}</span></div>` : `<div class="pd-map none"><span>${icon("pin", 28)}</span><b>${esc(place)}</b><small>The exact pin hasn’t been shared yet.</small></div>`}
