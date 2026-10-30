@@ -8,7 +8,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchStaffConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
@@ -21,7 +21,7 @@ import { siteFooter, wireFooter } from "./footer.js";
 import { syncPublic } from "./store.js";
 import * as PRES from "./presence.js";
 
-export const S = { notes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, unsubConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
+export const S = { notes: [], evNotes: [], msgNotes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, staffUnread: 0, unsubConvs: null, unsubStaffConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
 
 // ---------- theme ----------
@@ -311,7 +311,6 @@ async function signIn(email, pw, remember = true) {
   }
   const p = await rejectIfBanned(c.user);
   writeAccountMarker(email);
-  announce(c.user, p, "login");
   return p?.role || "renter";
 }
 async function signUp(name, email, pw, role, details, photo, residence) {
@@ -325,15 +324,13 @@ async function signUp(name, email, pw, role, details, photo, residence) {
   await refreshAuthState(auth.currentUser);
   announce(c.user, S.profile, "signup");
 }
-// Tells the Faxton team (admins and support see it live) that someone signed up or in. Logins are sent at most once per person per 30 minutes.
+// Only first-time account creation is an admin alert. Routine sign-ins stay quiet.
 function announce(user, profile, type) {
-  try {
-    if (type === "login") { const k = "evl_" + user.uid, last = +localStorage.getItem(k) || 0; if (Date.now() - last < 18e5) return; localStorage.setItem(k, String(Date.now())); }
-  } catch {}
-  logStaffEvent(user, profile, type);
+  if (type !== "signup") return;
+  logStaffEvent(user, profile);
 }
 // ---- the notifications panel under the bell (a popover on desktop, a bottom sheet on phones) ----
-const allNotes = () => [...(S.evNotes || []), ...(S.notes || [])].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+const allNotes = () => [...(S.evNotes || []), ...(S.msgNotes || []), ...(S.notes || [])].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 const noteUnread = () => allNotes().filter((n) => !n.read).length;
 const noteDot = () => (noteUnread() ? "dot" : "");
 const paintBell = () => $$("[data-bell]").forEach((b) => { b.classList.toggle("dot", noteUnread() > 0); const n = noteUnread(); if (n) b.dataset.n = n > 99 ? "99+" : n; else delete b.dataset.n; });
@@ -342,12 +339,12 @@ const NOTE_IC = { verified: "check", rejected: "x", info: "info" };
 // Unread items sit under "New"; the rest are grouped by age.
 const noteGroup = (n) => { if (!n.read) return "New"; const d = new Date(); d.setHours(0, 0, 0, 0); const t = d.getTime() / 1000, s = n.createdAt?.seconds || 0; return s >= t ? "Today" : s >= t - 6 * 86400 ? "This week" : "Earlier"; };
 const markRead = (n) => (n.ev ? markEvRead(n.id) : markNotificationRead(n.id));
-// ---- live "someone signed up / signed in" entries for admins and support (one small listener on the newest 30 staffEvents) ----
+// ---- live admin activity: first-time sign-ups and unread direct messages ----
 const evKey = (u, w) => `staffEv${w}_${u.uid}`;
 const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const ROLE_NAME = { owner: "Owner", admin: "Admin", agent: "Agent", landlord: "Property owner", agency: "Agency", support: "Support", renter: "Renter" };
-function markEvRead(id) { const u = S.user; if (!u) return; const r = lsGet(evKey(u, "Read"), []); if (!r.includes(id)) lsSet(evKey(u, "Read"), [...r, id].slice(-120)); }
+function markEvRead(id) { const u = S.user; if (!u) return; const r = lsGet(evKey(u, "Read"), []); if (!r.includes(id)) lsSet(evKey(u, "Read"), [...r, id].slice(-120)); AXS?.recompute?.(); }
 function startStaffEvents(u) {
   let base = lsGet(evKey(u, "Base"), 0); if (!base) { base = Date.now(); lsSet(evKey(u, "Base"), base); }
   const staffHref = S.isAdmin ? "/admin/users" : undefined;
@@ -355,12 +352,40 @@ function startStaffEvents(u) {
   return watchStaffEvents((list, added) => {
     if (S.user?.uid !== u.uid) return;
     const read = new Set(lsGet(evKey(u, "Read"), []));
-    S.evNotes = list.filter((e) => e.at?.seconds && e.uid !== u.uid).map((e) => {
-      const nm = e.name || "Someone", rl = ROLE_NAME[e.role] || "Renter", su = e.type === "signup";
-      return { id: e.id, ev: true, kind: su ? "verified" : "info", title: su ? `New sign-up: ${nm} (${rl})` : `${nm} signed in`, body: "", href: staffHref, createdAt: e.at, read: read.has(e.id) || e.at.seconds * 1000 <= base };
+    S.evNotes = list.filter((e) => e.type === "signup" && e.at?.seconds && e.uid !== u.uid).map((e) => {
+      const nm = e.name || "Someone", rl = ROLE_NAME[e.role] || "Renter";
+      return { id: e.id, ev: true, eventType: "signup", kind: "info", title: `New sign-up: ${nm} (${rl})`, body: "A new account has joined Faxton Rentals.", href: staffHref, createdAt: e.at, read: read.has(e.id) || e.at.seconds * 1000 <= base };
     });
-    if (!first) { const fresh = S.evNotes.filter((n) => added.includes(n.id) && !n.read); if (fresh.length) { toast(fresh[0].title + (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : "")); playSound("staff"); } }
-    first = false; paintBell(); if ($("#notePanel")) drawNotes();
+    if (!first) {
+      const fresh = S.evNotes.filter((n) => added.includes(n.id) && !n.read);
+      if (fresh.length) { toast(fresh[0].title + (fresh.length > 1 ? ` (+${fresh.length - 1} more)` : "")); playSound("staff"); sysNotify("New Faxton sign-up", fresh[0].title); }
+    }
+    first = false; paintBell(); AXS?.recompute?.(); if ($("#notePanel")) drawNotes();
+  });
+}
+function startStaffMessages(u) {
+  let first = true, previous = new Map();
+  return watchStaffConversations((list) => {
+    if (S.user?.uid !== u.uid) return;
+    const unread = list.filter((c) => c.staffUnread === true && c.lastBy === "u");
+    const read = new Set(lsGet(evKey(u, "Read"), []));
+    S.msgNotes = unread.map((c) => {
+      const stamp = (c.lastAt?.seconds || 0) + "." + (c.lastAt?.nanoseconds || 0);
+      const id = `msg_${c.id}_${stamp}`;
+      return { id, ev: true, eventType: "message", kind: "info", title: `New message from ${c.userName || "Someone"}`, body: String(c.last || "Open the conversation").slice(0, 140), href: "/messages", createdAt: c.lastAt, read: read.has(id) };
+    });
+    const fresh = first ? [] : unread.filter((c) => {
+      const stamp = (c.lastAt?.seconds || 0) + "." + (c.lastAt?.nanoseconds || 0);
+      return previous.get(c.id) !== stamp && !(document.visibilityState === "visible" && S.openChat === c.id);
+    });
+    previous = new Map(list.map((c) => [c.id, (c.lastAt?.seconds || 0) + "." + (c.lastAt?.nanoseconds || 0)]));
+    S.staffUnread = unread.length;
+    if (fresh.length) {
+      const name = fresh[0].userName || "Someone";
+      toast(fresh.length === 1 ? `${name} sent you a message.` : `${fresh.length} new messages need your attention.`);
+      playSound("message"); sysNotify("New Faxton message", fresh.length === 1 ? `${name} sent you a message.` : `${fresh.length} people sent new messages.`);
+    }
+    first = false; paintBell(); AXS?.recompute?.(); if ($("#notePanel")) drawNotes();
   });
 }
 function drawNotes() {
@@ -533,7 +558,7 @@ async function setSaved(id, on) {
 export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
 async function refreshAuthState(u) {
-  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; S.unsubStaffEv?.(); S.unsubStaffEv = null; S.evNotes = []; }
+  if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; S.unsubStaffEv?.(); S.unsubStaffEv = null; S.unsubStaffConvs?.(); S.unsubStaffConvs = null; S.evNotes = []; S.msgNotes = []; S.staffUnread = 0; }
   S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
@@ -570,8 +595,8 @@ async function refreshAuthState(u) {
     S.tenant = null; if (!S.isAdmin && S.role === "renter") S.tenant = await Promise.race([detectTenant(u).catch(() => null), new Promise((r) => setTimeout(() => r(null), 2500))]);
     S.unsubCalls?.(); S.unsubCalls = watchIncoming({ S, user: u }, S.isAdmin || S.role === "support");
     S.unsubVerif?.(); S.unsubVerif = null;
-    S.unsubStaffEv?.(); S.unsubStaffEv = null; S.evNotes = [];
-    if (S.isAdmin || S.role === "support") S.unsubStaffEv = startStaffEvents(u);
+    S.unsubStaffEv?.(); S.unsubStaffEv = null; S.unsubStaffConvs?.(); S.unsubStaffConvs = null; S.evNotes = []; S.msgNotes = []; S.staffUnread = 0;
+    if (S.isAdmin || S.role === "support") { S.unsubStaffEv = startStaffEvents(u); S.unsubStaffConvs = startStaffMessages(u); }
     if (S.isAdmin) { let first = true; S.unsubVerif = watchPendingVerifications((list) => { const n = list.length, grew = n > (S.pendingV || 0); S.pendingV = n; $$("[data-vbadge]").forEach((b) => { b.textContent = n || ""; b.hidden = !n; });
       if (first && n) toast(`${n} verification request${n > 1 ? "s" : ""} waiting for you.`); else if (!first && grew) toast("New verification request: an agency or agent is waiting for you."); first = false; }); }
   }
