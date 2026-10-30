@@ -72,9 +72,9 @@ jobs:
           echo "$H" | grep -qi '^content-security-policy:' || { echo "::error::Firebase Hosting is missing its Content-Security-Policy header"; exit 1; }
           echo "$H" | grep -qi '^strict-transport-security:' || { echo "::error::Firebase Hosting is missing HSTS"; exit 1; }
           curl -fsS "$HOST/" | grep -q "Find a home that feels like"
-          curl -fsS "$HOST/" | grep -q 'id="publicWaitlistForm"'
+          curl -fsS "$HOST/" | grep -q 'id="open-app"'
           curl -fsS "$HOST/" | grep -q 'Download now'
-          curl -fsS "$HOST/js/marketing.js" | grep -q "publicWaitlistForm"
+          curl -fsS "$HOST/" | grep -q 'href="/app/#/signup">Open the web app'
           curl -fsS "$HOST/app/" -o /dev/null
           curl -fsS "$HOST/about" -o /dev/null
           curl -fsS "$HOST/features" -o /dev/null
