@@ -339,7 +339,7 @@ const NOTE_IC = { verified: "check", rejected: "x", info: "info" };
 // Unread items sit under "New"; the rest are grouped by age.
 const noteGroup = (n) => { if (!n.read) return "New"; const d = new Date(); d.setHours(0, 0, 0, 0); const t = d.getTime() / 1000, s = n.createdAt?.seconds || 0; return s >= t ? "Today" : s >= t - 6 * 86400 ? "This week" : "Earlier"; };
 const markRead = (n) => (n.ev ? markEvRead(n.id) : markNotificationRead(n.id));
-// ---- live "someone signed up / signed in" entries for admins and support (one small listener on the newest 30 staffEvents) ----
+// ---- live admin activity: first-time sign-ups and unread direct messages ----
 const evKey = (u, w) => `staffEv${w}_${u.uid}`;
 const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
