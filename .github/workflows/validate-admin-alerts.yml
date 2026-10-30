@@ -27,6 +27,10 @@ jobs:
           node --experimental-default-type=module --check public/js/main.js
           node --experimental-default-type=module --check public/js/store.js
           node --experimental-default-type=module --check public/js/ax-shell.js
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Install Firestore rules test dependencies
         run: npm --prefix tests/rules ci --no-audit --no-fund
       - name: Run Firestore security-rule tests
