@@ -4,10 +4,12 @@
 import { $, $$, esc, icon, logoMark } from "./ui.js";
 import { GOOGLE, EMAIL_RE, authErr, strength, fieldHtml, fieldError } from "./authkit.js";
 import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence, mountResidence } from "./onboard.js";
+import { saveProfile } from "./store.js";
+import { resFields } from "./loc.js";
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
-const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Run your agency’s listings, agents and clients.", agent: "Follow up leads, clients and your listings." };
+const SIGNIN_BLURB = { renter: "Find homes, book viewings and manage your rentals.", landlord: "Manage your listings, viewings and tenants.", agency: "Manage your business, services and property listings.", agent: "Follow up leads, clients and your listings." };
 const safeGet = (k, s = sessionStorage) => { try { return s.getItem(k); } catch { return null; } };
 const safeSet = (k, v, s = sessionStorage) => { try { s.setItem(k, v); } catch {} };
 const logoLink = (cls = "", href = "#/") => `<a class="${cls}" href="${href}" aria-label="Faxton Rentals">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals</span></a>`;
@@ -113,7 +115,7 @@ export function authPage(ctx, mode) {
     const gatherDetails = () => { const o = {}; $$("#xtraBody input, #xtraBody select", root).forEach((i) => (o[i.id] = i.value)); return o; };
     const paintRole = (restore) => {
       const R = ROLE_INFO[role], asks = !login && R.ask.length;
-      info.innerHTML = `<span class="au-ri">${icon(ROLE_ICON[role], 22, 1.6)}</span><div><b>${R.name}</b><p>${login ? SIGNIN_BLURB[role] : R.blurb}</p>${!login ? (asks ? `<p class="au-ask"><span>We’ll ask for:</span> ${R.ask.map((a) => `<em>${a}</em>`).join("")}<em class="more">${R.more}</em></p>` : `<p class="au-ask none">${icon("check", 14, 2.4)} Nothing extra to fill in.</p>`) : ""}</div>`;
+      info.innerHTML = `<span class="au-ri">${icon(ROLE_ICON[role], 22, 1.6)}</span><div><b>${R.name}</b><p>${login ? SIGNIN_BLURB[role] : R.blurb}</p>${!login ? (asks ? `<p class="au-ask"><span>After signup, we’ll ask for:</span> ${R.ask.map((a) => `<em>${a}</em>`).join("")}<em class="more">${R.more}</em></p>` : `<p class="au-ask none">${icon("check", 14, 2.4)} A few quick setup questions follow signup.</p>`) : ""}</div>`;
       if (login) return;
       if (xtra) { xtra.hidden = true; xtra.open = false; const xb = $("#xtraBody", root); if (xb) xb.innerHTML = ""; }
     };
@@ -267,6 +269,185 @@ export function authPage(ctx, mode) {
       run(() => ctx.signInGoogle(login ? (role === "landlord" ? "landlord" : "renter") : role, null, null, photo || undefined), "google");
     };
     const f = $("#forgot", root); if (f) f.onclick = (e) => { e.preventDefault(); const em = ($("#email", root)?.value || "").trim(); ctx.go("#/forgot" + (em ? "?email=" + encodeURIComponent(em) : "")); };
+  } };
+}
+
+
+const REFERRAL_SOURCES = ["Instagram", "TikTok", "X", "Facebook", "Google", "YouTube", "Friend or family", "Other"];
+const REAL_ESTATE_SERVICES = ["Property rentals", "Property sales", "Property management", "Shortlets", "Commercial properties", "Property consultancy"];
+const HOME_SERVICES = ["Plumbing", "Electrical services", "Cleaning", "Painting", "Tiling", "Home automation", "Appliance repairs", "Property maintenance", "Interior design"];
+
+const obField = (id, label, opts = {}) => fieldHtml(id, label, opts);
+const obSelect = (id, label, options, required = true) => \`<div class="au-f"><label for="\${id}">\${label}</label><select id="\${id}" name="\${id}" \${required ? "required" : ""}><option value="">Choose an option</option>\${options.map((x) => \`<option value="\${esc(x)}">\${esc(x)}</option>\`).join("")}</select></div>\`;
+const obChecks = (name, title, options) => \`<fieldset class="obp-types"><legend>\${title}</legend><div class="obp-type-grid">\${options.map((x) => \`<label class="obp-type"><input type="checkbox" name="\${name}" value="\${esc(x)}"><span>\${esc(x)}</span></label>\`).join("")}</div></fieldset>\`;
+const obLocation = (prefix, title) => \`<div class="obp-grid"><div class="au-f"><label for="\${prefix}Address">Street address</label><input id="\${prefix}Address" name="\${prefix}Address" maxlength="200" required autocomplete="street-address" placeholder="Street and area"></div>\${obField(prefix + "City", "City / LGA", { ph: "e.g. Lekki", attrs: 'maxlength="80" required' })}\${obField(prefix + "State", "State", { ph: "e.g. Lagos", attrs: 'maxlength="80" required' })}</div>\`;
+const obReferral = \`<section class="obp-section"><h2>How did you hear about Faxton Rentals?</h2><div class="obp-grid"><div class="au-f"><label for="referralSource">Where did you discover us?</label><select id="referralSource" name="referralSource" required><option value="">Choose a source</option>\${REFERRAL_SOURCES.map((x) => \`<option value="\${esc(x)}">\${esc(x)}</option>\`).join("")}</select></div>\${obField("referralOther", "If other, tell us where", { ph: "Enter the source", req: false, attrs: 'maxlength="120"' })}</div></section>\`;
+
+function setupPanels(role) {
+  if (role === "agency") return [
+    { title: "Business details", hint: "Tell us about the company behind this account.", html: \`
+      \${obSelect("businessType", "What kind of business are you?", ["Real estate agency", "Home services provider"])}
+      <div class="obp-grid">\${obField("business", "Registered business name", { ph: "e.g. Faxton Properties Ltd", attrs: 'maxlength="120" required autocomplete="organization"' })}\${obField("cac", "CAC registration number", { ph: "e.g. RC 1234567", attrs: 'maxlength="30" required autocapitalize="characters"' })}\${obField("position", "Your position in the business", { ph: "e.g. Managing Director", attrs: 'maxlength="80" required' })}\${obField("supportEmail", "Business contact email", { type: "email", ph: "support@yourbusiness.com", attrs: 'maxlength="120" required autocomplete="email"' })}\${obField("phone", "Business phone number", { type: "tel", ph: "+234 …", attrs: 'maxlength="30" required autocomplete="tel"' })}</div>\` },
+    { title: "Business location", hint: "Where is your business based, and which areas do you serve?", html: \`\${obLocation("office", "Business location")}\${obField("areas", "Areas of operation", { ph: "e.g. Lekki, Ikoyi, Ajah", attrs: 'maxlength="240" required', hint: "Separate areas with commas." })}\` },
+    { title: "Services and profile", hint: "The options below change depending on your business type.", html: \`
+      <div id="ob-real-estate-services">\${obChecks("businessService", "Real estate services offered", REAL_ESTATE_SERVICES)}</div>
+      <div id="ob-home-services" hidden>\${obChecks("businessService", "Home services offered", HOME_SERVICES)}</div>
+      \${obField("website", "Business website (optional)", { type: "url", ph: "https://yourbusiness.com", req: false, attrs: 'maxlength="180" inputmode="url"' })}
+      <div class="au-f"><label for="description">Short business description</label><textarea id="description" name="description" maxlength="500" rows="4" required placeholder="Briefly describe your business and the services you provide"></textarea></div>\` },
+    { title: "One last thing", hint: "This helps us understand how people discover Faxton Rentals.", html: obReferral },
+  ];
+  if (role === "agent") return [
+    { title: "Your contact details", hint: "Your name and email are already saved from signup.", html: \`<div class="obp-grid">\${obField("phone", "Phone number", { type: "tel", ph: "+234 …", attrs: 'maxlength="30" required autocomplete="tel"' })}\${obField("dob", "Date of birth", { type: "date", attrs: 'required autocomplete="bday"' })}</div>\` },
+    { title: "Your real estate experience", hint: "Help clients understand your professional background.", html: \`<div class="obp-grid">\${obField("experience", "Years of experience", { type: "number", ph: "e.g. 2", attrs: 'min="0" max="60" step="1" required' })}\${obField("company", "Agency you work with (optional)", { ph: "Agency name", req: false, attrs: 'maxlength="120"' })}\${obField("licence", "Real estate licence / ID (optional)", { ph: "Licence or registration number", req: false, attrs: 'maxlength="40"' })}</div>\` },
+    { title: "Where do you operate?", hint: "Choose the areas where you work with clients.", html: \`\${obLocation("agent", "Operating location")}\${obField("areas", "Other areas you cover", { ph: "e.g. Lekki, Ikoyi, Victoria Island", attrs: 'maxlength="240" required' })}\` },
+    { title: "How did you hear about us?", hint: "This helps us improve how people find Faxton Rentals.", html: obReferral },
+  ];
+  if (role === "landlord") return [
+    { title: "Your contact details", hint: "Your name and email are already saved from signup.", html: \`<div class="obp-grid">\${obField("phone", "Phone number", { type: "tel", ph: "+234 …", attrs: 'maxlength="30" required autocomplete="tel"' })}\${obField("dob", "Date of birth", { type: "date", attrs: 'required autocomplete="bday"' })}</div>\` },
+    { title: "Tell us about your property", hint: "You can add more properties from your homeowner dashboard later.", html: \`\${obSelect("propertyType", "What type of property do you own?", ["House", "Apartment", "Duplex", "Bungalow", "Studio", "Land", "Other"])}\${obLocation("property", "Property location")}\` },
+    { title: "Property details", hint: "These details help us prepare your property profile.", html: \`<div class="obp-grid">\${obSelect("bedrooms", "Number of bedrooms", ["Studio", "1", "2", "3", "4", "5+"])}\${obSelect("bathrooms", "Number of bathrooms", ["1", "2", "3", "4", "5+"])}\${obField("propertySize", "Property size (optional)", { ph: "e.g. 1,200 sq ft", req: false, attrs: 'maxlength="40"' })}</div>\${obChecks("propertyFeature", "Property features", ["Swimming pool", "Garden", "Parking", "Security", "Furnished", "Generator", "Air conditioning", "Wi-Fi", "24/7 water"]) }\` },
+    { title: "Rental information", hint: "You can change these details when you publish your listing.", html: \`<div class="obp-grid">\${obField("monthlyRent", "Expected rent per year (₦)", { type: "number", ph: "e.g. 2500000", attrs: 'min="0" step="1000" required' })}\${obSelect("leaseDuration", "Preferred lease duration", ["6 months", "1 year", "2 years", "Flexible"])}\${obSelect("tenantPreference", "Preferred tenant type", ["Anyone", "Individuals", "Families", "Corporate tenants"] , false)}</div><div class="au-f"><label for="ownerNotes">Additional property information (optional)</label><textarea id="ownerNotes" name="ownerNotes" rows="3" maxlength="500" placeholder="Anything else we should know?"></textarea></div>\` },
+    { title: "How did you hear about us?", hint: "One last question before your homeowner dashboard is ready.", html: obReferral },
+  ];
+  return [
+    { title: "Your contact details", hint: "Your name and email are already saved from signup.", html: \`<div class="obp-grid">\${obField("phone", "Phone number", { type: "tel", ph: "+234 …", attrs: 'maxlength="30" required autocomplete="tel"' })}\${obField("dob", "Date of birth", { type: "date", attrs: 'required autocomplete="bday"' })}</div>\` },
+    { title: "Where are you based?", hint: "This helps us understand the areas you are interested in.", html: \`\${obLocation("tenant", "Current location")}\` },
+    { title: "What kind of home are you looking for?", hint: "We'll use these preferences to make property discovery more relevant.", html: \`\${obSelect("propertyType", "Preferred property type", ["Apartment", "House", "Duplex", "Bungalow", "Studio", "Shortlet"])}\${obSelect("bedrooms", "Number of bedrooms", ["Any", "Studio", "1", "2", "3", "4+"])}<div class="obp-grid">\${obField("budget", "Monthly or yearly budget (₦)", { type: "number", ph: "Enter your budget", attrs: 'min="0" step="1000" required' })}\${obField("preferredAreas", "Preferred locations", { ph: "e.g. Lekki, Ajah, Ikeja", attrs: 'maxlength="240" required' })}</div>\` },
+    { title: "Your must-have features", hint: "Select the amenities that matter to you most.", html: \`\${obChecks("tenantAmenity", "Preferred amenities", ["Parking", "Security", "Wi-Fi", "Generator", "Swimming pool", "Gym", "Air conditioning", "Fitted kitchen", "24/7 water"])}\${obSelect("employment", "Employment status (optional)", ["Employed", "Self-employed", "Student", "Unemployed"], false)}\${obField("moveIn", "When would you like to move? (optional)", { type: "date", req: false })}<div class="au-f"><label for="tenantNotes">Anything else? (optional)</label><textarea id="tenantNotes" name="tenantNotes" rows="3" maxlength="500" placeholder="Share any other preferences"></textarea></div>\` },
+    { title: "How did you hear about us?", hint: "You're nearly ready to explore homes.", html: obReferral },
+  ];
+}
+
+// Required post-signup setup. Signup already collected the user's name, email and password,
+// so those fields are deliberately not repeated here.
+export function setupPage(ctx) {
+  const profile = ctx.S.profile || {};
+  const role = profile.role || "renter";
+  const labels = { agency: "Business / agency", agent: "Real estate agent", landlord: "Homeowner", renter: "Renter" };
+  const panels = setupPanels(role);
+  let draft = { ...(profile.onboarding?.draft || {}) };
+  let current = Math.min(Math.max(Number(profile.onboarding?.step ?? 0), 0), panels.length - 1);
+  const panelHtml = panels.map((p, i) => \`<section class="obp-section" data-ob-panel="\${i}" \${i === current ? "" : "hidden"}><h2>\${p.title}</h2><p class="obp-hint">\${p.hint}</p>\${p.html}</section>\`).join("");
+  const html = \`<main class="obp-page"><header class="obp-head">\${logoLink("obp-logo", "#/")}<span class="obp-step" id="obp-progress">STEP \${current + 1} OF \${panels.length}</span></header>
+    <section class="obp-card" aria-labelledby="obp-title"><div class="obp-mark">\${icon("sparkle", 25, 1.8)}</div><p class="obp-kicker">FAXTON RENTALS · \${labels[role] || "ACCOUNT"} SETUP</p><h1 id="obp-title">\${role === "agency" ? "Let's set up your business" : role === "agent" ? "Let's set up your agent profile" : role === "landlord" ? "Let's set up your homeowner profile" : "Let's personalise your rental experience"}</h1><p class="obp-sub">A few quick steps, then we'll take you straight to your dashboard.</p>
+    <div class="obp-progress" aria-hidden="true"><div id="obp-progress-fill" style="width:\${((current + 1) / panels.length) * 100}%"></div></div>
+    <form id="obp-form" novalidate>\${panelHtml}<p class="obp-error" id="obp-error" role="alert" aria-live="polite"></p>
+      <div class="obp-actions"><button class="btn" type="button" id="obp-back" \${current === 0 ? "hidden" : ""}>Back</button><span class="obp-actions-spacer"></span><button class="obp-submit" type="button" id="obp-next">\${current === panels.length - 1 ? "Finish setup" : "Continue"} \${icon("arrow",19,1.8)}</button></div>
+      <p class="obp-foot">Your information is saved securely to your Faxton Rentals account.</p>
+    </form></section></main>\`;
+  return { full: true, title: "Complete your profile", html, mount(root) {
+    const form = $("#obp-form", root), error = $("#obp-error", root), next = $("#obp-next", root), back = $("#obp-back", root);
+    const progress = $("#obp-progress", root), fill = $("#obp-progress-fill", root);
+    const panelsEls = $$("[data-ob-panel]", root);
+    const say = (m) => { error.textContent = m || ""; };
+    const allValues = () => {
+      const data = {};
+      $$("[name]", form).forEach((el) => {
+        if (el.type === "checkbox") { (data[el.name] ||= []); if (el.checked) data[el.name].push(el.value); }
+        else data[el.name] = el.value;
+      });
+      return data;
+    };
+    const restore = () => {
+      Object.entries(draft).forEach(([name, value]) => {
+        const els = $$("[name]", form).filter((el) => el.name === name);
+        els.forEach((el) => { if (el.type === "checkbox") el.checked = Array.isArray(value) && value.includes(el.value); else el.value = value ?? ""; });
+      });
+    };
+    const saveDraft = async (step = current) => {
+      draft = allValues();
+      try {
+        await saveProfile(ctx.S.user.uid, { onboarding: { completed: false, step, draft } });
+        ctx.S.profile = { ...(ctx.S.profile || {}), onboarding: { completed: false, step, draft } };
+      } catch (e) {
+        say("We couldn't save your progress. Check your connection and try again before continuing.");
+        throw e;
+      }
+    };
+    const showStep = (n) => {
+      current = Math.max(0, Math.min(n, panels.length - 1));
+      panelsEls.forEach((p, i) => { p.hidden = i !== current; });
+      progress.textContent = \`STEP \${current + 1} OF \${panels.length}\`;
+      fill.style.width = \`\${((current + 1) / panels.length) * 100}%\`;
+      back.hidden = current === 0;
+      next.innerHTML = \`\${current === panels.length - 1 ? "Finish setup" : "Continue"} \${icon("arrow",19,1.8)}\`;
+      say("");
+      root.querySelector(".obp-card").scrollIntoView?.({ block: "start", behavior: "smooth" });
+    };
+    const validatePanel = () => {
+      const active = panelsEls[current];
+      const required = $$("[required]", active);
+      for (const el of required) {
+        if (!el.checkValidity()) { el.reportValidity?.(); el.focus(); say("Please complete the required fields before continuing."); return false; }
+      }
+      if (role === "agency" && current === 2 && !$$('input[name="businessService"]:checked', active).length) { say("Select at least one service your business provides."); return false; }
+      return true;
+    };
+    if (role === "agency") {
+      const type = $("#businessType", form), real = $("#ob-real-estate-services", form), home = $("#ob-home-services", form);
+      const syncBusinessType = () => {
+        const isHome = type.value === "Home services provider";
+        real.hidden = isHome;
+        home.hidden = !isHome;
+      };
+      type.addEventListener("change", syncBusinessType); syncBusinessType();
+    }
+    restore();
+    if (role === "agency") $("#businessType", form)?.dispatchEvent(new Event("change"));
+    let draftTimer = 0;
+    const queueDraft = () => {
+      clearTimeout(draftTimer);
+      draftTimer = setTimeout(() => saveDraft().catch(() => {}), 650);
+    };
+    form.addEventListener("input", () => { say(""); queueDraft(); });
+    form.addEventListener("change", () => { say(""); queueDraft(); });
+    back.onclick = async () => {
+      clearTimeout(draftTimer);
+      try { await saveDraft(current - 1); showStep(current - 1); }
+      catch { /* Keep the user on this step until progress can be saved. */ }
+    };
+    next.onclick = async () => {
+      clearTimeout(draftTimer);
+      if (!validatePanel()) return;
+      if (current < panels.length - 1) {
+        try { await saveDraft(current + 1); showStep(current + 1); }
+        catch { /* Do not move forward if the draft could not be saved. */ }
+        return;
+      }
+      try { await saveDraft(current); }
+      catch { return; }
+      const v = allValues();
+      if (v.referralSource === "Other" && !String(v.referralOther || "").trim()) { say("Please tell us where you heard about Faxton Rentals."); $("#referralOther", form)?.focus(); return; }
+      const patch = { referralSource: v.referralSource, referralOther: v.referralSource === "Other" ? String(v.referralOther || "").trim() : "", onboarding: { completed: true, step: current, draft: {} } };
+      const phone = String(v.phone || "").trim();
+      if (phone.replace(/\D/g, "").length < 8) { say("Enter a valid phone number."); await saveDraft(0); showStep(0); $("#phone", form)?.focus(); return; }
+      patch.phone = phone;
+      if (role === "agency") {
+        if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(String(v.cac || "").trim())) { say("Enter a valid CAC registration number, such as RC 1234567."); showStep(0); $("#cac", form)?.focus(); return; }
+        const servicePanel = $(v.businessType === "Home services provider" ? "#ob-home-services" : "#ob-real-estate-services", form);
+        const selected = Array.from(servicePanel.querySelectorAll('input[name="businessService"]:checked'), (el) => el.value);
+        patch.businessTypes = selected;
+        patch.agency = { business: String(v.business || "").trim(), cac: String(v.cac || "").trim().toUpperCase(), position: String(v.position || "").trim(), supportEmail: String(v.supportEmail || "").trim(), phone, address: String(v.officeAddress || "").trim(), city: String(v.officeCity || "").trim(), state: String(v.officeState || "").trim(), areas: String(v.areas || "").trim(), website: String(v.website || "").trim(), businessType: v.businessType, businessTypes: selected, description: String(v.description || "").trim() };
+      } else if (role === "agent") {
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); await saveDraft(0); showStep(0); $("#dob", form)?.focus(); return; }
+        patch.agentInfo = { phone, dob: v.dob, experience: Number(v.experience), company: String(v.company || "").trim(), licence: String(v.licence || "").trim(), areas: String(v.areas || "").trim(), address: String(v.agentAddress || "").trim(), city: String(v.agentCity || "").trim(), state: String(v.agentState || "").trim() };
+      } else if (role === "landlord") {
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); showStep(0); $("#dob", form)?.focus(); return; }
+        patch.homeownerInfo = { phone, dob: v.dob, propertyType: v.propertyType, address: String(v.propertyAddress || "").trim(), city: String(v.propertyCity || "").trim(), state: String(v.propertyState || "").trim(), bedrooms: v.bedrooms, bathrooms: v.bathrooms, size: String(v.propertySize || "").trim(), features: v.propertyFeature || [], rent: Number(v.monthlyRent), leaseDuration: v.leaseDuration, tenantPreference: v.tenantPreference || "", notes: String(v.ownerNotes || "").trim() };
+      } else {
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); showStep(0); $("#dob", form)?.focus(); return; }
+        patch.tenantInfo = { phone, dob: v.dob, address: String(v.tenantAddress || "").trim(), city: String(v.tenantCity || "").trim(), state: String(v.tenantState || "").trim(), propertyType: v.propertyType, bedrooms: v.bedrooms, budget: Number(v.budget), preferredAreas: String(v.preferredAreas || "").trim(), amenities: v.tenantAmenity || [], employment: v.employment || "", moveIn: v.moveIn || "", notes: String(v.tenantNotes || "").trim() };
+      }
+      next.disabled = true; next.classList.add("loading"); next.textContent = "Saving your details…";
+      try {
+        await saveProfile(ctx.S.user.uid, patch);
+        ctx.S.profile = { ...(ctx.S.profile || {}), ...patch };
+        ctx.go("#" + (ctx.dashHome?.() || "/"));
+      } catch (e) {
+        say(e?.code === "permission-denied" ? "We couldn't save your details because the account permissions need updating. Please try again shortly." : "We couldn't save your details. Check your connection and try again.");
+      } finally { next.disabled = false; next.classList.remove("loading"); showStep(current); }
+    };
+    showStep(current);
   } };
 }
 

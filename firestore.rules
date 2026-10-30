@@ -106,13 +106,14 @@ service cloud.firestore {
       // Agencies and agents register with business details and start unverified (an admin verifies them).
       allow create: if signedIn() && request.auth.uid == uid
         && request.resource.data.role in ['renter', 'agent', 'landlord', 'agency']
-        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification'])
+        && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'country', 'city', 'state', 'lga', 'agency', 'agentInfo', 'verification', 'onboarding'])
         && short(request.resource.data.name, 120)
         && request.resource.data.email == request.auth.token.email
         && request.resource.data.saved.size() <= 500 && profileOk(request.resource.data)
         && (!('verification' in request.resource.data) || (request.resource.data.verification.status == 'pending' && request.resource.data.role in ['agent', 'agency']))
         && (!('agency' in request.resource.data) || request.resource.data.agency.size() <= 20)
-        && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20);
+        && (!('agentInfo' in request.resource.data) || request.resource.data.agentInfo.size() <= 20)
+        && (!('onboarding' in request.resource.data) || (request.resource.data.onboarding is map && request.resource.data.onboarding.keys().hasOnly(['completed']) && request.resource.data.onboarding.completed == false));
       // Users edit their own profile but never role, email, ban or verification. The owner can change anything;
       // an admin can ban or unban non-owners and verify agents and agencies, nothing else.
       allow update: if signedIn() && (
@@ -122,23 +123,105 @@ service cloud.firestore {
           && request.resource.data.get('banned', false) == resource.data.get('banned', false)
           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
           && request.resource.data.get('verification', null) == resource.data.get('verification', null)
-          && request.resource.data.get('agency', null) == resource.data.get('agency', null)
-          && request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+          && (request.resource.data.get('agency', null) == resource.data.get('agency', null)
+              || (resource.data.role == 'agency' && resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).get('completed', false) == true
+                  && request.resource.data.get('agency', {}).keys().hasOnly(['business', 'cac', 'registrar', 'position', 'supportEmail', 'phone', 'address', 'website', 'businessType', 'businessTypes', 'areas', 'description', 'country', 'state', 'city', 'lga'])
+                  && short(request.resource.data.agency.get('business', ''), 120)
+                  && short(request.resource.data.agency.get('cac', ''), 30)
+                  && short(request.resource.data.agency.get('registrar', ''), 120)
+                  && short(request.resource.data.agency.get('position', ''), 80)
+                  && short(request.resource.data.agency.get('supportEmail', ''), 120)
+                  && short(request.resource.data.agency.get('address', ''), 200)
+                  && short(request.resource.data.agency.get('website', ''), 180)
+                  && request.resource.data.agency.get('businessTypes', []).size() <= 11
+                  && short(request.resource.data.agency.get('businessType', ''), 40)
+                  && short(request.resource.data.agency.get('phone', ''), 30)
+                  && short(request.resource.data.agency.get('areas', ''), 240)
+                  && short(request.resource.data.agency.get('description', ''), 500)))
+          && (request.resource.data.get('agentInfo', null) == resource.data.get('agentInfo', null)
+              || (resource.data.role == 'agent' && resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).get('completed', false) == true
+                  && request.resource.data.get('agentInfo', {}).keys().hasOnly(['phone', 'experience', 'company', 'licence', 'areas', 'dob', 'address', 'country', 'state', 'city', 'lga'])
+                  && short(request.resource.data.agentInfo.get('phone', ''), 30)
+                  && short(request.resource.data.agentInfo.get('company', ''), 120)
+                  && short(request.resource.data.agentInfo.get('areas', ''), 240)
+                  && short(request.resource.data.agentInfo.get('dob', ''), 10)
+                  && request.resource.data.agentInfo.get('experience', 0) is int))
+          && (request.resource.data.get('homeownerInfo', null) == resource.data.get('homeownerInfo', null)
+              || (resource.data.role == 'landlord' && resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).get('completed', false) == true
+                  && request.resource.data.get('homeownerInfo', {}).keys().hasOnly(['phone', 'dob', 'propertyType', 'address', 'city', 'state', 'bedrooms', 'bathrooms', 'size', 'features', 'rent', 'leaseDuration', 'tenantPreference', 'notes'])
+                  && short(request.resource.data.homeownerInfo.get('phone', ''), 30)
+                  && short(request.resource.data.homeownerInfo.get('dob', ''), 10)
+                  && short(request.resource.data.homeownerInfo.get('propertyType', ''), 40)
+                  && short(request.resource.data.homeownerInfo.get('address', ''), 200)
+                  && short(request.resource.data.homeownerInfo.get('city', ''), 80)
+                  && short(request.resource.data.homeownerInfo.get('state', ''), 80)
+                  && short(request.resource.data.homeownerInfo.get('bedrooms', ''), 10)
+                  && short(request.resource.data.homeownerInfo.get('bathrooms', ''), 10)
+                  && short(request.resource.data.homeownerInfo.get('size', ''), 40)
+                  && request.resource.data.homeownerInfo.get('features', []) is list
+                  && request.resource.data.homeownerInfo.get('features', []).size() <= 20
+                  && request.resource.data.homeownerInfo.get('rent', 0) is number
+                  && request.resource.data.homeownerInfo.get('rent', 0) >= 0
+                  && short(request.resource.data.homeownerInfo.get('leaseDuration', ''), 30)
+                  && short(request.resource.data.homeownerInfo.get('tenantPreference', ''), 40)
+                  && short(request.resource.data.homeownerInfo.get('notes', ''), 500)))
+          && (request.resource.data.get('tenantInfo', null) == resource.data.get('tenantInfo', null)
+              || (resource.data.role == 'renter' && resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).get('completed', false) == true
+                  && request.resource.data.get('tenantInfo', {}).keys().hasOnly(['phone', 'dob', 'address', 'city', 'state', 'propertyType', 'bedrooms', 'budget', 'preferredAreas', 'amenities', 'employment', 'moveIn', 'notes'])
+                  && short(request.resource.data.tenantInfo.get('phone', ''), 30)
+                  && short(request.resource.data.tenantInfo.get('dob', ''), 10)
+                  && short(request.resource.data.tenantInfo.get('address', ''), 200)
+                  && short(request.resource.data.tenantInfo.get('city', ''), 80)
+                  && short(request.resource.data.tenantInfo.get('state', ''), 80)
+                  && short(request.resource.data.tenantInfo.get('propertyType', ''), 40)
+                  && short(request.resource.data.tenantInfo.get('bedrooms', ''), 10)
+                  && request.resource.data.tenantInfo.get('budget', 0) is number
+                  && request.resource.data.tenantInfo.get('budget', 0) >= 0
+                  && short(request.resource.data.tenantInfo.get('preferredAreas', ''), 240)
+                  && request.resource.data.tenantInfo.get('amenities', []) is list
+                  && request.resource.data.tenantInfo.get('amenities', []).size() <= 20
+                  && short(request.resource.data.tenantInfo.get('employment', ''), 40)
+                  && short(request.resource.data.tenantInfo.get('moveIn', ''), 10)
+                  && short(request.resource.data.tenantInfo.get('notes', ''), 500)))
           && (request.resource.data.get('deletion', null) == resource.data.get('deletion', null)
               || (resource.data.get('deletion', {}).get('status', '') != 'approved'
                   && request.resource.data.get('deletion', {'status': 'pending'}).get('status', '') == 'pending'))
-          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified'])
+          && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'homeownerInfo', 'tenantInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding', 'referralSource', 'referralOther', 'businessTypes'])
           && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
           && request.resource.data.saved.size() <= 500
-          && profileOk(request.resource.data))
-        || isOwner()
+          && profileOk(request.resource.data)
+          && (request.resource.data.get('onboarding', null) == resource.data.get('onboarding', null)
+              || (resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).keys().hasOnly(['completed', 'step', 'draft'])
+                  && request.resource.data.get('onboarding', {}).get('step', 0) is int
+                  && request.resource.data.get('onboarding', {}).get('step', 0) >= 0
+                  && request.resource.data.get('onboarding', {}).get('step', 0) <= 8
+                  && request.resource.data.get('onboarding', {}).get('draft', {}) is map
+                  && request.resource.data.get('onboarding', {}).get('draft', {}).size() <= 40)
+              || (resource.data.get('onboarding', {}).get('completed', false) == false
+                  && request.resource.data.get('onboarding', {}).get('completed', false) == true
+                  && request.resource.data.get('onboarding', {}).keys().hasOnly(['completed', 'step', 'draft'])
+                  && request.resource.data.get('onboarding', {}).get('step', 0) is int
+                  && request.resource.data.get('onboarding', {}).get('step', 0) >= 0
+                  && request.resource.data.get('onboarding', {}).get('step', 0) <= 8
+                  && request.resource.data.get('onboarding', {}).get('draft', {}) is map
+                  && request.resource.data.get('onboarding', {}).get('draft', {}).size() == 0))
+          && short(request.resource.data.get('referralSource', ''), 40)
+          && short(request.resource.data.get('referralOther', ''), 120)
+          && (!('businessTypes' in request.resource.data) || (request.resource.data.businessTypes is list && request.resource.data.businessTypes.size() <= 11)))
+        || isOwner())
         || (isAdmin() && uid != request.auth.uid
           && ((resource.data.role in ['renter', 'agent', 'landlord', 'agency', 'support']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['banned', 'bannedAt']))
               || (resource.data.role in ['agent', 'agency']
                 && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verified', 'verification']))
-              || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion']))));
+              || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deletion'])));
       // A person can delete their own profile only after an admin approved the request and a day has passed.
       allow delete: if signedIn() && request.auth.uid == uid && resource.data.get('deletion', {}).get('status', '') == 'approved'
         && request.time.toMillis() >= resource.data.deletion.requestedAt + 86400000;
