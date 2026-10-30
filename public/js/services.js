@@ -51,8 +51,8 @@ export function bindOwnerBanner(root, ctx) {
 // ---------- requests ----------
 const OPEN = ["New", "Contacted", "Scheduled"];
 export async function sendRequest(user, profile, f) {
-  const d = { uid: user.uid, name: f.name, phone: f.phone, category: f.category, description: f.description, status: "New", createdAt: serverTimestamp() };
-  if (f.area) d.area = f.area; if (f.preferredDate) d.preferredDate = f.preferredDate; if (user.email) d.email = user.email;
+  const d = { uid: user.uid, name: f.name, phone: f.phone, addressLine1: f.addressLine1, category: f.category, description: f.description, status: "New", createdAt: serverTimestamp() };
+  if (f.addressLine2) d.addressLine2 = f.addressLine2; if (f.area) d.area = f.area; if (f.preferredDate) d.preferredDate = f.preferredDate; if (user.email) d.email = user.email;
   return addDoc(collection(db, "serviceRequests"), d);
 }
 // Staff: change status and/or the private note.
@@ -71,7 +71,9 @@ export function servicesPage(ctx) {
         <label class="rf-fl full">Service<select name="category" id="svCat" required>${SERVICES.map(([id, l]) => `<option value="${id}" ${cat && cat[0] === id ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
         <label class="rf-fl">Your name<input name="name" autocomplete="name" required maxlength="120" value="${esc(prof.name || u?.displayName || "")}"></label>
         <label class="rf-fl">Phone number<input name="phone" type="tel" inputmode="tel" autocomplete="tel" required maxlength="30" placeholder="0801 234 5678" value="${esc(prof.phone || "")}"></label>
-        ${comboHtml({ style: "rf", id: "svArea", name: "area", label: "Area", ph: "Lekki Phase 1", cls: "", maxlength: 80 })}
+        <label class="rf-fl full">Address line 1<input name="addressLine1" required maxlength="180" autocomplete="address-line1" placeholder="House/building number and street"></label>
+        <label class="rf-fl full">Address line 2 <span class="muted">(optional)</span><input name="addressLine2" maxlength="180" autocomplete="address-line2" placeholder="Apartment, floor, estate or landmark"></label>
+        ${comboHtml({ style: "rf", id: "svArea", name: "area", label: "Area / neighbourhood", ph: "Lekki Phase 1", cls: "", maxlength: 80 })}
         <label class="rf-fl">Preferred date<input name="preferredDate" type="date" min="${today}"></label>
         <label class="rf-fl full">What needs doing?<textarea name="description" required maxlength="1500" rows="4" placeholder="For example: two bathrooms to retile, about 12 square metres each."></textarea></label>
       </div>
@@ -91,7 +93,7 @@ export function servicesPage(ctx) {
       let rows = []; try { rows = await mine(u.uid); } catch { return; }
       if (!root.isConnected || !rows.length) return;
       $("#svMineSec", root).hidden = false;
-      $("#svMine2", root).innerHTML = rows.map((r) => `<article class="hx-svp-req"><div><b>${esc(r.category)}</b><small>${esc([r.area, r.preferredDate && "wanted " + r.preferredDate, "sent " + day(r.createdAt)].filter(Boolean).join(" · "))}</small><p>${esc(r.description)}</p>${r.note ? `<p class="hx-svp-note"><b>From our team:</b> ${esc(r.note)}</p>` : ""}</div>
+      $("#svMine2", root).innerHTML = rows.map((r) => `<article class="hx-svp-req"><div><b>${esc(r.category)}</b><small>${esc([r.addressLine1, r.addressLine2, r.area, r.preferredDate && "wanted " + r.preferredDate, "sent " + day(r.createdAt)].filter(Boolean).join(" · "))}</small><p>${esc(r.description)}</p>${r.note ? `<p class="hx-svp-note"><b>From our team:</b> ${esc(r.note)}</p>` : ""}</div>
         <div class="hx-svp-side"><span class="hx-svp-st" data-t="${tone(r.status)}">${esc(r.status)}</span>${r.status === "New" ? `<button type="button" class="btn sm" data-cancel="${esc(r.id)}">Cancel</button>` : ""}</div></article>`).join("");
       $$("[data-cancel]", root).forEach((b) => (b.onclick = async () => { b.disabled = true; try { await updateRequest(b.dataset.cancel, { status: "Cancelled" }); toast("Request cancelled."); paintMine(); } catch (e) { b.disabled = false; toast(friendlyErr(e), { tone: "bad" }); } }));
     };
@@ -100,12 +102,13 @@ export function servicesPage(ctx) {
       const areaBox = mountCombo(root, "svArea", { free: true, options: () => [...AREAS.filter((a) => a[0]).map((a) => ({ t: a[1] })), ...allAreaOpts()] });
       $("#svCat", root).onchange = (e) => { const s = byId(e.target.value); if (s) { const i = $("#svFI", root); i.setAttribute("style", `--c:${s[3]}`); i.innerHTML = icon(s[2], 24, 1.6); } };
       f.onsubmit = async (e) => {
-        e.preventDefault(); areaBox?.commit(); const fd = Object.fromEntries(new FormData(f)), s = byId(fd.category), name = fd.name.trim(), phone = fd.phone.trim(), description = fd.description.trim();
+        e.preventDefault(); areaBox?.commit(); const fd = Object.fromEntries(new FormData(f)), s = byId(fd.category), name = fd.name.trim(), phone = fd.phone.trim(), addressLine1 = fd.addressLine1.trim(), addressLine2 = fd.addressLine2.trim(), description = fd.description.trim();
         if (!name) return (err().textContent = "Enter your name.");
         if (phone.replace(/\D/g, "").length < 7) return (err().textContent = "Enter a phone number we can call.");
+        if (!addressLine1) return (err().textContent = "Enter the service address (line 1).");
         if (!description) return (err().textContent = "Tell us a little about the job.");
         err().textContent = ""; const b = $("#svGo", root); b.disabled = true; b.textContent = "Sending…";
-        try { await sendRequest(u, prof, { name, phone, area: fd.area.trim(), preferredDate: fd.preferredDate, description, category: s[1] }); }
+        try { await sendRequest(u, prof, { name, phone, area: fd.area.trim(), addressLine1, addressLine2, preferredDate: fd.preferredDate, description, category: s[1] }); }
         catch (x) { b.disabled = false; b.textContent = "Send request"; return (err().textContent = friendlyErr(x)); }
         host.innerHTML = `<div class="hx-svp-done" role="status"><span class="hx-svc-i" ${tint("#2fa35f")}>${icon("check", 26, 2)}</span><div><h2>Request sent</h2><p>Thank you, ${esc(name.split(/\s+/)[0])}. We will call you on ${esc(phone)} about your ${esc(s[1].toLowerCase())} job.</p><p><a class="btn" href="#/services">Request another service</a></p></div></div>`;
         host.scrollIntoView({ block: "nearest", behavior: "smooth" }); paintMine();
