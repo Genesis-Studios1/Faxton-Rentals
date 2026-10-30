@@ -383,15 +383,18 @@ export function setupPage(ctx) {
     };
     if (role === "agency") {
       const type = $("#businessType", form), real = $("#ob-real-estate-services", form), home = $("#ob-home-services", form);
-      const syncBusinessType = () => { const isHome = type.value === "Home services provider"; real.hidden = isHome; home.hidden = !isHome; };
+      const syncBusinessType = () => { const isHome = type.value === "Home services provider"; real.hidden = isHome; home.hidden = !isHome; $("input[name=\"businessService\"]", isHome ? real : home).forEach((el) => { el.checked = false; }); };
       type.addEventListener("change", syncBusinessType); syncBusinessType();
     }
     restore();
     if (role === "agency") $("#businessType", form)?.dispatchEvent(new Event("change"));
-    form.addEventListener("input", () => { say(""); saveDraft(); });
-    form.addEventListener("change", () => { say(""); saveDraft(); });
-    back.onclick = async () => { await saveDraft(current); showStep(current - 1); };
+    let draftTimer = 0;
+    const queueDraft = () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => saveDraft(), 650); };
+    form.addEventListener("input", () => { say(""); queueDraft(); });
+    form.addEventListener("change", () => { say(""); queueDraft(); });
+    back.onclick = async () => { clearTimeout(draftTimer); await saveDraft(current); showStep(current - 1); };
     next.onclick = async () => {
+      clearTimeout(draftTimer);
       if (!validatePanel()) return;
       await saveDraft(current);
       if (current < panels.length - 1) { showStep(current + 1); return; }
