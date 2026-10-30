@@ -1,6 +1,3 @@
-import { db } from "./firebase.js";
-import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-
 const header = document.querySelector(".site-head");
 const setHeaderState = () => {
   if (!header) return;
@@ -25,7 +22,6 @@ if (form) {
       role: String(data.get("role") || ""),
       city: String(data.get("city") || "").trim(),
       source: "website",
-      createdAt: serverTimestamp()
     };
 
     if (entry.name.length < 2 || entry.name.length > 80 ||
@@ -42,6 +38,11 @@ if (form) {
     status.textContent = "Submitting your details…";
     status.dataset.state = "loading";
     try {
+      const [{ db }, { addDoc, collection, serverTimestamp }] = await Promise.all([
+        import("./firebase.js"),
+        import("https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js")
+      ]);
+      entry.createdAt = serverTimestamp();
       await addDoc(collection(db, "waitlist"), entry);
       form.reset();
       status.textContent = "You’re on the list. Thanks for your interest in Faxton Rentals!";
