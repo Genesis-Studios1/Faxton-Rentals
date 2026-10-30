@@ -85,23 +85,21 @@
 .site-head.is-solid .main-nav a:hover,.site-head.is-solid .nav-login:hover{color:#07845d}
 .site-head.is-solid .btn-small{background:var(--g);border-color:var(--g);color:#fff}
 .mobile-cta,.mobile-download{display:none}
-.waitlist-section{max-width:1184px;margin:0 auto 76px;padding:clamp(28px,4vw,54px);display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,430px);align-items:center;gap:clamp(28px,5vw,72px);border:1px solid var(--line);border-radius:26px;background:#edf6f0}
-.waitlist-copy h2{max-width:570px;margin:0;color:#102a20;font-size:clamp(32px,3.8vw,46px);line-height:1.1;letter-spacing:-.06em}
-.waitlist-copy>p:not(.eyebrow){max-width:520px;color:#53695d;font-size:15px}
-.waitlist-copy ul{display:grid;gap:10px;margin:23px 0 0;padding:0;list-style:none;color:#3f5e4e;font-size:13px}
-.waitlist-copy li:before{content:"✓";margin-right:10px;color:#07845d;font-weight:800}
-.waitlist-form{display:grid;gap:9px;padding:26px;border:1px solid #e1ebe4;border-radius:19px;background:#fff;box-shadow:0 18px 44px rgba(7,59,45,.08)}
-.waitlist-form h3{margin:0;color:#153a2b;font-size:22px;letter-spacing:-.04em}
-.waitlist-form>p{margin:0 0 8px;color:#718078;font-size:12px}
-.waitlist-form label{margin-top:4px;color:#304c3d;font-size:11px;font-weight:700}
-.waitlist-form input,.waitlist-form select{width:100%;min-width:0;height:45px;padding:0 12px;border:1px solid #d7e5dc;border-radius:10px;background:#fbfdfb;color:#18392b;font:500 13px Inter,system-ui,sans-serif;outline:none}
-.waitlist-form input:focus,.waitlist-form select:focus{border-color:#16835e;box-shadow:0 0 0 3px rgba(22,131,94,.12)}
-.waitlist-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.waitlist-form-row>div{min-width:0}
-.waitlist-submit{width:100%;margin-top:10px;cursor:pointer}
-.waitlist-submit:disabled{opacity:.65;cursor:wait;transform:none}
-.waitlist-status{min-height:18px;margin:0!important;color:#08724e!important;font-size:12px!important}
-.waitlist-status[data-state="error"]{color:#b42318!important}
+.app-entry-section{max-width:1184px;margin:0 auto 76px;padding:clamp(28px,4vw,54px);display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,430px);align-items:center;gap:clamp(28px,5vw,72px);border:1px solid var(--line);border-radius:26px;background:#edf6f0}
+.app-entry-copy h2{max-width:570px;margin:0;color:#102a20;font-size:clamp(32px,3.8vw,46px);line-height:1.1;letter-spacing:-.06em}
+.app-entry-copy>p:not(.eyebrow){max-width:520px;color:#53695d;font-size:15px}
+.app-entry-copy ul{display:grid;gap:10px;margin:23px 0 0;padding:0;list-style:none;color:#3f5e4e;font-size:13px}
+.app-entry-copy li:before{content:"✓";margin-right:10px;color:#07845d;font-weight:800}
+.app-entry-card{display:grid;gap:9px;padding:26px;border:1px solid #e1ebe4;border-radius:19px;background:#fff;box-shadow:0 18px 44px rgba(7,59,45,.08)}
+.app-entry-card h3{margin:0;color:#153a2b;font-size:22px;letter-spacing:-.04em}
+.app-entry-card>p{margin:0 0 8px;color:#718078;font-size:12px}
+.app-entry-card label{margin-top:4px;color:#304c3d;font-size:11px;font-weight:700}
+.app-entry-card input,.app-entry-card select{width:100%;min-width:0;height:45px;padding:0 12px;border:1px solid #d7e5dc;border-radius:10px;background:#fbfdfb;color:#18392b;font:500 13px Inter,system-ui,sans-serif;outline:none}
+.app-entry-card input:focus,.app-entry-card select:focus{border-color:#16835e;box-shadow:0 0 0 3px rgba(22,131,94,.12)}
+.app-entry-card-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.app-entry-card-row>div{min-width:0}
+.app-entry-button{width:100%;margin-top:10px;cursor:pointer}.app-entry-card>p a{color:#0b8059;font-weight:800}
+.app-entry-button:disabled{opacity:.65;cursor:wait;transform:none}
 @media(max-width:760px){
  .site-head .nav-wrap{gap:8px}
  .site-head .brand{font-size:18px}
@@ -110,9 +108,9 @@
  .site-head .mobile-download{background:#fff;color:var(--g);border-color:#fff}
  .site-head.is-solid .mobile-cta{border-color:#b5c9be;color:var(--g)}
  .site-head.is-solid .mobile-download{background:var(--g);border-color:var(--g);color:#fff}
- .waitlist-section{grid-template-columns:1fr;margin:18px 18px 48px;padding:23px;gap:22px}
- .waitlist-form{padding:20px}
- .waitlist-form-row{grid-template-columns:1fr 1fr}
+ .app-entry-section{grid-template-columns:1fr;margin:18px 18px 48px;padding:23px;gap:22px}
+ .app-entry-card{padding:20px}
+ .app-entry-card-row{grid-template-columns:1fr 1fr}
 }
 @media(max-width:390px){.site-head .mobile-cta,.site-head .mobile-download{padding:8px 9px;font-size:9px}.site-head .brand{gap:6px;font-size:16px}.site-head .brand img{width:31px;height:31px}}
 @media(prefers-reduced-motion:reduce){.site-head,.site-head *{transition:none!important}}
