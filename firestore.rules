@@ -206,7 +206,12 @@ service cloud.firestore {
                   && request.resource.data.get('onboarding', {}).get('draft', {}).size() <= 40)
               || (resource.data.get('onboarding', {}).get('completed', false) == false
                   && request.resource.data.get('onboarding', {}).get('completed', false) == true
-                  && request.resource.data.get('onboarding', {}).keys().hasOnly(['completed'])))
+                  && request.resource.data.get('onboarding', {}).keys().hasOnly(['completed', 'step', 'draft'])
+                  && request.resource.data.get('onboarding', {}).get('step', 0) is int
+                  && request.resource.data.get('onboarding', {}).get('step', 0) >= 0
+                  && request.resource.data.get('onboarding', {}).get('step', 0) <= 8
+                  && request.resource.data.get('onboarding', {}).get('draft', {}) is map
+                  && request.resource.data.get('onboarding', {}).get('draft', {}).size() == 0))
           && short(request.resource.data.get('referralSource', ''), 40)
           && short(request.resource.data.get('referralOther', ''), 120)
           && (!('businessTypes' in request.resource.data) || (request.resource.data.businessTypes is list && request.resource.data.businessTypes.size() <= 11))
