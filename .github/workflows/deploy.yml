@@ -30,6 +30,7 @@ jobs:
         run: |
           node --experimental-default-type=module --test tests/listing-media.test.mjs
           node --experimental-default-type=module --check public/js/admin2.js
+          node --experimental-default-type=module --check public/js/dash.js
           node --experimental-default-type=module --check public/js/ax.js
           node --experimental-default-type=module --check public/js/waitlist.js
           node scripts/check-waitlist-icons.mjs
