@@ -1,27 +1,41 @@
-// Faxton keeps pictures, audio and documents inside Firestore documents (as data), so the app does NOT use Firebase Storage.
-// The only exception is the optional app-installer upload in Admin > Installations, which needs Storage (and the paid Blaze plan).
-// Everything else is closed. If you never switch Storage on, this file does nothing.
+// Firebase Storage holds public property listing photos/videos and optional app installers.
+// Chat attachments and personal documents remain in Firestore documents under their own size-limited rules.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function admin() {
-      let u = firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-      let o = firestore.get(/databases/(default)/documents/config/owner);
-      return request.auth != null && (u.data.role == 'admin' || o.data.uid == request.auth.uid);
+    function isPrivileged() {
+      let userPath = /databases/(default)/documents/users/$(request.auth.uid);
+      let ownerPath = /databases/(default)/documents/config/owner;
+      return request.auth != null
+        && ((firestore.exists(ownerPath) && firestore.get(ownerPath).data.get('uid', '') == request.auth.uid)
+          || (firestore.exists(userPath) && firestore.get(userPath).data.get('role', '') == 'admin'));
     }
+
+    // Uploaders may manage media in their own UID folder. Landlords can list immediately;
+    // agents and agencies need the same verified status required by Firestore listing creation.
+    // The owner/admin can manage media for any UID folder so they can moderate existing listings.
+    function canUploadOwnListingMedia(uid) {
+      let userPath = /databases/(default)/documents/users/$(uid);
+      return request.auth != null
+        && request.auth.uid == uid
+        && firestore.exists(userPath)
+        && (isPrivileged()
+          || firestore.get(userPath).data.get('role', '') == 'landlord'
+          || (firestore.get(userPath).data.get('role', '') in ['agent', 'agency']
+            && firestore.get(userPath).data.get('verified', false) == true));
+    }
+
     // Installer files are public downloads (they contain no secrets). Only admins can upload or remove them.
     match /installers/{version}/{file} {
       allow read: if true;
-      allow write: if admin() && request.resource.size < 600 * 1024 * 1024;
-      allow delete: if admin();
+      allow write: if isPrivileged() && request.resource.size < 600 * 1024 * 1024;
+      allow delete: if isPrivileged();
     }
-    // Property photos and videos are public listing media. Only signed-in Faxton staff
-    // can upload them through the listing manager; files are stored outside Firestore.
+
+    // Public listing media. New uploads are size- and MIME-checked; files cannot be overwritten in place.
     match /listing-media/{uid}/{listingId}/{kind}/{file} {
       allow read: if true;
-      allow create: if request.auth != null
-        && request.auth.uid == uid
-        && admin()
+      allow create: if canUploadOwnListingMedia(uid)
         && (
           (kind == 'images'
             && request.resource.size <= 15 * 1024 * 1024
@@ -32,7 +46,7 @@ service firebase.storage {
             && request.resource.contentType.matches('video/(mp4|webm|quicktime)'))
         );
       allow update: if false;
-      allow delete: if request.auth != null && request.auth.uid == uid && admin();
+      allow delete: if canUploadOwnListingMedia(uid) || isPrivileged();
     }
     match /{allPaths=**} { allow read, write: if false; }
   }
