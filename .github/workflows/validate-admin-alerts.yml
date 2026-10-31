@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "public/js/main.js"
+      - "public/js/dash.js"
       - "public/js/ax.js"
       - "public/js/waitlist.js"
       - "scripts/check-waitlist-icons.mjs"
@@ -35,6 +36,7 @@ jobs:
           node --experimental-default-type=module --check public/js/waitlist.js
           node scripts/check-waitlist-icons.mjs
           node --experimental-default-type=module --check public/js/main.js
+          node --experimental-default-type=module --check public/js/dash.js
           node --experimental-default-type=module --check public/js/store.js
           node --experimental-default-type=module --check public/js/ax-shell.js
           node scripts/check-app-cache-version.mjs
