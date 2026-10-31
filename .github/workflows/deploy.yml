@@ -29,6 +29,7 @@ jobs:
       - name: Test property listing media and syntax
         run: |
           node --experimental-default-type=module --test tests/listing-media.test.mjs
+          node scripts/check-js-syntax.mjs
           node --experimental-default-type=module --check public/js/admin2.js
           node --experimental-default-type=module --check public/js/dash.js
           node --experimental-default-type=module --check public/js/ax.js
@@ -66,8 +67,11 @@ jobs:
       - name: Deploy Firestore indexes (optional)
         continue-on-error: true
         run: npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals --non-interactive
-      # Storage is intentionally skipped because this project does not use Firebase Storage and the default bucket
-      # is not configured for the project/service account. Deploying Storage here causes a 403 defaultBucket lookup.
+      # Property listing media now uses Firebase Storage. Try to publish the matching Storage rules when the
+      # bucket and service-account permissions are configured; this step must not block the website release.
+      - name: Deploy Firebase Storage rules (optional until bucket access is configured)
+        continue-on-error: true
+        run: npx --yes firebase-tools deploy --only storage --project faxton-rentals --non-interactive
       # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
       - name: Smoke test the live site
         run: |
