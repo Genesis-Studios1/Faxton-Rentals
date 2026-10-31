@@ -403,7 +403,7 @@ export function addProperty(ctx, done) {
     { const message = listingLocError(L, f.area); if (message) return (err.textContent = message); }
     const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
-    if (photoLinks.some((u) => !/^https:\/\/\//.test(u)) || videoLinks.some((u) => !/^https:\/\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
+    if (photoLinks.some((u) => !/^https:\/\//.test(u)) || videoLinks.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const buildingIsMultiStorey = f.type === "Apartment" && ["Storey building", "Block of flats"].includes(f.buildingType);
     if (buildingIsMultiStorey && !String(f.floor || "").trim()) return (err.textContent = "Enter the floor where this apartment is located.");
     const customRows = $$(".np-feature-row", d.el).map((row) => ({
@@ -453,7 +453,7 @@ export function addProperty(ctx, done) {
         floor: buildingIsMultiStorey ? String(f.floor || "").trim() : "",
         roomNumber: buildingIsMultiStorey ? String(f.roomNumber || "").trim() : "",
         yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking,
-        furnished: f.furnished || "", floorPlan: /^https:\/\/\//.test(f.floorPlan || "") ? f.floorPlan : "",
+        furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "",
         kitchens: +f.kitchens || 0, parlours: +f.parlours || 0, swimmingPools: +f.swimmingPools || 0, gardens: +f.gardens || 0,
         features, desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0,
         ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}),
