@@ -20,7 +20,7 @@ await t("verified signed-in user reads the relay (calls need it)", getDoc(doc(re
 await t("unverified email cannot read the relay", getDoc(doc(unv, "config/ice")), false);
 await t("signed-out visitor cannot read the relay", getDoc(doc(anon, "config/ice")), false);
 // ---- serviceRequests ----
-const R = (o = {}) => ({ uid: "ren", name: "Ren", phone: "08012345678", email: "ren@x.com", area: "Lekki", category: "Plumbing", description: "Leaking tap", preferredDate: "2026-11-02", status: "New", createdAt: serverTimestamp(), ...o });
+const R = (o = {}) => ({ uid: "ren", name: "Ren", phone: "08012345678", email: "ren@x.com", addressLine1: "12 Test Street", area: "Lekki", category: "Plumbing", description: "Leaking tap", preferredDate: "2026-11-02", status: "New", createdAt: serverTimestamp(), ...o });
 const rid = (await addDoc(collection(ren, "serviceRequests"), R())).id; console.log("PASS user creates own service request");
 await t("cannot create for someone else", addDoc(collection(ren, "serviceRequests"), R({ uid: "oth" })), false);
 await t("signed-out cannot create", addDoc(collection(anon, "serviceRequests"), R()), false);
