@@ -4,8 +4,12 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "public/js/**"
+      - "scripts/check-js-syntax.mjs"
+      - "scripts/check-release.mjs"
+      - "storage.rules"
+      - "firebase.json"
       - "public/js/main.js"
-      - "public/js/dash.js"
       - "public/js/ax.js"
       - "public/js/waitlist.js"
       - "scripts/check-waitlist-icons.mjs"
@@ -32,6 +36,7 @@ jobs:
           node-version: 22
       - name: Check changed app modules
         run: |
+          node scripts/check-js-syntax.mjs
           node --experimental-default-type=module --check public/js/ax.js
           node --experimental-default-type=module --check public/js/waitlist.js
           node scripts/check-waitlist-icons.mjs
@@ -47,4 +52,4 @@ jobs:
       - name: Install Firestore rules test dependencies
         run: npm --prefix tests/rules ci --no-audit --no-fund
       - name: Run Firestore security-rule tests
-        run: npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton "node tests/rules/run.mjs"
+        run: npx --yes firebase-tools emulators:exec --only firestore,storage --project demo-faxton "node tests/rules/run.mjs"
