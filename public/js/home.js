@@ -61,14 +61,14 @@ export function discover(ctx) {
     ${MATCH.matchBanner("wide")}
     ${SVC.homeServices()}
     ${SVC.ownerBanner()}
-    <section class="hx-app hx-app-compact" id="hxApp" aria-labelledby="hxAppH">
+    ${APPS.shellInfo() ? "" : `<section class="hx-app hx-app-compact" id="hxApp" aria-labelledby="hxAppH">
       <div class="hx-app-compact-copy">
         <p class="hx-eyebrow light">Faxton Rentals on every device</p>
         <h2 id="hxAppH">Your next home search goes with you.</h2>
         <p class="hx-app-p">Browse on the web or get the app for your device. Your conversations and property search stay together.</p>
       </div>
       <button type="button" class="hx-dl" data-dlnow>${icon("download", 18)} Download now</button>
-    </section>
+    </section>`}
     <div class="hx-feats"><div><span class="hx-fi">${icon("pin", 22)}</span><span><b>Find your neighbourhood</b><small>Discover great areas, with everything you need nearby.</small></span></div><div><span class="hx-fi">${icon("cal", 22)}</span><span><b>Book a viewing</b><small>Schedule and tour your shortlisted homes with ease.</small></span></div><div><span class="hx-fi">${icon("user", 22)}</span><span><b>Manage your rental</b><small>Keep track of your enquiries, viewings and tenancy in one place.</small></span></div></div>
   </div>`;
   return { title: "Home", html, mount(root) {
