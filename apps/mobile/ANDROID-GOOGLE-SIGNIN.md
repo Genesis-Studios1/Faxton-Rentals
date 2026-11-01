@@ -13,17 +13,13 @@
    (Google blocks that with `403 disallowed_useragent`); inside the app the web pop-up is never used.
 4. Error messages were raw plugin text. They are now precise, carry a short support code, and point the person to email sign-in.
 
-## The signing key (already created and committed)
+## Signing key security update
 
-File `apps/mobile/signing/faxton-android.jks`, alias `faxton`, password `faxton-sideload`, package `com.faxton.rentals`, valid until 2056.
+The sideload signing key previously documented here was committed to public Git history together with its password. It is compromised and must not be used for new builds. The current release workflow now requires a replacement keystore supplied through GitHub Actions Secrets; it no longer falls back to a repository file.
 
-```
-SHA-1   10:47:AB:78:A5:1F:8E:EE:B0:1B:43:9F:89:92:34:64:59:C5:08:D2
-SHA-256 0C:72:5F:9B:46:66:ED:B9:52:D7:AA:A9:EF:CB:07:7E:DF:F8:9F:A3:7E:7B:B4:8A:5D:11:DC:52:5A:97:D6:3A
-```
+Create a replacement key and configure the four secrets described in [signing/README.md](signing/README.md). Then read its SHA-1 and SHA-256 with `keytool -list -v`, register those new fingerprints in Firebase, and refresh `google-services.json` if required. Do not reuse the old certificate fingerprints as proof of the replacement key.
 
-The workflow prints these two lines in the job log and in the job summary of every run, and fails if an APK is signed with anything else.
-Keep the repository private (the password is public by design: this is a sideload key, not a Play Store key).
+Existing APKs signed with the old sideload certificate will not accept in-place updates signed with the new certificate. Users may need to uninstall the old sideload build and install the new one. This does not mean the Google Play app-signing key should be changed; check Play Console first.
 
 ## Steps you must do (about 15 minutes)
 
@@ -59,7 +55,7 @@ Keep the repository private (the password is public by design: this is a sideloa
     `https://faxton-rentals.web.app/.well-known/assetlinks.json` with this content (use the SHA-256 of whichever key signs the app, with Play App
     Signing that is the Play one). Firebase Hosting currently ignores dot-folders (`"**/.*"` in firebase.json), so that rule has to be narrowed first.
     ```json
-    [{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"com.faxton.rentals","sha256_cert_fingerprints":["0C:72:5F:9B:46:66:ED:B9:52:D7:AA:A9:EF:CB:07:7E:DF:F8:9F:A3:7E:7B:B4:8A:5D:11:DC:52:5A:97:D6:3A"]}}]
+    [{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"com.faxton.rentals","sha256_cert_fingerprints":["REPLACE_WITH_NEW_SIGNING_CERTIFICATE_SHA256"]}}]
     ```
 
 ### iPhone (separate; email sign-in works today)
