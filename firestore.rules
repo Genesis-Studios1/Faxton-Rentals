@@ -193,6 +193,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['name', 'email', 'role', 'saved', 'createdAt', 'phone', 'location', 'prefs', 'notify', 'privacy', 'photo', 'banned', 'bannedAt', 'verified', 'verification', 'agency', 'agentInfo', 'homeownerInfo', 'tenantInfo', 'deletion', 'country', 'city', 'state', 'lga', 'lastActive', 'provider', 'emailVerified', 'onboarding', 'referralSource', 'referralOther', 'businessTypes'])
           && (request.resource.data.get('emailVerified', false) == false || request.auth.token.email_verified == true)
           && short(request.resource.data.name, 120)
+          && request.resource.data.saved is list
           && request.resource.data.saved.size() <= 500
           && profileOk(request.resource.data)
           && (request.resource.data.get('onboarding', null) == resource.data.get('onboarding', null)
