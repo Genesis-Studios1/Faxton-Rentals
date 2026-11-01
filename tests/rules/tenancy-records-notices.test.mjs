@@ -21,6 +21,10 @@ await t("owner cannot edit tenant's request", updateDoc(doc(lord, "tenancies/a1"
 // maintenance
 const M = { uid: "ten", ownerUid: "lord", tenancyId: "a1", listingId: "l1", title: "Leaking tap", desc: "Kitchen", category: "Plumbing", priority: "Normal", status: "Open", updates: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
 const m = await addDoc(collection(ten, "maintenance"), M);
+await t("maintenance accepts a JPEG data URL", addDoc(collection(ten, "maintenance"), { ...M, photo: "data:image/jpeg;base64,AAAA" }));
+await t("maintenance rejects HTML data URLs", addDoc(collection(ten, "maintenance"), { ...M, photo: "data:text/html;base64,PHNjcmlwdD4=" }), false);
+await t("user can store a PDF document", setDoc(doc(ten, "documents/lease-pdf"), { uid: "ten", name: "lease.pdf", size: 8, data: "data:application/pdf;base64,JVBERi0=" }));
+await t("user cannot store an HTML document payload", setDoc(doc(ten, "documents/html-payload"), { uid: "ten", name: "payload.html", size: 8, data: "data:text/html;base64,PHNjcmlwdD4=" }), false);
 await t("create maintenance as someone else denied", addDoc(collection(oth, "maintenance"), M), false);
 await t("owner reads maintenance", getDoc(doc(lord, "maintenance", m.id)));
 await t("stranger cannot read maintenance", getDoc(doc(oth, "maintenance", m.id)), false);
