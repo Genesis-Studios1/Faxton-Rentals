@@ -91,7 +91,8 @@ service cloud.firestore {
         return d.keys().hasOnly(['name', 'photo', 'role', 'city', 'country', 'about', 'website', 'verified', 'updatedAt'])
           && short(d.get('name', ''), 120) && short(d.get('about', ''), 300) && short(d.get('website', ''), 160)
           && short(d.get('city', ''), 60) && short(d.get('country', ''), 60) && short(d.get('role', ''), 20)
-          && (!('website' in d) || (short(d.website, 160) && (d.website == '' || d.website.matches('^https://[^ ]+
+          && (!('website' in d) || (short(d.get('website', ''), 160) && (d.get('website', '') == '' || d.get('website', '').matches('^https://[^ ]+$'))))
+          && (!('photo' in d) || (short(d.get('photo', ''), 70000) && (d.get('photo', '') == '' || d.get('photo', '').matches('^https://[^ ]+$') || d.get('photo', '').matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$'))));
       }
       allow read: if signedIn();
       allow create: if signedIn() && pubOk(request.resource.data)
@@ -370,7 +371,7 @@ service cloud.firestore {
     match /maintenance/{id} {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Open'
         && request.resource.data.keys().size() <= 16 && short(request.resource.data.title, 140) && short(request.resource.data.desc, 1500)
-        && (!('photo' in request.resource.data) || (request.resource.data.photo is string && request.resource.data.photo.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+
+        && (!('photo' in request.resource.data) || (request.resource.data.photo is string && request.resource.data.photo.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$') && request.resource.data.photo.size() < 400000))
         && request.resource.data.updates is list && request.resource.data.updates.size() == 0;
       allow read: if owns() || ownsListing() || isAdmin();
       allow update: if signedIn() && (owns() || ownsListing() || isAdmin())
@@ -560,7 +561,7 @@ service cloud.firestore {
         && short(request.resource.data.get('reference', ''), 80) && short(request.resource.data.get('note', ''), 500)
         && short(request.resource.data.get('title', ''), 200) && short(request.resource.data.get('name', ''), 200)
         && short(request.resource.data.get('forLabel', ''), 120) && short(request.resource.data.get('paidOn', ''), 20) && short(request.resource.data.get('proofName', ''), 160)
-        && (!('proof' in request.resource.data) || (request.resource.data.proof is string && request.resource.data.proof.matches('^data:(application/pdf|image/(jpeg|png|webp));base64,[A-Za-z0-9+/=]+
+        && (!('proof' in request.resource.data) || (request.resource.data.proof is string && request.resource.data.proof.matches('^data:(application/pdf|image/(jpeg|png|webp));base64,[A-Za-z0-9+/=]+$') && request.resource.data.proof.size() < 450000))
         && proofOwnerOk(request.resource.data);
       allow read: if owns() || ownsListing() || isAdmin();
       allow update: if (isAdmin() || ownsListing())
@@ -573,7 +574,8 @@ service cloud.firestore {
         && short(request.resource.data.name, 160) && request.resource.data.size < 900000
         && request.resource.data.keys().size() <= 15
         && request.resource.data.data is string
-        && request.resource.data.data.matches('^data:(application/pdf|image/(jpeg|png|webp));base64,[A-Za-z0-9+/=]+
+        && request.resource.data.data.matches('^data:(application/pdf|image/(jpeg|png|webp));base64,[A-Za-z0-9+/=]+$')
+        && request.resource.data.data.size() < 1000000;
       allow read, delete: if owns() || isAdmin();
       allow update: if isAdmin();
     }
