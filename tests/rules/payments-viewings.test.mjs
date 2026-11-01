@@ -40,6 +40,9 @@ await t("proof for a different or missing listing denied", addDoc(collection(ren
 await t("zero amount denied", addDoc(collection(ren, "paymentProofs"), { ...PR, amount: 0 }), false);
 await t("huge proof image denied", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "x".repeat(460000) }), false);
 await t("proof image ok", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:image/jpeg;base64," + "x".repeat(300000) }));
+await t("proof PDF is allowed", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:application/pdf;base64,JVBERi0=" }));
+await t("proof HTML payload is rejected", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:text/html;base64,PHNjcmlwdD4=" }), false);
+await t("proof SVG payload is rejected", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:image/svg+xml;base64,PHN2Zz4=" }), false);
 await t("extra field denied", addDoc(collection(ren, "paymentProofs"), { ...PR, hack: true }), false);
 await t("renter reads own proof", getDoc(doc(ren, "paymentProofs", a.id)));
 await t("renter queries own proofs", getDocs(query(collection(ren, "paymentProofs"), where("uid", "==", "ren"))));
