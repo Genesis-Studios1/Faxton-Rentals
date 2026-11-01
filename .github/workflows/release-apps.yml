@@ -60,7 +60,7 @@ jobs:
           cp google-services.json android/app/google-services.json
           npx capacitor-assets generate --android --assetPath assets
           npx cap sync android
-      # Permissions, Google sign-in libraries (rgcfaIncludeGoogle), https deep links, status-bar padding, version and the stable signing key.
+      # Permissions, Google sign-in libraries (rgcfaIncludeGoogle), https deep links, status-bar padding, version and protected signing key.
       # Every edit is asserted inside the script, so a template change fails the build instead of shipping a half-patched app.
       - name: Patch the Android project
         working-directory: apps/mobile
