@@ -9,11 +9,19 @@ const call = (to) => ({ convId: "", title: "", kind: "voice", status: "ringing",
 const r = await addDocSafe(own, call("u2")); async function addDocSafe(db, d) { return addDoc(collection(db, "calls"), d); }
 await t("callee marks delivered", updateDoc(doc(u2, "calls", r.id), { delivered: true }));
 await t("callee cannot change other fields", updateDoc(doc(u2, "calls", r.id), { callerUid: "u2" }), false);
+await t("callee cannot add a third party to call membership", updateDoc(doc(u2, "calls", r.id), { members: ["own", "u2", "adm"] }), false);
+await t("callee cannot reassign the call to another user", updateDoc(doc(u2, "calls", r.id), { calleeUid: "adm" }), false);
+await t("caller cannot add a third party to call membership", updateDoc(doc(own, "calls", r.id), { members: ["own", "u2", "adm"] }), false);
 await t("u2 blocks own", setDoc(doc(u2, "blocks", "u2_own"), { blocker: "u2", blocked: "own", name: "O", at: serverTimestamp() }));
 await t("cannot forge a block as someone else", setDoc(doc(own, "blocks", "u2_zzz"), { blocker: "u2", blocked: "zzz", at: serverTimestamp() }), false);
 await t("blocked caller can read the block", getDoc(doc(own, "blocks", "u2_own")));
 await t("call to someone who blocked you is denied", addDoc(collection(own, "calls"), call("u2")), false);
 await t("call to staff still allowed", addDoc(collection(own, "calls"), { ...call("staff"), members: ["own"] }));
+await t("direct call cannot include an unrelated member", addDoc(collection(own, "calls"), { ...call("u2"), members: ["own", "u2", "adm"] }), false);
+const staffCall = await addDoc(collection(own, "calls"), { ...call("staff"), members: ["own"] });
+await t("ordinary user cannot claim a staff call", updateDoc(doc(u2, "calls", staffCall.id), { status: "active", answer: { type: "answer", sdp: "x" }, answeredAt: Date.now(), calleeUid: "u2", members: ["own", "u2"] }), false);
+await t("admin can claim a staff call for themselves", updateDoc(doc(adm, "calls", staffCall.id), { status: "active", answer: { type: "answer", sdp: "x" }, answeredAt: Date.now(), calleeUid: "adm", members: ["own", "adm"] }));
+await t("unrelated user cannot read the claimed staff call", getDoc(doc(u2, "calls", staffCall.id)), false);
 await t("u2 unblocks", deleteDoc(doc(u2, "blocks", "u2_own")));
 await t("call allowed again", addDoc(collection(own, "calls"), call("u2")));
 await t("user files a report", addDoc(collection(u2, "reports"), { reporterUid: "u2", reporterName: "U", targetUid: "own", targetName: "O", convId: "c", reason: "Spam or scam", details: "x", status: "New", createdAt: serverTimestamp() }));
