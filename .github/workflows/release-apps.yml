@@ -65,8 +65,7 @@ jobs:
       - name: Patch the Android project
         working-directory: apps/mobile
         run: python3 ci/patch_android.py android "${{ needs.version.outputs.v }}" "${{ needs.version.outputs.code }}"
-      # Signs with ONE stable key (your ANDROID_KEYSTORE_* secrets, else apps/mobile/signing/faxton-android.jks), so the SHA-1 never changes
-      # and can be registered once in Firebase. The SHA-1 and SHA-256 are printed in this log and in the job summary.
+      # Signs only with the protected ANDROID_KEYSTORE_* secrets. Register the replacement certificate fingerprints in Firebase.
       - name: Build and sign the Android apps
         working-directory: apps/mobile/android
         env:
