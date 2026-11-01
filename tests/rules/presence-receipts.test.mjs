@@ -8,12 +8,12 @@ await env.withSecurityRulesDisabled(async (c) => {
   await setDoc(doc(d, "users/adm"), { role: "admin" }); await setDoc(doc(d, "users/sup"), { role: "support" });
   await setDoc(doc(d, "users/r1"), { role: "renter" }); await setDoc(doc(d, "users/r2"), { role: "renter" }); await setDoc(doc(d, "users/st1"), { role: "admin" });
   // r1 has a staff-started chat with st1; r2 has none
-  await setDoc(doc(d, "conversations/r1__dm_st1"), { uid: "r1", byStaff: "st1", listingId: "direct", last: "hi", lastBy: "s" });
+  await setDoc(doc(d, "conversations/r1__dm_st1"), { uid: "r1", byStaff: "st1", agent: { id: "st1" }, listingId: "direct", last: "hi", lastBy: "s" });
   await setDoc(doc(d, "presence/st1"), { online: true, show: true, lastSeen: Timestamp.now() });
   await setDoc(doc(d, "presence/r1"), { online: true, show: true, lastSeen: Timestamp.now() });
 });
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
-const r1 = env.authenticatedContext("r1").firestore(), r2 = env.authenticatedContext("r2").firestore(), adm = env.authenticatedContext("adm").firestore(), sup = env.authenticatedContext("sup").firestore(), anon = env.unauthenticatedContext().firestore();
+const r1 = env.authenticatedContext("r1").firestore(), r2 = env.authenticatedContext("r2").firestore(), st1 = env.authenticatedContext("st1").firestore(), adm = env.authenticatedContext("adm").firestore(), sup = env.authenticatedContext("sup").firestore(), anon = env.unauthenticatedContext().firestore();
 await t("write own heartbeat", setDoc(doc(r1, "presence/r1"), { online: true, show: true, lastSeen: serverTimestamp() }));
 await t("write own heartbeat without show flag", setDoc(doc(r1, "presence/r1"), { online: false, lastSeen: serverTimestamp() }));
 await t("hidden document ({show:false})", setDoc(doc(r1, "presence/r1"), { online: false, show: false, lastSeen: serverTimestamp() }));
@@ -27,6 +27,10 @@ await t("delete own presence", deleteDoc(doc(r1, "presence/r1")));
 await t("read own presence", getDoc(doc(r1, "presence/r1")));
 await t("renter reads the staff member who started a chat with them", getDoc(doc(r1, "presence/st1")));
 await t("renter cannot read staff presence without a chat", getDoc(doc(r2, "presence/st1")), false);
+await t("ordinary renter cannot forge staff-DM metadata", setDoc(doc(r2, "conversations/r2__dm_st1"), { uid: "r2", byStaff: "st1", agent: { id: "st1" } }), false);
+await t("conversation owner cannot add staff-DM metadata later", updateDoc(doc(r1, "conversations/r1__dm_st1"), { byStaff: "st2" }), false);
+await t("conversation owner cannot rewrite the staff participant", updateDoc(doc(r1, "conversations/r1__dm_st1"), { agent: { id: "r2" } }), false);
+await t("staff member in a real direct chat can read the renter presence", getDoc(doc(st1, "presence/r1")));
 await t("renter cannot read another renter", getDoc(doc(r2, "presence/r1")), false);
 await t("signed-out cannot read", getDoc(doc(anon, "presence/st1")), false);
 await t("admin reads any presence", getDoc(doc(adm, "presence/r1")));
