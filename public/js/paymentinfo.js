@@ -99,7 +99,8 @@ export async function openReceipt(p, info) {
 }
 export function openProofImage(p) {
   if (!p.proof) return;
-  if (/^data:image\//.test(p.proof)) { const m = modal(`<div class="rf-dlg rf-img"><h2>Proof of payment</h2><img src="${esc(p.proof)}" alt="Proof of payment"><div class="rf-dlg-act"><button type="button" class="btn" data-dl>Download</button></div></div>`); $("[data-dl]", m.el).onclick = () => openStored(p.proof, p.proofName || "proof.jpg", true); }
+  if (!/^data:(?:application\/pdf|image\/(?:jpeg|png|webp));base64,[A-Za-z0-9+/=]+$/.test(p.proof)) return toast("This proof file type is not supported.");
+  if (/^data:image\//.test(p.proof) { const m = modal(`<div class="rf-dlg rf-img"><h2>Proof of payment</h2><img src="${esc(p.proof)}" alt="Proof of payment"><div class="rf-dlg-act"><button type="button" class="btn" data-dl>Download</button></div></div>`); $("[data-dl]", m.el).onclick = () => openStored(p.proof, p.proofName || "proof.jpg", true); }
   else openStored(p.proof, p.proofName || "proof.pdf");
 }
 
