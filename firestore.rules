@@ -478,7 +478,8 @@ service cloud.firestore {
       function isCaller() { return signedIn() && resource.data.get('callerUid', '') == request.auth.uid; }
       function isCallee() { return signedIn() && resource.data.get('calleeUid', '') == request.auth.uid; }
       function mayClaimStaffCall() {
-        return signedIn() && resource.data.get('calleeUid', '') == 'staff' && (isAdmin() || isSupport())
+        return signedIn() && resource.data.get('calleeUid', '') == 'staff' && resource.data.get('status', '') == 'ringing' && (isAdmin() || isSupport())
+          && request.resource.data.get('status', '') == 'active'
           && request.resource.data.get('calleeUid', '') == request.auth.uid
           && request.resource.data.members is list
           && resource.data.members is list
@@ -514,7 +515,7 @@ service cloud.firestore {
         || (isCallee()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answer', 'answeredAt', 'endedAt', 'duration', 'recCallee', 'recorded', 'delivered']))
         || mayClaimStaffCall()
-        || (signedIn() && resource.data.get('calleeUid', '') == 'staff' && (isAdmin() || isSupport())
+        || (signedIn() && resource.data.get('calleeUid', '') == 'staff' && resource.data.get('status', '') == 'ringing' && (isAdmin() || isSupport())
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'endedAt', 'delivered'])
           && request.resource.data.get('status', resource.data.status) in ['ringing', 'declined']);
       match /ice/{iid} {
