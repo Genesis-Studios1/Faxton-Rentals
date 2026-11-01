@@ -1,37 +1,45 @@
-# Android signing key for sideloaded builds
+# Android signing keys
 
-`faxton-android.jks` is the key that signs every Android build made by `.github/workflows/release-apps.yml` **when you have not added your own
-key** (the `ANDROID_KEYSTORE_*` repository secrets). It is committed on purpose so that the app's signing certificate never changes between
-builds. Google only trusts "Sign in with Google" for a certificate fingerprint (SHA-1) that is registered in Firebase, so the fingerprint must be
-the same every time.
+## Security incident: previous sideload key is compromised
 
-| | |
-|---|---|
-| File | `apps/mobile/signing/faxton-android.jks` (PKCS12) |
-| Alias | `faxton` |
-| Store and key password | `faxton-sideload` |
-| Package name | `com.faxton.rentals` |
-| SHA-1 | `10:47:AB:78:A5:1F:8E:EE:B0:1B:43:9F:89:92:34:64:59:C5:08:D2` |
-| SHA-256 | `0C:72:5F:9B:46:66:ED:B9:52:D7:AA:A9:EF:CB:07:7E:DF:F8:9F:A3:7E:7B:B4:8A:5D:11:DC:52:5A:97:D6:3A` |
-| Valid until | 2056 |
+The former repository included `apps/mobile/signing/faxton-android.jks` and its password in public Git history. Treat that signing key as compromised and do not use it for new releases.
 
-The password is **not a secret** and the key is **not a Play Store key**. Anyone who can read this repository can sign an APK with it, so keep the
-repository private, and do not publish to Google Play with it.
+The old certificate fingerprints are not passwords, but the private signing key itself must no longer be trusted. Removing the file from the latest commit does not remove it from earlier Git commits; repository history must be rewritten and old clones/tags cleaned up after coordinating with collaborators.
 
-## Google Play
+## Create a replacement key
 
-Create a separate upload key and store it as repository secrets; the workflow then uses it instead of this file:
+Run this locally on a trusted computer. Do not upload the resulting file to GitHub as a repository file.
 
-```
-keytool -genkeypair -v -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000
-base64 -w0 upload.jks     # paste into the secret ANDROID_KEYSTORE_BASE64
+```sh
+keytool -genkeypair -v -keystore faxton-release.jks -alias faxton-release -keyalg RSA -keysize 3072 -validity 10000
 ```
 
-Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. With Play App Signing, Google
-re-signs the app for users; copy the **App signing key** SHA-1 from Play Console > Setup > App signing into Firebase as well, because that is the
-certificate users' phones will see.
+Create the base64 value:
 
-## Replacing this key
+- macOS/Linux: `base64 < faxton-release.jks | tr -d '\\n'`
+- Windows PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes("faxton-release.jks"))`
 
-Don't, once people have installed an APK signed with it: Android refuses to update an app signed with a different key (users would have to
-uninstall first), and the new SHA-1 would have to be registered in Firebase again.
+In GitHub, open **Settings → Secrets and variables → Actions** and add:
+
+- `ANDROID_KEYSTORE_BASE64` — base64 keystore content
+- `ANDROID_KEYSTORE_PASSWORD` — store password
+- `ANDROID_KEY_ALIAS` — `faxton-release`
+- `ANDROID_KEY_PASSWORD` — key password
+
+The release workflow now refuses to build Android artifacts if these secrets are missing.
+
+## Firebase Google sign-in
+
+A replacement signing certificate has a different SHA-1 and SHA-256. After creating the key, obtain its fingerprints:
+
+```sh
+keytool -list -v -keystore faxton-release.jks -alias faxton-release
+```
+
+Add the new SHA-1 and SHA-256 under Firebase Console → Project settings → Your apps → Android → SHA certificate fingerprints, then download an updated `google-services.json` if Firebase requests it.
+
+## Existing sideloaded installations
+
+Android normally refuses an in-place update when the signing certificate changes. Users with builds signed by the compromised key may need to uninstall that build and install a newly signed release. Back up any local-only data first.
+
+If Google Play App Signing is enabled, distinguish the Play app-signing key from the upload key. Replacing an upload key is a separate Play Console procedure; do not replace the Play app-signing key based only on this sideload-key incident.
