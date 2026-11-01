@@ -127,6 +127,12 @@ await check(
 );
 
 await check(
+  "anonymous visitor cannot probe email-hash account markers",
+  getDoc(doc(visitor, "accountEmails/" + "a".repeat(64))),
+  false
+);
+
+await check(
   "visitor cannot read waitlist entries",
   getDoc(doc(visitor, "waitlist/seed-entry")),
   false
