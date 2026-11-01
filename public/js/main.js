@@ -8,7 +8,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchStaffConversations, watchProfile, hasAccountMarker, writeAccountMarker, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchStaffConversations, watchProfile, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
@@ -308,7 +308,6 @@ async function ensureProfile(u, extra = {}) {
     if (res?.country) Object.assign(d, resFields(res));
     await setDoc(ref, d); S.justCreated = role;
   }
-  if (u.email) writeAccountMarker(u.email);
 }
 // A banned account is signed out straight away and told why.
 async function rejectIfBanned(u) {
@@ -325,13 +324,11 @@ async function signIn(email, pw, remember = true) {
     throw e;
   }
   const p = await rejectIfBanned(c.user);
-  writeAccountMarker(email);
   return p?.role || "renter";
 }
 async function signUp(name, email, pw, role, details, photo, residence) {
   const c = await createUserWithEmailAndPassword(auth, email, pw);
   try { await updateProfile(c.user, { displayName: name }); } catch {}
-  writeAccountMarker(email);
   const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter", details, photo, residence });
   try { await mk(); } catch { await mk(); }
   try { await sendEmailVerification(c.user); } catch {}

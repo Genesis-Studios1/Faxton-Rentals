@@ -6,6 +6,9 @@ await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); awai
   for (const [u, r] of [["own","renter"],["adm","admin"],["ren","renter"],["lord","landlord"],["oth","renter"]]) await setDoc(doc(d, "users/" + u), { role: r });
   await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x" });
   await setDoc(doc(d, "listings/l2"), { status: "active", title: "platform" });
+  await setDoc(doc(d, "applications/ap1"), { uid: "ren", ownerUid: "lord", listingId: "l1", status: "Under review", title: "x", name: "y" });
+  await setDoc(doc(d, "applications/ap2"), { uid: "ren", ownerUid: null, listingId: "l2", status: "Approved", title: "x", name: "y" });
+  await setDoc(doc(d, "applications/ap3"), { uid: "oth", ownerUid: "lord", listingId: "l1", status: "Approved", title: "x", name: "z" });
   await setDoc(doc(d, "viewings/v1"), { uid: "ren", ownerUid: "lord", status: "Requested", title: "x", name: "y" });
   await setDoc(doc(d, "viewings/v2"), { uid: "ren", ownerUid: "lord", status: "Confirmed", title: "x", name: "y", checkOut: { at: 1 } });
   await setDoc(doc(d, "viewings/v3"), { uid: "ren", ownerUid: "lord", status: "Declined", title: "x", name: "y" }); });
@@ -22,18 +25,24 @@ await t("overlong instructions rejected", setDoc(doc(adm, "config/payments"), { 
 await t("renter reads config/payments", getDoc(doc(ren, "config/payments")));
 await t("signed-out cannot read config/payments", getDoc(doc(env.unauthenticatedContext().firestore(), "config/payments")), false);
 // paymentProofs
-const PR = { uid: "ren", name: "Ren", ownerUid: "lord", listingId: "l1", title: "Palm", forLabel: "First payment", amount: 4200000, reference: "TRF123", paidOn: "2026-10-10", note: "Paid", status: "Submitted", createdAt: serverTimestamp() };
+const PR = { uid: "ren", name: "Ren", ownerUid: "lord", listingId: "l1", applicationId: "ap1", title: "Palm", forLabel: "First payment", amount: 4200000, reference: "TRF123", paidOn: "2026-10-10", note: "Paid", status: "Submitted", createdAt: serverTimestamp() };
 const a = await addDoc(collection(ren, "paymentProofs"), PR);
 await t("renter creates own proof", Promise.resolve());
 await t("create for someone else denied", addDoc(collection(oth, "paymentProofs"), PR), false);
 await t("status must start Submitted", addDoc(collection(ren, "paymentProofs"), { ...PR, status: "Confirmed" }), false);
+const proofWithoutApplication = { ...PR }; delete proofWithoutApplication.applicationId;
+await t("payment proof requires an application reference", addDoc(collection(ren, "paymentProofs"), proofWithoutApplication), false);
+await t("cannot submit proof for another renter application", addDoc(collection(ren, "paymentProofs"), { ...PR, applicationId: "ap3" }), false);
 await t("cannot claim self as listing owner", addDoc(collection(ren, "paymentProofs"), { ...PR, ownerUid: "ren" }), false);
-await t("platform listing proof with null owner", addDoc(collection(ren, "paymentProofs"), { ...PR, listingId: "l2", ownerUid: null }));
-await t("platform listing proof with fake owner denied", addDoc(collection(ren, "paymentProofs"), { ...PR, listingId: "l2", ownerUid: "ren" }), false);
-await t("unknown listing needs null owner", addDoc(collection(ren, "paymentProofs"), { ...PR, listingId: "seed-x", ownerUid: null }));
+await t("platform listing proof with null owner", addDoc(collection(ren, "paymentProofs"), { ...PR, applicationId: "ap2", listingId: "l2", ownerUid: null }));
+await t("platform listing proof with fake owner denied", addDoc(collection(ren, "paymentProofs"), { ...PR, applicationId: "ap2", listingId: "l2", ownerUid: "ren" }), false);
+await t("proof for a different or missing listing denied", addDoc(collection(ren, "paymentProofs"), { ...PR, listingId: "seed-x", ownerUid: null }), false);
 await t("zero amount denied", addDoc(collection(ren, "paymentProofs"), { ...PR, amount: 0 }), false);
 await t("huge proof image denied", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "x".repeat(460000) }), false);
 await t("proof image ok", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:image/jpeg;base64," + "x".repeat(300000) }));
+await t("proof PDF is allowed", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:application/pdf;base64,JVBERi0=" }));
+await t("proof HTML payload is rejected", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:text/html;base64,PHNjcmlwdD4=" }), false);
+await t("proof SVG payload is rejected", addDoc(collection(ren, "paymentProofs"), { ...PR, proof: "data:image/svg+xml;base64,PHN2Zz4=" }), false);
 await t("extra field denied", addDoc(collection(ren, "paymentProofs"), { ...PR, hack: true }), false);
 await t("renter reads own proof", getDoc(doc(ren, "paymentProofs", a.id)));
 await t("renter queries own proofs", getDocs(query(collection(ren, "paymentProofs"), where("uid", "==", "ren"))));

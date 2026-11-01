@@ -124,10 +124,6 @@ export async function claimOwnership(user) {
 export const setRole = (uid, role) => updateDoc(doc(db, "users", uid), { role });
 export const setBanned = (uid, on) => updateDoc(doc(db, "users", uid), on ? { banned: true, bannedAt: serverTimestamp() } : { banned: false });
 export const watchProfile = (uid, cb) => onSnapshot(doc(db, "users", uid), (s) => cb(s.exists() ? s.data() : null), () => {});
-// Sign-in can tell "no account" from "wrong password" through a public marker keyed by a hash of the email (the email itself is never stored there).
-export async function emailHash(email) { const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(email).trim().toLowerCase())); return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join(""); }
-export async function hasAccountMarker(email) { try { return (await getDoc(doc(db, "accountEmails", await emailHash(email)))).exists(); } catch { return null; } }
-export async function writeAccountMarker(email) { try { await setDoc(doc(db, "accountEmails", await emailHash(email)), { t: 1 }); } catch { /* already there, or offline */ } }
 export async function transferOwnership(fromUid, toUid) {
   const b = writeBatch(db);
   b.update(doc(db, "config", "owner"), { uid: toUid });
