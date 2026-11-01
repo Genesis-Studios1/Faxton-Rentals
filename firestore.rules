@@ -577,7 +577,10 @@ service cloud.firestore {
           && !('byStaff' in request.resource.data) && request.resource.data.keys().size() <= 20)
         || isAdmin() || isSupport();
       allow read: if owns() || isAdmin() || isSupport();
-      allow update: if (owns() && request.resource.data.uid == resource.data.uid) || isAdmin() || isSupport();
+      allow update: if (owns() && request.resource.data.uid == resource.data.uid
+          && request.resource.data.get('byStaff', null) == resource.data.get('byStaff', null)
+          && request.resource.data.get('agent', {}).get('id', '') == resource.data.get('agent', {}).get('id', ''))
+        || isAdmin() || isSupport();
       match /messages/{mid} {
         // Emoji reactions: a person may only add, change or remove their own entry in the reactions map.
         allow update: if signedIn()
