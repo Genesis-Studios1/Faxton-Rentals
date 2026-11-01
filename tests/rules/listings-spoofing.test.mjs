@@ -42,6 +42,9 @@ await t("unfiltered listings query denied", getDocs(collection(anon, "listings")
 await t("signed-out cannot read config/owner", getDoc(doc(anon, "config/owner")), false);
 await t("nobody reads config/bootstrap", getDoc(doc(adm, "config/bootstrap")), false);
 await t("renter cannot read users/lord", getDoc(doc(ren, "users/lord")), false);
+await t("public profile accepts a safe HTTPS website", setDoc(doc(ren, "profiles/ren"), { name: "R", role: "renter", website: "https://example.com" }));
+await t("public profile rejects javascript website URL", setDoc(doc(ren, "profiles/ren"), { name: "R", role: "renter", website: "javascript:alert(1)" }), false);
+await t("public profile cannot be changed to a javascript URL", updateDoc(doc(ren, "profiles/ren"), { website: "javascript:alert(1)" }), false);
 await t("renter cannot make themselves admin", updateDoc(doc(ren, "users/ren"), { role: "admin" }), false);
 await t("renter cannot set verified", updateDoc(doc(ren, "users/ren"), { verified: true }), false);
 await t("renter cannot create a listing", setDoc(doc(ren, "listings/new1"), { status: "pending", ownerUid: "ren", title: "x" }), false);
