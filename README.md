@@ -92,7 +92,7 @@ a different name updates at once.
 * Firestore rules are deny-by-default, with size limits and "who owns this" checks (for example a booking can only point at the real owner of the
   home). `npm run test:rules` runs 156 checks against the emulator.
 * The Firebase *web config* in `public/js/firebase.js` is public by design. Access is controlled by the rules, not by hiding it.
-  Never commit service-account keys, signing keystores (`*.jks`, `*.keystore`, `*.p12`) or `.env` files. Android signing keystores and passwords must never be committed. The former sideload keystore was exposed in public Git history and has been removed from the current source; treat it as compromised, replace it using GitHub Actions Secrets, and rewrite repository history before relying on the removal.
+  Never commit service-account keys, signing keystores (`*.jks`, `*.keystore`, `*.p12`) or `.env` files. The former sideload keystore was exposed in public Git history and has been removed from the current source; treat it as compromised, replace it using GitHub Actions Secrets, and rewrite repository history before relying on the removal.
 
 ## One-time Firebase setup
 
