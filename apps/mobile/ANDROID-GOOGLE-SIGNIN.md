@@ -27,9 +27,11 @@ Keep the repository private (the password is public by design: this is a sideloa
 
 ## Steps you must do (about 15 minutes)
 
+Before building, generate a replacement keystore and configure `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` as GitHub Actions Secrets. Follow [signing/README.md](signing/README.md). The release workflow now fails closed if any required signing secret is missing.
+
 1. **Firebase console** > open project **faxton-rentals** > the gear icon > **Project settings** > **General** > scroll to **Your apps** > the
-   **Android** app `com.faxton.rentals` > **SHA certificate fingerprints** > **Add fingerprint**. Paste the **SHA-1** above, save, then **Add
-   fingerprint** again and paste the **SHA-256**. (If there is no Android app, click **Add app** > Android, package name `com.faxton.rentals`.)
+   **Android** app `com.faxton.rentals` > **SHA certificate fingerprints** > **Add fingerprint**. Paste the **SHA-1** from your replacement keystore, save, then **Add
+   fingerprint** again and paste the **SHA-256** from that same key. (If there is no Android app, click **Add app** > Android, package name `com.faxton.rentals`.)
 2. **Firebase console** > **Authentication** > **Sign-in method** > **Google**: make sure it is **Enabled** and a **Project support email** is chosen.
 3. **Google Cloud console** (console.cloud.google.com, same project) > **APIs & Services** > **OAuth consent screen** (newer UI: **Google Auth
    Platform** > **Audience**). Set **Publishing status** to **In production** (click **Publish app**). If it says *Testing*, only the test users you list
@@ -42,8 +44,7 @@ Keep the repository private (the password is public by design: this is a sideloa
    Replace `apps/mobile/google-services.json` in the repository with it and commit.
 6. **Build**: GitHub > **Actions** > **Build and release apps** > **Run workflow**, version for example `1.0.1`. Open the **android** job > **Summary**:
    the table must say *Android OAuth client with this SHA-1 in google-services.json: **yes***. If it says *no*, repeat steps 1 and 5.
-7. **Install**: on the phone **uninstall the old Faxton Rentals first** (the old APKs were signed with random keys, Android refuses to update them),
-   then install `Faxton-Rentals-Android.apk` from the Release. The phone needs a Google account (Settings > Accounts) and an up-to-date Google Play services.
+7. **Install**: on the phone **uninstall any existing sideloaded Faxton Rentals build signed with the compromised certificate**, then install `Faxton-Rentals-Android.apk` from the Release. Android will not accept an in-place update signed by a different certificate. The phone needs a Google account (Settings > Accounts) and an up-to-date Google Play services.
 8. **Test** Sign in with Google. If something fails the message ends with a code; see the table below.
 
 ### Optional, for the Play Store
