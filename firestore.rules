@@ -554,6 +554,7 @@ service cloud.firestore {
           && get(appPath).data.status in ['Under review', 'Approved', 'Active'];
       }
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Submitted'
+        && request.resource.data.keys().hasAll(['applicationId'])
         && request.resource.data.keys().hasOnly(['uid', 'name', 'ownerUid', 'listingId', 'title', 'applicationId', 'forLabel', 'amount', 'reference', 'paidOn', 'note', 'proof', 'proofName', 'status', 'createdAt'])
         && request.resource.data.amount is number && request.resource.data.amount > 0 && request.resource.data.amount < 10000000000
         && short(request.resource.data.get('reference', ''), 80) && short(request.resource.data.get('note', ''), 500)
