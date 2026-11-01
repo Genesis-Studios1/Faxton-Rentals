@@ -9,7 +9,9 @@ const ren = env.authenticatedContext("locren", { email: "r@x.com" }).firestore()
 const P = (o) => ({ name: "R", email: "r@x.com", role: "renter", saved: [], createdAt: serverTimestamp(), ...o });
 await t("sign-up with country, state, lga and city", setDoc(doc(ren, "users/locren"), P({ country: "Nigeria", state: "Lagos", lga: "Ikeja", city: "Ikeja", location: "Ikeja, Lagos, Nigeria" })));
 await t("sign-up with an over-long state denied", setDoc(doc(ren, "users/locren"), P({ state: "x".repeat(80) })), false);
+await t("sign-up with saved field that is not a list denied", setDoc(doc(ren, "users/locren"), P({ saved: "not-an-array" })), false);
 await t("sign-up with an over-long lga denied", setDoc(doc(ren, "users/locren"), P({ lga: "x".repeat(80) })), false);
 await t("profile update saves state and lga", updateDoc(doc(lord, "users/loclord"), { state: "Lagos", lga: "Eti-Osa", city: "Eti-Osa" }));
+await t("profile update cannot replace saved list with a string", updateDoc(doc(lord, "users/loclord"), { saved: "not-an-array" }), false);
 await t("profile update with a non-string state denied", updateDoc(doc(lord, "users/loclord"), { state: { a: 1 } }), false);
 await t("legacy profile update (country and city only) still works", updateDoc(doc(lord, "users/loclord"), { country: "Ghana", city: "Accra" }));

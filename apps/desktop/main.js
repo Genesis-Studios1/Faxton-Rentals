@@ -2,11 +2,13 @@
 // so the app is always the latest deployed version. The shell itself updates through GitHub Releases.
 const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain } = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
 
 const SITE = "https://faxton-rentals.web.app";
 const HOST = new URL(SITE).host;
+const OFFLINE_URL = pathToFileURL(path.join(__dirname, "offline.html")).href;
 // Hosts allowed to open as in-app windows (Firebase + Google sign-in popups). Everything else opens in the system browser.
-const POPUP_OK = [/^accounts\.google\.com$/, /^[a-z0-9-]+\.firebaseapp\.com$/, /^faxton-rentals\.web\.app$/];
+const POPUP_OK = [/^accounts\.google\.com$/, /^faxton-rentals\.firebaseapp\.com$/, /^faxton-rentals\.web\.app$/];
 const isHttps = (u) => { try { return new URL(u).protocol === "https:"; } catch { return false; } };
 const hostOf = (u) => { try { return new URL(u).host; } catch { return ""; } };
 const platform = process.platform === "darwin" ? "mac" : process.platform === "win32" ? "win" : "linux";
@@ -31,7 +33,9 @@ function create() {
   win.loadURL(SITE);
   win.webContents.on("did-fail-load", (_e, code, _d, url, isMain) => { if (isMain && code !== -3 && hostOf(url) === HOST) win.loadFile(path.join(__dirname, "offline.html")); });
   // Never navigate the main window away from our own site.
-  win.webContents.on("will-navigate", (e, url) => { if (hostOf(url) !== HOST && !url.startsWith("file:")) { e.preventDefault(); if (isHttps(url)) shell.openExternal(url); } });
+  const guardNavigation = (e, url) => { if (hostOf(url) !== HOST && url !== OFFLINE_URL) { e.preventDefault(); if (isHttps(url)) shell.openExternal(url); } };
+  win.webContents.on("will-navigate", guardNavigation);
+  win.webContents.on("will-redirect", guardNavigation);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isHttps(url) && POPUP_OK.some((r) => r.test(hostOf(url)))) return { action: "allow", overrideBrowserWindowOptions: { width: 520, height: 720, autoHideMenuBar: true, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } } };
     if (isHttps(url)) shell.openExternal(url);
