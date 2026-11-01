@@ -1,17 +1,10 @@
 # Google sign-in in the Android app: what was wrong and what you must do
 
-## Why it did not work
+## Google sign-in requirements
 
-1. **Google did not know your app.** Android's native Google sign-in only works when the Google project contains an *Android OAuth client* for the
-   package name `com.faxton.rentals` **and** the SHA-1 fingerprint of the key that signed the APK. Your `google-services.json` lists only the
-   web client (`client_type 3`), so Google answered "No credentials available" (or error 10 / 28444, "Developer console is not set up correctly").
-2. **The signing key changed on every build.** With no signing secrets, the build made a brand-new random debug key on every run, so the
-   SHA-1 was different each time and could never be registered. This is fixed: every build now uses one fixed key (below).
-3. The rest was checked and is correct: the Google libraries are switched on (`rgcfaIncludeGoogle`), the web client id
-   `426381186757-t53dbg3io0h01d0rbpuo5g93qcl74f6r.apps.googleusercontent.com` reaches the app through the google-services Gradle plugin (the build now
-   fails if it does not), and Capacitor registers the plugin automatically. The WebView can no longer be sent to accounts.google.com
-   (Google blocks that with `403 disallowed_useragent`); inside the app the web pop-up is never used.
-4. Error messages were raw plugin text. They are now precise, carry a short support code, and point the person to email sign-in.
+Native Android Google sign-in requires an Android OAuth client for package `com.faxton.rentals` whose certificate fingerprint matches the key signing the installed APK. The web OAuth client in `google-services.json` is also required as the `serverClientId`.
+
+The repository previously exposed its sideload signing keystore and password. That certificate has been removed from the current Android configuration and must not be used again. New builds require a replacement keystore from GitHub Actions Secrets, and the build script checks that the replacement SHA-1 appears in `google-services.json`.
 
 ## Signing key security update
 
@@ -26,8 +19,8 @@ Existing APKs signed with the old sideload certificate will not accept in-place 
 Before building, generate a replacement keystore and configure `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD` as GitHub Actions Secrets. Follow [signing/README.md](signing/README.md). The release workflow now fails closed if any required signing secret is missing.
 
 1. **Firebase console** > open project **faxton-rentals** > the gear icon > **Project settings** > **General** > scroll to **Your apps** > the
-   **Android** app `com.faxton.rentals` > **SHA certificate fingerprints** > **Add fingerprint**. Paste the **SHA-1** above, save, then **Add
-   fingerprint** again and paste the **SHA-256**. (If there is no Android app, click **Add app** > Android, package name `com.faxton.rentals`.)
+   **Android** app `com.faxton.rentals` > **SHA certificate fingerprints** > **Add fingerprint**. Paste the **SHA-1** printed by the replacement-key build, save, then **Add
+   fingerprint** again and paste the matching **SHA-256**. (If there is no Android app, click **Add app** > Android, package name `com.faxton.rentals`.)
 2. **Firebase console** > **Authentication** > **Sign-in method** > **Google**: make sure it is **Enabled** and a **Project support email** is chosen.
 3. **Google Cloud console** (console.cloud.google.com, same project) > **APIs & Services** > **OAuth consent screen** (newer UI: **Google Auth
    Platform** > **Audience**). Set **Publishing status** to **In production** (click **Publish app**). If it says *Testing*, only the test users you list
@@ -36,12 +29,11 @@ Before building, generate a replacement keystore and configure `ANDROID_KEYSTORE
 4. **Check the Android client exists**: Google Cloud > **APIs & Services** > **Credentials**. After step 1 you should see "Android client for
    com.faxton.rentals (auto created by Google Service)" with your SHA-1. It can take a few minutes to appear.
 5. **Download the new `google-services.json`**: Firebase > Project settings > Your apps > Android app > **google-services.json**. Open it:
-   it must now contain an `oauth_client` entry with `client_type: 1` whose `certificate_hash` matches the replacement keystore SHA-1 (lowercase, without colons).
+   it must contain an `oauth_client` entry with `client_type: 1` whose `certificate_hash` matches the replacement keystore SHA-1 (lowercase, without colons).
    Replace `apps/mobile/google-services.json` in the repository with it and commit.
 6. **Build**: GitHub > **Actions** > **Build and release apps** > **Run workflow**, version for example `1.0.1`. Open the **android** job > **Summary**:
    the table must say *Android OAuth client with this SHA-1 in google-services.json: **yes***. If it says *no*, repeat steps 1 and 5.
-7. **Install**: on the phone **uninstall the old Faxton Rentals first** (the old APKs were signed with random keys, Android refuses to update them),
-   then install `Faxton-Rentals-Android.apk` from the Release. Builds signed with the compromised old sideload key may need to be uninstalled first. The phone needs a Google account (Settings > Accounts) and an up-to-date Google Play services.
+7. **Install**: on the phone **uninstall any existing sideloaded Faxton Rentals build signed with the compromised certificate**, then install `Faxton-Rentals-Android.apk` from the Release. Android will not accept an in-place update signed by a different certificate. The phone needs a Google account (Settings > Accounts) and an up-to-date Google Play services.
 8. **Test** Sign in with Google. If something fails the message ends with a code; see the table below.
 
 ### Optional, for the Play Store
