@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "public/js/**"
+      - "apps/desktop/**"
+      - "apps/mobile/ci/**"
+      - "apps/mobile/google-services.json"
+      - "public/.well-known/assetlinks.json"
+      - "firebase.json"
       - "public/js/main.js"
       - "public/js/dash.js"
       - "public/js/ax.js"
@@ -30,15 +36,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Check changed app modules
+      - name: Check JavaScript, shell scripts and public configuration
         run: |
-          node --experimental-default-type=module --check public/js/ax.js
-          node --experimental-default-type=module --check public/js/waitlist.js
+          for file in public/js/*.js; do
+            node --experimental-default-type=module --check "$file"
+          done
+          node --check public/sw.js
+          node --check apps/desktop/main.js
+          node --check apps/desktop/preload.js
+          bash -n apps/mobile/ci/build_android.sh
+          node -e "JSON.parse(require('fs').readFileSync('firebase.json', 'utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('apps/mobile/google-services.json', 'utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('public/.well-known/assetlinks.json', 'utf8'))"
           node scripts/check-waitlist-icons.mjs
-          node --experimental-default-type=module --check public/js/main.js
-          node --experimental-default-type=module --check public/js/dash.js
-          node --experimental-default-type=module --check public/js/store.js
-          node --experimental-default-type=module --check public/js/ax-shell.js
           node scripts/check-app-cache-version.mjs
       - uses: actions/setup-java@v4
         with:
