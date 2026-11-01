@@ -28,6 +28,8 @@ await t("read own presence", getDoc(doc(r1, "presence/r1")));
 await t("renter reads the staff member who started a chat with them", getDoc(doc(r1, "presence/st1")));
 await t("renter cannot read staff presence without a chat", getDoc(doc(r2, "presence/st1")), false);
 await t("ordinary renter cannot forge staff-DM metadata", setDoc(doc(r2, "conversations/r2__dm_st1"), { uid: "r2", byStaff: "st1", agent: { id: "st1" } }), false);
+await t("conversation owner cannot add staff-DM metadata later", updateDoc(doc(r1, "conversations/r1__dm_st1"), { byStaff: "st2" }), false);
+await t("conversation owner cannot rewrite the staff participant", updateDoc(doc(r1, "conversations/r1__dm_st1"), { agent: { id: "r2" } }), false);
 await t("staff member in a real direct chat can read the renter presence", getDoc(doc(st1, "presence/r1")));
 await t("renter cannot read another renter", getDoc(doc(r2, "presence/r1")), false);
 await t("signed-out cannot read", getDoc(doc(anon, "presence/st1")), false);
