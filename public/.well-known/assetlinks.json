@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.faxton.rentals",
+      "sha256_cert_fingerprints": [
+        "9C:49:11:29:EC:9A:A3:1D:4A:0E:74:5A:51:03:85:CA:30:80:86:BA:07:15:C3:42:3B:0E:59:6E:25:14:B1:3E"
+      ]
+    }
+  }
+]
