@@ -1,30 +1,24 @@
 #!/usr/bin/env bash
 # Signs and builds the Android app. Run from apps/mobile/android (the generated project) after ci/patch_android.py.
 #
-# Signing key: the ANDROID_KEYSTORE_* repository secrets when they exist (your own Play upload key), otherwise the sideload key committed at
-# apps/mobile/signing/faxton-android.jks. Either way the key is the SAME on every run, so the SHA-1 printed below can be registered
-# once in Firebase and "Sign in with Google" keeps working in every build.
-#
-# Inputs (environment): KS_B64, KS_PASS, KEY_ALIAS, KEY_PASS (optional secrets), GITHUB_WORKSPACE, RUNNER_TEMP, GITHUB_STEP_SUMMARY (all set by GitHub Actions).
+# Signing key is supplied only through GitHub Actions secrets. Never store a keystore or password in this repository.
+# Inputs: KS_B64, KS_PASS, KEY_ALIAS, KEY_PASS, GITHUB_WORKSPACE, RUNNER_TEMP, GITHUB_STEP_SUMMARY.
 set -euo pipefail
 
 ROOT="${GITHUB_WORKSPACE:-$(cd ../../.. && pwd)}"
 SUMMARY="${GITHUB_STEP_SUMMARY:-/dev/null}"
 TMP="${RUNNER_TEMP:-/tmp}"
 SERVICES=app/google-services.json
-SIDELOAD_KS="$ROOT/apps/mobile/signing/faxton-android.jks"
-
-# ---------------------------------------------------------------- 1. choose the key
-if [ -n "${KS_B64:-}" ]; then
-  echo "$KS_B64" | base64 -d > "$TMP/release.jks"
-  KS_FILE="$TMP/release.jks"; KS_PASS_V="${KS_PASS:?ANDROID_KEYSTORE_PASSWORD secret is missing}"
-  ALIAS="${KEY_ALIAS:?ANDROID_KEY_ALIAS secret is missing}"; KEY_PASS_V="${KEY_PASS:-$KS_PASS_V}"
-  KEY_SOURCE="your own keystore (repository secrets ANDROID_KEYSTORE_*)"
-else
-  [ -f "$SIDELOAD_KS" ] || { echo "::error::$SIDELOAD_KS is missing from the repository"; exit 1; }
-  KS_FILE="$SIDELOAD_KS"; KS_PASS_V="faxton-sideload"; ALIAS="faxton"; KEY_PASS_V="faxton-sideload"
-  KEY_SOURCE="the sideload key committed at apps/mobile/signing/faxton-android.jks (stable; not a Play Store key)"
-fi
+# ---------------------------------------------------------------- 1. load the protected key
+[ -n "${KS_B64:-}" ] || { echo "::error::Android signing secrets are required. Configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."; exit 1; }
+KS_FILE="$TMP/faxton-release.jks"
+printf '%s' "$KS_B64" | base64 --decode > "$KS_FILE"
+chmod 600 "$KS_FILE"
+trap 'rm -f "$KS_FILE"' EXIT
+KS_PASS_V="${KS_PASS:?ANDROID_KEYSTORE_PASSWORD secret is missing}"
+ALIAS="${KEY_ALIAS:?ANDROID_KEY_ALIAS secret is missing}"
+KEY_PASS_V="${KEY_PASS:?ANDROID_KEY_PASSWORD secret is missing}"
+KEY_SOURCE="GitHub Actions protected signing secrets"
 export FAXTON_KS_FILE="$KS_FILE" FAXTON_KS_PASS="$KS_PASS_V" FAXTON_KEY_ALIAS="$ALIAS" FAXTON_KEY_PASS="$KEY_PASS_V"
 
 # ---------------------------------------------------------------- 2. fingerprints of that key
@@ -81,7 +75,6 @@ echo "::group::Build universal APK and Play Store bundle"
 cp app/build/outputs/apk/release/app-release.apk "$ROOT/Faxton-Rentals-Android.apk"
 cp app/build/outputs/bundle/release/app-release.aab "$ROOT/Faxton-Rentals-Android.aab"
 echo "::endgroup::"
-[ "$KS_FILE" = "$SIDELOAD_KS" ] || rm -f "$KS_FILE"
 
 # ---------------------------------------------------------------- 5. verify what was built
 # 5a. the web client id must have been generated into the app resources (otherwise native Google sign-in has no serverClientId)
@@ -126,7 +119,3 @@ for f in Faxton-Rentals-Android.apk Faxton-Rentals-Android-x64.apk Faxton-Rental
   if [ -n "$got" ] && [ "$got" != "$SHA1_HEX" ]; then echo "::error::$f is signed with $got, expected $SHA1_HEX"; exit 1; fi
   [ -n "$got" ] || echo "::warning::Could not read the signature of $f"
 done
-if [ -z "${KS_B64:-}" ]; then
-  echo "" >> "$SUMMARY"
-  echo "> The .aab in this run is signed with the sideload key, so Google Play will not accept it as an upload. For the Play Store add the ANDROID_KEYSTORE_* secrets (see apps/mobile/ANDROID-GOOGLE-SIGNIN.md)." >> "$SUMMARY"
-fi
