@@ -95,9 +95,10 @@ export const readSmallFile = (file, limit = 280000) => new Promise((res, rej) =>
 
 // ---- open or download a stored data URL (browsers block top-level data: links, so go through a Blob) ----
 export function dataToBlobUrl(dataUrl) {
-  const m = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(dataUrl || ""); if (!m) return "";
-  const bin = m[2] ? atob(m[3]) : decodeURIComponent(m[3]), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
-  return URL.createObjectURL(new Blob([a], { type: m[1] || "application/octet-stream" }));
+  // Never open arbitrary data MIME types as same-origin blob documents (for example text/html).
+  const m = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl || ""); if (!m) return "";
+  const bin = atob(m[2]), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return URL.createObjectURL(new Blob([a], { type: m[1] }));
 }
 export function openStored(dataUrl, name = "file", download = false) {
   const url = dataToBlobUrl(dataUrl); if (!url) return false;
