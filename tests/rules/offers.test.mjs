@@ -4,6 +4,7 @@ import { setDoc, doc, addDoc, collection, serverTimestamp, updateDoc, getDoc, de
 const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
 await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" }); await setDoc(doc(d, "users/own"), { role: "renter" }); await setDoc(doc(d, "users/adm"), { role: "admin" }); await setDoc(doc(d, "users/ren"), { role: "renter" }); await setDoc(doc(d, "users/lord"), { role: "landlord" });
   await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x" });
+  await setDoc(doc(d, "listings/seed"), { status: "active", title: "platform listing" });
   await setDoc(doc(d, "viewings/v1"), { uid: "ren", ownerUid: "lord", status: "Confirmed", title: "x", name: "y" }); });
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
 const ren = env.authenticatedContext("ren").firestore(), lord = env.authenticatedContext("lord").firestore(), adm = env.authenticatedContext("adm").firestore(), oth = env.authenticatedContext("oth").firestore();
