@@ -26,9 +26,8 @@ service cloud.firestore {
     // A booking, application or offer can only point at the real owner of the home it is about (no spamming other people's inboxes).
     function ownerMatchesListing(d) {
       return d.get('listingId', null) is string
-        && (exists(/databases/$(database)/documents/listings/$(d.listingId))
-          ? d.get('ownerUid', null) == get(/databases/$(database)/documents/listings/$(d.listingId)).data.get('ownerUid', null)
-          : d.get('ownerUid', null) == null);
+        && exists(/databases/$(database)/documents/listings/$(d.listingId))
+        && d.get('ownerUid', null) == get(/databases/$(database)/documents/listings/$(d.listingId)).data.get('ownerUid', null);
     }
     // Optional profile fields must have the right type and size.
     function profileOk(d) {
@@ -545,10 +544,14 @@ service cloud.firestore {
     // Bank-transfer proofs: a renter says "I've paid" with an optional receipt image. The owner of the home or an admin confirms or rejects it.
     match /paymentProofs/{id} {
       function proofOwnerOk(d) {
+        let appPath = /databases/$(database)/documents/applications/$(d.applicationId);
         return d.listingId is string
-          && (exists(/databases/$(database)/documents/listings/$(d.listingId))
-            ? d.get('ownerUid', null) == get(/databases/$(database)/documents/listings/$(d.listingId)).data.get('ownerUid', null)
-            : d.get('ownerUid', null) == null);
+          && d.applicationId is string
+          && exists(appPath)
+          && get(appPath).data.uid == request.auth.uid
+          && get(appPath).data.listingId == d.listingId
+          && get(appPath).data.get('ownerUid', null) == d.get('ownerUid', null)
+          && get(appPath).data.status in ['Under review', 'Approved', 'Active'];
       }
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid && request.resource.data.status == 'Submitted'
         && request.resource.data.keys().hasOnly(['uid', 'name', 'ownerUid', 'listingId', 'title', 'applicationId', 'forLabel', 'amount', 'reference', 'paidOn', 'note', 'proof', 'proofName', 'status', 'createdAt'])
