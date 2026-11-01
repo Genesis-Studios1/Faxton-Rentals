@@ -16,13 +16,16 @@ await t("viewing claiming self as owner denied", addDoc(collection(ren, "viewing
 await t("viewing on platform home (no owner)", addDoc(collection(ren, "viewings"), V({ listingId: "l2", ownerUid: null })));
 await t("viewing on platform home with invented owner denied", addDoc(collection(ren, "viewings"), V({ listingId: "l2", ownerUid: "lord" })), false);
 await t("viewing on missing home with owner denied", addDoc(collection(ren, "viewings"), V({ listingId: "nope" })), false);
+await t("viewing on missing home without owner denied", addDoc(collection(ren, "viewings"), V({ listingId: "nope", ownerUid: null })), false);
 const A = (o) => ({ uid: "ren", name: "R", listingId: "l1", ownerUid: "lord", title: "T", status: "Under review", createdAt: serverTimestamp(), ...o });
 await t("application at the real owner", addDoc(collection(ren, "applications"), A({})));
 await t("application at a stranger denied", addDoc(collection(ren, "applications"), A({ ownerUid: "oth" })), false);
+await t("application for a missing listing denied", addDoc(collection(ren, "applications"), A({ listingId: "nope", ownerUid: null })), false);
 const E = (by, uid, type, amount) => ({ by, uid, type, amount, note: "", at: Date.now() });
 const O = (o) => ({ uid: "ren", name: "R", ownerUid: "lord", ownerName: "L", listingId: "l1", title: "T", area: "A", image: "", listPrice: 3000000, amount: 2800000, status: "Pending", turn: "owner", history: [E("renter", "ren", "offer", 2800000)], createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...o });
 await t("offer at the real owner", addDoc(collection(ren, "offers"), O({})));
 await t("offer at a stranger denied", addDoc(collection(ren, "offers"), O({ ownerUid: "oth" })), false);
+await t("offer for a missing listing denied", addDoc(collection(ren, "offers"), O({ listingId: "nope", ownerUid: null })), false);
 // listings
 await t("owner edits own listing", updateDoc(doc(lord, "listings/l1"), { title: "New title" }));
 await t("owner cannot activate pending listing", updateDoc(doc(lord, "listings/l3"), { status: "active" }), false);
