@@ -41,6 +41,7 @@ jobs:
           for file in public/js/*.js; do
             node --experimental-default-type=module --check "$file"
           done
+          node --check public/sw.js
           node --check apps/desktop/main.js
           node --check apps/desktop/preload.js
           bash -n apps/mobile/ci/build_android.sh
