@@ -10,3 +10,8 @@ dist
 
 # local emulator logs
 *-debug.log
+
+# Signing material must never be committed
+*.jks
+*.keystore
+*.p12
