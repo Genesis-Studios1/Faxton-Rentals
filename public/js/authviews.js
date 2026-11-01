@@ -175,7 +175,8 @@ export function authPage(ctx, mode) {
     if (av) {
       const file = $("#avFile", root), cam = $("#avCam", root), rm = $("#avRm", root), hint = $("#avHint", root), aerr = $("#avErr", root);
       const paintPhoto = () => {
-        av.innerHTML = photo ? `<img src="${photo}" alt="Your profile photo">` : icon("camera", 24, 1.5);
+        const photoSrc = typeof photo === "string" && (/^https:\/\//i.test(photo) || /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(photo)) ? photo : "";
+         av.innerHTML = photoSrc ? `<img src="${esc(photoSrc)}" alt="Your profile photo">` : icon("camera", 24, 1.5);
         av.classList.toggle("has", !!photo); av.setAttribute("aria-label", photo ? "Change your profile photo" : "Add a profile photo");
         rm.hidden = !photo; $("#avPick", root).textContent = photo ? "Change photo" : "Choose photo"; hint.textContent = photo ? "Looking good. This is how others will see you." : "A clear face helps agents and owners trust you.";
       };
