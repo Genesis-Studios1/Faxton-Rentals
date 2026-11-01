@@ -329,7 +329,6 @@ async function signIn(email, pw, remember = true) {
 async function signUp(name, email, pw, role, details, photo, residence) {
   const c = await createUserWithEmailAndPassword(auth, email, pw);
   try { await updateProfile(c.user, { displayName: name }); } catch {}
-  writeAccountMarker(email);
   const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter", details, photo, residence });
   try { await mk(); } catch { await mk(); }
   try { await sendEmailVerification(c.user); } catch {}
