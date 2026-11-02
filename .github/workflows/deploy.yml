@@ -66,8 +66,8 @@ jobs:
       - name: Deploy Firestore indexes (optional)
         continue-on-error: true
         run: npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals --non-interactive
-      # Storage is intentionally skipped because this project does not use Firebase Storage and the default bucket
-      # is not configured for the project/service account. Deploying Storage here causes a 403 defaultBucket lookup.
+      # Storage is intentionally skipped: this project has no configured/enabled bucket. Client-side property-media
+      # and installer uploads are fail-closed until a bucket and reviewed Storage rules are deliberately set up.
       # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
       - name: Smoke test the live site
         run: |
