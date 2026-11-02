@@ -120,6 +120,22 @@ Troubleshooting deploys:
 * *Firestore error on deploy*: create the database first, or run `npm run deploy:hosting`.
 * Firebase Storage is intentionally excluded from the standard deploy while the bucket is unconfigured. Do not deploy Storage rules or enable file uploads until the bucket, billing plan and rules have been reviewed.
 
+## App Check and public write protection
+
+The public marketing site currently directs visitors to the Faxton web app; it no longer needs anonymous writes to the `waitlist` collection. Firestore therefore keeps historical waitlist records readable by admins but rejects all new public creates. The old browser-side waitlist submission code has been removed.
+
+### App Check setup
+
+App Check client initialization is prepared, but it is **not active yet**. The public site key in `public/js/app-check-config.js` is intentionally blank until the matching reCAPTCHA Enterprise key and Firebase App Check registration are created.
+
+1. In the Google Cloud project for `faxton-rentals`, create a **score-based reCAPTCHA Enterprise Web key**. Restrict it to the actual production hostnames: `faxtonrentals.com`, `www.faxtonrentals.com` (if used), and `faxton-rentals.web.app`. Add any other confirmed production hostname before rollout. Use a separate key or the App Check debug provider for local development; do not add localhost to the production key.
+2. In Firebase Console > Security > App Check, register each Web app with the same reCAPTCHA Enterprise key.
+3. Put the resulting **site key** (not a secret key) in `public/js/app-check-config.js`. The site key is public browser configuration; the matching registration and domain restrictions are the important controls.
+4. Deploy the client and inspect App Check request metrics for Firestore before enabling enforcement. Enforce only after legitimate traffic from the production domains and the mobile/desktop web wrappers is accounted for. Keep enforcement off until those checks are complete.
+5. For local testing after enforcement, configure a separate App Check debug workflow and register its debug token in Firebase Console. Never commit or publish a debug token.
+
+App Check helps Firebase distinguish genuine app traffic from unverified requests, but it is not a per-user or per-IP quota. This repository does not currently have a trusted rate-limiting backend. The old public waitlist write route is closed instead; if a public waitlist form is reintroduced, route submissions through a server-side endpoint with App Check verification and transactional rate limits rather than reopening anonymous Firestore creates.
+
 ## Apps (Android, iPhone, Windows, Mac, Linux)
 
 The apps are thin wrappers that open the live website, so a website release updates them too. Build them from GitHub > Actions > **Build and release
