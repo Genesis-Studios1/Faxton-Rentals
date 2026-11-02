@@ -11,7 +11,7 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
-import { uploadListingMedia, removeListingMedia, validateListingMedia } from "./listing-media.js";
+import { validateListingMedia } from "./listing-media-core.js";
 import { collectListingFeatures } from "./listing-media-core.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
@@ -114,36 +114,25 @@ function mediaDialog(ctx, l, done) {
   const d = dialog({ title: "Photos and videos", size: "md", icon: "img", body: `<form id="mf">
     <label class="ax-lbl" for="mfi">Photo links (one per line; first photo is the cover)</label>
     <textarea id="mfi" class="ax-input" rows="4" placeholder="https://…">${esc((l.images || []).join("\n"))}</textarea>
-    <label class="ax-lbl" for="mfp" style="margin-top:12px">Upload photos</label>
-    <input id="mfp" class="ax-input" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+    <p class="ax-muted">Direct photo and video uploads are disabled because Firebase Storage is not configured. Add hosted HTTPS links below.</p>
     <label class="ax-lbl" for="mfv" style="margin-top:12px">Video links (YouTube, Vimeo or direct video URL)</label>
     <textarea id="mfv" class="ax-input" rows="3" placeholder="https://…">${esc((l.videos || []).join("\n"))}</textarea>
-    <label class="ax-lbl" for="mfvf" style="margin-top:12px">Upload videos</label>
-    <input id="mfvf" class="ax-input" type="file" accept="video/mp4,video/webm,video/quicktime" multiple>
-    <small class="ax-muted">Up to 20 photos (15 MB each) and 6 videos (100 MB each).</small>
-    <div id="mfp-progress" class="ax-muted" role="status" aria-live="polite"></div>
     <p class="ax-err" id="mfe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Save", { v: "primary", attrs: "data-ok" })}` });
   $(" [data-ok]".trim(), d.el).onclick = async (e) => {
     const im = lines($("#mfi", d.el).value), vd = lines($("#mfv", d.el).value);
-    const images = [...$("#mfp", d.el).files], videos = [...$("#mfvf", d.el).files];
-    const err = $("#mfe", d.el), progress = $("#mfp-progress", d.el); err.textContent = "";
+    const err = $("#mfe", d.el); err.textContent = "";
     const invalid = validateListingMedia(images, videos, im.length, vd.length);
     if (invalid) return (err.textContent = invalid);
-    if (!im.length && !images.length) return (err.textContent = "Add at least one photo link or upload a photo.");
+    if (!im.length) return (err.textContent = "Add at least one photo link.");
     if (im.some((u) => !/^(https:\/\/|img\/)/.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Links must start with https://");
     busy(e.currentTarget, true);
-    let uploaded = { images: [], videos: [], media: [], paths: [] };
     try {
-      if (images.length || videos.length) uploaded = await uploadListingMedia({ uid: ctx.S.user.uid, listingId: l.id, images, videos, linkedImages: im.length, linkedVideos: vd.length, onProgress: (pct, name) => { progress.textContent = name ? `Uploading ${name} · ${pct}%` : "Uploads complete."; } });
-      const nextImages = [...im, ...uploaded.images], nextVideos = [...vd, ...uploaded.videos];
+      const nextImages = im, nextVideos = vd;
       const kept = (l.mediaItems || []).filter((item) => nextImages.includes(item.url) || nextVideos.includes(item.url));
-      const removed = (l.mediaItems || []).filter((item) => item.path && !kept.includes(item));
-      await st.patch("listings", l.id, { images: nextImages, thumb: nextImages[0] || "", videos: nextVideos, mediaItems: [...kept, ...uploaded.media] });
-      Object.assign(l, { images: nextImages, thumb: nextImages[0] || "", videos: nextVideos, mediaItems: [...kept, ...uploaded.media] });
-      await removeListingMedia(removed.map((item) => item.path));
+      await st.patch("listings", l.id, { images: nextImages, thumb: nextImages[0] || "", videos: nextVideos, mediaItems: kept });
+      Object.assign(l, { images: nextImages, thumb: nextImages[0] || "", videos: nextVideos, mediaItems: kept });
       d.close(); toast("Photos and videos saved."); done?.();
     } catch (x) {
-      await removeListingMedia(uploaded.paths);
       err.textContent = fe(x); busy(e.currentTarget, false);
     }
   };
@@ -179,12 +168,9 @@ async function addListingDialog(ctx, ls, list) {
       <button type="button" class="ax-btn" id="nlAddFeature" style="margin-top:10px">+ Add another feature</button>
     </div>
     <div class="ax-field full" style="padding:14px;border:1px solid var(--ax-border);border-radius:12px">
-      <strong>Property photos and videos</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Upload files directly or paste links. Up to 20 photos (15 MB each) and 6 videos (100 MB each).</small>
+      <strong>Property photos and videos</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Add publicly accessible HTTPS links. Direct file uploads are disabled until Firebase Storage is configured.</small>
       <label class="ax-lbl" for="nlPhotoLinks">Photo links (one per line)</label><textarea class="ax-input" name="im" id="nlPhotoLinks" rows="2" placeholder="https://…"></textarea>
-      <label class="ax-lbl" for="nlPhotoFiles" style="margin-top:10px">Upload photos</label><input class="ax-input" name="photoFiles" id="nlPhotoFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
       <label class="ax-lbl" for="nlVideoLinks" style="margin-top:10px">Video links (one per line)</label><textarea class="ax-input" name="vd" id="nlVideoLinks" rows="2" placeholder="YouTube, Vimeo or direct video URL"></textarea>
-      <label class="ax-lbl" for="nlVideoFiles" style="margin-top:10px">Upload videos</label><input class="ax-input" name="videoFiles" id="nlVideoFiles" type="file" accept="video/mp4,video/webm,video/quicktime" multiple>
-      <div id="nlUploadProgress" class="ax-muted" role="status" aria-live="polite"></div>
     </div>
     <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea" }, cityId: "nlCity" });
@@ -201,13 +187,13 @@ async function addListingDialog(ctx, ls, list) {
   });
   $("#nlCustomFeatures", d.el).addEventListener("click", (e) => { if (e.target.closest("[data-remove-feature]")) e.target.closest(".nl-feature-row").remove(); });
   $("[data-ok]", d.el).onclick = async (e) => {
-    const L = loc.commit(), f = Object.fromEntries(new FormData(form)), err = $("#nle", d.el), progress = $("#nlUploadProgress", d.el);
-    err.textContent = ""; const im = lines(f.im), vd = lines(f.vd), photoFiles = [...$("#nlPhotoFiles", d.el).files], videoFiles = [...$("#nlVideoFiles", d.el).files], P = listingLoc(L, f.area);
+    const L = loc.commit(), f = Object.fromEntries(new FormData(form)), err = $("#nle", d.el);
+    err.textContent = ""; const im = lines(f.im), vd = lines(f.vd), P = listingLoc(L, f.area);
     if (!f.title?.trim()) return (err.textContent = "Add a title.");
     { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
     if (im.some((u) => !/^https:\/\//.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
-    const invalid = validateListingMedia(photoFiles, videoFiles, im.length, vd.length);
+    const invalid = validateListingMedia([], [], im.length, vd.length);
     if (invalid) return (err.textContent = invalid);
     if (f.buildingType === "Storey building" && (f.floorNumber === "" || !Number.isInteger(+f.floorNumber) || +f.floorNumber < 0)) return (err.textContent = "Enter the floor number for this storey building. Use 0 for ground floor.");
     const customRows = [...$("#nlCustomFeatures", d.el).querySelectorAll(".nl-feature-row")].map((row) => ({ name: $("[data-feature-name]", row).value, count: $("[data-feature-count]", row).value }));
@@ -217,15 +203,12 @@ async function addListingDialog(ctx, ls, list) {
     const u = users.find((x) => x.id === f.agent), self = !u || u.id === me, name = (u?.name || u?.email || meName(ctx)), photo = u?.photo || (self ? ctx.S.profile?.photo : "") || "";
     const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
     busy(e.currentTarget, true);
-    let uploaded = { images: [], videos: [], media: [], paths: [] };
     try {
-      if (photoFiles.length || videoFiles.length) uploaded = await uploadListingMedia({ uid: me, listingId: id, images: photoFiles, videos: videoFiles, linkedImages: im.length, linkedVideos: vd.length, onProgress: (pct, name) => { progress.textContent = name ? `Uploading ${name} · ${pct}%` : "Uploads complete."; } });
-      const images = [...im, ...uploaded.images], videos = [...vd, ...uploaded.videos];
-      const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: Math.max(0, +f.beds || 0), baths: Math.max(0, +f.baths || 0), sqm: 0, type: f.type, buildingType: f.buildingType, ...(f.buildingType === "Storey building" ? { floorNumber: +f.floorNumber, ...(f.roomNumber.trim() ? { roomNumber: f.roomNumber.trim() } : {}) } : {}), desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images, thumb: images[0] || "", videos, mediaItems: uploaded.media, features, amenities: features.map((x) => x.name), parking: +f.parking || 0, ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
+      const images = im, videos = vd;
+      const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: Math.max(0, +f.beds || 0), baths: Math.max(0, +f.baths || 0), sqm: 0, type: f.type, buildingType: f.buildingType, ...(f.buildingType === "Storey building" ? { floorNumber: +f.floorNumber, ...(f.roomNumber.trim() ? { roomNumber: f.roomNumber.trim() } : {}) } : {}), desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images, thumb: images[0] || "", videos, mediaItems: [], features, amenities: features.map((x) => x.name), parking: +f.parking || 0, ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
       await st.createListing(doc);
       ls.unshift({ ...doc, createdAt: { seconds: Math.floor(Date.now() / 1000) } }); changed(); list.repaint(); d.close(); toast("Listing created.");
     } catch (x) {
-      await removeListingMedia(uploaded.paths);
       err.textContent = fe(x); busy(e.currentTarget, false);
     }
   };
