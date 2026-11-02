@@ -53,7 +53,8 @@ service cloud.firestore {
     // place a call, so they are readable by signed-in users whose email is verified (not by signed-out visitors or unverified sign-ups).
     // See LAUNCH.md "Call relay" for the trade-off. Only admins and the owner can write.
     match /config/ice {
-      allow read: if signedIn() && request.auth.token.email_verified == true;
+      // Relay credentials and credentials URLs can contain provider secrets. Admins only may read them.
+      allow read: if isAdmin();
       allow write: if isAdmin() && request.resource.data.keys().hasOnly(['servers', 'credsUrl', 'updatedAt'])
         && request.resource.data.servers is list && request.resource.data.servers.size() <= 8
         && (!('credsUrl' in request.resource.data) || (request.resource.data.credsUrl is string && request.resource.data.credsUrl.size() <= 400));
