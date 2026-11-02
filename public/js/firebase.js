@@ -17,8 +17,8 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 
-// App Check remains inactive until the public reCAPTCHA Enterprise site key is
-// configured in app-check-config.js and the matching app is registered in Firebase.
+// Initialize App Check with the configured public site key. Firebase service enforcement
+// must remain off until production traffic has been deployed, monitored and validated.
 export const appCheck = APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY
   ? initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY),
