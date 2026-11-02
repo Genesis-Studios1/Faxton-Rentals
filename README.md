@@ -134,6 +134,8 @@ App Check client initialization is prepared, but it is **not active yet**. The p
 4. Deploy the client and inspect App Check request metrics for Firestore before enabling enforcement. Enforce only after legitimate traffic from the production domains and the mobile/desktop web wrappers is accounted for. Keep enforcement off until those checks are complete.
 5. For local testing after enforcement, configure a separate App Check debug workflow and register its debug token in Firebase Console. Never commit or publish a debug token.
 
+Call creation also requires the Firebase Auth `email_verified` claim. The app refreshes the ID token after a user verifies their email; the Firestore emulator suite covers denial for unverified callers and acceptance for verified callers. This raises the bar for call spam but is not a per-user call quota.
+
 App Check helps Firebase distinguish genuine app traffic from unverified requests, but it is not a per-user or per-IP quota. This repository does not currently have a trusted rate-limiting backend. The old public waitlist write route is closed instead; if a public waitlist form is reintroduced, route submissions through a server-side endpoint with App Check verification and transactional rate limits rather than reopening anonymous Firestore creates.
 
 ## Apps (Android, iPhone, Windows, Mac, Linux)
