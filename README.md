@@ -86,12 +86,12 @@ a different name updates at once.
 
 ## Security
 
-* Headers and the Content-Security-Policy are in `firebase.json`. Only these outside hosts are allowed: Google/Firebase (`gstatic`, `googleapis`,
-  `apis.google.com`, the project's `firebaseapp.com` sign-in domain), OpenStreetMap tiles (as images), `overpass-api.de` (nearby places), GitHub's API
-  (app update check), and the TURN call-relay hosts (`metered`, Cloudflare). Pictures and videos from any `https://` address are allowed because
-  agents paste photo links.
+* Headers and the Content-Security-Policy are in `firebase.json`. Only these outside hosts are allowed: Google/Firebase (`gstatic`, `googleapis`, `apis.google.com`, the project's `firebaseapp.com` sign-in domain),
+  reCAPTCHA Enterprise/App Check (`google.com/recaptcha`, `recaptchaenterprise.googleapis.com`, and Firebase App Check APIs), OpenStreetMap tiles
+  (as images), `overpass-api.de` (nearby places), GitHub's API (app update check), and the TURN call-relay hosts (`metered`, Cloudflare). Pictures
+  and videos from any `https://` address are allowed because agents paste photo links.
 * Firestore rules are deny-by-default, with size limits and "who owns this" checks (for example a booking can only point at the real owner of the
-  home). `npm run test:rules` runs 156 checks against the emulator.
+  home). `npm run test:rules` runs the rules suite against the emulator; the current passing test total is reported in GitHub Actions.
 * The Firebase *web config* in `public/js/firebase.js` is public by design. Access is controlled by the rules, not by hiding it.
   Never commit service-account keys, signing keystores (`*.jks`, `*.keystore`, `*.p12`) or `.env` files. Android signing keystores and passwords must never be committed. The former sideload keystore was exposed in public Git history and has been removed from the current source; treat it as compromised, replace it using GitHub Actions Secrets, and rewrite repository history before relying on the removal.
 
@@ -126,12 +126,13 @@ The public marketing site currently directs visitors to the Faxton web app; it n
 
 ### App Check setup
 
-App Check client initialization is prepared, but it is **not active yet**. The public site key in `public/js/app-check-config.js` is intentionally blank until the matching reCAPTCHA Enterprise key and Firebase App Check registration are created.
+The production reCAPTCHA Enterprise key has been created, the **Faxton-Rentals Web App** has been registered in Firebase App Check with the **Fraud Defense** provider, and the public site key is configured on this PR branch in `public/js/app-check-config.js`. This configuration is not on the live site yet because the PR has not been merged or deployed. App Check enforcement is still **off**.
 
-1. In the Google Cloud project for `faxton-rentals`, create a **score-based reCAPTCHA Enterprise Web key**. Restrict it to the actual production hostnames: `faxtonrentals.com`, `www.faxtonrentals.com` (if used), and `faxton-rentals.web.app`. Add any other confirmed production hostname before rollout. Use a separate key or the App Check debug provider for local development; do not add localhost to the production key.
-2. In Firebase Console > Security > App Check, register each Web app with the same reCAPTCHA Enterprise key.
-3. Put the resulting **site key** (not a secret key) in `public/js/app-check-config.js`. The site key is public browser configuration; the matching registration and domain restrictions are the important controls.
-4. Deploy the client and inspect App Check request metrics for Firestore before enabling enforcement. Enforce only after legitimate traffic from the production domains and the mobile/desktop web wrappers is accounted for. Keep enforcement off until those checks are complete.
+Before rollout:
+1. In Google Cloud, verify that the key's allowed domains include every real production hostname that serves the app, including `faxtonrentals.com` if it serves the web app, `www.faxtonrentals.com` if used, and `faxton-rentals.web.app`. Do not add localhost to the production key. Use a separate key or the App Check debug provider for local development.
+2. Confirm the Firebase App Check registration is attached to the correct Faxton web app (the web app used by this repository).
+3. Merge and deploy the reviewed client change only when approved. Then inspect App Check request metrics for Firestore and test sign-in, signup, listings, messaging, calls, and the mobile/desktop wrappers.
+4. Keep enforcement off during the observation period. Enforce Cloud Firestore only after legitimate production and wrapper traffic is accounted for; do not enable other services at the same time.
 5. For local testing after enforcement, configure a separate App Check debug workflow and register its debug token in Firebase Console. Never commit or publish a debug token.
 
 The production key must be **score-based** (invisible; do not select a checkbox challenge). Google says the root domain covers its subdomains, so add `faxtonrentals.com` and the separate Firebase Hosting host `faxton-rentals.web.app`; do not add `localhost` to the production key. Keep the default App Check token TTL while testing. The current no-billing reCAPTCHA Essentials tier includes 10,000 assessments per calendar month across the Google Cloud organization; after that, Essentials requests are rate-limited until the next month. Linking billing changes the tier and can create charges, so do not link billing just to set up the key. See the Google Cloud [reCAPTCHA billing information](https://docs.cloud.google.com/recaptcha/docs/billing-information) before making any billing change.
