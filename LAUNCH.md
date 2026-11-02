@@ -111,6 +111,8 @@ The owner's email is deliberately not stored in the code. You tell Firestore onc
 
 ## 10. Real agents, real homes (blocker: the site is empty until you do this)
 
+**Media upload status:** Firebase Storage is not enabled in this project. Add publicly accessible HTTPS photo and video links to listings. Direct property-file uploads and app-installer uploads remain disabled; the Installations page can import GitHub Releases or accept HTTPS download links. Do not enable Storage until the bucket is configured and storage.rules has been reviewed and deployed.
+
 - [ ] **Remove demo data.** If you ever used demo mode, delete every home that has the sample agents (Daniel Okafor, Ngozi Adeyemi, Tunde Salami, Amara Bello, Ibrahim Musa) from Admin > **Listings**. Visitors must only ever see real homes.
 - [ ] **Approve the first agents and agencies**: they sign up with the *Agent* or *Agency* tab, upload their documents, then appear in Admin > **Verifications**. Check the documents (CAC number for agencies, valid ID and a phone call for agents) and **Verify**. Verified people get the green tick and can list homes.
 - [ ] **Home owners** (landlords) can list straight away; every new listing waits in Admin > **Listings** (or the **Review queue**) until you approve it.
@@ -140,7 +142,7 @@ The site runs on the free **Spark** plan with no servers of your own. Typical fr
 3. **Document size (1 MiB).** Each home, chat message and document keeps its pictures inside the document. Keep photos few and small.
 4. **Writes (20,000 a day)**: chat typing indicators, read receipts and call signalling all write. A busy chat day with a few hundred active users can reach it.
 
-**When to move to the paid Blaze plan.** Blaze is pay-as-you-go with the **same free amounts**; you only pay for what goes over. It also unlocks things that need a server: scheduled backups, Cloud Functions (for emailed 2-step codes, push notifications and automatic clean-ups), and Firebase Storage. Cards issued in Nigeria usually work if enabled for international payments.
+**When to move to the paid Blaze plan.** Blaze is pay-as-you-go with the **same free amounts**; you only pay for what goes over. It also unlocks things that need a server: scheduled backups, Cloud Functions (for emailed 2-step codes, push notifications and automatic clean-ups), and Firebase Storage. Storage still needs a bucket to be configured and its rules to be deployed before the app upload features can be enabled. Cards issued in Nigeria usually work if enabled for international payments.
 - [ ] Upgrade to Blaze **before** your first big announcement or ad. In the same screen set a **budget alert** (for example the equivalent of US$10 to 20) so a surprise never becomes a big bill. A budget alert only emails you; it does not stop the spending, so also check the **Usage** tab weekly.
 - [ ] Until you upgrade, announce quietly and grow in steps. If many people arrive at once, the site simply stops for the day instead of costing you money.
 
@@ -238,7 +240,7 @@ self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((k) => P
 - **Application list**: a renter's application disappears from their list if the home is taken off the market (rented or unpublished), because the list is built from live listings. A developer should keep a copy of the title and photo on the application (a small change in `public/js/pages.js` and in the application save).
 - **Admin console reads whole collections**, which will not scale past a few thousand records on the free plan (needs paging, a developer task).
 - **Listings are fetched in full** on every visit; past a few hundred homes add paging ("load more"). Until then it is fine.
-- **Voice notes, photos and files are stored inside the database** (no Storage): fine for launch, expensive at scale. Moving them to Firebase Storage or an image service is the first scaling task, and needs Blaze.
+- **Voice notes and documents that use data URLs are stored inside Firestore** (no Storage). Listing photos and videos currently use HTTPS links. Direct property-media and app-installer uploads are disabled until Firebase Storage is configured, secured and deployed. Moving large media to Storage or an image service is a later scaling task, and needs a configured bucket and the appropriate billing plan.
 - The latin-extended font files are loaded just for the **₦** symbol (about 35 KB per font weight). A developer can cut about 100 KB from the first visit by subsetting the fonts to the ₦ sign.
 - The Android sideload key is committed to the repository so Google sign-in keeps working across builds. Keep the repository private, and move to your own Play key as in step 6.
 - Unused files sit in `public/img` (`splash.mp4`, `splash.webm`, `splash-lines.webp`, `splash-base.webp`; about 360 KB in total). They are never downloaded by visitors and can be deleted when convenient.
