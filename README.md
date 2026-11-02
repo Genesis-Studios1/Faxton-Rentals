@@ -19,7 +19,7 @@ an admin console. Light and dark mode. Plain HTML, CSS and JavaScript (ES module
 | `firebase.json` | Hosting settings: security headers, the Content-Security-Policy, caching rules. |
 | `firestore.rules` | Who may read or write what. Deny by default. |
 | `firestore.indexes.json` | Search indexes. Faxton needs no custom ones; the file also switches off indexing for big picture fields. |
-| `storage.rules` | Only for the optional app-installer upload. The app does not use Firebase Storage for pictures. |
+| `storage.rules` | Dormant rules for a future Firebase Storage setup. They are not active until a bucket is configured and the rules are deployed. |
 | `scripts/check-release.mjs` | `npm run check`: stops a broken release before it goes out. |
 | `scripts/smoke-live.mjs` | `node scripts/smoke-live.mjs https://your-site`: checks the live site from outside. |
 | `tests/rules/` | Security-rule tests (`npm run test:rules`). |
@@ -29,8 +29,9 @@ an admin console. Light and dark mode. Plain HTML, CSS and JavaScript (ES module
 ## How the data is stored
 
 * **Firebase Authentication**: email and password, and Google sign-in.
-* **Cloud Firestore** on the free Spark plan. There are **no Cloud Functions and no Storage**: photos, voice notes and documents are saved as text
-  ("data URLs") inside Firestore documents, so each document must stay under 1 MiB. The rules cap picture fields well below that.
+* **Cloud Firestore** on the free Spark plan. Firebase Storage is **not enabled**. Listing photos and videos currently use HTTPS links; direct uploads from
+  the listing editor and app-installer editor are disabled until a Storage bucket is configured and its rules are deployed. Voice notes and documents
+  that use data URLs remain in Firestore, so each document must stay under 1 MiB.
 * **No sample homes are ever shown to visitors.** If there are no live listings the app shows an honest empty state. The sample homes in
   `public/js/data.js` (`DEMO_SEED`) exist only for tests and for the owner's optional demo mode (below).
 
@@ -117,7 +118,7 @@ In the Firebase console (project **faxton-rentals**):
 Troubleshooting deploys:
 * *"resolving hosting target of a site with no site name"*: run `npm run setup:site` (or Console > Hosting > Get started). If the name is taken, put another in `firebase.json` as `"site"`.
 * *Firestore error on deploy*: create the database first, or run `npm run deploy:hosting`.
-* *Storage step fails*: expected on the free plan; that step is allowed to fail.
+* Firebase Storage is intentionally excluded from the standard deploy while the bucket is unconfigured. Do not deploy Storage rules or enable file uploads until the bucket, billing plan and rules have been reviewed.
 
 ## Apps (Android, iPhone, Windows, Mac, Linux)
 
