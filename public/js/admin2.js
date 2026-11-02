@@ -121,7 +121,7 @@ function mediaDialog(ctx, l, done) {
   $(" [data-ok]".trim(), d.el).onclick = async (e) => {
     const im = lines($("#mfi", d.el).value), vd = lines($("#mfv", d.el).value);
     const err = $("#mfe", d.el); err.textContent = "";
-    const invalid = validateListingMedia(images, videos, im.length, vd.length);
+    const invalid = validateListingMedia([], [], im.length, vd.length);
     if (invalid) return (err.textContent = invalid);
     if (!im.length) return (err.textContent = "Add at least one photo link.");
     if (im.some((u) => !/^(https:\/\/|img\/)/.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Links must start with https://");
