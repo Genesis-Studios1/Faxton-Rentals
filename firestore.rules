@@ -49,9 +49,9 @@ service cloud.firestore {
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
     match /config/bootstrap { allow read, write: if false; }
 
-    // Optional TURN relay for calls: an admin saves it in Settings > Call relay. The call screen of every user needs these details to
-    // place a call, so they are readable by signed-in users whose email is verified (not by signed-out visitors or unverified sign-ups).
-    // See LAUNCH.md "Call relay" for the trade-off. Only admins and the owner can write.
+    // Optional TURN relay for calls: admins save details in Settings > Call relay.
+    // Only owner/admin can read this document because it may contain provider credentials.
+    // Ordinary callers use STUN until a trusted backend can mint short-lived TURN credentials.
     match /config/ice {
       // Relay credentials and credentials URLs can contain provider secrets. Admins only may read them.
       allow read: if isAdmin();
