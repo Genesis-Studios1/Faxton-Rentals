@@ -138,6 +138,10 @@ Call creation also requires the Firebase Auth `email_verified` claim. The app re
 
 App Check helps Firebase distinguish genuine app traffic from unverified requests, but it is not a per-user or per-IP quota. This repository does not currently have a trusted rate-limiting backend. The old public waitlist write route is closed instead; if a public waitlist form is reintroduced, route submissions through a server-side endpoint with App Check verification and transactional rate limits rather than reopening anonymous Firestore creates.
 
+### Automated dependency updates
+
+Dependabot proposes weekly npm dependency updates for the desktop, mobile and Firestore-rules test packages, plus GitHub Actions updates. Minor and patch updates are grouped to keep review volume manageable. These are proposals only: review and run CI before merging; no dependency is updated automatically in production.
+
 ## Apps (Android, iPhone, Windows, Mac, Linux)
 
 The apps are thin wrappers that open the live website, so a website release updates them too. Build them from GitHub > Actions > **Build and release
