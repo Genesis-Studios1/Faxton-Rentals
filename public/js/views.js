@@ -260,6 +260,7 @@ async function messages(ctx, cid) {
       const listingCard = (c) => c.listingId === "direct" ? "" : `<div class="mx-lcard"><div class="mx-limg"><img src="${esc(c.image)}" alt=""><span class="mx-badge">Available</span></div><div class="mx-lb"><div class="mx-lt"><h3>${esc(c.listingTitle)}</h3><span class="mx-lp">${naira(c.price)} <small>per year</small></span></div><p class="mx-lloc">${icon("pin", 16)} ${esc(c.area)}${/,/.test(c.area || "") ? "" : ", Lagos"}</p><div class="mx-lf"><span>${icon("bed", 18)} ${c.beds === 0 ? "Studio" : c.beds + " Beds"}</span><span>${icon("bath", 18)} ${c.baths} Baths</span></div></div><div class="mx-lact"><a class="btn mx-vl" href="#/home/${esc(c.listingId)}">View listing</a><a class="mx-ext" href="#/home/${esc(c.listingId)}" aria-label="Open listing">${icon("share", 18)}</a></div></div>`;
       // Everything that belongs to the open thread (its listeners, audio, a recording in progress, document listeners) is released in one place.
       const closeThread = () => {
+        if (cid) st.clearTyping(cid, me).catch(() => {});
         unsubM?.(); unsubM = null; unsubP?.(); unsubP = null; clearTimeout(drawChat.presT);
         drawChat.abortVoice?.(); drawChat.abortVoice = null; drawChat.stopAudio?.(); drawChat.stopTyping?.(); drawChat.offDoc?.(); drawChat.offDoc = null;
         drawChat.paintPin = drawChat.paintTyping = drawChat.paintSub = drawChat.sync = drawChat.retry = null; paintThread = () => {}; drawChat.gen = (drawChat.gen || 0) + 1; rc.pres = null;
