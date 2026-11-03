@@ -338,3 +338,67 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 .obp-page textarea{width:100%;padding:12px 14px;border:1px solid var(--a-line,#cfd8d3);border-radius:12px;background:var(--a-field,#fff);color:var(--text);font:inherit;resize:vertical}
 .obp-page textarea:focus,.obp-page select:focus,.obp-page input:focus{outline:2px solid rgba(16,137,106,.18);outline-offset:1px;border-color:#10896a}
 @media(max-width:600px){.obp-actions{gap:8px}.obp-actions .btn{padding:0 14px}}
+
+
+/* Profile onboarding fields: soft-grey outlined boxes with gently rounded corners. */
+.obp-page .au-in{
+  height:54px;
+  min-height:54px;
+  padding-inline:14px;
+  border:1px solid #d7dce3;
+  border-radius:16px;
+  background:#fff;
+  color:#657184;
+  box-shadow:none;
+  transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease;
+}
+.obp-page .au-in:hover{border-color:#b9c3ce}
+.obp-page .au-in:focus-within{
+  border-color:#10896a;
+  box-shadow:0 0 0 3px rgba(16,137,106,.12);
+}
+.obp-page .au-in input,
+.obp-page .au-in select{
+  color:#172b24;
+  font-size:.96rem;
+}
+.obp-page .au-in input::placeholder{color:#9aa4b2;opacity:1}
+.obp-page .au-in input[type=date]{color:#9aa4b2}
+.obp-page .au-in input[type=date]:valid{color:#172b24}
+.obp-page .au-f>select,
+.obp-page .au-f>textarea,
+.obp-page select{
+  min-height:54px;
+  padding:12px 15px;
+  border:1px solid #d7dce3;
+  border-radius:16px;
+  background-color:#fff;
+  color:#172b24;
+  box-shadow:none;
+  transition:border-color .16s ease,box-shadow .16s ease;
+}
+.obp-page .au-f>select:invalid{color:#9aa4b2}
+.obp-page .au-f>select:focus,
+.obp-page .au-f>textarea:focus,
+.obp-page select:focus{
+  outline:0;
+  border-color:#10896a;
+  box-shadow:0 0 0 3px rgba(16,137,106,.12);
+}
+.obp-page .au-f>textarea::placeholder{color:#9aa4b2;opacity:1}
+:root[data-theme=dark] .obp-page .au-in{
+  border-color:#34464f;
+  background:#13222a;
+}
+:root[data-theme=dark] .obp-page .au-in:hover{border-color:#55706f}
+:root[data-theme=dark] .obp-page .au-in input,
+:root[data-theme=dark] .obp-page .au-in select{color:#e5eee9}
+:root[data-theme=dark] .obp-page .au-in input::placeholder{color:#93a3ad}
+:root[data-theme=dark] .obp-page .au-f>select,
+:root[data-theme=dark] .obp-page .au-f>textarea,
+:root[data-theme=dark] .obp-page select{
+  border-color:#34464f;
+  background-color:#13222a;
+  color:#e5eee9;
+}
+:root[data-theme=dark] .obp-page .au-f>select:invalid{color:#93a3ad}
