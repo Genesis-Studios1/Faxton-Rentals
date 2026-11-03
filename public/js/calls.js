@@ -293,7 +293,7 @@ function run({ id, me, role, kind, other, offer }) {
     const theirs = isCaller ? c.recCallee : c.recCaller; if (theirs && !theirRec) toast("The other person started recording this call."); theirRec = !!theirs; showRec(!!(c.recCaller || c.recCallee));
     if (isCaller && c.delivered && !c.answer && !startedAt && !pc.remoteDescription) say("Ringing…");
     if (isCaller && c.answer) quiet();
-    if (isCaller && c.answer && !pc.remoteDescription) pc.setRemoteDescription(c.answer).then(flush).then(() => { say("Connecting…"); armConnect(); }).catch(() => {});
+    if (isCaller && c.answer && !pc.remoteDescription) pc.setRemoteDescription(c.answer).then(flush).then(() => { say("Connecting…"); armConnect(); }).catch((e) => { signalError("remote answer", e); end("ended"); });
     if (["declined", "cancelled", "missed", "ended"].includes(c.status) && !closing) { if (c.status === "declined") toast(`${name} declined the call.`); if (c.status === "missed") toast("No answer."); end(c.status); }
   };
 
@@ -416,8 +416,8 @@ export function watchIncoming(ctx, staff) {
     }
   };
   // Listen by membership: that is the query the database rules can prove is allowed.
-  const unsubs = [onSnapshot(query(collection(db, "calls"), where("members", "array-contains", u.uid)), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id })).filter((c) => c.calleeUid === u.uid)), () => {})];
-  if (staff) unsubs.push(onSnapshot(query(collection(db, "calls"), where("calleeUid", "==", "staff")), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {}));
+  const unsubs = [onSnapshot(query(collection(db, "calls"), where("members", "array-contains", u.uid)), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id })).filter((c) => c.calleeUid === u.uid)), (e) => signalError("incoming call listener", e))];
+  if (staff) unsubs.push(onSnapshot(query(collection(db, "calls"), where("calleeUid", "==", "staff")), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id }))), (e) => signalError("staff incoming call listener", e)));
   return () => { unsubs.forEach((f) => f()); close(); };
 }
 
