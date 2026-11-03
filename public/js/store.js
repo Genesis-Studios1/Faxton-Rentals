@@ -91,7 +91,8 @@ export const watchStaffDMs = (uid, cb) => onSnapshot(query(collection(db, "conve
   (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
 export const getConversation = async (cid) => { try { const s = await getDoc(doc(db, "conversations", cid)); return s.exists() ? { ...s.data(), id: s.id } : null; } catch { return null; } };
 // A small "typing" marker for the other side (the screen shows it for 5 seconds; it is written at most every 4 seconds).
-export const setTyping = (cid, uid) => updateDoc(doc(db, "conversations", cid), { typing: { uid, at: Date.now() } }).catch(() => {});
+export const setTyping = (cid, uid) => updateDoc(doc(db, "conversations", cid), { typing: { uid, at: Date.now() } });
+export const clearTyping = (cid, uid) => updateDoc(doc(db, "conversations", cid), { typing: null }).catch(() => {});
 export const setStaffUnread = (cid, v) => updateDoc(doc(db, "conversations", cid), { staffUnread: !!v });
 // side: "u" when the person whose inbox it is writes, "s" when the Faxton team side writes (stored as lastBy for the ticks).
 export async function sendMessage(user, cid, text, extra = {}, unread = false, convExtra = {}, side = "u") {
