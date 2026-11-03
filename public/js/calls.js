@@ -57,7 +57,7 @@ export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Ma
 
 // ---------- Firestore signalling ----------
 const signalError = (where, e) => { console.warn("[Faxton call] " + where, e); toast("Call connection issue. Check your internet connection and try again."); };
-const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).catch((e) => { signalError("call update", e); });
+const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).then(() => true).catch((e) => { signalError("call update", e); return false; });
 const watchCall = (id, cb) => onSnapshot(doc(db, "calls", id), (s) => cb(s.exists() ? { ...s.data(), id: s.id } : null), (e) => signalError("call listener", e));
 const addIce = (id, from, c) => addDoc(collection(db, "calls", id, "ice"), { from, c: JSON.stringify(c) }).catch((e) => { signalError("ICE candidate write", e); });
 const watchIce = (id, cb) => onSnapshot(collection(db, "calls", id, "ice"), (s) => s.docChanges().forEach((ch) => { if (ch.type === "added") cb(ch.doc.data()); }), (e) => signalError("ICE listener", e));
@@ -180,13 +180,14 @@ function run({ id, me, role, kind, other, offer }) {
   };
   let connectTO = null, recoveryTO = null, restartBusy = false, appliedOfferSdp = isCaller ? "" : (offer?.sdp || ""), appliedAnswerSdp = "";
   const restartIce = async () => {
-    if (!isCaller || ended || closing || restartBusy || !pc.remoteDescription || !pc.restartIce) return false;
+    if (!isCaller || ended || closing || restartBusy || !pc.remoteDescription) return false;
     restartBusy = true; say("Reconnecting…");
     try {
-      pc.restartIce();
+      pc.restartIce?.();
       const next = await pc.createOffer({ iceRestart: true });
       await pc.setLocalDescription(next);
-      await patchCall(id, { offer: { type: next.type, sdp: next.sdp } });
+      const saved = await patchCall(id, { offer: { type: next.type, sdp: next.sdp } });
+      if (!saved) return false;
       appliedOfferSdp = next.sdp;
       return true;
     } catch (e) { signalError("ICE restart", e); return false; }
