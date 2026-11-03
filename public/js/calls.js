@@ -178,9 +178,44 @@ function run({ id, me, role, kind, other, offer }) {
     remoteV.play?.().catch(() => {});
     checkVideo();
   };
-  pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") { quiet(); if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); } } if (pc.connectionState === "disconnected" && !ended) setTimeout(() => { if (pc.connectionState === "disconnected" && !ended) { toast("The call lost its connection."); end("ended"); } }, 8000);
-    if (["failed", "closed"].includes(pc.connectionState) && !ended) { toast(startedAt ? "The call lost its connection." : "Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } };
-  let connectTO = null; const armConnect = () => { clearTimeout(connectTO); connectTO = setTimeout(() => { if (!startedAt && !ended) { toast("Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } }, 25000); };
+  let connectTO = null, recoveryTO = null, restartBusy = false, appliedOfferSdp = isCaller ? "" : (offer?.sdp || ""), appliedAnswerSdp = "";
+  const restartIce = async () => {
+    if (!isCaller || ended || closing || restartBusy || !pc.remoteDescription || !pc.restartIce) return false;
+    restartBusy = true; say("Reconnecting…");
+    try {
+      pc.restartIce();
+      const next = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(next);
+      await patchCall(id, { offer: { type: next.type, sdp: next.sdp } });
+      appliedOfferSdp = next.sdp;
+      return true;
+    } catch (e) { signalError("ICE restart", e); return false; }
+    finally { restartBusy = false; }
+  };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "connected") {
+      clearTimeout(recoveryTO); quiet();
+      if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); }
+      else say(fmtDur((Date.now() - startedAt) / 1000));
+    }
+    if (pc.connectionState === "disconnected" && !ended) {
+      clearTimeout(recoveryTO);
+      recoveryTO = setTimeout(async () => {
+        if (pc.connectionState !== "disconnected" || ended) return;
+        if (isCaller && await restartIce()) {
+          recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) { toast("The call could not reconnect."); end("ended"); } }, 12000);
+        } else if (!isCaller) {
+          recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) { toast("The call lost its connection."); end("ended"); } }, 12000);
+        } else { toast("The call lost its connection."); end("ended"); }
+      }, 5000);
+    }
+    if (pc.connectionState === "failed" && !ended) {
+      if (isCaller) restartIce().then((ok) => { if (ok) { clearTimeout(recoveryTO); recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) end("ended"); }, 12000); } else end("ended"); });
+      else { say("Reconnecting…"); clearTimeout(recoveryTO); recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) end("ended"); }, 12000); }
+    }
+    if (pc.connectionState === "closed" && !ended) end("ended");
+  };
+  const armConnect = () => { clearTimeout(connectTO); connectTO = setTimeout(() => { if (!startedAt && !ended) { toast("Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } }, 35000); };
   // The sound-wave under the name moves with the other person's voice.
   let waveStop = null;
   const startWave = () => {
@@ -192,8 +227,24 @@ function run({ id, me, role, kind, other, offer }) {
       tick(); waveStop = () => { cancelAnimationFrame(raf); try { src.disconnect(); } catch {} };
     } catch { wave.classList.add("anim"); }
   };
-  const addCand = async (c) => { try { if (pc.remoteDescription) await pc.addIceCandidate(c); else pending.push(c); } catch (e) { signalError("remote ICE candidate", e); } };
-  const flush = async () => { for (const c of pending.splice(0)) { try { await pc.addIceCandidate(c); } catch (e) { signalError("queued ICE candidate", e); } } };
+  const remoteUfrag = () => (/(?:^|\\r?\\n)a=ice-ufrag:([^\\r\\n]+)/.exec(pc.remoteDescription?.sdp || "") || [])[1] || "";
+  const candidateUfrag = (c) => c?.usernameFragment || (/(?:^|\\s)ufrag\\s+(\\S+)/.exec(c?.candidate || "") || [])[1] || "";
+  const addCand = async (c) => {
+    try {
+      if (!pc.remoteDescription) { pending.push(c); return; }
+      const u = candidateUfrag(c), current = remoteUfrag();
+      if (u && current && u !== current) return;
+      await pc.addIceCandidate(c);
+    } catch (e) { signalError("remote ICE candidate", e); }
+  };
+  const flush = async () => {
+    const queued = pending.splice(0), current = remoteUfrag();
+    for (const c of queued) {
+      const u = candidateUfrag(c);
+      if (u && current && u !== current) continue;
+      try { await pc.addIceCandidate(c); } catch (e) { signalError("queued ICE candidate", e); }
+    }
+  };
 
   // The caller always offers a video line, so the camera or a shared screen can start later without renegotiating.
   if (isCaller) vtx = pc.addTransceiver("video", { direction: "sendrecv" });
@@ -277,7 +328,7 @@ function run({ id, me, role, kind, other, offer }) {
 
   // ---- ending ----
   function end(status) {
-    if (closing) return; closing = true; ended = true; quiet(); playSound("callEnd"); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
+    if (closing) return; closing = true; ended = true; quiet(); playSound("callEnd"); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearTimeout(recoveryTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
     try { unsubs.forEach((f) => f()); [mic, cam, screen, sStream].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); remoteV.pause?.(); remoteV.srcObject = null; sharedEl.pause?.(); sharedEl.srcObject = null; pc.close(); } catch {}
@@ -293,7 +344,25 @@ function run({ id, me, role, kind, other, offer }) {
     const theirs = isCaller ? c.recCallee : c.recCaller; if (theirs && !theirRec) toast("The other person started recording this call."); theirRec = !!theirs; showRec(!!(c.recCaller || c.recCallee));
     if (isCaller && c.delivered && !c.answer && !startedAt && !pc.remoteDescription) say("Ringing…");
     if (isCaller && c.answer) quiet();
-    if (isCaller && c.answer && !pc.remoteDescription) pc.setRemoteDescription(c.answer).then(flush).then(() => { say("Connecting…"); armConnect(); }).catch((e) => { signalError("remote answer", e); end("ended"); });
+    if (isCaller && c.answer && c.answer.sdp !== appliedAnswerSdp) {
+      appliedAnswerSdp = c.answer.sdp;
+      pc.setRemoteDescription(c.answer).then(flush).then(() => { say("Connecting…"); armConnect(); }).catch((e) => { signalError("remote answer", e); end("ended"); });
+    }
+    if (!isCaller && c.offer?.sdp && c.offer.sdp !== appliedOfferSdp && !restartBusy) {
+      restartBusy = true;
+      (async () => {
+        try {
+          await pc.setRemoteDescription(c.offer);
+          appliedOfferSdp = c.offer.sdp;
+          await flush();
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await patchCall(id, { answer: { type: answer.type, sdp: answer.sdp } });
+          say("Reconnecting…");
+        } catch (e) { signalError("ICE restart offer", e); end("ended"); }
+        finally { restartBusy = false; }
+      })();
+    }
     if (["declined", "cancelled", "missed", "ended"].includes(c.status) && !closing) { if (c.status === "declined") toast(`${name} declined the call.`); if (c.status === "missed") toast("No answer."); end(c.status); }
   };
 
