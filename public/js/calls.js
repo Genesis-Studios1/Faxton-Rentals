@@ -5,6 +5,7 @@ import { collection, doc, addDoc, getDoc, updateDoc, onSnapshot, query, where, s
 import { $, $$, esc, icon, toast, initials, modal } from "./ui.js";
 import { playSound } from "./sound.js";
 import { getPublic } from "./store.js";
+import { METERED_TURN_API_KEY } from "./turn-config.js";
 
 // ---------- sounds (made with the browser, no audio files) ----------
 let toneCtx = null;
@@ -32,10 +33,29 @@ export async function resolveIce(d = {}) {
   return { servers, via, error };
 }
 // Everyone who places or answers a call reads the saved relay once per page load.
-const ensureIce = () => (iceP ||= getDoc(doc(db, "config", "ice")).then(async (s) => {
+const ensureIce = () => (iceP ||= (async () => {
+  // Metered's credential-scoped API key is documented as frontend-safe.
+  // Keep the account-wide Secret Key out of this client module.
+  if (METERED_TURN_API_KEY) {
+    try {
+      const url = "https://faxton-homes.metered.live/api/v1/turn/credentials?apiKey=" + encodeURIComponent(METERED_TURN_API_KEY);
+      const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error("Metered HTTP " + r.status);
+      const servers = asServers(await r.json());
+      if (servers.some((s) => [].concat(s.urls).some((u) => /^turns?:/i.test(u)))) {
+        ICE = { iceServers: [...servers, ...STUN] };
+        return;
+      }
+      throw new Error("Metered returned no TURN relay entries");
+    } catch (e) {
+      console.warn("[Faxton call] Metered TURN configuration unavailable; trying saved relay settings.", e);
+    }
+  }
+  // Owner/admin-managed relay settings remain a fallback; ordinary users may be denied by Firestore rules.
+  const s = await getDoc(doc(db, "config", "ice"));
   const { servers } = await resolveIce(s.exists() ? s.data() : {});
   if (servers.length) ICE = { iceServers: [...servers, ...STUN] };
-}).catch(() => {}));
+})().catch(() => {}));
 // After an admin saves a new relay, the next call on this page should use it.
 export const resetIce = () => { iceP = null; ICE = { iceServers: STUN }; };
 // Used by the Settings relay card: a real test. Opens a connection that may only use the relay and waits for a "relay" candidate,
