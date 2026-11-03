@@ -2,4 +2,4 @@
 // Paste the API key from the "faxton-home calls" credential's Show API Key button.
 // This credential-scoped key is documented by Metered as frontend-safe.
 // Never place the account-wide Metered Secret Key in this file.
-export const METERED_TURN_API_KEY = "";
+export const METERED_TURN_API_KEY = "d5c8d2456e70bd73ff9027b1fbda7b3088a8";
