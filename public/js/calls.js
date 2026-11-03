@@ -57,7 +57,7 @@ export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Ma
 
 // ---------- Firestore signalling ----------
 const signalError = (where, e) => { console.warn("[Faxton call] " + where, e); toast("Call connection issue. Check your internet connection and try again."); };
-const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).catch((e) => { signalError("call update", e); throw e; });
+const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).catch((e) => { signalError("call update", e); });
 const watchCall = (id, cb) => onSnapshot(doc(db, "calls", id), (s) => cb(s.exists() ? { ...s.data(), id: s.id } : null), (e) => signalError("call listener", e));
 const addIce = (id, from, c) => addDoc(collection(db, "calls", id, "ice"), { from, c: JSON.stringify(c) }).catch((e) => { signalError("ICE candidate write", e); });
 const watchIce = (id, cb) => onSnapshot(collection(db, "calls", id, "ice"), (s) => s.docChanges().forEach((ch) => { if (ch.type === "added") cb(ch.doc.data()); }), (e) => signalError("ICE listener", e));
