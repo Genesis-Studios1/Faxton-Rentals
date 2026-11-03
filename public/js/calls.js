@@ -101,12 +101,12 @@ function run({ id, me, role, kind, other, offer }) {
   const isCaller = role === "caller", name = other.name || "Faxton", recKey = isCaller ? "recCaller" : "recCallee";
   const ov = document.createElement("div"); ov.className = "cl-ov cs-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Call with " + name);
   const pic = (other.photo ? photoImg(other.photo) : "") + `<span class="cs-ini">${esc(initials(name))}</span>`;
-  const hasDM = !!navigator.mediaDevices?.getDisplayMedia, canShare = hasDM && !isPhone(), recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
+  const hasDM = !!navigator.mediaDevices?.getDisplayMedia, canShare = hasDM, recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
   ov.innerHTML = `<header class="cs-top"><span class="cs-logo"><img src="assets/mark.svg" alt="" width="32" height="28"><b>Faxton</b></span><i class="cs-sep"></i><span class="cs-state"><i class="cs-dot"></i><span id="clSt">${isCaller ? "Calling " + esc(name) + "…" : "Connecting…"}</span></span><div class="cs-tn"><b>${esc(name)}</b><span id="clVt2">${isCaller ? "Calling…" : "Connecting…"}</span></div><span class="cl-rec" id="clRec" hidden><i></i> Recording</span><span class="cl-rec cs-snd" id="clSndOn" hidden role="status"><i></i> Sound shared</span><button type="button" class="cs-minb" id="clMin" aria-label="Minimise the call" title="Minimise">${icon("dchev", 22)}</button></header>
     <div class="cs-stage"><video id="clRemote" autoplay playsinline></video><div class="cs-voice" id="clVoice"><div class="cs-ring"><span class="cs-pic">${pic}</span></div><h2>${esc(name)}</h2><p id="clVt">${isCaller ? "Calling…" : "Connecting…"}</p><div class="cs-wave" id="clWave" aria-hidden="true">${"<i></i>".repeat(29)}</div></div><video id="clLocal" class="cl-pip" autoplay playsinline muted hidden role="button" tabindex="0" aria-label="Expand your video"></video><button type="button" class="cs-pipmin" id="clPipMin" hidden aria-label="Minimize your video" title="Minimize your video"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg></button><audio id="clShared" autoplay></audio></div>
     <div class="cs-bar"><button type="button" class="cs-b" id="clMute" aria-pressed="false" aria-label="Mute"><span class="cs-ic">${icon("mic", 26)}</span><em>Mute</em></button>
       <button type="button" class="cs-b" id="clCam" aria-pressed="false" aria-label="Camera"><span class="cs-ic">${icon("video", 26)}</span><em>Camera</em></button>
-      ${canShare ? `<i class="cs-bsep"></i><button type="button" class="cs-b" id="clShare" aria-pressed="false" aria-label="Share screen" title="${SHARE_TIP}"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>` : `<i class="cs-bsep"></i><button type="button" class="cs-b off" id="clShare" aria-disabled="true" aria-label="Share screen (not available here)" title="Screen sharing with sound needs a computer"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>`}
+      ${canShare ? `<i class="cs-bsep"></i><button type="button" class="cs-b" id="clShare" aria-pressed="false" aria-label="Share screen" title="${SHARE_TIP}"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>` : `<i class="cs-bsep"></i><button type="button" class="cs-b off" id="clShare" aria-disabled="true" aria-label="Share screen (not available here)" title="Screen sharing is not supported by this browser"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>`}
       <button type="button" class="cs-b" id="clSnd" aria-pressed="true" aria-label="Shared sound: on" hidden><span class="cs-ic">${spkIc(true)}</span><em>Shared sound</em></button>
       <button type="button" class="cs-b" id="clRecB" aria-pressed="false" aria-label="Record call"><span class="cs-ic">${recIc}</span><em>Record</em></button><i class="cs-bsep"></i>
       <button type="button" class="cs-b end" id="clEnd" aria-label="End call"><span class="cs-ic">${icon("phone", 28)}</span><em>End Call</em></button></div>
@@ -121,8 +121,24 @@ function run({ id, me, role, kind, other, offer }) {
   active = S;
   let stopTone = isCaller ? ringback() : null; const quiet = () => { stopTone?.(); stopTone = null; };
 
-  const setRemoteVideo = (on) => { remoteVideo = on; remoteV.style.display = on ? "block" : "none"; el("clVoice").style.display = on ? "none" : "grid"; ov.classList.toggle("has-video", on); };
-  const checkVideo = () => { const t = remote.getVideoTracks()[0]; setRemoteVideo(!!(t && t.readyState === "live" && !t.muted && remoteV.videoWidth > 0)); };
+  const setRemoteVideo = (on) => {
+    remoteVideo = on;
+    if (on) {
+      if (remoteV.srcObject !== remote) remoteV.srcObject = remote;
+      remoteV.play?.().catch(() => {});
+    } else {
+      remoteV.pause?.();
+      if (remoteV.srcObject) remoteV.srcObject = null;
+    }
+    remoteV.style.display = on ? "block" : "none";
+    el("clVoice").style.display = on ? "none" : "grid";
+    ov.classList.toggle("has-video", on);
+  };
+  const checkVideo = () => {
+    const t = remote.getVideoTracks().find((track) => track.readyState === "live");
+    const visible = !!(t && !t.muted && remoteV.videoWidth > 0);
+    setRemoteVideo(visible);
+  };
   const vidTimer = setInterval(checkVideo, 800); remoteV.addEventListener("resize", checkVideo);
   const syncLocal = () => { const v = preview.getVideoTracks()[0]; localV.hidden = !v; localV.srcObject = v ? preview : null; localV.classList.toggle("mirror", !!v && v === cam); if (!v && swapped) swapViews(false); el("clCam").setAttribute("aria-pressed", String(!!cam && cam.enabled)); el("clShare").setAttribute("aria-pressed", String(!!screen)); };
   // Tapping the small self-view swaps the two <video> elements' places with CSS (same elements, same streams: nothing restarts).
@@ -149,7 +165,18 @@ function run({ id, me, role, kind, other, offer }) {
   const sendDc = (o) => { try { if (dc?.readyState === "open") dc.send(JSON.stringify(o)); } catch {} };
   let sharedIn = null;
   const onDc = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m?.t === "snd") { if (m.on && sharedIn) sharedEl.srcObject = sharedIn; setSnd(!!m.on); } };
-  pc.ontrack = (e) => { if (e.track.kind === "audio" && isSharedTx(e.transceiver)) { sharedIn = new MediaStream([e.track]); sharedEl.srcObject = sharedIn; return; } remote.addTrack(e.track); if (e.track.kind === "video") { e.track.onunmute = checkVideo; e.track.onmute = checkVideo; } remoteV.play?.().catch(() => {}); };
+  pc.ontrack = (e) => {
+    if (e.track.kind === "audio" && isSharedTx(e.transceiver)) { sharedIn = new MediaStream([e.track]); sharedEl.srcObject = sharedIn; return; }
+    if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
+    if (e.track.kind === "video") {
+      e.track.onunmute = () => { if (remoteV.srcObject !== remote) remoteV.srcObject = remote; checkVideo(); remoteV.play?.().catch(() => {}); };
+      e.track.onmute = checkVideo;
+      e.track.onended = () => { try { remote.removeTrack(e.track); } catch {} checkVideo(); };
+    }
+    remoteV.srcObject = remote;
+    remoteV.play?.().catch(() => {});
+    checkVideo();
+  };
   pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") { quiet(); if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); } } if (pc.connectionState === "disconnected" && !ended) setTimeout(() => { if (pc.connectionState === "disconnected" && !ended) { toast("The call lost its connection."); end("ended"); } }, 8000);
     if (["failed", "closed"].includes(pc.connectionState) && !ended) { toast(startedAt ? "The call lost its connection." : "Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } };
   let connectTO = null; const armConnect = () => { clearTimeout(connectTO); connectTO = setTimeout(() => { if (!startedAt && !ended) { toast("Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } }, 25000); };
@@ -199,12 +226,12 @@ function run({ id, me, role, kind, other, offer }) {
   };
   el("clShare").onclick = async () => {
     if (screen) return stopShare();
-    if (!canShare) return toast(isPhone() ? "Screen sharing isn’t available on phones. Use a computer to share your screen, with sound." : "Screen sharing isn’t supported in this browser.");
+    if (!canShare) return toast("Screen sharing isn’t supported by this browser. Try an up-to-date browser.");
     try {
       const s = await getScreen(); sStream = s; screen = s.getVideoTracks()[0]; screen.onended = stopShare; await vtx.sender.replaceTrack(screen); setPreview(screen);
       const a = s.getAudioTracks()[0];
       if (a && atx) { sAud = a; a.onended = () => { if (sAud === a) dropShareAudio(); }; await atx.sender.replaceTrack(a); sendDc({ t: "snd", on: 1 }); el("clSndOn").hidden = false; }
-      else if (!isPhone()) toast(a ? "Shared without sound. This call doesn’t support shared sound." : NO_SOUND_MSG, { kind: "info", ms: 7000 });
+      else toast(a ? "Shared without sound. This call doesn’t support shared sound." : NO_SOUND_MSG, { kind: "info", ms: 7000 });
       el("clShare").querySelector("em").textContent = "Stop Sharing"; el("clShare").setAttribute("title", "Stop sharing");
     }
     catch (e) { if (screen) await stopShare(); if (e?.name !== "NotAllowedError") toast("Couldn’t start screen sharing."); }
@@ -246,7 +273,7 @@ function run({ id, me, role, kind, other, offer }) {
     if (closing) return; closing = true; ended = true; quiet(); playSound("callEnd"); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
-    try { unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); pc.close(); } catch {}
+    try { unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); remoteV.pause?.(); remoteV.srcObject = null; sharedEl.pause?.(); sharedEl.srcObject = null; pc.close(); } catch {}
     try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); ov.classList.add("ended"); $$(".cs-b,.cs-pb", ov).forEach((b) => { if (b.id !== "clEnd" && b.id !== "clEnd2") b.disabled = true; }); } catch {}
     document.documentElement.classList.remove("dlx-lock"); active = null;
     setTimeout(() => ov.remove(), 1500);
