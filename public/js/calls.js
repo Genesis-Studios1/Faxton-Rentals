@@ -56,10 +56,11 @@ export async function testRelay(servers) {
 export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
 
 // ---------- Firestore signalling ----------
-const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).catch(() => {});
-const watchCall = (id, cb) => onSnapshot(doc(db, "calls", id), (s) => cb(s.exists() ? { ...s.data(), id: s.id } : null), () => {});
-const addIce = (id, from, c) => addDoc(collection(db, "calls", id, "ice"), { from, c: JSON.stringify(c) }).catch(() => {});
-const watchIce = (id, cb) => onSnapshot(collection(db, "calls", id, "ice"), (s) => s.docChanges().forEach((ch) => { if (ch.type === "added") cb(ch.doc.data()); }), () => {});
+const signalError = (where, e) => { console.warn("[Faxton call] " + where, e); toast("Call connection issue. Check your internet connection and try again."); };
+const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).catch((e) => { signalError("call update", e); throw e; });
+const watchCall = (id, cb) => onSnapshot(doc(db, "calls", id), (s) => cb(s.exists() ? { ...s.data(), id: s.id } : null), (e) => signalError("call listener", e));
+const addIce = (id, from, c) => addDoc(collection(db, "calls", id, "ice"), { from, c: JSON.stringify(c) }).catch((e) => { signalError("ICE candidate write", e); });
+const watchIce = (id, cb) => onSnapshot(collection(db, "calls", id, "ice"), (s) => s.docChanges().forEach((ch) => { if (ch.type === "added") cb(ch.doc.data()); }), (e) => signalError("ICE listener", e));
 export const watchLogs = (uid, cb) => onSnapshot(query(collection(db, "calls"), where("members", "array-contains", uid)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))), () => cb([]));
 
 // ---------- who is on the other end: names and photos ----------
@@ -191,8 +192,8 @@ function run({ id, me, role, kind, other, offer }) {
       tick(); waveStop = () => { cancelAnimationFrame(raf); try { src.disconnect(); } catch {} };
     } catch { wave.classList.add("anim"); }
   };
-  const addCand = async (c) => { try { if (pc.remoteDescription) await pc.addIceCandidate(c); else pending.push(c); } catch {} };
-  const flush = async () => { for (const c of pending.splice(0)) { try { await pc.addIceCandidate(c); } catch {} } };
+  const addCand = async (c) => { try { if (pc.remoteDescription) await pc.addIceCandidate(c); else pending.push(c); } catch (e) { signalError("remote ICE candidate", e); } };
+  const flush = async () => { for (const c of pending.splice(0)) { try { await pc.addIceCandidate(c); } catch (e) { signalError("queued ICE candidate", e); } } };
 
   // The caller always offers a video line, so the camera or a shared screen can start later without renegotiating.
   if (isCaller) vtx = pc.addTransceiver("video", { direction: "sendrecv" });
@@ -208,8 +209,14 @@ function run({ id, me, role, kind, other, offer }) {
   };
   const camMsg = (e) => (/NotAllowed|Permission|denied/i.test(String(e?.name + e?.message)) ? "Allow camera access in your settings to use video. This will be a voice call." : /NotFound|Overconstrained/i.test(String(e?.name)) ? "No camera was found, so this will be a voice call." : "The camera isn’t available, so this will be a voice call.");
   const useCamera = async () => {
-    const s = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } }); cam = s.getVideoTracks()[0];
-    if (!screen) { await vtx.sender.replaceTrack(cam); setPreview(cam); } syncLocal();
+    const s = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+    const next = s.getVideoTracks()[0], previous = cam;
+    try {
+      if (!screen) { await vtx.sender.replaceTrack(next); setPreview(next); }
+      cam = next;
+      previous?.stop();
+      syncLocal();
+    } catch (e) { s.getTracks().forEach((t) => t.stop()); throw e; }
   };
   const setPreview = (t) => { preview.getVideoTracks().forEach((x) => preview.removeTrack(x)); if (t) preview.addTrack(t); syncLocal(); };
 
@@ -273,7 +280,7 @@ function run({ id, me, role, kind, other, offer }) {
     if (closing) return; closing = true; ended = true; quiet(); playSound("callEnd"); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
-    try { unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); remoteV.pause?.(); remoteV.srcObject = null; sharedEl.pause?.(); sharedEl.srcObject = null; pc.close(); } catch {}
+    try { unsubs.forEach((f) => f()); [mic, cam, screen, sStream].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); remoteV.pause?.(); remoteV.srcObject = null; sharedEl.pause?.(); sharedEl.srcObject = null; pc.close(); } catch {}
     try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); ov.classList.add("ended"); $$(".cs-b,.cs-pb", ov).forEach((b) => { if (b.id !== "clEnd" && b.id !== "clEnd2") b.disabled = true; }); } catch {}
     document.documentElement.classList.remove("dlx-lock"); active = null;
     setTimeout(() => ov.remove(), 1500);
