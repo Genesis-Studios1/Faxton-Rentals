@@ -526,7 +526,7 @@ service cloud.firestore {
           return signedIn() && (request.auth.uid in c.members || (c.calleeUid == 'staff' && (isAdmin() || isSupport())));
         }
         allow read: if party();
-        allow create: if party() && request.resource.data.from == request.auth.uid && request.resource.data.keys().size() <= 3;
+        allow create: if party() && request.resource.data.keys().hasOnly(['from', 'c']) && request.resource.data.from == request.auth.uid && request.resource.data.c is string && request.resource.data.c.size() <= 4000;
       }
     }
     // Blocking: one document per pair, named blocker_blocked. The person who blocked can remove it; both can see it.
