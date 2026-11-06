@@ -19,7 +19,7 @@ an admin console. Light and dark mode. Plain HTML, CSS and JavaScript (ES module
 | `firebase.json` | Hosting settings: security headers, the Content-Security-Policy, caching rules. |
 | `firestore.rules` | Who may read or write what. Deny by default. |
 | `firestore.indexes.json` | Search indexes. Faxton needs no custom ones; the file also switches off indexing for big picture fields. |
-| `storage.rules` | Only for the optional app-installer upload. The app does not use Firebase Storage for pictures. |
+| `storage.rules` | Dormant rules for a future Firebase Storage setup. They are not active until a bucket is configured and the rules are deployed. |
 | `scripts/check-release.mjs` | `npm run check`: stops a broken release before it goes out. |
 | `scripts/smoke-live.mjs` | `node scripts/smoke-live.mjs https://your-site`: checks the live site from outside. |
 | `tests/rules/` | Security-rule tests (`npm run test:rules`). |
@@ -29,8 +29,9 @@ an admin console. Light and dark mode. Plain HTML, CSS and JavaScript (ES module
 ## How the data is stored
 
 * **Firebase Authentication**: email and password, and Google sign-in.
-* **Cloud Firestore** on the free Spark plan. There are **no Cloud Functions and no Storage**: photos, voice notes and documents are saved as text
-  ("data URLs") inside Firestore documents, so each document must stay under 1 MiB. The rules cap picture fields well below that.
+* **Cloud Firestore** on the free Spark plan. Firebase Storage is **not enabled**. Listing photos and videos currently use HTTPS links; direct uploads from
+  the listing editor and app-installer editor are disabled until a Storage bucket is configured and its rules are deployed. Voice notes and documents
+  that use data URLs remain in Firestore, so each document must stay under 1 MiB.
 * **No sample homes are ever shown to visitors.** If there are no live listings the app shows an honest empty state. The sample homes in
   `public/js/data.js` (`DEMO_SEED`) exist only for tests and for the owner's optional demo mode (below).
 
@@ -85,12 +86,12 @@ a different name updates at once.
 
 ## Security
 
-* Headers and the Content-Security-Policy are in `firebase.json`. Only these outside hosts are allowed: Google/Firebase (`gstatic`, `googleapis`,
-  `apis.google.com`, the project's `firebaseapp.com` sign-in domain), OpenStreetMap tiles (as images), `overpass-api.de` (nearby places), GitHub's API
-  (app update check), and the TURN call-relay hosts (`metered`, Cloudflare). Pictures and videos from any `https://` address are allowed because
-  agents paste photo links.
+* Headers and the Content-Security-Policy are in `firebase.json`. Only these outside hosts are allowed: Google/Firebase (`gstatic`, `googleapis`, `apis.google.com`, the project's `firebaseapp.com` sign-in domain),
+  reCAPTCHA Enterprise/App Check (`google.com/recaptcha`, `recaptchaenterprise.googleapis.com`, and Firebase App Check APIs), OpenStreetMap tiles
+  (as images), `overpass-api.de` (nearby places), GitHub's API (app update check), and the TURN call-relay hosts (`metered`, Cloudflare). Pictures
+  and videos from any `https://` address are allowed because agents paste photo links.
 * Firestore rules are deny-by-default, with size limits and "who owns this" checks (for example a booking can only point at the real owner of the
-  home). `npm run test:rules` runs 156 checks against the emulator.
+  home). `npm run test:rules` runs the rules suite against the emulator; the current passing test total is reported in GitHub Actions.
 * The Firebase *web config* in `public/js/firebase.js` is public by design. Access is controlled by the rules, not by hiding it.
   Never commit service-account keys, signing keystores (`*.jks`, `*.keystore`, `*.p12`) or `.env` files. Android signing keystores and passwords must never be committed. The former sideload keystore was exposed in public Git history and has been removed from the current source; treat it as compromised, replace it using GitHub Actions Secrets, and rewrite repository history before relying on the removal.
 
@@ -117,7 +118,36 @@ In the Firebase console (project **faxton-rentals**):
 Troubleshooting deploys:
 * *"resolving hosting target of a site with no site name"*: run `npm run setup:site` (or Console > Hosting > Get started). If the name is taken, put another in `firebase.json` as `"site"`.
 * *Firestore error on deploy*: create the database first, or run `npm run deploy:hosting`.
-* *Storage step fails*: expected on the free plan; that step is allowed to fail.
+* Firebase Storage is intentionally excluded from the standard deploy while the bucket is unconfigured. Do not deploy Storage rules or enable file uploads until the bucket, billing plan and rules have been reviewed.
+
+## App Check and public write protection
+
+The public marketing site currently directs visitors to the Faxton web app; it no longer needs anonymous writes to the `waitlist` collection. Firestore therefore keeps historical waitlist records readable by admins but rejects all new public creates. The old browser-side waitlist submission code has been removed.
+
+### App Check setup
+
+The production reCAPTCHA Enterprise key has been created, the **Faxton-Rentals Web App** has been registered in Firebase App Check with the **Fraud Defense** provider, and the public site key is configured on this PR branch in `public/js/app-check-config.js`. This configuration is not on the live site yet because the PR has not been merged or deployed. App Check enforcement is still **off**.
+
+Before rollout:
+1. In Google Cloud, verify that the key's allowed domains include every real production hostname that serves the app, including `faxtonrentals.com` if it serves the web app, `www.faxtonrentals.com` if used, and `faxton-rentals.web.app`. Do not add localhost to the production key. Use a separate key or the App Check debug provider for local development.
+2. Confirm the Firebase App Check registration is attached to the correct Faxton web app (the web app used by this repository).
+3. Merge and deploy the reviewed client change only when approved. Then inspect App Check request metrics for Firestore and test sign-in, signup, listings, messaging, calls, and the mobile/desktop wrappers.
+4. Keep enforcement off during the observation period. Enforce Cloud Firestore only after legitimate production and wrapper traffic is accounted for; do not enable other services at the same time.
+5. For local testing after enforcement, configure a separate App Check debug workflow and register its debug token in Firebase Console. Never commit or publish a debug token.
+
+The production key must be **score-based** (invisible; do not select a checkbox challenge). Google says the root domain covers its subdomains, so add `faxtonrentals.com` and the separate Firebase Hosting host `faxton-rentals.web.app`; do not add `localhost` to the production key. Keep the default App Check token TTL while testing. The current no-billing reCAPTCHA Essentials tier includes 10,000 assessments per calendar month across the Google Cloud organization; after that, Essentials requests are rate-limited until the next month. Linking billing changes the tier and can create charges, so do not link billing just to set up the key. See the Google Cloud [reCAPTCHA billing information](https://docs.cloud.google.com/recaptcha/docs/billing-information) before making any billing change.
+
+### TURN relay credentials
+
+The old rule allowed every email-verified user to read `config/ice`, which can include static TURN usernames/passwords or a credentials URL containing a provider API key. The draft security rules now restrict that document to the owner/admin. This is an immediate containment measure, not the final calling architecture: ordinary callers will fall back to STUN-only connections, so calls may fail on restrictive networks until Faxton has a trusted backend that issues short-lived TURN credentials. Check the provider console and rotate any static password or API key that was stored in that document; existing users may have read it while the old rule was active. Do not put a provider master key back into a client-readable Firestore document.
+
+Call creation also requires the Firebase Auth `email_verified` claim. The app refreshes the ID token after a user verifies their email; the Firestore emulator suite covers denial for unverified callers and acceptance for verified callers. This raises the bar for call spam but is not a per-user call quota.
+
+App Check helps Firebase distinguish genuine app traffic from unverified requests, but it is not a per-user or per-IP quota. This repository does not currently have a trusted rate-limiting backend. The old public waitlist write route is closed instead; if a public waitlist form is reintroduced, route submissions through a server-side endpoint with App Check verification and transactional rate limits rather than reopening anonymous Firestore creates.
+
+### Automated dependency updates
+
+Dependabot proposes weekly npm dependency updates for the desktop, mobile and Firestore-rules test packages, plus GitHub Actions updates. Minor and patch updates are grouped to keep review volume manageable. These are proposals only: review and run CI before merging; no dependency is updated automatically in production.
 
 ## Apps (Android, iPhone, Windows, Mac, Linux)
 

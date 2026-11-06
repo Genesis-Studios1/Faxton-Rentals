@@ -49,11 +49,12 @@ service cloud.firestore {
     // Never readable or writable from the app. Set once from the Firebase console: { ownerEmail: "<owner's email>" }
     match /config/bootstrap { allow read, write: if false; }
 
-    // Optional TURN relay for calls: an admin saves it in Settings > Call relay. The call screen of every user needs these details to
-    // place a call, so they are readable by signed-in users whose email is verified (not by signed-out visitors or unverified sign-ups).
-    // See LAUNCH.md "Call relay" for the trade-off. Only admins and the owner can write.
+    // Optional TURN relay for calls: admins save details in Settings > Call relay.
+    // Only owner/admin can read this document because it may contain provider credentials.
+    // Ordinary callers use STUN until a trusted backend can mint short-lived TURN credentials.
     match /config/ice {
-      allow read: if signedIn() && request.auth.token.email_verified == true;
+      // Relay credentials and credentials URLs can contain provider secrets. Admins only may read them.
+      allow read: if isAdmin();
       allow write: if isAdmin() && request.resource.data.keys().hasOnly(['servers', 'credsUrl', 'updatedAt'])
         && request.resource.data.servers is list && request.resource.data.servers.size() <= 8
         && (!('credsUrl' in request.resource.data) || (request.resource.data.credsUrl is string && request.resource.data.credsUrl.size() <= 400));
@@ -490,6 +491,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answer', 'answeredAt', 'calleeUid', 'members']);
       }
       allow create: if signedIn()
+        && request.auth.token.email_verified == true
         && request.resource.data.callerUid == request.auth.uid
         && request.resource.data.status == 'ringing'
         && request.resource.data.kind in ['voice', 'video']
@@ -524,7 +526,7 @@ service cloud.firestore {
           return signedIn() && (request.auth.uid in c.members || (c.calleeUid == 'staff' && (isAdmin() || isSupport())));
         }
         allow read: if party();
-        allow create: if party() && request.resource.data.from == request.auth.uid && request.resource.data.keys().size() <= 3;
+        allow create: if party() && request.resource.data.keys().hasOnly(['from', 'c']) && request.resource.data.from == request.auth.uid && request.resource.data.c is string && request.resource.data.c.size() <= 4000;
       }
     }
     // Blocking: one document per pair, named blocker_blocked. The person who blocked can remove it; both can see it.
@@ -632,24 +634,11 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin() || isSupport() || hasStaffDirectMessage());
     }
 
-    // Public website waitlist: visitors may submit a strictly validated entry; only authorised admins may read it.
-    function validWebsiteWaitlist(d) {
-      return d.keys().hasAll(['name', 'email', 'role', 'city', 'source', 'createdAt'])
-        && d.keys().hasOnly(['name', 'email', 'role', 'city', 'source', 'createdAt'])
-        && d.name is string && d.name.size() >= 2 && d.name.size() <= 80
-        && d.email is string && d.email.size() >= 6 && d.email.size() <= 120
-        && d.email.matches('^[^@ ]+@[^@ ]+[.][^@ .]+')
-        && d.role in ['renter', 'owner', 'agency', 'agent']
-        && d.city is string && d.city.size() >= 2 && d.city.size() <= 60
-        && d.source == 'website'
-        && d.createdAt is timestamp
-	&& d.createdAt <= request.time
-	&& d.createdAt >= request.time - duration.value(10, 'm');
-    }
+    // Historic website waitlist records remain admin-readable, but public submissions
+    // are disabled. The current public site sends visitors to app signup instead.
     match /waitlist/{entryId} {
-      allow create: if validWebsiteWaitlist(request.resource.data);
       allow get, list: if isAdmin();
-      allow update, delete: if false;
+      allow create, update, delete: if false;
     }
 
     // Everything else is closed.

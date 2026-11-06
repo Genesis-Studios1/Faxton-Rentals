@@ -74,8 +74,9 @@ const validEntry = () => ({
 });
 
 await check(
-  "public visitor can submit a valid signup",
-  addDoc(collection(visitor, "waitlist"), validEntry())
+  "public visitor cannot submit a waitlist entry",
+  addDoc(collection(visitor, "waitlist"), validEntry()),
+  false
 );
 
 await check(

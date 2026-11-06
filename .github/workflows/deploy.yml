@@ -17,13 +17,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - name: Check deploy key
         env:
           KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           if [ -z "$KEY" ]; then echo "::error::Missing repository secret FIREBASE_SERVICE_ACCOUNT. See README > Deploy from GitHub."; exit 1; fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 22
       - name: Test property listing media and syntax
@@ -66,8 +68,8 @@ jobs:
       - name: Deploy Firestore indexes (optional)
         continue-on-error: true
         run: npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals --non-interactive
-      # Storage is intentionally skipped because this project does not use Firebase Storage and the default bucket
-      # is not configured for the project/service account. Deploying Storage here causes a 403 defaultBucket lookup.
+      # Storage is intentionally skipped: this project has no configured/enabled bucket. Client-side property-media
+      # and installer uploads are fail-closed until a bucket and reviewed Storage rules are deliberately set up.
       # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
       - name: Smoke test the live site
         run: |

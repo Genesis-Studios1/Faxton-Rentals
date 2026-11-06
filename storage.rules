@@ -1,6 +1,6 @@
-// Faxton keeps pictures, audio and documents inside Firestore documents (as data), so the app does NOT use Firebase Storage.
-// The only exception is the optional app-installer upload in Admin > Installations, which needs Storage (and the paid Blaze plan).
-// Everything else is closed. If you never switch Storage on, this file does nothing.
+// DORMANT RULES: Firebase Storage is not enabled for this project at present.
+// These rules do not protect a bucket until one is configured and this file is deployed to it.
+// Review the rules and verify the bucket before enabling any Storage-backed upload feature.
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {

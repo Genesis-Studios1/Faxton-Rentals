@@ -26,7 +26,7 @@ export function msgStatus(m, c, mySide, pres) {
   if (rd && rd >= at) return "read";
   if (!c?.rd && !c?.dv && legacyRead(c || {}, mySide)) return "read";
   const dv = num(c?.dv?.[o]);
-  if ((dv && dv >= at) || pres?.state === "online") return "delivered";
+  if (dv && dv >= at) return "delivered";
   return "sent";
 }
 

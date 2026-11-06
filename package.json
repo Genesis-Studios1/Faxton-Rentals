@@ -12,9 +12,10 @@
     "deploy:hosting": "npx --yes firebase-tools deploy --only hosting --project faxton-rentals",
     "deploy:rules": "npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals",
     "check": "node scripts/check-release.mjs",
-    "deploy:all": "npx --yes firebase-tools deploy --project faxton-rentals",
+    "deploy:all": "npx --yes firebase-tools deploy --only hosting,firestore --project faxton-rentals",
     "deploy:indexes": "npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals",
     "test:rules": "npm --prefix tests/rules install --silent && npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton \"node tests/rules/run.mjs\"",
-    "build:seo": "node scripts/build-public-site.mjs"
+    "build:seo": "node scripts/build-public-site.mjs",
+    "deploy:storage": "npx --yes firebase-tools deploy --only storage --project faxton-rentals"
   }
 }
