@@ -10,6 +10,10 @@ const call = (to) => ({ convId: "", title: "", kind: "voice", status: "ringing",
 await t("unverified user cannot initiate a call", addDoc(collection(unverified, "calls"), { ...call("u2"), callerUid: "unverified", members: ["unverified", "u2"] }), false);
 const r = await addDocSafe(own, call("u2")); async function addDocSafe(db, d) { return addDoc(collection(db, "calls"), d); }
 await t("callee marks delivered", updateDoc(doc(u2, "calls", r.id), { delivered: true }));
+await t("caller can add a bounded ICE candidate", addDoc(collection(own, "calls", r.id, "ice"), { from: "own", c: JSON.stringify({ candidate: "candidate:1 1 udp 1 192.0.2.1 1234 typ host" }) }));
+await t("ICE candidate cannot contain extra fields", addDoc(collection(own, "calls", r.id, "ice"), { from: "own", c: "candidate", extra: "nope" }), false);
+await t("ICE candidate payload is bounded", addDoc(collection(own, "calls", r.id, "ice"), { from: "own", c: "x".repeat(4001) }), false);
+await t("callee cannot spoof ICE candidate sender", addDoc(collection(u2, "calls", r.id, "ice"), { from: "own", c: "candidate" }), false);
 await t("callee cannot change other fields", updateDoc(doc(u2, "calls", r.id), { callerUid: "u2" }), false);
 await t("callee cannot add a third party to call membership", updateDoc(doc(u2, "calls", r.id), { members: ["own", "u2", "adm"] }), false);
 await t("callee cannot reassign the call to another user", updateDoc(doc(u2, "calls", r.id), { calleeUid: "adm" }), false);
