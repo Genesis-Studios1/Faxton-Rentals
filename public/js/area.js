@@ -77,7 +77,8 @@ export const WORK = [
   ["Yaba", 6.5095, 3.3711, 0], ["Surulere", 6.501, 3.3569, 0], ["Maryland", 6.5667, 3.3667, 0], ["Ikeja", 6.6018, 3.3515, 0],
 ];
 export function validCoordinates(value) {
-  const lat = Number(value?.lat), lng = Number(value?.lng);
+  const number = (v) => typeof v === "number" || (typeof v === "string" && v.trim() !== "") ? Number(v) : NaN;
+  const lat = number(value?.lat), lng = number(value?.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
   return { lat, lng };
 }
