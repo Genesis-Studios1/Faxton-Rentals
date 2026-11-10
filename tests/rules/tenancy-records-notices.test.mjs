@@ -46,7 +46,7 @@ const r = await addDoc(collection(lord, "records"), R);
 await t("tenant cannot mark rent as paid", updateDoc(doc(ten, "records", r.id), { status: "Paid", paidOn: "2026-10-01", updatedAt: serverTimestamp() }), false);
 await t("tenant may submit payment date without changing status", updateDoc(doc(ten, "records", r.id), { paidOn: "2026-10-01", updatedAt: serverTimestamp() }));
 await t("owner can mark rent as paid", updateDoc(doc(lord, "records", r.id), { status: "Paid", confirmed: true, updatedAt: serverTimestamp() }));
-await t("tenant cannot confirm", updateDoc(doc(ten, "records", r.id), { confirmed: true }), false);
+await t("tenant cannot change the owner confirmation", updateDoc(doc(ten, "records", r.id), { confirmed: false }), false);
 await t("owner confirms", updateDoc(doc(lord, "records", r.id), { confirmed: true, updatedAt: serverTimestamp() }));
 await t("tenant reads own records by query", getDocs(query(collection(ten, "records"), where("uid", "==", "ten"))));
 // notices
