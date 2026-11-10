@@ -1,6 +1,6 @@
 // Faxton Rentals desktop shell (Windows + macOS). It opens the live site in a locked-down window,
 // so the app is always the latest deployed version. The shell itself updates through GitHub Releases.
-const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, session, dialog, ipcMain, desktopCapturer } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
 
@@ -56,8 +56,40 @@ app.whenReady().then(() => {
   const mine = (url) => { try { return new URL(url).hostname === "faxton-rentals.web.app" || new URL(url).hostname === "faxton-rentals.firebaseapp.com"; } catch { return false; } };
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(OK.has(perm) && mine(wc.getURL())));
   session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => OK.has(perm) && mine(origin || (wc && wc.getURL())));
-  // Screen sharing in a call: share the first screen (the browser picker isn't available in Electron).
-  session.defaultSession.setDisplayMediaRequestHandler((_req, cb) => { require("electron").desktopCapturer.getSources({ types: ["screen", "window"] }).then((src) => cb(src[0] ? { video: src[0] } : {})).catch(() => cb({})); });
+  // Never silently share the first display. Confirm the requesting origin and let the person choose a source.
+  session.defaultSession.setDisplayMediaRequestHandler(async (request, cb) => {
+    try {
+      if (!request.videoRequested || new URL(request.securityOrigin).host !== HOST) return cb({});
+      const sources = await desktopCapturer.getSources({
+        types: ["screen", "window"],
+        thumbnailSize: { width: 0, height: 0 },
+        fetchWindowIcons: false,
+      });
+      if (!sources.length || !win || win.isDestroyed()) return cb({});
+      const choices = sources.slice(0, 12);
+      const labels = choices.map((source) => {
+        const kind = source.id.startsWith("screen:") ? "Screen" : "Window";
+        return `${kind}: ${source.name.slice(0, 72)}`;
+      });
+      const options = {
+        type: "question",
+        title: "Choose what to share",
+        message: "Select the screen or app window you want to share.",
+        detail: "Faxton will only share the item you select. Choose Cancel to share nothing.",
+        buttons: [...labels, "Cancel"],
+        cancelId: labels.length,
+        defaultId: labels.length,
+        noLink: true,
+      };
+      const selected = await dialog.showMessageBox(win, options);
+      const source = selected.response >= 0 && selected.response < choices.length
+        ? choices[selected.response]
+        : null;
+      cb(source ? { video: source } : {});
+    } catch {
+      cb({});
+    }
+  });
   Menu.setApplicationMenu(process.platform === "darwin" ? Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]) : null);
   create();
   app.on("activate", () => { if (!BrowserWindow.getAllWindows().length) create(); });
