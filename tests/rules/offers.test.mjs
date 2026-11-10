@@ -22,6 +22,7 @@ await t("admin reads", getDoc(doc(adm, "offers", id)));
 await t("renter cannot accept own offer", updateDoc(doc(ren, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: [...base.history, E("renter", "ren", "accept", 3200000)], updatedAt: serverTimestamp() }), false);
 await t("owner cannot change amount while accepting", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3000000, history: [...base.history, E("owner", "lord", "accept", 3000000)], updatedAt: serverTimestamp() }), false);
 await t("owner cannot skip the history", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: base.history, updatedAt: serverTimestamp() }), false);
+await t("owner cannot rewrite an earlier history entry", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: [{ ...base.history[0], amount: 1 }, E("owner", "lord", "accept", 3200000)], updatedAt: serverTimestamp() }), false);
 await t("owner cannot sign as someone else", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: [...base.history, E("owner", "ren", "accept", 3200000)], updatedAt: serverTimestamp() }), false);
 const h2 = [...base.history, E("owner", "lord", "counter", 3400000)];
 await t("owner counters", updateDoc(doc(lord, "offers", id), { status: "Countered", turn: "renter", amount: 3400000, history: h2, updatedAt: serverTimestamp() }));
@@ -33,7 +34,8 @@ const h4 = [...h3, E("owner", "lord", "accept", 3300000)];
 await t("owner accepts", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3300000, history: h4, updatedAt: serverTimestamp() }));
 await t("accepted offer is final", updateDoc(doc(ren, "offers", id), { status: "Withdrawn", turn: "", amount: 3300000, history: [...h4, E("renter", "ren", "withdraw", 3300000)], updatedAt: serverTimestamp() }), false);
 // notifications
-await t("owner notifies renter about the offer", addDoc(collection(lord, "notifications"), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "x", href: "/offers", ref: id, createdAt: serverTimestamp() }));
+await t("owner cannot send a misleading offer notification", addDoc(collection(lord, "notifications"), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "Your payment has been received.", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
+await t("owner sends a truthful offer notification", addDoc(collection(lord, "notifications"), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "Your rent offer has been accepted.", href: "/offers", ref: id, createdAt: serverTimestamp() }));
 await t("stranger cannot notify", addDoc(collection(oth, "notifications"), { uid: "ren", read: false, kind: "offer", title: "x", body: "x", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
 await t("cannot notify a third person", addDoc(collection(lord, "notifications"), { uid: "oth", read: false, kind: "offer", title: "x", body: "x", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
 await t("cannot send other kinds", addDoc(collection(lord, "notifications"), { uid: "ren", read: false, kind: "verified", title: "x", body: "x", ref: id, createdAt: serverTimestamp() }), false);
