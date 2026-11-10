@@ -701,9 +701,142 @@ service cloud.firestore {
         allow read: if signedIn() && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
         allow create: if signedIn() && request.resource.data.from == request.auth.uid
           && short(request.resource.data.text, 2000) && request.resource.data.keys().size() <= 14
-          && (!('image' in request.resource.data) || (request.resource.data.image is string && request.resource.data.image.size() < 450000))
-          && (!('audio' in request.resource.data) || (request.resource.data.audio is string && request.resource.data.audio.size() < 600000))
-          && (!('file' in request.resource.data) || (request.resource.data.file is string && request.resource.data.file.size() < 600000))
+          && (!('image' in request.resource.data) || (request.resource.data.image is string
+            && request.resource.data.image.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+
+          && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
+      }
+    }
+
+    // Presence for the message ticks and "Last seen": a tiny heartbeat document per person, written only by that person.
+    // lastSeen must be the server clock. A person can read it when it is theirs, when they are staff, or when they have a
+    // staff-started chat with that person (the chat is named <their uid>__dm_<staff uid>, so the rule can check it exists).
+    match /presence/{uid} {
+      function hasStaffDirectMessage() {
+        let forward = /databases/$(database)/documents/conversations/$(request.auth.uid + '__dm_' + uid);
+        let reverse = /databases/$(database)/documents/conversations/$(uid + '__dm_' + request.auth.uid);
+        return (exists(forward)
+            && get(forward).data.get('uid', '') == request.auth.uid
+            && get(forward).data.get('byStaff', '') == uid
+            && get(forward).data.get('agent', {}).get('id', '') == uid)
+          || (exists(reverse)
+            && get(reverse).data.get('uid', '') == uid
+            && get(reverse).data.get('byStaff', '') == request.auth.uid
+            && get(reverse).data.get('agent', {}).get('id', '') == request.auth.uid);
+      }
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['online', 'show', 'lastSeen'])
+        && request.resource.data.keys().hasAll(['online', 'lastSeen'])
+        && request.resource.data.online is bool && request.resource.data.get('show', true) is bool
+        && request.resource.data.lastSeen == request.time;
+      allow delete: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin() || isSupport() || hasStaffDirectMessage());
+    }
+
+    // Historic website waitlist records remain admin-readable, but public submissions
+    // are disabled. The current public site sends visitors to app signup instead.
+    match /waitlist/{entryId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Everything else is closed.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
+)
+            && request.resource.data.image.size() < 450000))
+          && (!('audio' in request.resource.data) || (request.resource.data.audio is string
+            && request.resource.data.audio.matches('^data:audio/(webm|mp4|ogg)(;codecs=[A-Za-z0-9._-]+)?;base64,[A-Za-z0-9+/=]+
+          && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
+      }
+    }
+
+    // Presence for the message ticks and "Last seen": a tiny heartbeat document per person, written only by that person.
+    // lastSeen must be the server clock. A person can read it when it is theirs, when they are staff, or when they have a
+    // staff-started chat with that person (the chat is named <their uid>__dm_<staff uid>, so the rule can check it exists).
+    match /presence/{uid} {
+      function hasStaffDirectMessage() {
+        let forward = /databases/$(database)/documents/conversations/$(request.auth.uid + '__dm_' + uid);
+        let reverse = /databases/$(database)/documents/conversations/$(uid + '__dm_' + request.auth.uid);
+        return (exists(forward)
+            && get(forward).data.get('uid', '') == request.auth.uid
+            && get(forward).data.get('byStaff', '') == uid
+            && get(forward).data.get('agent', {}).get('id', '') == uid)
+          || (exists(reverse)
+            && get(reverse).data.get('uid', '') == uid
+            && get(reverse).data.get('byStaff', '') == request.auth.uid
+            && get(reverse).data.get('agent', {}).get('id', '') == request.auth.uid);
+      }
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['online', 'show', 'lastSeen'])
+        && request.resource.data.keys().hasAll(['online', 'lastSeen'])
+        && request.resource.data.online is bool && request.resource.data.get('show', true) is bool
+        && request.resource.data.lastSeen == request.time;
+      allow delete: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin() || isSupport() || hasStaffDirectMessage());
+    }
+
+    // Historic website waitlist records remain admin-readable, but public submissions
+    // are disabled. The current public site sends visitors to app signup instead.
+    match /waitlist/{entryId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Everything else is closed.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
+)
+            && request.resource.data.audio.size() < 600000))
+          && (!('file' in request.resource.data) || (request.resource.data.file is string
+            && request.resource.data.file.matches('^data:(application/pdf|application/msword|application/vnd\\.openxmlformats-officedocument\\.(wordprocessingml\\.document|spreadsheetml\\.sheet|presentationml\\.presentation)|application/vnd\\.(ms-excel|ms-powerpoint)|text/(plain|csv));base64,[A-Za-z0-9+/=]+
+          && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
+      }
+    }
+
+    // Presence for the message ticks and "Last seen": a tiny heartbeat document per person, written only by that person.
+    // lastSeen must be the server clock. A person can read it when it is theirs, when they are staff, or when they have a
+    // staff-started chat with that person (the chat is named <their uid>__dm_<staff uid>, so the rule can check it exists).
+    match /presence/{uid} {
+      function hasStaffDirectMessage() {
+        let forward = /databases/$(database)/documents/conversations/$(request.auth.uid + '__dm_' + uid);
+        let reverse = /databases/$(database)/documents/conversations/$(uid + '__dm_' + request.auth.uid);
+        return (exists(forward)
+            && get(forward).data.get('uid', '') == request.auth.uid
+            && get(forward).data.get('byStaff', '') == uid
+            && get(forward).data.get('agent', {}).get('id', '') == uid)
+          || (exists(reverse)
+            && get(reverse).data.get('uid', '') == uid
+            && get(reverse).data.get('byStaff', '') == request.auth.uid
+            && get(reverse).data.get('agent', {}).get('id', '') == request.auth.uid);
+      }
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['online', 'show', 'lastSeen'])
+        && request.resource.data.keys().hasAll(['online', 'lastSeen'])
+        && request.resource.data.online is bool && request.resource.data.get('show', true) is bool
+        && request.resource.data.lastSeen == request.time;
+      allow delete: if signedIn() && request.auth.uid == uid;
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin() || isSupport() || hasStaffDirectMessage());
+    }
+
+    // Historic website waitlist records remain admin-readable, but public submissions
+    // are disabled. The current public site sends visitors to app signup instead.
+    match /waitlist/{entryId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Everything else is closed.
+    match /{document=**} { allow read, write: if false; }
+  }
+}
+)
+            && request.resource.data.file.size() < 600000))
+          && (!('fname' in request.resource.data) || short(request.resource.data.fname, 80))
+          && (!('fsize' in request.resource.data) || (request.resource.data.fsize is number && request.resource.data.fsize >= 0 && request.resource.data.fsize <= 400000))
+          && (!('dur' in request.resource.data) || (request.resource.data.dur is number && request.resource.data.dur > 0 && request.resource.data.dur <= 90))
+          && (!('wave' in request.resource.data) || (request.resource.data.wave is list && request.resource.data.wave.size() == 40))
           && (!('reply' in request.resource.data) || request.resource.data.reply is map)
           && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
       }
