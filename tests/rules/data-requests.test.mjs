@@ -4,13 +4,14 @@ import { setDoc, doc, addDoc, collection, serverTimestamp, updateDoc, getDoc, ge
 const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
 await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" });
   for (const [u, r] of [["own", "renter"], ["adm", "admin"], ["ren", "renter"], ["sup", "support"], ["oth", "renter"]]) await setDoc(doc(d, "users/" + u), { role: r, name: u, email: u + "@x.com", saved: [] });
-  await setDoc(doc(d, "dataRequests/seed"), { uid: "ren", name: "Ren", role: "renter", status: "verified-downloaded", at: new Date() }); });
+  await setDoc(doc(d, "dataRequests/seed"), { uid: "ren", name: "Ren", role: "renter", status: "client-reported-downloaded", at: new Date() }); });
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
 const ctxOf = (u) => env.authenticatedContext(u, { email_verified: true, email: u + "@x.com" }).firestore();
 const ren = ctxOf("ren"), adm = ctxOf("adm"), own = ctxOf("own"), sup = ctxOf("sup"), oth = ctxOf("oth"), anon = env.unauthenticatedContext().firestore();
-const R = (o = {}) => ({ uid: "ren", name: "Ren", role: "renter", status: "verified-downloaded", at: serverTimestamp(), ...o });
+const R = (o = {}) => ({ uid: "ren", name: "Ren", role: "renter", status: "client-reported-downloaded", at: serverTimestamp(), ...o });
 await t("user files their own data request", addDoc(collection(ren, "dataRequests"), R()));
 await t("cannot file one for someone else", addDoc(collection(ren, "dataRequests"), R({ uid: "oth" })), false);
+await t("cannot claim server-verified download status", addDoc(collection(ren, "dataRequests"), R({ status: "verified-downloaded" })), false);
 await t("cannot choose another status", addDoc(collection(ren, "dataRequests"), R({ status: "reviewed" })), false);
 await t("cannot claim another role", addDoc(collection(ren, "dataRequests"), R({ role: "admin" })), false);
 await t("cannot backdate the time", addDoc(collection(ren, "dataRequests"), R({ at: new Date(0) })), false);
