@@ -14,7 +14,9 @@
     "@aparajita/capacitor-biometric-auth": "^9.1.2"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^7.0.0"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.13.7"
   }
 }
