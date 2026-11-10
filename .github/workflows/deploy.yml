@@ -6,8 +6,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: "23 */6 * * *"
 concurrency:
   group: deploy
   cancel-in-progress: true
@@ -60,14 +58,14 @@ jobs:
           node --check public/sw.js
           REQUIRE_PUBLIC_LISTINGS=1 node scripts/build-public-site.mjs
           node scripts/check-release.mjs
-          npx --yes firebase-tools deploy --only hosting --project faxton-rentals --non-interactive
+          npx --yes firebase-tools@15.35.0 deploy --only hosting --project faxton-rentals --non-interactive
       # Not continue-on-error: if the rules can't be published the run turns red, so a stale ruleset is never silent.
       - name: Deploy Firestore rules (needs the Firestore database to exist)
-        run: npx --yes firebase-tools deploy --only firestore:rules --project faxton-rentals --non-interactive
+        run: npx --yes firebase-tools@15.35.0 deploy --only firestore:rules --project faxton-rentals --non-interactive
       # Indexes need the service account to hold the "Datastore Index Admin" role (IAM). Until it does, this step warns instead of failing the release.
       - name: Deploy Firestore indexes (optional)
         continue-on-error: true
-        run: npx --yes firebase-tools deploy --only firestore:indexes --project faxton-rentals --non-interactive
+        run: npx --yes firebase-tools@15.35.0 deploy --only firestore:indexes --project faxton-rentals --non-interactive
       # Storage is intentionally skipped: this project has no configured/enabled bucket. Client-side property-media
       # and installer uploads are fail-closed until a bucket and reviewed Storage rules are deliberately set up.
       # After the deploy, make sure the live site answers and still sends its security headers and the offline/404 pages.
