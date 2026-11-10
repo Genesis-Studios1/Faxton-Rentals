@@ -264,8 +264,8 @@ Prepared for: ${name}
 Prepared on:  ${when}   (app version ${BUILD})
 
 This is the personal data Faxton Rentals holds about you, gathered on your own device after you confirmed it was you. Nothing in this
-file was sent to anyone. Only a note that you downloaded it (your name, role and the time, with none of the contents) was saved so our
-team can see the request was served.
+file was sent to anyone. Only a client-reported note that you completed the download (your name, role and the time, with none of the contents)
+was saved. It is not independent proof that a file was saved.
 
 WHAT IS INSIDE
   README.txt     this page
