@@ -24,6 +24,7 @@ on:
       - "firestore.rules"
       - "tests/rules/**"
       - "tests/area-security.test.mjs"
+      - "tests/html-sanitizer-security.test.mjs"
       - ".github/workflows/validate-admin-alerts.yml"
 
 permissions:
@@ -46,6 +47,7 @@ jobs:
           done
           node --experimental-default-type=module --test tests/listing-media.test.mjs
           node --experimental-default-type=module --test tests/area-security.test.mjs
+          node --experimental-default-type=module --test tests/html-sanitizer-security.test.mjs
           node --check public/sw.js
           node --check apps/desktop/main.js
           node --check apps/desktop/preload.js
