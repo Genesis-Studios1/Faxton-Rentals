@@ -6,7 +6,7 @@ await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); awai
   await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x" });
   await setDoc(doc(d, "listings/seed"), { status: "active", title: "platform listing" });
   await setDoc(doc(d, "viewings/v1"), { uid: "ren", ownerUid: "lord", status: "Confirmed", title: "x", name: "y" }); });
-const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
+const t = async (n, p, want = true) => { let ok = true, error = null; try { await p; } catch (e) { ok = false; error = e; } console.log(ok === want ? "PASS" : "FAIL", n, ok === want || want === false ? "" : `(${error?.code || error?.message || "unknown error"})`); };
 const ren = env.authenticatedContext("ren").firestore(), lord = env.authenticatedContext("lord").firestore(), adm = env.authenticatedContext("adm").firestore(), oth = env.authenticatedContext("oth").firestore();
 const E = (by, uid, type, amount) => ({ by, uid, type, amount, note: "", at: Date.now() });
 const base = { uid: "ren", name: "R", ownerUid: "lord", ownerName: "L", listingId: "l1", title: "T", area: "A", image: "", listPrice: 3500000, amount: 3200000, status: "Pending", turn: "owner", history: [E("renter", "ren", "offer", 3200000)], createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
