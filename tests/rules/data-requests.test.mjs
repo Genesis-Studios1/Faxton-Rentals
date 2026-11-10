@@ -26,6 +26,7 @@ await t("admin lists records", getDocs(collection(adm, "dataRequests")));
 await t("owner reads records", getDoc(doc(own, "dataRequests/seed")));
 await t("support reads records", getDocs(collection(sup, "dataRequests")));
 await t("support marks reviewed with a note", updateDoc(doc(sup, "dataRequests/seed"), { status: "reviewed", note: "Checked." }));
+await t("support cannot revert a reviewed record", updateDoc(doc(sup, "dataRequests/seed"), { status: "client-reported-downloaded" }), false);
 await t("admin may add a note", updateDoc(doc(adm, "dataRequests/seed"), { note: "ok" }));
 await t("staff cannot rewrite the uid", updateDoc(doc(adm, "dataRequests/seed"), { uid: "oth" }), false);
 await t("staff cannot set an unknown status", updateDoc(doc(adm, "dataRequests/seed"), { status: "deleted" }), false);
