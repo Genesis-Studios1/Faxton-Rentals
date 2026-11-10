@@ -702,7 +702,19 @@ service cloud.firestore {
         allow create: if signedIn() && request.resource.data.from == request.auth.uid
           && short(request.resource.data.text, 2000) && request.resource.data.keys().size() <= 14
           && (!('image' in request.resource.data) || (request.resource.data.image is string
-            && request.resource.data.image.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+
+            && request.resource.data.image.matches('^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$')
+            && request.resource.data.image.size() < 450000))
+          && (!('audio' in request.resource.data) || (request.resource.data.audio is string
+            && request.resource.data.audio.matches('^data:audio/(webm|mp4|ogg)(;codecs=[A-Za-z0-9._-]+)?;base64,[A-Za-z0-9+/=]+$')
+            && request.resource.data.audio.size() < 600000))
+          && (!('file' in request.resource.data) || (request.resource.data.file is string
+            && request.resource.data.file.matches('^data:(application/pdf|application/msword|application/vnd[.]openxmlformats-officedocument[.](wordprocessingml[.]document|spreadsheetml[.]sheet|presentationml[.]presentation)|application/vnd[.](ms-excel|ms-powerpoint)|text/(plain|csv));base64,[A-Za-z0-9+/=]+$')
+            && request.resource.data.file.size() < 600000))
+          && (!('fname' in request.resource.data) || short(request.resource.data.fname, 80))
+          && (!('fsize' in request.resource.data) || (request.resource.data.fsize is number && request.resource.data.fsize >= 0 && request.resource.data.fsize <= 400000))
+          && (!('dur' in request.resource.data) || (request.resource.data.dur is number && request.resource.data.dur > 0 && request.resource.data.dur <= 90))
+          && (!('wave' in request.resource.data) || (request.resource.data.wave is list && request.resource.data.wave.size() == 40))
+          && (!('reply' in request.resource.data) || request.resource.data.reply is map)
           && (get(/databases/$(database)/documents/conversations/$(id)).data.uid == request.auth.uid || isAdmin() || isSupport());
       }
     }
