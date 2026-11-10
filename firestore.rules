@@ -484,7 +484,7 @@ service cloud.firestore {
           && request.resource.data.title in ['New rent offer', 'New counter-offer', 'Offer accepted', 'Offer declined', 'Offer withdrawn']
           && request.resource.data.body == expectedBody
           // A deterministic ID allows only one notification per offer event, preventing replay spam.
-          && id == 'offer_' + request.resource.data.ref + '_' + history.size() + '_' + request.auth.uid
+          && id == 'offer_' + request.resource.data.ref + '_' + string(history.size()) + '_' + request.auth.uid
           && (
             (latest.type == 'offer' && offer.status == 'Pending' && request.resource.data.title == 'New rent offer' && request.auth.uid == offer.uid)
             || (latest.type == 'counter' && request.resource.data.title == 'New counter-offer'
