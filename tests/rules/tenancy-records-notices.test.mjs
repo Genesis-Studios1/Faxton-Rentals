@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { setDoc, doc, addDoc, collection, serverTimestamp, updateDoc, getDoc, getDocs, query, where, deleteDoc } from "firebase/firestore";
 const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
 await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" }); for (const [u, r] of [["own","renter"],["adm","admin"],["ten","renter"],["lord","landlord"],["oth","renter"]]) await setDoc(doc(d, "users/" + u), { role: r });
-  await setDoc(doc(d, "applications/a1"), { uid: "ten", ownerUid: "lord", status: "Approved", title: "x" }); await setDoc(doc(d, "applications/a2"), { uid: "oth", ownerUid: "lord", status: "Under review", title: "x" }); });
+  await setDoc(doc(d, "listings/l1"), { ownerUid: "lord", status: "active", title: "Home" }); await setDoc(doc(d, "applications/a1"), { uid: "ten", ownerUid: "lord", status: "Approved", title: "x" }); await setDoc(doc(d, "applications/a2"), { uid: "oth", ownerUid: "lord", status: "Under review", title: "x" }); });
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
 const ten = env.authenticatedContext("ten").firestore(), lord = env.authenticatedContext("lord").firestore(), adm = env.authenticatedContext("adm").firestore(), oth = env.authenticatedContext("oth").firestore();
 const T = { uid: "ten", ownerUid: "lord", listingId: "l1", title: "T", area: "A", image: "", rent: 3000000, startDate: "2026-01-01", createdAt: serverTimestamp() };
@@ -26,6 +26,8 @@ await t("maintenance rejects HTML data URLs", addDoc(collection(ten, "maintenanc
 await t("user can store a PDF document", setDoc(doc(ten, "documents/lease-pdf"), { uid: "ten", name: "lease.pdf", size: 8, data: "data:application/pdf;base64,JVBERi0=" }));
 await t("user cannot store an HTML document payload", setDoc(doc(ten, "documents/html-payload"), { uid: "ten", name: "payload.html", size: 8, data: "data:text/html;base64,PHNjcmlwdD4=" }), false);
 await t("create maintenance as someone else denied", addDoc(collection(oth, "maintenance"), M), false);
+await t("maintenance request must reference an actual tenancy", addDoc(collection(ten, "maintenance"), { ...M, tenancyId: "missing" }), false);
+await t("maintenance cannot claim another tenancy owner", addDoc(collection(ten, "maintenance"), { ...M, ownerUid: "oth" }), false);
 await t("owner reads maintenance", getDoc(doc(lord, "maintenance", m.id)));
 await t("stranger cannot read maintenance", getDoc(doc(oth, "maintenance", m.id)), false);
 const U1 = [{ uid: "lord", by: "owner", text: "Plumber coming Tuesday", status: "In progress", at: Date.now() }];
@@ -50,6 +52,7 @@ await t("tenant reads own records by query", getDocs(query(collection(ten, "reco
 // notices
 const N = { ownerUid: "lord", listingId: "l1", title: "Water tank cleaning", text: "Saturday", kind: "Notice", tenants: ["ten"], createdAt: serverTimestamp() };
 const n = await addDoc(collection(lord, "notices"), N);
+await t("notice cannot claim a listing owned by another account", addDoc(collection(lord, "notices"), { ...N, ownerUid: "lord", listingId: "missing" }), false);
 await t("renter cannot post a notice", addDoc(collection(ten, "notices"), { ...N, ownerUid: "ten" }), false);
 await t("tenant reads notices addressed to them", getDocs(query(collection(ten, "notices"), where("tenants", "array-contains", "ten"))));
 await t("other tenant cannot read it", getDoc(doc(oth, "notices", n.id)), false);
