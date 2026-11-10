@@ -393,8 +393,14 @@ service cloud.firestore {
           || (get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.get('ownerUid', '') == request.auth.uid || isAdmin())
             && get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.uid == request.resource.data.uid);
       allow read: if owns() || ownsListing() || isAdmin();
-      allow update: if (owns() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidOn', 'updatedAt']))
-        || ((ownsListing() || isAdmin()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidOn', 'confirmed', 'updatedAt']));
+      // Tenants may add payment-date metadata, but cannot mark a charge as paid.
+      // Only the property owner or an admin can confirm or change payment status.
+      allow update: if (owns()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['paidOn', 'updatedAt'])
+          && request.resource.data.status == resource.data.status)
+        || ((ownsListing() || isAdmin())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidOn', 'confirmed', 'updatedAt'])
+          && request.resource.data.status in ['Due', 'Paid']);
       allow delete: if (owns() && resource.data.get('by', '') == 'tenant') || ownsListing();
     }
     // Property notices from the owner to the tenants of a home.
