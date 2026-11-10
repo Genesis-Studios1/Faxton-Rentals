@@ -41,7 +41,9 @@ await t("tenant adds own record", addDoc(collection(ten, "records"), { ...R, by:
 await t("stranger cannot add record to a tenancy", addDoc(collection(oth, "records"), { ...R, uid: "oth", by: "tenant" }), false);
 await t("owner cannot add for a different tenant", addDoc(collection(lord, "records"), { ...R, uid: "oth" }), false);
 const r = await addDoc(collection(lord, "records"), R);
-await t("tenant marks paid", updateDoc(doc(ten, "records", r.id), { status: "Paid", paidOn: "2026-10-01", updatedAt: serverTimestamp() }));
+await t("tenant cannot mark rent as paid", updateDoc(doc(ten, "records", r.id), { status: "Paid", paidOn: "2026-10-01", updatedAt: serverTimestamp() }), false);
+await t("tenant may submit payment date without changing status", updateDoc(doc(ten, "records", r.id), { paidOn: "2026-10-01", updatedAt: serverTimestamp() }));
+await t("owner can mark rent as paid", updateDoc(doc(lord, "records", r.id), { status: "Paid", confirmed: true, updatedAt: serverTimestamp() }));
 await t("tenant cannot confirm", updateDoc(doc(ten, "records", r.id), { confirmed: true }), false);
 await t("owner confirms", updateDoc(doc(lord, "records", r.id), { confirmed: true, updatedAt: serverTimestamp() }));
 await t("tenant reads own records by query", getDocs(query(collection(ten, "records"), where("uid", "==", "ten"))));
