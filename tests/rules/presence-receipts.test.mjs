@@ -1,6 +1,6 @@
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { readFileSync } from "fs";
-import { setDoc, doc, serverTimestamp, updateDoc, getDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import { setDoc, doc, serverTimestamp, updateDoc, getDoc, deleteDoc, Timestamp, addDoc, collection } from "firebase/firestore";
 const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
 await env.withSecurityRulesDisabled(async (c) => {
   const d = c.firestore();
@@ -44,4 +44,10 @@ await t("staff stamps dv.s / rd.s", updateDoc(doc(adm, "conversations/r1__dm_st1
 await t("staff cannot rewrite conversation identity metadata", updateDoc(doc(adm, "conversations/r1__dm_st1"), { uid: "r2" }), false);
 await t("staff cannot alter renter-side delivery markers", updateDoc(doc(adm, "conversations/r1__dm_st1"), { "dv.u": serverTimestamp() }), false);
 await t("another renter cannot stamp markers", updateDoc(doc(r2, "conversations/r1__dm_st1"), { "dv.u": serverTimestamp() }), false);
+const messageCol = collection(r1, "conversations/r1__dm_st1/messages");
+await t("chat accepts a JPEG image attachment", addDoc(messageCol, { from: "r1", text: "", image: "data:image/jpeg;base64,AAAA", at: serverTimestamp() }));
+await t("chat rejects SVG image payloads", addDoc(messageCol, { from: "r1", text: "", image: "data:image/svg+xml;base64,PHN2Zz4=", at: serverTimestamp() }), false);
+await t("chat accepts a PDF attachment", addDoc(messageCol, { from: "r1", text: "", file: "data:application/pdf;base64,JVBERi0=", fname: "lease.pdf", fsize: 8, at: serverTimestamp() }));
+await t("chat rejects HTML attachments", addDoc(messageCol, { from: "r1", text: "", file: "data:text/html;base64,PHNjcmlwdD4=", fname: "payload.html", fsize: 8, at: serverTimestamp() }), false);
+await t("chat accepts a voice recording", addDoc(messageCol, { from: "r1", text: "", audio: "data:audio/webm;codecs=opus;base64,AAAA", dur: 2, wave: Array(40).fill(20), at: serverTimestamp() }));
 await env.cleanup();
