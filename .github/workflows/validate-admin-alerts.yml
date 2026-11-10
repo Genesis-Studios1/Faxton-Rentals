@@ -62,4 +62,4 @@ jobs:
       - name: Install Firestore rules test dependencies
         run: npm --prefix tests/rules ci --no-audit --no-fund
       - name: Run Firestore security-rule tests
-        run: npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton "node tests/rules/run.mjs"
+        run: npx --yes firebase-tools@15.35.0 emulators:exec --only firestore --project demo-faxton "node tests/rules/run.mjs"
