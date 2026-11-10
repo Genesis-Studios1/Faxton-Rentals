@@ -242,21 +242,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // "Download my data" records. After a person confirms it's them and downloads their own data (all in their browser), the app files one entry here
-    // so staff can see the request was served. It holds no data content. Only the person can create it for themselves; owner, admin and support read it and
-    // mark it reviewed (status) or add a note. Nobody deletes.
+    // "Download my data" audit records are client-reported. Firestore cannot prove a browser actually saved a file.
+    // Owner, admin and support can review these records. Nobody deletes.
     match /dataRequests/{id} {
       allow create: if signedIn() && request.resource.data.keys().hasOnly(['uid', 'name', 'role', 'status', 'at'])
         && request.resource.data.keys().hasAll(['uid', 'name', 'role', 'status', 'at'])
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.status == 'verified-downloaded'
+        && request.resource.data.status == 'client-reported-downloaded'
         && short(request.resource.data.name, 120) && short(request.resource.data.role, 20)
         && request.resource.data.role == myRole()
         && request.resource.data.at == request.time;
       allow read: if isAdmin() || isSupport();
       allow update: if (isAdmin() || isSupport())
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note'])
-        && request.resource.data.status in ['verified-downloaded', 'reviewed']
+        && request.resource.data.status in ['client-reported-downloaded', 'reviewed']
         && short(request.resource.data.get('note', ''), 1000);
       allow delete: if false;
     }
@@ -440,6 +439,8 @@ service cloud.firestore {
       allow update: if signedIn() && resource.data.status in ['Pending', 'Countered']
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'amount', 'turn', 'history', 'updatedAt'])
         && request.resource.data.history is list && request.resource.data.history.size() == resource.data.history.size() + 1
+        // Existing negotiation entries must remain byte-for-byte present; clients may only append a new event.
+        && request.resource.data.history.hasAll(resource.data.history)
         && request.resource.data.history[request.resource.data.history.size() - 1].uid == request.auth.uid
         && request.resource.data.amount * 2 >= resource.data.listPrice && request.resource.data.amount <= resource.data.listPrice
         && (request.resource.data.status in ['Accepted', 'Declined', 'Withdrawn'] ? request.resource.data.amount == resource.data.amount : true)
@@ -454,19 +455,49 @@ service cloud.firestore {
     }
     // In-app notifications (for example "you have been verified"). Only admins create them; people read and mark their own.
     match /notifications/{id} {
-      allow create: if ((isAdmin() || isSupport()) && short(request.resource.data.title, 160) && short(request.resource.data.body, 600)
-        && request.resource.data.keys().size() <= 8)
-        // The two sides of a rent offer can notify each other.
-        || (signedIn() && request.resource.data.kind == 'offer' && short(request.resource.data.title, 160) && short(request.resource.data.body, 600)
-          && request.resource.data.keys().size() <= 9 && request.resource.data.ref is string && request.resource.data.uid is string
-          && exists(/databases/$(database)/documents/offers/$(request.resource.data.ref))
-          && (get(/databases/$(database)/documents/offers/$(request.resource.data.ref)).data.uid == request.auth.uid
-            || get(/databases/$(database)/documents/offers/$(request.resource.data.ref)).data.get('ownerUid', '') == request.auth.uid)
-          && (request.resource.data.uid == get(/databases/$(database)/documents/offers/$(request.resource.data.ref)).data.uid
-            || request.resource.data.uid == get(/databases/$(database)/documents/offers/$(request.resource.data.ref)).data.get('ownerUid', '')));
+      function offerNoticeAllowed() {
+        let offerPath = /databases/$(database)/documents/offers/$(request.resource.data.ref);
+        let offer = get(offerPath).data;
+        let history = offer.get('history', []);
+        let latest = history[history.size() - 1];
+        let title = request.resource.data.title;
+        let expectedBody = title == 'New rent offer'
+          ? 'A renter has sent you a rent offer. Open Offers to review it.'
+          : title == 'New counter-offer'
+            ? 'There is a new counter-offer. Open Offers to review it.'
+            : title == 'Offer accepted'
+              ? 'Your rent offer has been accepted.'
+              : title == 'Offer declined'
+                ? 'Your rent offer has been declined.'
+                : 'The renter has withdrawn the rent offer.';
+        return signedIn()
+          && request.resource.data.keys().hasOnly(['uid', 'read', 'kind', 'title', 'body', 'href', 'ref', 'createdAt'])
+          && request.resource.data.kind == 'offer' && request.resource.data.read == false
+          && request.resource.data.href == '/offers' && request.resource.data.createdAt == request.time
+          && request.resource.data.ref is string && exists(offerPath)
+          && history is list && history.size() > 0
+          && latest.uid == request.auth.uid
+          && (request.auth.uid == offer.uid || request.auth.uid == offer.get('ownerUid', ''))
+          && request.resource.data.uid == (request.auth.uid == offer.uid ? offer.get('ownerUid', null) : offer.uid)
+          && request.resource.data.title in ['New rent offer', 'New counter-offer', 'Offer accepted', 'Offer declined', 'Offer withdrawn']
+          && request.resource.data.body == expectedBody
+          && (
+            (latest.type == 'offer' && offer.status == 'Pending' && request.resource.data.title == 'New rent offer' && request.auth.uid == offer.uid)
+            || (latest.type == 'counter' && request.resource.data.title == 'New counter-offer'
+              && ((offer.status == 'Countered' && request.auth.uid == offer.get('ownerUid', ''))
+                || (offer.status == 'Pending' && request.auth.uid == offer.uid)))
+            || (latest.type == 'accept' && offer.status == 'Accepted' && request.resource.data.title == 'Offer accepted')
+            || (latest.type == 'decline' && offer.status == 'Declined' && request.resource.data.title == 'Offer declined')
+            || (latest.type == 'withdraw' && offer.status == 'Withdrawn' && request.resource.data.title == 'Offer withdrawn' && request.auth.uid == offer.uid)
+          );
+      }
+      allow create: if ((isAdmin() || isSupport()) && request.resource.data.keys().size() <= 8
+          && request.resource.data.uid is string && short(request.resource.data.title, 160) && short(request.resource.data.body, 600))
+        || offerNoticeAllowed();
       allow read: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
       allow update: if signedIn() && resource.data.uid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read is bool;
     }
     // Ratings and feedback: renters and realtors rate the app, realtors, listings and calls. Staff read, answer and tidy them up.
     match /feedback/{id} {
@@ -621,10 +652,36 @@ service cloud.firestore {
           && !('byStaff' in request.resource.data) && request.resource.data.keys().size() <= 20)
         || isAdmin() || isSupport();
       allow read: if owns() || isAdmin() || isSupport();
-      allow update: if (owns() && request.resource.data.uid == resource.data.uid
+      function userConversationUpdate() {
+        return owns() && request.resource.data.uid == resource.data.uid
           && request.resource.data.get('byStaff', null) == resource.data.get('byStaff', null)
-          && request.resource.data.get('agent', {}).get('id', '') == resource.data.get('agent', {}).get('id', ''))
-        || isAdmin() || isSupport();
+          && request.resource.data.get('agent', {}).get('id', '') == resource.data.get('agent', {}).get('id', '')
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last', 'lastAt', 'lastBy', 'unread', 'typing', 'dv', 'rd', 'pinned'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['last']) || short(request.resource.data.last, 2000))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastAt']) || request.resource.data.lastAt == request.time)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastBy']) || request.resource.data.lastBy == 'u')
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['unread']) || request.resource.data.unread is bool)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['typing']) || request.resource.data.get('typing', null) == null
+            || (request.resource.data.typing is map && request.resource.data.typing.keys().hasOnly(['uid', 'at'])
+              && request.resource.data.typing.uid == request.auth.uid && request.resource.data.typing.at is int))
+          && request.resource.data.get('dv', {}).diff(resource.data.get('dv', {})).affectedKeys().hasOnly(['u'])
+          && request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasOnly(['u']);
+      }
+      function staffConversationUpdate() {
+        return (isAdmin() || isSupport())
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last', 'lastAt', 'lastBy', 'unread', 'staffUnread', 'typing', 'dv', 'rd', 'pinned'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['last']) || short(request.resource.data.last, 2000))
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastAt']) || request.resource.data.lastAt == request.time)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastBy']) || request.resource.data.lastBy == 's')
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['unread']) || request.resource.data.unread is bool)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['staffUnread']) || request.resource.data.staffUnread is bool)
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['typing']) || request.resource.data.get('typing', null) == null
+            || (request.resource.data.typing is map && request.resource.data.typing.keys().hasOnly(['uid', 'at'])
+              && request.resource.data.typing.uid == request.auth.uid && request.resource.data.typing.at is int))
+          && request.resource.data.get('dv', {}).diff(resource.data.get('dv', {})).affectedKeys().hasOnly(['s'])
+          && request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasOnly(['s']);
+      }
+      allow update: if userConversationUpdate() || staffConversationUpdate();
       match /messages/{mid} {
         // Emoji reactions: a person may only add, change or remove their own entry in the reactions map.
         allow update: if signedIn()
