@@ -389,7 +389,7 @@ export async function deliver(res, { preferShare = false } = {}) {
 export async function recordExport(user, profile) {
   noteExport(user.uid);
   try {
-    await addDoc(collection(db, "dataRequests"), { uid: user.uid, name: String(profile?.name || user.displayName || user.email || "").slice(0, 120), role: String(profile?.role || "renter").slice(0, 20), status: "verified-downloaded", at: serverTimestamp() });
+    await addDoc(collection(db, "dataRequests"), { uid: user.uid, name: String(profile?.name || user.displayName || user.email || "").slice(0, 120), role: String(profile?.role || "renter").slice(0, 20), status: "client-reported-downloaded", at: serverTimestamp() });
     return true;
   } catch { return false; }
 }
