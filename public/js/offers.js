@@ -1,6 +1,6 @@
 // Make an offer: renters propose a yearly rent, owners accept, counter or decline, and the whole negotiation is kept.
 import { db } from "./firebase.js";
-import { collection, doc, getDoc, addDoc, updateDoc, onSnapshot, query, where, getDocs, serverTimestamp }
+import { collection, doc, getDoc, addDoc, setDoc, updateDoc, onSnapshot, query, where, getDocs, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, naira, icon, toast, modal } from "./ui.js";
 import { fxErr as friendlyErr, empty as fxEmpty } from "./fx.js";
@@ -29,15 +29,17 @@ const NOTICE_BODY = {
   "Offer declined": "Your rent offer has been declined.",
   "Offer withdrawn": "The renter has withdrawn the rent offer.",
 };
-const ping = (to, title, ref) => {
-  if (!to || !NOTICE_BODY[title]) return;
-  addDoc(collection(db, "notifications"), { uid: to, read: false, kind: "offer", title, body: NOTICE_BODY[title], href: "/offers", ref, createdAt: serverTimestamp() }).catch(() => {});
+const ping = (to, title, ref, eventNumber, actorUid) => {
+  if (!to || !NOTICE_BODY[title] || !Number.isInteger(eventNumber) || eventNumber < 1 || !actorUid) return;
+  const id = `offer_${ref}_${eventNumber}_${actorUid}`;
+  // Firestore rules validate the event actor and expected ID; use a deterministic document so one event cannot be replayed.
+  setDoc(doc(db, "notifications", id), { uid: to, read: false, kind: "offer", title, body: NOTICE_BODY[title], href: "/offers", ref, createdAt: serverTimestamp() }).catch(() => {});
 };
 
 export async function sendOffer(user, l, amount, note) {
   const entry = { by: "renter", uid: user.uid, type: "offer", amount, note: note || "", at: Date.now() };
   const ref = await addDoc(collection(db, "offers"), { uid: user.uid, name: user.displayName || user.email, ownerUid: l.ownerUid || null, ownerName: l.agent?.name || "Owner", listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], listPrice: l.price, service: +l.service || 0, deposit: +l.deposit || 0, ...(l.agencyFee != null && l.agencyFee !== "" ? { agencyFee: +l.agencyFee } : {}), ...(l.legalFee != null && l.legalFee !== "" ? { legalFee: +l.legalFee } : {}), amount, status: "Pending", turn: "owner", history: [entry], createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  ping(l.ownerUid, "New rent offer", ref.id);
+  ping(l.ownerUid, "New rent offer", ref.id, 1, user.uid);
   return ref.id;
 }
 // side: "renter" | "owner"; action: accept | counter | decline | withdraw
@@ -47,7 +49,7 @@ export async function respond(o, user, side, action, amount, note = "") {
   const turn = action === "counter" ? (side === "owner" ? "renter" : "owner") : "";
   await updateDoc(doc(db, "offers", o.id), { status, amount: amt, turn, history: [...o.history, { by: side, uid: user.uid, type, amount: amt, note, at: Date.now() }], updatedAt: serverTimestamp() });
   const to = side === "owner" ? o.uid : o.ownerUid, who = side === "owner" ? o.ownerName || "The owner" : o.name || "The renter";
-  ping(to, { accept: "Offer accepted", counter: "New counter-offer", decline: "Offer declined", withdraw: "Offer withdrawn" }[action], o.id);
+  ping(to, { accept: "Offer accepted", counter: "New counter-offer", decline: "Offer declined", withdraw: "Offer withdrawn" }[action], o.id, (o.history?.length || 0) + 1, user.uid);
 }
 
 // ---- the offer dialog on a listing ----
