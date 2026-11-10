@@ -483,6 +483,8 @@ service cloud.firestore {
           && request.resource.data.uid == (request.auth.uid == offer.uid ? offer.get('ownerUid', null) : offer.uid)
           && request.resource.data.title in ['New rent offer', 'New counter-offer', 'Offer accepted', 'Offer declined', 'Offer withdrawn']
           && request.resource.data.body == expectedBody
+          // A deterministic ID allows only one notification per offer event, preventing replay spam.
+          && id == 'offer_' + request.resource.data.ref + '_' + history.size() + '_' + request.auth.uid
           && (
             (latest.type == 'offer' && offer.status == 'Pending' && request.resource.data.title == 'New rent offer' && request.auth.uid == offer.uid)
             || (latest.type == 'counter' && request.resource.data.title == 'New counter-offer'
@@ -667,7 +669,9 @@ service cloud.firestore {
             || (request.resource.data.typing is map && request.resource.data.typing.keys().hasOnly(['uid', 'at'])
               && request.resource.data.typing.uid == request.auth.uid && request.resource.data.typing.at is int))
           && request.resource.data.get('dv', {}).diff(resource.data.get('dv', {})).affectedKeys().hasOnly(['u'])
-          && request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasOnly(['u']);
+          && request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasOnly(['u'])
+          && (!request.resource.data.get('dv', {}).diff(resource.data.get('dv', {})).affectedKeys().hasAny(['u']) || request.resource.data.dv.u == request.time)
+          && (!request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasAny(['u']) || request.resource.data.rd.u == request.time);
       }
       function staffConversationUpdate() {
         return (isAdmin() || isSupport())
@@ -681,7 +685,9 @@ service cloud.firestore {
             || (request.resource.data.typing is map && request.resource.data.typing.keys().hasOnly(['uid', 'at'])
               && request.resource.data.typing.uid == request.auth.uid && request.resource.data.typing.at is int))
           && request.resource.data.get('dv', {}).diff(resource.data.get('dv', {})).affectedKeys().hasOnly(['s'])
-          && request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasOnly(['s']);
+          && request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasOnly(['s'])
+          && (!request.resource.data.get('dv', {}).diff(resource.data.get('dv', {})).affectedKeys().hasAny(['s']) || request.resource.data.dv.s == request.time)
+          && (!request.resource.data.get('rd', {}).diff(resource.data.get('rd', {})).affectedKeys().hasAny(['s']) || request.resource.data.rd.s == request.time);
       }
       allow update: if userConversationUpdate() || staffConversationUpdate();
       match /messages/{mid} {
