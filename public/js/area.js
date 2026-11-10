@@ -76,12 +76,18 @@ export const WORK = [
   ["Victoria Island", 6.4281, 3.4219, 1], ["Ikoyi", 6.4549, 3.4339, 1], ["Lagos Island", 6.4541, 3.3947, 1], ["Lekki Phase 1", 6.4474, 3.4723, 1], ["Oniru", 6.4333, 3.45, 1], ["Ikate", 6.4408, 3.4856, 1], ["Ajah", 6.4698, 3.5852, 1],
   ["Yaba", 6.5095, 3.3711, 0], ["Surulere", 6.501, 3.3569, 0], ["Maryland", 6.5667, 3.3667, 0], ["Ikeja", 6.6018, 3.3515, 0],
 ];
+export function validCoordinates(value) {
+  const lat = Number(value?.lat), lng = Number(value?.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
 const hav = (a, b, c, d) => { const R = 6371, r = Math.PI / 180, dl = (c - a) * r, dn = (d - b) * r, x = Math.sin(dl / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
 const near5 = (m) => Math.max(5, Math.round(m / 5) * 5);
 // A rough drive-time estimate: straight-line distance, a road factor and a Lagos average speed. Crossing between the mainland and the island adds a bridge delay.
 export function commute(l, w) {
-  if (l.lat == null || l.lng == null || !w) return null;
-  const km = hav(l.lat, l.lng, w[1], w[2]) * 1.4, island = (l.lng > 3.38 && l.lat < 6.48) ? 1 : 0, bridge = island !== w[3];
+  const point = validCoordinates(l), target = w;
+  if (!point || !target) return null;
+  const km = hav(point.lat, point.lng, target[1], target[2]) * 1.4, island = (point.lng > 3.38 && point.lat < 6.48) ? 1 : 0, bridge = island !== target[3];
   return { km: Math.round(km * 10) / 10, peak: near5((km / 14) * 60 + (bridge ? 20 : 0)), off: near5((km / 32) * 60 + (bridge ? 6 : 0)) };
 }
 export const commuteScore = (l, w) => { const c = commute(l, w); return c ? c.peak : null; };
@@ -97,6 +103,10 @@ const CATS = [
 ];
 const dist = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`);
 export async function nearby(lat, lng) {
+  const point = validCoordinates({ lat, lng });
+  if (!point) throw new TypeError("A valid latitude and longitude are required.");
+  lat = point.lat;
+  lng = point.lng;
   const key = `nb_${lat.toFixed(3)}_${lng.toFixed(3)}`;
   try { const c = JSON.parse(localStorage.getItem(key) || "null"); if (c && Date.now() - c.t < 7 * 864e5) return c.v; } catch {}
   const q = `[out:json][timeout:12];(nwr["shop"~"^(supermarket|mall)$"](around:3000,${lat},${lng});nwr["amenity"~"^(school|kindergarten|college|hospital|clinic|restaurant|cafe)$"](around:3000,${lat},${lng});nwr["leisure"~"^(fitness_centre|sports_centre)$"](around:3000,${lat},${lng}););out center tags 300;`;
@@ -121,7 +131,7 @@ export async function nearby(lat, lng) {
 const tone = (k) => (LEVEL[k] || LEVEL.fair)[1];
 const tile = (ic, label, val, tn, note) => `<div class="nh-t"><span class="nh-ic ${tn}">${icon(ic, 22)}</span><div><small>${label}</small><b>${val}</b><p>${esc(note || "")}</p></div></div>`;
 export function neighbourhoodHtml(l, all) {
-  const g = areaGuide(l), rent = avgRent(l, all), hasPin = l.lat != null && l.lng != null && l.hasPin !== false;
+  const g = areaGuide(l), rent = avgRent(l, all), hasPin = Boolean(validCoordinates(l)) && l.hasPin !== false;
   const hasBackup = (l.amenities || []).some((a) => /generator|solar|inverter|power|electric/i.test(a)), hasSec = (l.amenities || []).some((a) => /secur|guard|cctv|gate/i.test(a));
   const hrs = hasBackup ? 24 : g.power;
   const diff = rent ? Math.round(((l.price - rent.value) / rent.value) * 100) : 0;
@@ -150,8 +160,9 @@ const commuteHtml = (l, wk) => {
 export function mountNeighbourhood(root, l) {
   if (!$("#nhCommute", root)) return;
   root.addEventListener("dd-change", (e) => { if (e.detail.name !== "nhWork") return; try { localStorage.setItem("work", e.detail.value); } catch {} $("#nhCommute", root).innerHTML = commuteHtml(l, e.detail.value); });
-  if (l.lat == null || l.lng == null || l.hasPin === false) return;
-  nearby(l.lat, l.lng).then((res) => {
+  const point = validCoordinates(l);
+  if (!point || l.hasPin === false) return;
+  nearby(point.lat, point.lng).then((res) => {
     CATS.forEach(([k]) => {
       const c = $(`.nh-c[data-k="${k}"]`, root); if (!c) return;
       const list = res[k] || [];
@@ -159,7 +170,7 @@ export function mountNeighbourhood(root, l) {
       $("ul", c).innerHTML = list.length ? list.slice(0, 4).map((p) => `<li><span>${esc(p.name)}</span><b>${dist(p.m)}</b></li>`).join("") : `<li class="none">Nothing mapped within 3 km</li>`;
     });
   }).catch(() => {
-    $("#nhNear", root).innerHTML = `<p class="muted">We couldn’t load nearby places just now. <a class="link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/supermarkets+schools+hospitals/@${l.lat},${l.lng},15z">See them on Google Maps</a>.</p>`;
+    $("#nhNear", root).innerHTML = `<p class="muted">We couldn’t load nearby places just now. <a class="link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/supermarkets+schools+hospitals/@${point.lat},${point.lng},15z">See them on Google Maps</a>.</p>`;
   });
 }
 
