@@ -256,6 +256,8 @@ service cloud.firestore {
       allow update: if (isAdmin() || isSupport())
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note'])
         && request.resource.data.status in ['client-reported-downloaded', 'reviewed']
+        && (request.resource.data.status == resource.data.status
+          || (resource.data.status == 'client-reported-downloaded' && request.resource.data.status == 'reviewed'))
         && short(request.resource.data.get('note', ''), 1000);
       allow delete: if false;
     }
