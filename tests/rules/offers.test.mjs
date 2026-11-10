@@ -6,7 +6,7 @@ await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); awai
   await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x" });
   await setDoc(doc(d, "listings/seed"), { status: "active", title: "platform listing" });
   await setDoc(doc(d, "viewings/v1"), { uid: "ren", ownerUid: "lord", status: "Confirmed", title: "x", name: "y" }); });
-const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
+const t = async (n, p, want = true) => { let ok = true, error = null; try { await p; } catch (e) { ok = false; error = e; } console.log(ok === want ? "PASS" : "FAIL", n, ok === want || want === false ? "" : `(${error?.code || error?.message || "unknown error"})`); };
 const ren = env.authenticatedContext("ren").firestore(), lord = env.authenticatedContext("lord").firestore(), adm = env.authenticatedContext("adm").firestore(), oth = env.authenticatedContext("oth").firestore();
 const E = (by, uid, type, amount) => ({ by, uid, type, amount, note: "", at: Date.now() });
 const base = { uid: "ren", name: "R", ownerUid: "lord", ownerName: "L", listingId: "l1", title: "T", area: "A", image: "", listPrice: 3500000, amount: 3200000, status: "Pending", turn: "owner", history: [E("renter", "ren", "offer", 3200000)], createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
@@ -22,6 +22,7 @@ await t("admin reads", getDoc(doc(adm, "offers", id)));
 await t("renter cannot accept own offer", updateDoc(doc(ren, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: [...base.history, E("renter", "ren", "accept", 3200000)], updatedAt: serverTimestamp() }), false);
 await t("owner cannot change amount while accepting", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3000000, history: [...base.history, E("owner", "lord", "accept", 3000000)], updatedAt: serverTimestamp() }), false);
 await t("owner cannot skip the history", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: base.history, updatedAt: serverTimestamp() }), false);
+await t("owner cannot rewrite an earlier history entry", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: [{ ...base.history[0], amount: 1 }, E("owner", "lord", "accept", 3200000)], updatedAt: serverTimestamp() }), false);
 await t("owner cannot sign as someone else", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3200000, history: [...base.history, E("owner", "ren", "accept", 3200000)], updatedAt: serverTimestamp() }), false);
 const h2 = [...base.history, E("owner", "lord", "counter", 3400000)];
 await t("owner counters", updateDoc(doc(lord, "offers", id), { status: "Countered", turn: "renter", amount: 3400000, history: h2, updatedAt: serverTimestamp() }));
@@ -33,7 +34,10 @@ const h4 = [...h3, E("owner", "lord", "accept", 3300000)];
 await t("owner accepts", updateDoc(doc(lord, "offers", id), { status: "Accepted", turn: "", amount: 3300000, history: h4, updatedAt: serverTimestamp() }));
 await t("accepted offer is final", updateDoc(doc(ren, "offers", id), { status: "Withdrawn", turn: "", amount: 3300000, history: [...h4, E("renter", "ren", "withdraw", 3300000)], updatedAt: serverTimestamp() }), false);
 // notifications
-await t("owner notifies renter about the offer", addDoc(collection(lord, "notifications"), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "x", href: "/offers", ref: id, createdAt: serverTimestamp() }));
+await t("owner cannot send a misleading offer notification", addDoc(collection(lord, "notifications"), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "Your payment has been received.", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
+await t("owner sends a truthful offer notification", setDoc(doc(lord, "notifications", `offer_${id}_4_lord`), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "Your rent offer has been accepted.", href: "/offers", ref: id, createdAt: serverTimestamp() }));
+await t("same offer event cannot be replayed", setDoc(doc(lord, "notifications", `offer_${id}_4_lord`), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "Your rent offer has been accepted.", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
+await t("offer event cannot use a random notification ID", setDoc(doc(lord, "notifications", "random-offer-notice"), { uid: "ren", read: false, kind: "offer", title: "Offer accepted", body: "Your rent offer has been accepted.", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
 await t("stranger cannot notify", addDoc(collection(oth, "notifications"), { uid: "ren", read: false, kind: "offer", title: "x", body: "x", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
 await t("cannot notify a third person", addDoc(collection(lord, "notifications"), { uid: "oth", read: false, kind: "offer", title: "x", body: "x", href: "/offers", ref: id, createdAt: serverTimestamp() }), false);
 await t("cannot send other kinds", addDoc(collection(lord, "notifications"), { uid: "ren", read: false, kind: "verified", title: "x", body: "x", ref: id, createdAt: serverTimestamp() }), false);

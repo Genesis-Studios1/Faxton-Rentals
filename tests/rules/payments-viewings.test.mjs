@@ -11,9 +11,14 @@ await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); awai
   await setDoc(doc(d, "applications/ap3"), { uid: "oth", ownerUid: "lord", listingId: "l1", status: "Approved", title: "x", name: "z" });
   await setDoc(doc(d, "viewings/v1"), { uid: "ren", ownerUid: "lord", status: "Requested", title: "x", name: "y" });
   await setDoc(doc(d, "viewings/v2"), { uid: "ren", ownerUid: "lord", status: "Confirmed", title: "x", name: "y", checkOut: { at: 1 } });
-  await setDoc(doc(d, "viewings/v3"), { uid: "ren", ownerUid: "lord", status: "Declined", title: "x", name: "y" }); });
+  await setDoc(doc(d, "viewings/v3"), { uid: "ren", ownerUid: "lord", status: "Declined", title: "x", name: "y" });
+  await setDoc(doc(d, "records/r1"), { uid: "ren", ownerUid: "lord", status: "Due", paidOn: "", amount: 250000, label: "Rent" }); });
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
 const ren = env.authenticatedContext("ren").firestore(), lord = env.authenticatedContext("lord").firestore(), adm = env.authenticatedContext("adm").firestore(), oth = env.authenticatedContext("oth").firestore(), own = env.authenticatedContext("own").firestore();
+await t("tenant cannot mark a rent record as paid", updateDoc(doc(ren, "records/r1"), { status: "Paid" }), false);
+await t("tenant may add payment-date metadata without changing status", updateDoc(doc(ren, "records/r1"), { paidOn: "2026-11-10" }));
+await t("property owner can confirm a rent record", updateDoc(doc(lord, "records/r1"), { status: "Paid", confirmed: true }));
+await t("unrelated renter cannot confirm another tenant's rent record", updateDoc(doc(oth, "records/r1"), { status: "Paid" }), false);
 // config/payments
 const P = { bankName: "GTBank", accountNumber: "0123456789", accountName: "Faxton Rentals Ltd", instructions: "Use your name as reference.", enabled: true, updatedAt: serverTimestamp() };
 await t("admin writes config/payments", setDoc(doc(adm, "config/payments"), P));

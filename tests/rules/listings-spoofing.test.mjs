@@ -4,7 +4,7 @@ import { setDoc, doc, addDoc, collection, serverTimestamp, updateDoc, getDoc, ge
 const env = await initializeTestEnvironment({ projectId: "demo-faxton", firestore: { host: "127.0.0.1", port: 8089, rules: readFileSync(new URL("../../firestore.rules", import.meta.url), "utf8") } });
 await env.withSecurityRulesDisabled(async (c) => { const d = c.firestore(); await setDoc(doc(d, "config/owner"), { uid: "own" });
   for (const [u, r] of [["own","renter"],["adm","admin"],["ren","renter"],["lord","landlord"],["oth","landlord"]]) await setDoc(doc(d, "users/" + u), { role: r });
-  await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x", price: 3000000 });
+  await setDoc(doc(d, "listings/l1"), { status: "active", ownerUid: "lord", title: "x", price: 3000000, featured: false, verified: false, createdBy: "adm" });
   await setDoc(doc(d, "listings/l2"), { status: "active", title: "platform home", price: 2000000 });
   await setDoc(doc(d, "listings/l3"), { status: "pending", ownerUid: "lord", title: "draft" }); });
 const t = async (n, p, want = true) => { let ok = true; try { await p; } catch { ok = false; } console.log(ok === want ? "PASS" : "FAIL", n); };
@@ -30,6 +30,10 @@ await t("offer for a missing listing denied", addDoc(collection(ren, "offers"), 
 await t("owner edits own listing", updateDoc(doc(lord, "listings/l1"), { title: "New title" }));
 await t("owner cannot activate pending listing", updateDoc(doc(lord, "listings/l3"), { status: "active" }), false);
 await t("owner cannot hand listing to someone else", updateDoc(doc(lord, "listings/l1"), { ownerUid: "oth" }), false);
+await t("owner cannot add arbitrary listing fields", updateDoc(doc(lord, "listings/l1"), { injectedFlag: true }), false);
+await t("owner cannot change an existing featured flag", updateDoc(doc(lord, "listings/l1"), { featured: true }), false);
+await t("owner cannot change an existing verification flag", updateDoc(doc(lord, "listings/l1"), { verified: true }), false);
+await t("owner cannot alter listing creator metadata", updateDoc(doc(lord, "listings/l1"), { createdBy: "lord" }), false);
 await t("other landlord cannot edit", updateDoc(doc(oth, "listings/l1"), { title: "hijack" }), false);
 const many = {}; for (let i = 0; i < 45; i++) many["f" + i] = i;
 await t("owner cannot stuff 45 extra fields", updateDoc(doc(lord, "listings/l1"), many), false);

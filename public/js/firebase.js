@@ -1,7 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js";
+import { APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY } from "./app-check-config.js";
 
 // Web app config. These values are public identifiers, not secrets; access is enforced by firestore.rules.
 const firebaseConfig = {
@@ -15,9 +16,18 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
+
+// Initialize App Check with the configured public site key. Firebase service enforcement
+// must remain off until production traffic has been deployed, monitored and validated.
+export const appCheck = APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY
+  ? initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    })
+  : null;
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export const google = new GoogleAuthProvider();
 google.addScope("email"); google.addScope("profile");
 

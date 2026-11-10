@@ -2,7 +2,6 @@
 // and the automatic-update helper used by Settings.
 import { $, $$, esc, icon, toast, modal, friendlyErr, logo } from "./ui.js";
 import * as st from "./store.js";
-import { app } from "./firebase.js";
 
 const REPO = "musazaneerah4-crypto/Faxton-Rentals-Downloads";
 // Release v1.2.0 uses Electron Builder's default Linux x64 name (x86_64). Accept it as the x64 AppImage.
@@ -98,13 +97,8 @@ async function githubLatest() {
   const j = await r.json();
   return { version: String(j.tag_name || "").replace(/^v/, ""), notes: j.body || "", files: Object.fromEntries(PLATFORMS.map(([k, , , name]) => { const a = (j.assets || []).find((x) => x.name === name) || (ASSET_ALIASES[k] || []).map((alias) => (j.assets || []).find((x) => x.name === alias)).find(Boolean); return [k, a ? { url: a.browser_download_url, name: a.name, size: a.size, source: "github" } : null]; }).filter(([, v]) => v)) };
 }
-async function uploadInstaller(file, version, onProgress) {
-  const { getStorage, ref, uploadBytesResumable, getDownloadURL } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js");
-  const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(0, 100);
-  const r = ref(getStorage(app), `installers/${version.replace(/[^\w.\-]+/g, "_")}/${Date.now()}-${safe}`);
-  const task = uploadBytesResumable(r, file);
-  await new Promise((res, rej) => task.on("state_changed", (s) => onProgress?.(s.bytesTransferred / s.totalBytes), rej, res));
-  return { url: await getDownloadURL(r), name: file.name, size: file.size, source: "upload" };
+async function uploadInstaller() {
+  throw new Error("Firebase Storage is not enabled. Import the latest GitHub build or paste an HTTPS download link instead.");
 }
 
 export async function installationsPage(ctx) {

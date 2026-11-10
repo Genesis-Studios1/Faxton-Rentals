@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { LISTING_MEDIA_LIMITS, validateListingMedia, collectListingFeatures } from "../public/js/listing-media-core.js";
+import { uploadListingMedia, removeListingMedia } from "../public/js/listing-media.js";
 
 const file = (type, size) => ({ type, size });
 
@@ -36,4 +37,12 @@ test("custom features are trimmed, merged case-insensitively and bounded", () =>
     { name: " Balconies ", count: 2 }, { name: "balconies", count: 1 }, { name: " ", count: 5 }
   ]), [{ name: "Balconies", count: 3 }]);
   assert.throws(() => collectListingFeatures({}, Array.from({ length: 26 }, (_, i) => ({ name: `Feature ${i}`, count: 1 }))), /25 countable features/);
+});
+
+test("property uploads fail closed while Firebase Storage is not configured", async () => {
+  await assert.rejects(
+    uploadListingMedia({ uid: "staff-user", listingId: "test-listing", images: [file("image/jpeg", 10)] }),
+    /Firebase Storage is not configured/
+  );
+  await assert.doesNotReject(removeListingMedia(["listing-media/staff-user/test-listing/images/unused.jpg"]));
 });

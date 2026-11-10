@@ -5,6 +5,7 @@ import { collection, doc, addDoc, getDoc, updateDoc, onSnapshot, query, where, s
 import { $, $$, esc, icon, toast, initials, modal } from "./ui.js";
 import { playSound } from "./sound.js";
 import { getPublic } from "./store.js";
+import { METERED_TURN_API_KEY } from "./turn-config.js";
 
 // ---------- sounds (made with the browser, no audio files) ----------
 let toneCtx = null;
@@ -32,10 +33,29 @@ export async function resolveIce(d = {}) {
   return { servers, via, error };
 }
 // Everyone who places or answers a call reads the saved relay once per page load.
-const ensureIce = () => (iceP ||= getDoc(doc(db, "config", "ice")).then(async (s) => {
+const ensureIce = () => (iceP ||= (async () => {
+  // Metered's credential-scoped API key is documented as frontend-safe.
+  // Keep the account-wide Secret Key out of this client module.
+  if (METERED_TURN_API_KEY) {
+    try {
+      const url = "https://faxton-homes.metered.live/api/v1/turn/credentials?apiKey=" + encodeURIComponent(METERED_TURN_API_KEY);
+      const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error("Metered HTTP " + r.status);
+      const servers = asServers(await r.json());
+      if (servers.some((s) => [].concat(s.urls).some((u) => /^turns?:/i.test(u)))) {
+        ICE = { iceServers: [...servers, ...STUN] };
+        return;
+      }
+      throw new Error("Metered returned no TURN relay entries");
+    } catch (e) {
+      console.warn("[Faxton call] Metered TURN configuration unavailable; trying saved relay settings.", e);
+    }
+  }
+  // Owner/admin-managed relay settings remain a fallback; ordinary users may be denied by Firestore rules.
+  const s = await getDoc(doc(db, "config", "ice"));
   const { servers } = await resolveIce(s.exists() ? s.data() : {});
   if (servers.length) ICE = { iceServers: [...servers, ...STUN] };
-}).catch(() => {}));
+})().catch(() => {}));
 // After an admin saves a new relay, the next call on this page should use it.
 export const resetIce = () => { iceP = null; ICE = { iceServers: STUN }; };
 // Used by the Settings relay card: a real test. Opens a connection that may only use the relay and waits for a "relay" candidate,
@@ -56,10 +76,11 @@ export async function testRelay(servers) {
 export const fmtDur = (s) => { s = Math.max(0, Math.round(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
 
 // ---------- Firestore signalling ----------
-const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).catch(() => {});
-const watchCall = (id, cb) => onSnapshot(doc(db, "calls", id), (s) => cb(s.exists() ? { ...s.data(), id: s.id } : null), () => {});
-const addIce = (id, from, c) => addDoc(collection(db, "calls", id, "ice"), { from, c: JSON.stringify(c) }).catch(() => {});
-const watchIce = (id, cb) => onSnapshot(collection(db, "calls", id, "ice"), (s) => s.docChanges().forEach((ch) => { if (ch.type === "added") cb(ch.doc.data()); }), () => {});
+const signalError = (where, e) => { console.warn("[Faxton call] " + where, e); toast("Call connection issue. Check your internet connection and try again."); };
+const patchCall = (id, d) => updateDoc(doc(db, "calls", id), d).then(() => true).catch((e) => { signalError("call update", e); return false; });
+const watchCall = (id, cb) => onSnapshot(doc(db, "calls", id), (s) => cb(s.exists() ? { ...s.data(), id: s.id } : null), (e) => signalError("call listener", e));
+const addIce = (id, from, c) => addDoc(collection(db, "calls", id, "ice"), { from, c: JSON.stringify(c) }).catch((e) => { signalError("ICE candidate write", e); });
+const watchIce = (id, cb) => onSnapshot(collection(db, "calls", id, "ice"), (s) => s.docChanges().forEach((ch) => { if (ch.type === "added") cb(ch.doc.data()); }), (e) => signalError("ICE listener", e));
 export const watchLogs = (uid, cb) => onSnapshot(query(collection(db, "calls"), where("members", "array-contains", uid)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))), () => cb([]));
 
 // ---------- who is on the other end: names and photos ----------
@@ -101,12 +122,12 @@ function run({ id, me, role, kind, other, offer }) {
   const isCaller = role === "caller", name = other.name || "Faxton", recKey = isCaller ? "recCaller" : "recCallee";
   const ov = document.createElement("div"); ov.className = "cl-ov cs-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Call with " + name);
   const pic = (other.photo ? photoImg(other.photo) : "") + `<span class="cs-ini">${esc(initials(name))}</span>`;
-  const hasDM = !!navigator.mediaDevices?.getDisplayMedia, canShare = hasDM && !isPhone(), recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
+  const hasDM = !!navigator.mediaDevices?.getDisplayMedia, canShare = hasDM, recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
   ov.innerHTML = `<header class="cs-top"><span class="cs-logo"><img src="assets/mark.svg" alt="" width="32" height="28"><b>Faxton</b></span><i class="cs-sep"></i><span class="cs-state"><i class="cs-dot"></i><span id="clSt">${isCaller ? "Calling " + esc(name) + "…" : "Connecting…"}</span></span><div class="cs-tn"><b>${esc(name)}</b><span id="clVt2">${isCaller ? "Calling…" : "Connecting…"}</span></div><span class="cl-rec" id="clRec" hidden><i></i> Recording</span><span class="cl-rec cs-snd" id="clSndOn" hidden role="status"><i></i> Sound shared</span><button type="button" class="cs-minb" id="clMin" aria-label="Minimise the call" title="Minimise">${icon("dchev", 22)}</button></header>
     <div class="cs-stage"><video id="clRemote" autoplay playsinline></video><div class="cs-voice" id="clVoice"><div class="cs-ring"><span class="cs-pic">${pic}</span></div><h2>${esc(name)}</h2><p id="clVt">${isCaller ? "Calling…" : "Connecting…"}</p><div class="cs-wave" id="clWave" aria-hidden="true">${"<i></i>".repeat(29)}</div></div><video id="clLocal" class="cl-pip" autoplay playsinline muted hidden role="button" tabindex="0" aria-label="Expand your video"></video><button type="button" class="cs-pipmin" id="clPipMin" hidden aria-label="Minimize your video" title="Minimize your video"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg></button><audio id="clShared" autoplay></audio></div>
     <div class="cs-bar"><button type="button" class="cs-b" id="clMute" aria-pressed="false" aria-label="Mute"><span class="cs-ic">${icon("mic", 26)}</span><em>Mute</em></button>
       <button type="button" class="cs-b" id="clCam" aria-pressed="false" aria-label="Camera"><span class="cs-ic">${icon("video", 26)}</span><em>Camera</em></button>
-      ${canShare ? `<i class="cs-bsep"></i><button type="button" class="cs-b" id="clShare" aria-pressed="false" aria-label="Share screen" title="${SHARE_TIP}"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>` : `<i class="cs-bsep"></i><button type="button" class="cs-b off" id="clShare" aria-disabled="true" aria-label="Share screen (not available here)" title="Screen sharing with sound needs a computer"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>`}
+      ${canShare ? `<i class="cs-bsep"></i><button type="button" class="cs-b" id="clShare" aria-pressed="false" aria-label="Share screen" title="${SHARE_TIP}"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>` : `<i class="cs-bsep"></i><button type="button" class="cs-b off" id="clShare" aria-disabled="true" aria-label="Share screen (not available here)" title="Screen sharing is not supported by this browser"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>`}
       <button type="button" class="cs-b" id="clSnd" aria-pressed="true" aria-label="Shared sound: on" hidden><span class="cs-ic">${spkIc(true)}</span><em>Shared sound</em></button>
       <button type="button" class="cs-b" id="clRecB" aria-pressed="false" aria-label="Record call"><span class="cs-ic">${recIc}</span><em>Record</em></button><i class="cs-bsep"></i>
       <button type="button" class="cs-b end" id="clEnd" aria-label="End call"><span class="cs-ic">${icon("phone", 28)}</span><em>End Call</em></button></div>
@@ -121,8 +142,24 @@ function run({ id, me, role, kind, other, offer }) {
   active = S;
   let stopTone = isCaller ? ringback() : null; const quiet = () => { stopTone?.(); stopTone = null; };
 
-  const setRemoteVideo = (on) => { remoteVideo = on; remoteV.style.display = on ? "block" : "none"; el("clVoice").style.display = on ? "none" : "grid"; ov.classList.toggle("has-video", on); };
-  const checkVideo = () => { const t = remote.getVideoTracks()[0]; setRemoteVideo(!!(t && t.readyState === "live" && !t.muted && remoteV.videoWidth > 0)); };
+  const setRemoteVideo = (on) => {
+    remoteVideo = on;
+    if (on) {
+      if (remoteV.srcObject !== remote) remoteV.srcObject = remote;
+      remoteV.play?.().catch(() => {});
+    } else {
+      remoteV.pause?.();
+      if (remoteV.srcObject) remoteV.srcObject = null;
+    }
+    remoteV.style.display = on ? "block" : "none";
+    el("clVoice").style.display = on ? "none" : "grid";
+    ov.classList.toggle("has-video", on);
+  };
+  const checkVideo = () => {
+    const t = remote.getVideoTracks().find((track) => track.readyState === "live");
+    const visible = !!(t && !t.muted && remoteV.videoWidth > 0);
+    setRemoteVideo(visible);
+  };
   const vidTimer = setInterval(checkVideo, 800); remoteV.addEventListener("resize", checkVideo);
   const syncLocal = () => { const v = preview.getVideoTracks()[0]; localV.hidden = !v; localV.srcObject = v ? preview : null; localV.classList.toggle("mirror", !!v && v === cam); if (!v && swapped) swapViews(false); el("clCam").setAttribute("aria-pressed", String(!!cam && cam.enabled)); el("clShare").setAttribute("aria-pressed", String(!!screen)); };
   // Tapping the small self-view swaps the two <video> elements' places with CSS (same elements, same streams: nothing restarts).
@@ -149,10 +186,57 @@ function run({ id, me, role, kind, other, offer }) {
   const sendDc = (o) => { try { if (dc?.readyState === "open") dc.send(JSON.stringify(o)); } catch {} };
   let sharedIn = null;
   const onDc = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } if (m?.t === "snd") { if (m.on && sharedIn) sharedEl.srcObject = sharedIn; setSnd(!!m.on); } };
-  pc.ontrack = (e) => { if (e.track.kind === "audio" && isSharedTx(e.transceiver)) { sharedIn = new MediaStream([e.track]); sharedEl.srcObject = sharedIn; return; } remote.addTrack(e.track); if (e.track.kind === "video") { e.track.onunmute = checkVideo; e.track.onmute = checkVideo; } remoteV.play?.().catch(() => {}); };
-  pc.onconnectionstatechange = () => { if (pc.connectionState === "connected") { quiet(); if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); } } if (pc.connectionState === "disconnected" && !ended) setTimeout(() => { if (pc.connectionState === "disconnected" && !ended) { toast("The call lost its connection."); end("ended"); } }, 8000);
-    if (["failed", "closed"].includes(pc.connectionState) && !ended) { toast(startedAt ? "The call lost its connection." : "Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } };
-  let connectTO = null; const armConnect = () => { clearTimeout(connectTO); connectTO = setTimeout(() => { if (!startedAt && !ended) { toast("Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } }, 25000); };
+  pc.ontrack = (e) => {
+    if (e.track.kind === "audio" && isSharedTx(e.transceiver)) { sharedIn = new MediaStream([e.track]); sharedEl.srcObject = sharedIn; return; }
+    if (!remote.getTracks().includes(e.track)) remote.addTrack(e.track);
+    if (e.track.kind === "video") {
+      e.track.onunmute = () => { if (remoteV.srcObject !== remote) remoteV.srcObject = remote; checkVideo(); remoteV.play?.().catch(() => {}); };
+      e.track.onmute = checkVideo;
+      e.track.onended = () => { try { remote.removeTrack(e.track); } catch {} checkVideo(); };
+    }
+    remoteV.srcObject = remote;
+    remoteV.play?.().catch(() => {});
+    checkVideo();
+  };
+  let connectTO = null, recoveryTO = null, restartBusy = false, appliedOfferSdp = isCaller ? "" : (offer?.sdp || ""), appliedAnswerSdp = "";
+  const restartIce = async () => {
+    if (!isCaller || ended || closing || restartBusy || !pc.remoteDescription) return false;
+    restartBusy = true; say("Reconnecting…");
+    try {
+      pc.restartIce?.();
+      const next = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(next);
+      const saved = await patchCall(id, { offer: { type: next.type, sdp: next.sdp } });
+      if (!saved) return false;
+      appliedOfferSdp = next.sdp;
+      return true;
+    } catch (e) { signalError("ICE restart", e); return false; }
+    finally { restartBusy = false; }
+  };
+  pc.onconnectionstatechange = () => {
+    if (pc.connectionState === "connected") {
+      clearTimeout(recoveryTO); quiet();
+      if (!startedAt) { startWave(); startedAt = Date.now(); timer = setInterval(() => say(fmtDur((Date.now() - startedAt) / 1000)), 1000); say("0:00"); }
+      else say(fmtDur((Date.now() - startedAt) / 1000));
+    }
+    if (pc.connectionState === "disconnected" && !ended) {
+      clearTimeout(recoveryTO);
+      recoveryTO = setTimeout(async () => {
+        if (pc.connectionState !== "disconnected" || ended) return;
+        if (isCaller && await restartIce()) {
+          recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) { toast("The call could not reconnect."); end("ended"); } }, 12000);
+        } else if (!isCaller) {
+          recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) { toast("The call lost its connection."); end("ended"); } }, 12000);
+        } else { toast("The call lost its connection."); end("ended"); }
+      }, 5000);
+    }
+    if (pc.connectionState === "failed" && !ended) {
+      if (isCaller) restartIce().then((ok) => { if (ok) { clearTimeout(recoveryTO); recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) end("ended"); }, 12000); } else end("ended"); });
+      else { say("Reconnecting…"); clearTimeout(recoveryTO); recoveryTO = setTimeout(() => { if (pc.connectionState !== "connected" && !ended) end("ended"); }, 12000); }
+    }
+    if (pc.connectionState === "closed" && !ended) end("ended");
+  };
+  const armConnect = () => { clearTimeout(connectTO); connectTO = setTimeout(() => { if (!startedAt && !ended) { toast("Couldn’t connect the call. One of the networks blocks direct calls."); end("ended"); } }, 35000); };
   // The sound-wave under the name moves with the other person's voice.
   let waveStop = null;
   const startWave = () => {
@@ -164,8 +248,24 @@ function run({ id, me, role, kind, other, offer }) {
       tick(); waveStop = () => { cancelAnimationFrame(raf); try { src.disconnect(); } catch {} };
     } catch { wave.classList.add("anim"); }
   };
-  const addCand = async (c) => { try { if (pc.remoteDescription) await pc.addIceCandidate(c); else pending.push(c); } catch {} };
-  const flush = async () => { for (const c of pending.splice(0)) { try { await pc.addIceCandidate(c); } catch {} } };
+  const remoteUfrag = () => (/(?:^|\\r?\\n)a=ice-ufrag:([^\\r\\n]+)/.exec(pc.remoteDescription?.sdp || "") || [])[1] || "";
+  const candidateUfrag = (c) => c?.usernameFragment || (/(?:^|\\s)ufrag\\s+(\\S+)/.exec(c?.candidate || "") || [])[1] || "";
+  const addCand = async (c) => {
+    try {
+      if (!pc.remoteDescription) { pending.push(c); return; }
+      const u = candidateUfrag(c), current = remoteUfrag();
+      if (u && current && u !== current) return;
+      await pc.addIceCandidate(c);
+    } catch (e) { signalError("remote ICE candidate", e); }
+  };
+  const flush = async () => {
+    const queued = pending.splice(0), current = remoteUfrag();
+    for (const c of queued) {
+      const u = candidateUfrag(c);
+      if (u && current && u !== current) continue;
+      try { await pc.addIceCandidate(c); } catch (e) { signalError("queued ICE candidate", e); }
+    }
+  };
 
   // The caller always offers a video line, so the camera or a shared screen can start later without renegotiating.
   if (isCaller) vtx = pc.addTransceiver("video", { direction: "sendrecv" });
@@ -181,8 +281,14 @@ function run({ id, me, role, kind, other, offer }) {
   };
   const camMsg = (e) => (/NotAllowed|Permission|denied/i.test(String(e?.name + e?.message)) ? "Allow camera access in your settings to use video. This will be a voice call." : /NotFound|Overconstrained/i.test(String(e?.name)) ? "No camera was found, so this will be a voice call." : "The camera isn’t available, so this will be a voice call.");
   const useCamera = async () => {
-    const s = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } }); cam = s.getVideoTracks()[0];
-    if (!screen) { await vtx.sender.replaceTrack(cam); setPreview(cam); } syncLocal();
+    const s = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+    const next = s.getVideoTracks()[0], previous = cam;
+    try {
+      if (!screen) { await vtx.sender.replaceTrack(next); setPreview(next); }
+      cam = next;
+      previous?.stop();
+      syncLocal();
+    } catch (e) { s.getTracks().forEach((t) => t.stop()); throw e; }
   };
   const setPreview = (t) => { preview.getVideoTracks().forEach((x) => preview.removeTrack(x)); if (t) preview.addTrack(t); syncLocal(); };
 
@@ -199,12 +305,12 @@ function run({ id, me, role, kind, other, offer }) {
   };
   el("clShare").onclick = async () => {
     if (screen) return stopShare();
-    if (!canShare) return toast(isPhone() ? "Screen sharing isn’t available on phones. Use a computer to share your screen, with sound." : "Screen sharing isn’t supported in this browser.");
+    if (!canShare) return toast("Screen sharing isn’t supported by this browser. Try an up-to-date browser.");
     try {
       const s = await getScreen(); sStream = s; screen = s.getVideoTracks()[0]; screen.onended = stopShare; await vtx.sender.replaceTrack(screen); setPreview(screen);
       const a = s.getAudioTracks()[0];
       if (a && atx) { sAud = a; a.onended = () => { if (sAud === a) dropShareAudio(); }; await atx.sender.replaceTrack(a); sendDc({ t: "snd", on: 1 }); el("clSndOn").hidden = false; }
-      else if (!isPhone()) toast(a ? "Shared without sound. This call doesn’t support shared sound." : NO_SOUND_MSG, { kind: "info", ms: 7000 });
+      else toast(a ? "Shared without sound. This call doesn’t support shared sound." : NO_SOUND_MSG, { kind: "info", ms: 7000 });
       el("clShare").querySelector("em").textContent = "Stop Sharing"; el("clShare").setAttribute("title", "Stop sharing");
     }
     catch (e) { if (screen) await stopShare(); if (e?.name !== "NotAllowedError") toast("Couldn’t start screen sharing."); }
@@ -243,10 +349,10 @@ function run({ id, me, role, kind, other, offer }) {
 
   // ---- ending ----
   function end(status) {
-    if (closing) return; closing = true; ended = true; quiet(); playSound("callEnd"); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
+    if (closing) return; closing = true; ended = true; quiet(); playSound("callEnd"); waveStop?.(); clearTimeout(ringTO); clearTimeout(connectTO); clearTimeout(recoveryTO); clearInterval(timer); clearInterval(vidTimer); stopRec();
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
-    try { unsubs.forEach((f) => f()); [mic, cam, screen].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); pc.close(); } catch {}
+    try { unsubs.forEach((f) => f()); [mic, cam, screen, sStream].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); remoteV.pause?.(); remoteV.srcObject = null; sharedEl.pause?.(); sharedEl.srcObject = null; pc.close(); } catch {}
     try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); ov.classList.add("ended"); $$(".cs-b,.cs-pb", ov).forEach((b) => { if (b.id !== "clEnd" && b.id !== "clEnd2") b.disabled = true; }); } catch {}
     document.documentElement.classList.remove("dlx-lock"); active = null;
     setTimeout(() => ov.remove(), 1500);
@@ -259,7 +365,25 @@ function run({ id, me, role, kind, other, offer }) {
     const theirs = isCaller ? c.recCallee : c.recCaller; if (theirs && !theirRec) toast("The other person started recording this call."); theirRec = !!theirs; showRec(!!(c.recCaller || c.recCallee));
     if (isCaller && c.delivered && !c.answer && !startedAt && !pc.remoteDescription) say("Ringing…");
     if (isCaller && c.answer) quiet();
-    if (isCaller && c.answer && !pc.remoteDescription) pc.setRemoteDescription(c.answer).then(flush).then(() => { say("Connecting…"); armConnect(); }).catch(() => {});
+    if (isCaller && c.answer && c.answer.sdp !== appliedAnswerSdp) {
+      appliedAnswerSdp = c.answer.sdp;
+      pc.setRemoteDescription(c.answer).then(flush).then(() => { say("Connecting…"); armConnect(); }).catch((e) => { signalError("remote answer", e); end("ended"); });
+    }
+    if (!isCaller && c.offer?.sdp && c.offer.sdp !== appliedOfferSdp && !restartBusy) {
+      restartBusy = true;
+      (async () => {
+        try {
+          await pc.setRemoteDescription(c.offer);
+          appliedOfferSdp = c.offer.sdp;
+          await flush();
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          await patchCall(id, { answer: { type: answer.type, sdp: answer.sdp } });
+          say("Reconnecting…");
+        } catch (e) { signalError("ICE restart offer", e); end("ended"); }
+        finally { restartBusy = false; }
+      })();
+    }
     if (["declined", "cancelled", "missed", "ended"].includes(c.status) && !closing) { if (c.status === "declined") toast(`${name} declined the call.`); if (c.status === "missed") toast("No answer."); end(c.status); }
   };
 
@@ -382,8 +506,8 @@ export function watchIncoming(ctx, staff) {
     }
   };
   // Listen by membership: that is the query the database rules can prove is allowed.
-  const unsubs = [onSnapshot(query(collection(db, "calls"), where("members", "array-contains", u.uid)), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id })).filter((c) => c.calleeUid === u.uid)), () => {})];
-  if (staff) unsubs.push(onSnapshot(query(collection(db, "calls"), where("calleeUid", "==", "staff")), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {}));
+  const unsubs = [onSnapshot(query(collection(db, "calls"), where("members", "array-contains", u.uid)), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id })).filter((c) => c.calleeUid === u.uid)), (e) => signalError("incoming call listener", e))];
+  if (staff) unsubs.push(onSnapshot(query(collection(db, "calls"), where("calleeUid", "==", "staff")), (s) => handle(s.docs.map((d) => ({ ...d.data(), id: d.id }))), (e) => signalError("staff incoming call listener", e)));
   return () => { unsubs.forEach((f) => f()); close(); };
 }
 

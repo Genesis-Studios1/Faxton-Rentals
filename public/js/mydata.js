@@ -1,6 +1,6 @@
 // "Download my data": gathers the signed-in person's OWN data from Firestore and packs it into one ZIP in the browser.
 // Nothing is sent anywhere: the queries below are the ones firestore.rules already lets the person run for themselves, the ZIP is built here,
-// and the only thing written back is a small record in `dataRequests` (who and when, never the data) so staff can see the request was served.
+// and the only thing written back is a small client-reported entry in `dataRequests` (who and when, never the data). It is not proof that the file was saved.
 //
 // The export is behind a "Confirm it's you" check (re-authentication). This file holds the rules of that check, so they cannot be skipped by the UI:
 //   - a verification is granted only after a Firebase re-authentication promise resolved (grantNow), is valid for 10 minutes and for one export;
@@ -264,8 +264,8 @@ Prepared for: ${name}
 Prepared on:  ${when}   (app version ${BUILD})
 
 This is the personal data Faxton Rentals holds about you, gathered on your own device after you confirmed it was you. Nothing in this
-file was sent to anyone. Only a note that you downloaded it (your name, role and the time, with none of the contents) was saved so our
-team can see the request was served.
+file was sent to anyone. Only a client-reported note that you completed the download (your name, role and the time, with none of the contents)
+was saved. It is not independent proof that a file was saved.
 
 WHAT IS INSIDE
   README.txt     this page
@@ -385,11 +385,11 @@ export async function deliver(res, { preferShare = false } = {}) {
   }
 }
 
-// After a file was handed over: remember it on this device and leave a small note for staff (no data in it).
+// After the browser reports a successful hand-off: remember it on this device and leave a client-reported note for staff (no data in it).
 export async function recordExport(user, profile) {
   noteExport(user.uid);
   try {
-    await addDoc(collection(db, "dataRequests"), { uid: user.uid, name: String(profile?.name || user.displayName || user.email || "").slice(0, 120), role: String(profile?.role || "renter").slice(0, 20), status: "verified-downloaded", at: serverTimestamp() });
+    await addDoc(collection(db, "dataRequests"), { uid: user.uid, name: String(profile?.name || user.displayName || user.email || "").slice(0, 120), role: String(profile?.role || "renter").slice(0, 20), status: "client-reported-downloaded", at: serverTimestamp() });
     return true;
   } catch { return false; }
 }

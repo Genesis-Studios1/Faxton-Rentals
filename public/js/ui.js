@@ -1,4 +1,16 @@
 export const esc = (s) => String(s ?? "").replace(/[&<>\"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+export function safeHtmlUrl(raw, attribute, base = document.baseURI) {
+  const value = String(raw ?? "").trim();
+  const attr = String(attribute ?? "").toLowerCase();
+  if (!value || /[\u0000-\u001f\u007f]/.test(value)) return false;
+  if (attr === "src" && /^data:image\/(?:jpeg|png|webp|gif);base64,[a-z0-9+/]+={0,2}$/i.test(value)) return true;
+  let url, origin;
+  try { url = new URL(value, base); origin = new URL(base).origin; } catch { return false; }
+  if (attr === "src" && url.protocol === "blob:") return url.origin === origin;
+  if (attr === "action" || attr === "formaction") return (url.protocol === "https:" || url.protocol === "http:") && url.origin === origin;
+  if ((attr === "href" || attr === "xlink:href") && (url.protocol === "mailto:" || url.protocol === "tel:")) return true;
+  return url.protocol === "https:" || url.protocol === "http:";
+}
 export const sanitizeHtml = (html) => {
   if (typeof html !== "string") return "";
   try {
@@ -19,7 +31,11 @@ export const sanitizeHtml = (html) => {
             continue;
           }
           const value = attr.value ?? "";
-          if ((name === "href" || name === "src" || name === "xlink:href" || name === "data" || name === "action" || name === "formaction") && /^(?:javascript:|vbscript:|data:text\/html|data:application\/javascript)/i.test(value.trim())) {
+          if (name === "href" || name === "src" || name === "xlink:href" || name === "action" || name === "formaction") {
+            if (!safeHtmlUrl(value, name)) node.removeAttribute(attr.name);
+            continue;
+          }
+          if (name === "srcset" || name === "data") {
             node.removeAttribute(attr.name);
             continue;
           }

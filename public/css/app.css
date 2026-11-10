@@ -1946,3 +1946,22 @@ dialog.nodismiss .close{display:none!important}
 .day:disabled{color:#7f8b86}
 .stat4 b{display:block}.stat4 .btn{display:inline-flex}
 
+
+
+/* Call controls: comfortable touch targets and a compact, safe-area-aware mobile layout. */
+@media (max-width: 640px) {
+  .cs-top { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  .cs-stage { min-height: 0; }
+  .cs-bar { gap: 7px; padding: 10px max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); flex-wrap: wrap; justify-content: center; }
+  .cs-b { min-width: 64px; min-height: 62px; padding: 8px 7px; border-radius: 14px; touch-action: manipulation; }
+  .cs-b .cs-ic { width: 42px; height: 38px; display: grid; place-items: center; }
+  .cs-b em { font-size: 11px; white-space: nowrap; }
+  .cs-bsep { display: none; }
+  .cs-pb { min-width: 44px; min-height: 44px; touch-action: manipulation; }
+  .cs-minb { min-width: 44px; min-height: 44px; }
+  .cl-pip { max-width: 34vw; }
+}
+@media (max-width: 380px) {
+  .cs-b { min-width: 58px; min-height: 58px; }
+  .cs-b em { font-size: 10px; }
+}

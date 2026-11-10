@@ -19,7 +19,6 @@ env:
   VERSION: ${{ github.event.inputs.version || github.ref_name }}
   # Installers go to the public downloads repo when RELEASES_TOKEN exists, else to this repo's Releases page.
   REL_REPO: ${{ secrets.RELEASES_TOKEN && 'musazaneerah4-crypto/Faxton-Rentals-Downloads' || github.repository }}
-  GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
 
 jobs:
   version:
@@ -36,6 +35,8 @@ jobs:
           echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
       # Each build uploads straight to this release (no Actions artifacts, which fill the free storage allowance).
       - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
         run: |
           V="${VERSION#v}"
           gh release view "v$V" --repo "$REL_REPO" >/dev/null 2>&1 || gh release create "v$V" --repo "$REL_REPO" --title "Faxton Rentals $V" --latest --notes "Faxton Rentals $V - Android: Faxton-Rentals-Android.apk (phones), Faxton-Rentals-Android-x64.apk (Intel/x86), Faxton-Rentals-Android.aab (Play Store bundle). iPhone: Faxton-Rentals-iPhone-unsigned.ipa (AltStore or Sideloadly). Windows: Faxton-Rentals-Windows-x64.exe / -arm64.exe. Mac: Faxton-Rentals-Mac-arm64.dmg / -x64.dmg. Linux: Faxton-Rentals-Linux-x64 / -arm64 as .AppImage or .deb."
@@ -44,10 +45,12 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with: { node-version: 22 }
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
         with: { distribution: temurin, java-version: 21 }
       - name: Install and create the Android project
         working-directory: apps/mobile
@@ -65,8 +68,8 @@ jobs:
       - name: Patch the Android project
         working-directory: apps/mobile
         run: python3 ci/patch_android.py android "${{ needs.version.outputs.v }}" "${{ needs.version.outputs.code }}"
-      # Signs with ONE stable key (your ANDROID_KEYSTORE_* secrets, else apps/mobile/signing/faxton-android.jks), so the SHA-1 never changes
-      # and can be registered once in Firebase. The SHA-1 and SHA-256 are printed in this log and in the job summary.
+      # Signs with the stable key supplied only through ANDROID_KEYSTORE_* GitHub Actions secrets, so the SHA-1 remains consistent
+      # and can be registered in Firebase. The SHA-1 and SHA-256 are printed in this log and in the job summary.
       - name: Build and sign the Android apps
         working-directory: apps/mobile/android
         env:
@@ -77,14 +80,18 @@ jobs:
         run: bash ../ci/build_android.sh
       - name: Upload android files to the release
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
         run: gh release upload "v${VERSION#v}" Faxton-Rentals-Android* --repo "$REL_REPO" --clobber
 
   windows:
     needs: version
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with: { node-version: 22 }
       - name: Build the Windows installer
         working-directory: apps/desktop
@@ -96,14 +103,18 @@ jobs:
           ls dist
       - name: Upload windows files to the release
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
         run: gh release upload "v${VERSION#v}" apps/desktop/dist/Faxton-Rentals-Windows-*.exe apps/desktop/dist/Faxton-Rentals-Windows-*.exe.blockmap apps/desktop/dist/latest.yml --repo "$REL_REPO" --clobber
 
   mac:
     needs: version
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with: { node-version: 22 }
       - name: Build the Mac apps (Apple Silicon and Intel)
         working-directory: apps/desktop
@@ -116,14 +127,18 @@ jobs:
           ls dist
       - name: Upload mac files to the release
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
         run: gh release upload "v${VERSION#v}" apps/desktop/dist/Faxton-Rentals-Mac-*.dmg apps/desktop/dist/Faxton-Rentals-Mac-*.zip --repo "$REL_REPO" --clobber
 
   linux:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with: { node-version: 22 }
       - name: Build the Linux apps (x64 and arm64, AppImage and .deb)
         working-directory: apps/desktop
@@ -136,14 +151,18 @@ jobs:
           ls
       - name: Upload linux files to the release
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
         run: gh release upload "v${VERSION#v}" apps/desktop/dist/Faxton-Rentals-Linux-*.AppImage apps/desktop/dist/Faxton-Rentals-Linux-*.deb --repo "$REL_REPO" --clobber
 
   ios:
     needs: version
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with: { node-version: 22 }
       - name: Create the iOS project
         working-directory: apps/mobile
@@ -191,4 +210,6 @@ jobs:
           (cd "$RUNNER_TEMP/ipa" && zip -qry "$GITHUB_WORKSPACE/Faxton-Rentals-iPhone-unsigned.ipa" Payload)
       - name: Upload ios files to the release
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
         run: gh release upload "v${VERSION#v}" Faxton-Rentals-iPhone-unsigned.ipa --repo "$REL_REPO" --clobber

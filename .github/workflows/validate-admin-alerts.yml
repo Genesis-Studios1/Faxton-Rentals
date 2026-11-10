@@ -23,6 +23,8 @@ on:
       - "scripts/check-app-cache-version.mjs"
       - "firestore.rules"
       - "tests/rules/**"
+      - "tests/area-security.test.mjs"
+      - "tests/html-sanitizer-security.test.mjs"
       - ".github/workflows/validate-admin-alerts.yml"
 
 permissions:
@@ -32,8 +34,10 @@ jobs:
   validate:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: 22
       - name: Check JavaScript, shell scripts and public configuration
@@ -41,6 +45,9 @@ jobs:
           for file in public/js/*.js; do
             node --experimental-default-type=module --check "$file"
           done
+          node --experimental-default-type=module --test tests/listing-media.test.mjs
+          node --experimental-default-type=module --test tests/area-security.test.mjs
+          node --experimental-default-type=module --test tests/html-sanitizer-security.test.mjs
           node --check public/sw.js
           node --check apps/desktop/main.js
           node --check apps/desktop/preload.js
@@ -50,11 +57,11 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('public/.well-known/assetlinks.json', 'utf8'))"
           node scripts/check-waitlist-icons.mjs
           node scripts/check-app-cache-version.mjs
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
         with:
           distribution: temurin
           java-version: "21"
       - name: Install Firestore rules test dependencies
         run: npm --prefix tests/rules ci --no-audit --no-fund
       - name: Run Firestore security-rule tests
-        run: npx --yes firebase-tools emulators:exec --only firestore --project demo-faxton "node tests/rules/run.mjs"
+        run: npx --yes firebase-tools@15.35.0 emulators:exec --only firestore --project demo-faxton "node tests/rules/run.mjs"

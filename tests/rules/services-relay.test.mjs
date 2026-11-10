@@ -16,9 +16,12 @@ await t("renter cannot save the relay", setDoc(doc(ren, "config/ice"), ICE), fal
 await t("support cannot save the relay", setDoc(doc(sup, "config/ice"), ICE), false);
 await t("relay with an extra key is rejected", setDoc(doc(adm, "config/ice"), { ...ICE, evil: 1 }), false);
 await t("relay with an over-long credentials URL is rejected", setDoc(doc(adm, "config/ice"), { ...ICE, credsUrl: "https://" + "a".repeat(420) }), false);
-await t("verified signed-in user reads the relay (calls need it)", getDoc(doc(ren, "config/ice")));
-await t("unverified email cannot read the relay", getDoc(doc(unv, "config/ice")), false);
-await t("signed-out visitor cannot read the relay", getDoc(doc(anon, "config/ice")), false);
+await t("admin can read relay settings", getDoc(doc(adm, "config/ice")));
+await t("owner can read relay settings", getDoc(doc(own, "config/ice")));
+await t("verified renter cannot read relay credentials", getDoc(doc(ren, "config/ice")), false);
+await t("support cannot read relay credentials", getDoc(doc(sup, "config/ice")), false);
+await t("unverified email cannot read relay credentials", getDoc(doc(unv, "config/ice")), false);
+await t("signed-out visitor cannot read relay credentials", getDoc(doc(anon, "config/ice")), false);
 // ---- serviceRequests ----
 const R = (o = {}) => ({ uid: "ren", name: "Ren", phone: "08012345678", email: "ren@x.com", addressLine1: "12 Test Street", area: "Lekki", category: "Plumbing", description: "Leaking tap", preferredDate: "2026-11-02", status: "New", createdAt: serverTimestamp(), ...o });
 const rid = (await addDoc(collection(ren, "serviceRequests"), R())).id; console.log("PASS user creates own service request");
