@@ -267,8 +267,15 @@ service cloud.firestore {
       allow create: if isAdmin() || (signedIn() && (myRole() == 'landlord' || (myRole() in ['agency', 'agent'] && isVerified()))
         && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.title, 120));
+      // Owners may edit existing listing values, but cannot add/remove schema fields or change moderation metadata.
       allow update: if isAdmin() || (ownsListing() && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.status == resource.data.status
+        && request.resource.data.diff(resource.data).addedKeys().size() == 0
+        && request.resource.data.diff(resource.data).removedKeys().size() == 0
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'verified', 'isVerified', 'featured', 'promoted', 'priority', 'moderation', 'moderationStatus',
+          'approved', 'approvedBy', 'approvedAt', 'reviewedAt', 'reviewedBy', 'changeNote', 'archived', 'createdAt', 'createdBy'
+        ])
         && request.resource.data.keys().size() <= 40 && short(request.resource.data.get('title', ''), 120));
       allow delete: if isAdmin();
     }
