@@ -10,6 +10,10 @@ const call = (to) => ({ convId: "", title: "", kind: "voice", status: "ringing",
 await t("unverified user cannot initiate a call", addDoc(collection(unverified, "calls"), { ...call("u2"), callerUid: "unverified", members: ["unverified", "u2"] }), false);
 const r = await addDocSafe(own, call("u2")); async function addDocSafe(db, d) { return addDoc(collection(db, "calls"), d); }
 await t("callee marks delivered", updateDoc(doc(u2, "calls", r.id), { delivered: true }));
+await t("callee cannot set an unknown call status", updateDoc(doc(u2, "calls", r.id), { status: "admin" }), false);
+await t("callee cannot send malformed SDP answer", updateDoc(doc(u2, "calls", r.id), { answer: { type: "offer", sdp: "x" } }), false);
+await t("caller cannot set an unknown call status", updateDoc(doc(own, "calls", r.id), { status: "admin" }), false);
+await t("caller cannot send malformed SDP offer", updateDoc(doc(own, "calls", r.id), { offer: { type: "answer", sdp: "x" } }), false);
 await t("caller can add a bounded ICE candidate", addDoc(collection(own, "calls", r.id, "ice"), { from: "own", c: JSON.stringify({ candidate: "candidate:1 1 udp 1 192.0.2.1 1234 typ host" }) }));
 await t("ICE candidate cannot contain extra fields", addDoc(collection(own, "calls", r.id, "ice"), { from: "own", c: "candidate", extra: "nope" }), false);
 await t("ICE candidate payload is bounded", addDoc(collection(own, "calls", r.id, "ice"), { from: "own", c: "x".repeat(4001) }), false);
