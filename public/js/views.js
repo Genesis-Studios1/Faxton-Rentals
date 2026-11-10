@@ -352,7 +352,7 @@ async function messages(ctx, cid) {
         thread.addEventListener("scroll", () => thread.classList.toggle("away", thread.scrollHeight - thread.scrollTop - thread.clientHeight > 260), { passive: true });
         thread.addEventListener("click", (e) => { if (e.target.closest(".mx-jump")) thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" }); });
         const CHAT_FILE_TYPES = new Set(["application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-powerpoint", "application/vnd.openxmlformats-officedocument.presentationml.presentation", "text/plain", "text/csv"]);
-        const sendFiles = async (files) => { for (const f of [...files].slice(0, 6)) { if (/^image\\//.test(f.type)) { await sendPics([f]); continue; }
+        const sendFiles = async (files) => { for (const f of [...files].slice(0, 6)) { if (/^image\//.test(f.type)) { await sendPics([f]); continue; }
             if (!CHAT_FILE_TYPES.has(f.type)) { toast("Attach a PDF, Word, Excel, PowerPoint, CSV or text document."); continue; }
             if (f.size > 400000) { toast("Documents can be up to 400 KB here. Send a smaller file or share a link."); continue; }
             try { const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error("That file couldn’t be read.")); r.readAsDataURL(f); }); const extra = { file: data, fname: f.name.slice(0, 80), fsize: f.size }; if (replyTo) extra.reply = replyTo; replyTo = null; paintReply(); await send("", extra); } catch (x) { toast(friendlyErr(x)); } } };
