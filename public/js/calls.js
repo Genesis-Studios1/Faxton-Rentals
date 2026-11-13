@@ -132,7 +132,7 @@ function run({ id, me, role, kind, other, offer }) {
       <button type="button" class="cs-b" id="clSnd" aria-pressed="true" aria-label="Shared sound: on" hidden><span class="cs-ic">${spkIc(true)}</span><em>Shared sound</em></button>
       <button type="button" class="cs-b" id="clRecB" aria-pressed="false" aria-label="Record call"><span class="cs-ic">${recIc}</span><em>Record</em></button><i class="cs-bsep"></i>
       <button type="button" class="cs-b end" id="clEnd" aria-label="End call"><span class="cs-ic">${icon("phone", 28)}</span><em>End Call</em></button></div>
-    <div class="cs-pill" id="clPill" role="button" tabindex="0" aria-label="Open the call"><span class="cs-pring"><span class="cs-pic sm">${pic}</span></span><div class="cs-pw"><b>${esc(name)}</b><small id="clPs">${isCaller ? "Calling…" : "Connecting…"}</small></div><i class="cs-sep"></i><button type="button" class="cs-pb" id="clMute2" aria-pressed="false" aria-label="Mute">${icon("mic", 20)}</button>${canShare ? `<button type="button" class="cs-pb" id="clShare2" aria-label="Share screen" title="${SHARE_TIP}">${icon("upload", 20)}</button>` : ""}<button type="button" class="cs-pb end" id="clEnd2" aria-label="End call">${icon("phone", 22)}</button></div>`;
+    <div class="cs-pill" id="clPill" role="button" tabindex="0" aria-label="Open the call"><span class="cs-pring"><span class="cs-pic sm">${pic}</span></span><div class="cs-pw"><b>${esc(name)}</b><small id="clPs">${isCaller ? "Calling…" : "Connecting…"}</small></div><i class="cs-sep"></i><button type="button" class="cs-pb" id="clMute2" aria-pressed="false" aria-label="Mute">${icon("mic", 20)}</button>${canRouteAudio ? `<button type="button" class="cs-pb" id="clSpeaker2" aria-pressed="false" aria-label="Turn speaker on" title="Use loudspeaker">${spkIc(false)}</button>` : ""}${canShare ? `<button type="button" class="cs-pb" id="clShare2" aria-label="Share screen" title="${SHARE_TIP}">${icon("upload", 20)}</button>` : ""}<button type="button" class="cs-pb end" id="clEnd2" aria-label="End call">${icon("phone", 22)}</button></div>`;
   document.body.append(ov); document.documentElement.classList.add("dlx-lock"); imgFallback(ov);
   if (!other.photo && other.uid) lookupPhoto(other.uid).then((src) => { if (src) $$(".cs-pic", ov).forEach((p) => p.insertAdjacentHTML("afterbegin", photoImg(src))); });
   const el = (i) => $("#" + i, ov), remoteV = el("clRemote"), localV = el("clLocal");
@@ -296,26 +296,26 @@ function run({ id, me, role, kind, other, offer }) {
   // Native Android routing is required for a reliable earpiece/loudspeaker switch in the Capacitor WebView.
   let speakerOn = false, speakerReady = false;
   const paintSpeaker = () => {
-    const b = el("clSpeaker"); if (!b) return;
-    b.setAttribute("aria-pressed", String(speakerOn));
-    b.setAttribute("aria-label", speakerOn ? "Turn speaker off" : "Turn speaker on");
-    b.title = speakerOn ? "Use earpiece or connected Bluetooth device" : "Use loudspeaker";
-    b.querySelector(".cs-ic").innerHTML = spkIc(speakerOn);
-    b.querySelector("em").textContent = speakerOn ? "Speaker on" : "Speaker";
+    [el("clSpeaker"), el("clSpeaker2")].filter(Boolean).forEach((b) => {
+      b.setAttribute("aria-pressed", String(speakerOn));
+      b.setAttribute("aria-label", speakerOn ? "Turn speaker off" : "Turn speaker on");
+      b.title = speakerOn ? "Use earpiece or connected Bluetooth device" : "Use loudspeaker";
+      const ic = b.querySelector(".cs-ic"); if (ic) ic.innerHTML = spkIc(speakerOn); else b.innerHTML = spkIc(speakerOn);
+      const label = b.querySelector("em"); if (label) label.textContent = speakerOn ? "Speaker on" : "Speaker";
+    });
   };
   const startNativeAudio = async () => {
     if (!canRouteAudio) return;
-    try { await nativeCallAudio.startCallAudio(); speakerReady = true; const b = el("clSpeaker"); if (b) b.disabled = false; }
+    try { await nativeCallAudio.startCallAudio(); speakerReady = true; [el("clSpeaker"), el("clSpeaker2")].filter(Boolean).forEach((b) => { b.disabled = false; }); }
     catch (e) { console.warn("[Faxton call] Could not initialise Android audio routing.", e); toast("Phone audio routing could not be initialised. You can still use the call."); }
   };
   if (canRouteAudio) {
-    const b = el("clSpeaker"); if (b) b.disabled = true;
-    b.onclick = async () => {
+    [el("clSpeaker"), el("clSpeaker2")].filter(Boolean).forEach((b) => { b.disabled = true; b.onclick = async () => {
       if (!speakerReady) return;
       const next = !speakerOn;
       try { await nativeCallAudio.setSpeakerphone({ enabled: next }); speakerOn = next; paintSpeaker(); }
       catch (e) { console.warn("[Faxton call] Speakerphone switch failed.", e); toast("Could not change the call audio output."); }
-    };
+    }; });
   }
 
   // ---- controls ----
