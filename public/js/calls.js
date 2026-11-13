@@ -417,8 +417,8 @@ function run({ id, me, role, kind, other, offer }) {
   (async () => {
     try {
       unsubs.push(watchCall(id, onDoc)); // from the very start, so an ended call can never be missed
-      await startNativeAudio();
       await media();
+      await startNativeAudio();
       pc.onicecandidate = (e) => { if (e.candidate) addIce(id, me, e.candidate.toJSON()); };
       unsubs.push(watchIce(id, (d) => { if (d.from !== me) addCand(JSON.parse(d.c)); }));
       if (isCaller) {
