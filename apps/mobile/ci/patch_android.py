@@ -90,6 +90,7 @@ java = list((android / "app" / "src" / "main" / "java").rglob("MainActivity.java
 assert len(java) == 1, java
 src = (ci / "MainActivity.java").read_text(encoding="utf-8")
 pkg = re.search(r"^package\s+([\w.]+);", java[0].read_text(encoding="utf-8"), re.M).group(1)
+shutil.copy2(ci / "CallAudioPlugin.java", java[0].parent / "CallAudioPlugin.java")
 java[0].write_text(re.sub(r"^package\s+[\w.]+;", f"package {pkg};", src, count=1, flags=re.M), encoding="utf-8")
 
 print(f"patched {android}: versionName {version_name}, versionCode {version_code}, package {pkg}")
