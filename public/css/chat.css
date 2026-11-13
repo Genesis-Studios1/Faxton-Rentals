@@ -605,6 +605,7 @@ body:has(.cs-ov:not(.min)) #toast{bottom:auto;top:calc(60px + env(safe-area-inse
 .cs-ov .cs-pw b{font-family:var(--font-display);font-size:15px;font-weight:650}
 .cs-ov .cs-pw small{font-size:12.5px;font-variant-numeric:tabular-nums}
 .cs-ov .cs-pb{width:42px;height:42px}
+.cs-ov .cs-pb[aria-pressed=true]{background:#fff;color:#06251c;border-color:transparent}
 .cs-ov .cs-pb.end{width:46px;height:46px}
 .cs-ov.min{background:none}
 /* short windows */
