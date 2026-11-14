@@ -122,16 +122,17 @@ function run({ id, me, role, kind, other, offer }) {
   const isCaller = role === "caller", name = other.name || "Faxton", recKey = isCaller ? "recCaller" : "recCallee";
   const ov = document.createElement("div"); ov.className = "cl-ov cs-ov"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Call with " + name);
   const pic = (other.photo ? photoImg(other.photo) : "") + `<span class="cs-ini">${esc(initials(name))}</span>`;
-  const hasDM = !!navigator.mediaDevices?.getDisplayMedia, canShare = hasDM, recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
+  const hasDM = !!navigator.mediaDevices?.getDisplayMedia, canShare = hasDM, nativeCallAudio = window.Capacitor?.Plugins?.CallAudio, canRouteAudio = typeof nativeCallAudio?.setSpeakerphone === "function", recIc = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6" fill="currentColor"/></svg>';
   ov.innerHTML = `<header class="cs-top"><span class="cs-logo"><img src="assets/mark.svg" alt="" width="32" height="28"><b>Faxton</b></span><i class="cs-sep"></i><span class="cs-state"><i class="cs-dot"></i><span id="clSt">${isCaller ? "Calling " + esc(name) + "…" : "Connecting…"}</span></span><div class="cs-tn"><b>${esc(name)}</b><span id="clVt2">${isCaller ? "Calling…" : "Connecting…"}</span></div><span class="cl-rec" id="clRec" hidden><i></i> Recording</span><span class="cl-rec cs-snd" id="clSndOn" hidden role="status"><i></i> Sound shared</span><button type="button" class="cs-minb" id="clMin" aria-label="Minimise the call" title="Minimise">${icon("dchev", 22)}</button></header>
     <div class="cs-stage"><video id="clRemote" autoplay playsinline></video><div class="cs-voice" id="clVoice"><div class="cs-ring"><span class="cs-pic">${pic}</span></div><h2>${esc(name)}</h2><p id="clVt">${isCaller ? "Calling…" : "Connecting…"}</p><div class="cs-wave" id="clWave" aria-hidden="true">${"<i></i>".repeat(29)}</div></div><video id="clLocal" class="cl-pip" autoplay playsinline muted hidden role="button" tabindex="0" aria-label="Expand your video"></video><button type="button" class="cs-pipmin" id="clPipMin" hidden aria-label="Minimize your video" title="Minimize your video"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg></button><audio id="clShared" autoplay></audio></div>
     <div class="cs-bar"><button type="button" class="cs-b" id="clMute" aria-pressed="false" aria-label="Mute"><span class="cs-ic">${icon("mic", 26)}</span><em>Mute</em></button>
       <button type="button" class="cs-b" id="clCam" aria-pressed="false" aria-label="Camera"><span class="cs-ic">${icon("video", 26)}</span><em>Camera</em></button>
+      ${canRouteAudio ? `<button type="button" class="cs-b" id="clSpeaker" aria-pressed="false" aria-label="Turn speaker on" title="Use loudspeaker"><span class="cs-ic">${spkIc(false)}</span><em>Speaker</em></button>` : ""}
       ${canShare ? `<i class="cs-bsep"></i><button type="button" class="cs-b" id="clShare" aria-pressed="false" aria-label="Share screen" title="${SHARE_TIP}"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>` : `<i class="cs-bsep"></i><button type="button" class="cs-b off" id="clShare" aria-disabled="true" aria-label="Share screen (not available here)" title="Screen sharing is not supported by this browser"><span class="cs-ic">${icon("upload", 26)}</span><em>Share Screen</em></button>`}
       <button type="button" class="cs-b" id="clSnd" aria-pressed="true" aria-label="Shared sound: on" hidden><span class="cs-ic">${spkIc(true)}</span><em>Shared sound</em></button>
       <button type="button" class="cs-b" id="clRecB" aria-pressed="false" aria-label="Record call"><span class="cs-ic">${recIc}</span><em>Record</em></button><i class="cs-bsep"></i>
       <button type="button" class="cs-b end" id="clEnd" aria-label="End call"><span class="cs-ic">${icon("phone", 28)}</span><em>End Call</em></button></div>
-    <div class="cs-pill" id="clPill" role="button" tabindex="0" aria-label="Open the call"><span class="cs-pring"><span class="cs-pic sm">${pic}</span></span><div class="cs-pw"><b>${esc(name)}</b><small id="clPs">${isCaller ? "Calling…" : "Connecting…"}</small></div><i class="cs-sep"></i><button type="button" class="cs-pb" id="clMute2" aria-pressed="false" aria-label="Mute">${icon("mic", 20)}</button>${canShare ? `<button type="button" class="cs-pb" id="clShare2" aria-label="Share screen" title="${SHARE_TIP}">${icon("upload", 20)}</button>` : ""}<button type="button" class="cs-pb end" id="clEnd2" aria-label="End call">${icon("phone", 22)}</button></div>`;
+    <div class="cs-pill" id="clPill" role="button" tabindex="0" aria-label="Open the call"><span class="cs-pring"><span class="cs-pic sm">${pic}</span></span><div class="cs-pw"><b>${esc(name)}</b><small id="clPs">${isCaller ? "Calling…" : "Connecting…"}</small></div><i class="cs-sep"></i><button type="button" class="cs-pb" id="clMute2" aria-pressed="false" aria-label="Mute">${icon("mic", 20)}</button>${canRouteAudio ? `<button type="button" class="cs-pb" id="clSpeaker2" aria-pressed="false" aria-label="Turn speaker on" title="Use loudspeaker">${spkIc(false)}</button>` : ""}${canShare ? `<button type="button" class="cs-pb" id="clShare2" aria-label="Share screen" title="${SHARE_TIP}">${icon("upload", 20)}</button>` : ""}<button type="button" class="cs-pb end" id="clEnd2" aria-label="End call">${icon("phone", 22)}</button></div>`;
   document.body.append(ov); document.documentElement.classList.add("dlx-lock"); imgFallback(ov);
   if (!other.photo && other.uid) lookupPhoto(other.uid).then((src) => { if (src) $$(".cs-pic", ov).forEach((p) => p.insertAdjacentHTML("afterbegin", photoImg(src))); });
   const el = (i) => $("#" + i, ov), remoteV = el("clRemote"), localV = el("clLocal");
@@ -292,6 +293,31 @@ function run({ id, me, role, kind, other, offer }) {
   };
   const setPreview = (t) => { preview.getVideoTracks().forEach((x) => preview.removeTrack(x)); if (t) preview.addTrack(t); syncLocal(); };
 
+  // Native Android routing is required for a reliable earpiece/loudspeaker switch in the Capacitor WebView.
+  let speakerOn = false, speakerReady = false;
+  const paintSpeaker = () => {
+    [el("clSpeaker"), el("clSpeaker2")].filter(Boolean).forEach((b) => {
+      b.setAttribute("aria-pressed", String(speakerOn));
+      b.setAttribute("aria-label", speakerOn ? "Turn speaker off" : "Turn speaker on");
+      b.title = speakerOn ? "Use earpiece or connected Bluetooth device" : "Use loudspeaker";
+      const ic = b.querySelector(".cs-ic"); if (ic) ic.innerHTML = spkIc(speakerOn); else b.innerHTML = spkIc(speakerOn);
+      const label = b.querySelector("em"); if (label) label.textContent = speakerOn ? "Speaker on" : "Speaker";
+    });
+  };
+  const startNativeAudio = async () => {
+    if (!canRouteAudio) return;
+    try { await nativeCallAudio.startCallAudio(); speakerReady = true; [el("clSpeaker"), el("clSpeaker2")].filter(Boolean).forEach((b) => { b.disabled = false; }); }
+    catch (e) { console.warn("[Faxton call] Could not initialise Android audio routing.", e); toast("Phone audio routing could not be initialised. You can still use the call."); }
+  };
+  if (canRouteAudio) {
+    [el("clSpeaker"), el("clSpeaker2")].filter(Boolean).forEach((b) => { b.disabled = true; b.onclick = async () => {
+      if (!speakerReady) return;
+      const next = !speakerOn;
+      try { await nativeCallAudio.setSpeakerphone({ enabled: next }); speakerOn = next; paintSpeaker(); }
+      catch (e) { console.warn("[Faxton call] Speakerphone switch failed.", e); toast("Could not change the call audio output."); }
+    }; });
+  }
+
   // ---- controls ----
   el("clMute").onclick = () => { const t = mic?.getAudioTracks()[0]; if (!t) return; t.enabled = !t.enabled; el("clMute").setAttribute("aria-pressed", String(!t.enabled)); el("clMute2").setAttribute("aria-pressed", String(!t.enabled)); el("clMute").querySelector("em").textContent = t.enabled ? "Mute" : "Unmute"; };
   el("clCam").onclick = async () => {
@@ -353,6 +379,7 @@ function run({ id, me, role, kind, other, offer }) {
     const dur = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0;
     patchCall(id, { status: startedAt ? "ended" : status, endedAt: Date.now(), duration: dur }); // in the background: the screen never waits for the network
     try { unsubs.forEach((f) => f()); [mic, cam, screen, sStream].forEach((s2) => { try { s2?.getTracks ? s2.getTracks().forEach((t) => t.stop()) : s2?.stop(); } catch {} }); remoteV.pause?.(); remoteV.srcObject = null; sharedEl.pause?.(); sharedEl.srcObject = null; pc.close(); } catch {}
+    if (canRouteAudio) nativeCallAudio.stopCallAudio?.().catch((e) => console.warn("[Faxton call] Could not restore phone audio routing.", e));
     try { say(dur ? `Call ended · ${fmtDur(dur)}` : "Call ended"); ov.classList.add("ended"); $$(".cs-b,.cs-pb", ov).forEach((b) => { if (b.id !== "clEnd" && b.id !== "clEnd2") b.disabled = true; }); } catch {}
     document.documentElement.classList.remove("dlx-lock"); active = null;
     setTimeout(() => ov.remove(), 1500);
@@ -391,6 +418,7 @@ function run({ id, me, role, kind, other, offer }) {
     try {
       unsubs.push(watchCall(id, onDoc)); // from the very start, so an ended call can never be missed
       await media();
+      await startNativeAudio();
       pc.onicecandidate = (e) => { if (e.candidate) addIce(id, me, e.candidate.toJSON()); };
       unsubs.push(watchIce(id, (d) => { if (d.from !== me) addCand(JSON.parse(d.c)); }));
       if (isCaller) {

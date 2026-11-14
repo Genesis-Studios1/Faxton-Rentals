@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
 
   @Override
   public void onCreate(Bundle savedInstanceState) {
+    registerPlugin(CallAudioPlugin.class);
     super.onCreate(savedInstanceState);
     // Android 15 draws apps edge to edge. Pad the web view by the system bars so the page never sits under the clock and battery.
     WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
