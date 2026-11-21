@@ -139,6 +139,12 @@ test("missing or wrong staging project/API values fail before creating output", 
   });
   await withTempOutput(async (outputDir) => {
     await assert.rejects(
+      buildStagingSite({ repoRoot, outputDir, env: stagingEnv({ STAGING_FIREBASE_APP_ID: "STAGING_FIREBASE_APP_ID" }) }),
+      /is still a placeholder/
+    );
+  });
+  await withTempOutput(async (outputDir) => {
+    await assert.rejects(
       buildStagingSite({ repoRoot, outputDir, env: stagingEnv({ STAGING_FIREBASE_PROJECT_ID: "faxton-rentals" }) }),
       /must target faxton-rentals-staging/);
   });
