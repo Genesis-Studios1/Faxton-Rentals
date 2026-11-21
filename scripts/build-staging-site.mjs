@@ -74,13 +74,21 @@ function readConfigString(contents, key) {
 
 function getStagingConfig(env) {
   const missing = requiredVariables.filter((name) => !String(env[name] ?? "").trim());
-  if (missing.length) throw new Error(`Missing required staging configuration: ${missing.join(", ")}`);
+  const invalid = [];
+  const appId = String(env.STAGING_FIREBASE_APP_ID ?? "").trim();
+  if (appId && /^(?:STAGING_|YOUR_|REPLACE_|TODO|CHANGEME)/i.test(appId)) {
+    invalid.push("STAGING_FIREBASE_APP_ID is still a placeholder; use the real web app ID registered in the staging Firebase project.");
+  }
+  if (missing.length || invalid.length) {
+    const problems = [
+      ...(missing.length ? [`Missing required staging configuration: ${missing.join(", ")}`] : []),
+      ...invalid
+    ];
+    throw new Error(problems.join(" "));
+  }
 
   if (env.STAGING_FIREBASE_PROJECT_ID.trim() !== STAGING_PROJECT_ID) {
     throw new Error("Staging Firebase project configuration must target faxton-rentals-staging.");
-  }
-  if (/^(?:STAGING_|YOUR_|REPLACE_|TODO|CHANGEME)/i.test(env.STAGING_FIREBASE_APP_ID.trim())) {
-    throw new Error("STAGING_FIREBASE_APP_ID is still a placeholder; use the real web app ID registered in the staging Firebase project.");
   }
   if (env.STAGING_API_BASE_URL.trim() !== STAGING_API_BASE_URL) {
     throw new Error("Staging API configuration must target the approved staging backend.");
