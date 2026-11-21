@@ -27,6 +27,9 @@ on:
       - "tests/html-sanitizer-security.test.mjs"
       - ".github/workflows/validate-admin-alerts.yml"
 
+  push:
+    branches: [staging]
+
 permissions:
   contents: read
 
