@@ -1,0 +1,89 @@
+name: Deploy staging frontend
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - "public/**"
+      - "scripts/build-staging-site.mjs"
+      - "scripts/smoke-staging-site.mjs"
+      - "scripts/validate-staging-service-account.mjs"
+      - "firebase.json"
+      - "firebase.staging.json"
+      - "package.json"
+      - "tests/staging-build.test.mjs"
+      - ".github/workflows/deploy-staging.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: faxton-staging-hosting
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging-hosting:
+    if: github.ref == 'refs/heads/staging'
+    environment: staging
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22
+
+      - name: Test staging build safeguards
+        run: npm run test:staging-build
+
+      - name: Run frontend regression tests
+        run: node --test tests/*.test.mjs
+
+      - name: Build isolated staging artifact
+        env:
+          STAGING_FIREBASE_PROJECT_ID: faxton-rentals-staging
+          STAGING_FIREBASE_API_KEY: ${{ vars.STAGING_FIREBASE_API_KEY }}
+          STAGING_FIREBASE_AUTH_DOMAIN: ${{ vars.STAGING_FIREBASE_AUTH_DOMAIN }}
+          STAGING_FIREBASE_STORAGE_BUCKET: ${{ vars.STAGING_FIREBASE_STORAGE_BUCKET }}
+          STAGING_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.STAGING_FIREBASE_MESSAGING_SENDER_ID }}
+          STAGING_FIREBASE_APP_ID: ${{ vars.STAGING_FIREBASE_APP_ID }}
+          STAGING_FIREBASE_MEASUREMENT_ID: ${{ vars.STAGING_FIREBASE_MEASUREMENT_ID }}
+          STAGING_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.STAGING_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          STAGING_METERED_TURN_API_KEY: ${{ vars.STAGING_METERED_TURN_API_KEY }}
+          STAGING_FIREBASE_HOSTING_SITE_ID: ${{ vars.STAGING_FIREBASE_HOSTING_SITE_ID }}
+          STAGING_FRONTEND_ORIGIN: ${{ vars.STAGING_FRONTEND_ORIGIN }}
+          STAGING_API_BASE_URL: https://faxton-backend-staging-ibon.onrender.com
+        run: npm run build:staging
+
+      - name: Validate staging deploy credential without printing it
+        env:
+          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+        run: node scripts/validate-staging-service-account.mjs
+      - name: Write the validated staging credential for Firebase CLI
+        env:
+          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+        run: |
+          umask 077
+          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-staging-service-account.json" >> "$GITHUB_ENV"
+
+      - name: Deploy Hosting only to the staging Firebase project
+        run: npx --yes firebase-tools@15.35.0 deploy --config .faxton-staging-build/firebase.json --project faxton-rentals-staging --only hosting
+
+      - name: Smoke test the deployed staging frontend
+        env:
+          STAGING_FIREBASE_PROJECT_ID: faxton-rentals-staging
+          STAGING_FIREBASE_API_KEY: ${{ vars.STAGING_FIREBASE_API_KEY }}
+          STAGING_FIREBASE_AUTH_DOMAIN: ${{ vars.STAGING_FIREBASE_AUTH_DOMAIN }}
+          STAGING_FIREBASE_STORAGE_BUCKET: ${{ vars.STAGING_FIREBASE_STORAGE_BUCKET }}
+          STAGING_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.STAGING_FIREBASE_MESSAGING_SENDER_ID }}
+          STAGING_FIREBASE_APP_ID: ${{ vars.STAGING_FIREBASE_APP_ID }}
+          STAGING_FIREBASE_MEASUREMENT_ID: ${{ vars.STAGING_FIREBASE_MEASUREMENT_ID }}
+          STAGING_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.STAGING_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+          STAGING_METERED_TURN_API_KEY: ${{ vars.STAGING_METERED_TURN_API_KEY }}
+          STAGING_FIREBASE_HOSTING_SITE_ID: ${{ vars.STAGING_FIREBASE_HOSTING_SITE_ID }}
+          STAGING_FRONTEND_ORIGIN: ${{ vars.STAGING_FRONTEND_ORIGIN }}
+          STAGING_API_BASE_URL: https://faxton-backend-staging-ibon.onrender.com
+        run: node scripts/smoke-staging-site.mjs

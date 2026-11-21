@@ -1,0 +1,6 @@
+{
+  "hosting": {
+    "site": "__STAGING_FIREBASE_HOSTING_SITE_ID__",
+    "public": "__STAGING_PUBLIC_DIR__"
+  }
+}
