@@ -145,6 +145,19 @@ test("missing or wrong staging project/API values fail before creating output", 
   });
   await withTempOutput(async (outputDir) => {
     await assert.rejects(
+      buildStagingSite({ repoRoot, outputDir, env: stagingEnv({
+        STAGING_FIREBASE_APP_ID: "STAGING_FIREBASE_APP_ID",
+        STAGING_METERED_TURN_API_KEY: ""
+      }) }),
+      (error) => {
+        assert.match(error.message, /Missing required staging configuration: STAGING_METERED_TURN_API_KEY/);
+        assert.match(error.message, /STAGING_FIREBASE_APP_ID is still a placeholder/);
+        return true;
+      }
+    );
+  });
+  await withTempOutput(async (outputDir) => {
+    await assert.rejects(
       buildStagingSite({ repoRoot, outputDir, env: stagingEnv({ STAGING_FIREBASE_PROJECT_ID: "faxton-rentals" }) }),
       /must target faxton-rentals-staging/);
   });
