@@ -572,23 +572,31 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid in resource.data.members || (resource.data.calleeUid == 'staff' && (isAdmin() || isSupport())));
       allow update: if (isCaller()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'offer', 'endedAt', 'duration', 'recCaller', 'recorded'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || request.resource.data.status in ['cancelled', 'missed', 'ended'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+            || ((request.resource.data.status in ['cancelled', 'missed'] && resource.data.status == 'ringing')
+              || (request.resource.data.status == 'ended' && resource.data.status in ['ringing', 'active'])))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['offer'])
-            || (request.resource.data.offer is map
+            || (resource.data.status in ['ringing', 'active']
+              && request.resource.data.offer is map
               && request.resource.data.offer.keys().hasOnly(['type', 'sdp'])
               && request.resource.data.offer.type == 'offer'
               && short(request.resource.data.offer.sdp, 50000))))
         || (isCallee()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'answer', 'answeredAt', 'endedAt', 'duration', 'recCallee', 'recorded', 'delivered'])
-          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) || request.resource.data.status in ['active', 'declined', 'ended'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+            || ((request.resource.data.status in ['active', 'declined'] && resource.data.status == 'ringing')
+              || (request.resource.data.status == 'ended' && resource.data.status in ['ringing', 'active'])))
           && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['answer'])
-            || (request.resource.data.answer is map
+            || (resource.data.status in ['ringing', 'active']
+              && request.resource.data.answer is map
               && request.resource.data.answer.keys().hasOnly(['type', 'sdp'])
               && request.resource.data.answer.type == 'answer'
               && short(request.resource.data.answer.sdp, 50000))))
         || mayClaimStaffCall()
         || (signedIn() && resource.data.get('calleeUid', '') == 'staff' && resource.data.get('status', '') == 'ringing' && (isAdmin() || isSupport())
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'endedAt', 'delivered'])
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['status'])
+            || (resource.data.status == 'ringing' && request.resource.data.status == 'declined'))
           && request.resource.data.get('status', resource.data.status) in ['ringing', 'declined']);
       match /ice/{iid} {
         function party() {
