@@ -10,6 +10,17 @@ const call = (to) => ({ convId: "", title: "", kind: "voice", status: "ringing",
 await t("unverified user cannot initiate a call", addDoc(collection(unverified, "calls"), { ...call("u2"), callerUid: "unverified", members: ["unverified", "u2"] }), false);
 const r = await addDocSafe(own, call("u2")); async function addDocSafe(db, d) { return addDoc(collection(db, "calls"), d); }
 await t("callee marks delivered", updateDoc(doc(u2, "calls", r.id), { delivered: true }));
+await t("callee can answer a ringing call", updateDoc(doc(u2, "calls", r.id), {
+  answer: { type: "answer", sdp: "valid-answer" }, status: "active", answeredAt: Date.now()
+}));
+await t("callee can end an active call", updateDoc(doc(u2, "calls", r.id), { status: "ended", endedAt: Date.now() }));
+await t("callee cannot reactivate an ended call", updateDoc(doc(u2, "calls", r.id), { status: "active" }), false);
+await t("caller cannot mark an ended call as missed", updateDoc(doc(own, "calls", r.id), { status: "missed" }), false);
+const declinedCall = await addDoc(collection(own, "calls"), call("u2"));
+await t("callee can decline a ringing call", updateDoc(doc(u2, "calls", declinedCall.id), { status: "declined", endedAt: Date.now() }));
+await t("callee cannot accept a declined call later", updateDoc(doc(u2, "calls", declinedCall.id), {
+  answer: { type: "answer", sdp: "late-answer" }, status: "active", answeredAt: Date.now()
+}), false);
 await t("callee cannot set an unknown call status", updateDoc(doc(u2, "calls", r.id), { status: "admin" }), false);
 await t("callee cannot send malformed SDP answer", updateDoc(doc(u2, "calls", r.id), { answer: { type: "offer", sdp: "x" } }), false);
 await t("caller cannot set an unknown call status", updateDoc(doc(own, "calls", r.id), { status: "admin" }), false);
