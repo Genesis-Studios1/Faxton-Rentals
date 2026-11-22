@@ -338,6 +338,20 @@ service cloud.firestore {
         && (!('assignee' in request.resource.data.diff(resource.data).affectedKeys()) || short(request.resource.data.assignee, 120))
         && (!('replies' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.replies is list && request.resource.data.replies.size() <= 300));
     }
+    // Internal support notes are stored separately from customer-readable ticket documents.
+    match /ticketNotes/{noteId} {
+      allow create: if signedIn() && (isAdmin() || isSupport())
+        && request.resource.data.keys().hasOnly(['ticketId', 'uid', 'by', 'text', 'createdAt'])
+        && request.resource.data.keys().hasAll(['ticketId', 'uid', 'by', 'text', 'createdAt'])
+        && request.resource.data.ticketId is string
+        && exists(/databases/$(database)/documents/tickets/$(request.resource.data.ticketId))
+        && request.resource.data.uid == request.auth.uid
+        && short(request.resource.data.by, 120)
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 1500
+        && request.resource.data.createdAt == request.time;
+      allow read: if isAdmin() || isSupport();
+      allow update, delete: if false;
+    }
     // Home-service requests (tiling, plumbing, ...) from the /services page. A signed-in user creates their own; the person who made it can
     // read it and cancel it; admins and support read all of them and update the status and a note for the requester.
     match /serviceRequests/{id} {
