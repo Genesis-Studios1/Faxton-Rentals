@@ -692,7 +692,8 @@ service cloud.firestore {
         && request.resource.data.data.matches('^data:(application/pdf|image/(jpeg|png|webp));base64,[A-Za-z0-9+/=]+$')
         && request.resource.data.data.size() < 1000000;
       allow read, delete: if owns() || isAdmin();
-      allow update: if isAdmin();
+      // Uploaded evidence is immutable from the client, including admin consoles.
+      allow update: if false;
     }
     match /conversations/{id} {
       // Ordinary users cannot manufacture staff-DM metadata to obtain another user's presence.
