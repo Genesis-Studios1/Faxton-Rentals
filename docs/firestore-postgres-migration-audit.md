@@ -65,6 +65,32 @@ The live UI call sites are present in `public/js/pages.js`, `public/js/views.js`
 - Listing owner access must come from the database relationship (`properties.owner_user_id` / manager relationship), never from submitted `ownerUid` or `agentUid`. Preserve the source Firestore listing ID in an explicit unique legacy-ID mapping until every client and imported record uses the PostgreSQL UUID. Backend draft PR #5 now adds nullable `properties.legacy_firestore_id` with a unique partial index in migration `008_property_legacy_firestore_ids.sql`.
 - Existing Firestore rules allow an applicant to withdraw only while `Under review`; listing owners can manage application status. Encode allowed transitions and prevent owners from editing applicant-provided details or documents.
 
+
+## Viewing, application and offer workflow requirements (verified against current UI)
+
+The renter and owner UI exposes more than simple create/list records, so these are the required backend contracts before frontend cutover.
+
+### Viewings
+- The renter creates a request with listing, requested date/time, tour type, contact phone, note, agent identity snapshot and optional trusted-contact details. The current UI also attempts to start a conversation with a booking message.
+- Owner/agent dashboards review requests and update the decision; the renter can cancel only while the request is still `Requested`.
+- A renter can ask to reschedule while a request is `Requested` or `Confirmed`. The request is currently a nested `reschedule` object and is communicated through Messages; it is not a confirmed schedule change until the owner/agent responds.
+- For confirmed in-person tours, the UI supports trusted-contact sharing, check-in, check-out, overdue prompts, SOS alerts (including optional coarse location), emergency calling and a one-time agent rating.
+- Trusted-contact details are stored in browser local storage and copied into a viewing record when shared. Treat them as private personal data; do not return them to public listing or agent-wide list responses unless the viewer is authorized and the specific field is needed.
+- Current Firestore rules restrict the renter to named update fields, but accept broad map payloads for `checkIn`, `checkOut`, and `sos`. PostgreSQL should replace this with explicit actions and server timestamps: request, confirm/decline, cancel, ask-to-reschedule, respond-to-reschedule, share-contact, check-in, check-out, raise/resolve SOS, and submit one rating. Validate actor, current state, schedule window, and one-time transitions; append an immutable event/audit row for each safety action.
+
+### Applications
+- The application captures applicant name/contact/address, occupants, employment and income details, move-in date, optional note, and required ID document plus optional proof of income.
+- The current UI may attach an accepted offer ID and negotiated rent. The backend must re-check that the offer belongs to the authenticated applicant and same listing, is accepted, and that the agreed rent equals the persisted offer amount.
+- Application creation currently copies listing title/area/image and client-calculates the move-in total. In the new API, listing and applicant identity must be resolved server-side; pricing and total must be computed from authoritative listing/fee data, never trusted from the client.
+- The current application payload can include base64 document data URLs. Replace these with private R2 object uploads and verified upload/document references, with strict owner/applicant/authorized staff access. Do not store raw document bytes in PostgreSQL JSON or expose them through normal application list responses.
+- Applicant withdrawal is allowed only while `Under review`. Owner/agent status decisions must be a finite transition set with audit history; owner-side edits must not overwrite applicant-submitted details or document references.
+
+### Offers
+- Offers support renter proposals, owner/renter counter-offers, acceptance, decline and renter withdrawal, with a visible negotiation history and a turn indicator.
+- Current offer creation snapshots asking rent and fee inputs from the listing, while client code calculates the negotiated move-in total. The backend must snapshot authoritative listing price/fees and compute totals itself.
+- Enforce one active negotiation per renter/listing (matching current UI behavior), amount bounds (currently at least half and below asking rent for initial offers; counters are bounded between half and asking rent), correct turn, participant identity and legal state transition.
+- Store negotiation entries as append-only offer events rather than trusting a client-submitted replacement `history` array. Accepting an offer must atomically freeze the agreed amount and record who accepted it.
+
 ## Recommended implementation order
 
 1. **Identity and migration foundation:** stable Firebase UID ↔ PostgreSQL user mapping, role/verification reconciliation, idempotent import tooling, per-collection counts and mismatch reports.
@@ -90,7 +116,7 @@ The live UI call sites are present in `public/js/pages.js`, `public/js/views.js`
 
 - Staging Firebase Admin credentials previously failed token verification and must be checked privately in Render.
 - Staging Neon migration history/schema and R2 upload credentials need live verification.
-- The public property response previously included exact `addressLine`, coordinates and internal owner UUIDs. Backend draft PR #5 removes those fields from public list/detail responses and adds regression assertions; private owner/admin responses retain the full listing details. The change passed CI run [45056399817](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45056399817), but is not merged or deployed. The privacy fix and migration 008 passed backend CI run [45056399817](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45056399817). They remain in draft PR #5 and are not merged or deployed.
+- The public property response previously included exact `addressLine`, coordinates and internal owner UUIDs. Backend draft PR #5 removes those fields from public list/detail responses and adds regression assertions; private owner/admin responses retain the full listing details. The privacy fix, migration 008, and the public detail regression test passed backend CI runs [45056399817](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45056399817) and [45059089895](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45059089895). They remain in draft PR #5 and are not merged or deployed.
 - Profile visibility is stored but not enforced by a public profile endpoint.
 - Real-time messaging and WebRTC signaling are not implemented.
 - Rate limiting currently uses per-process memory and does not share counters across instances.
