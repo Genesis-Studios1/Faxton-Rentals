@@ -35,14 +35,19 @@ Firebase Authentication remains the identity provider. The API verifies Firebase
 | `presence` | Online status and last seen | Missing | Add expiring presence/heartbeat design; avoid treating stale online flags as live presence. |
 | `calls`, nested `ice` | WebRTC call records, offer/answer, ICE candidates, logs, incoming-call listeners | Missing | Build authenticated call-session and signaling endpoints plus real-time fanout; authorize only call participants; short retention and cleanup. Do not expose TURN secrets to clients. |
 | `blocks` | Block/unblock and call/message restrictions | Missing | Add unique blocker/blocked relation and enforce it in conversation and call creation, not only in UI. |
-| `offers` | Offer/negotiation workflow (referenced by the app's Firestore rules) | Missing | Inspect full offer UI and rules; model state transitions, listing ownership and participant permissions. |
+| `offers` | Offer/negotiation workflow; also included in the user's data export | Missing | Inspect full offer UI and rules; model state transitions, listing ownership and participant permissions. |
+| `tenancies` | Tenancy records included in the user's data export | Missing | Inspect tenancy UI/rules; define owner/tenant access, lifecycle, and links to accepted applications/offers. |
+| `records` | Rent/payment ledger records included in the user's data export | Missing | Model ledger entries as auditable financial records; enforce tenant/owner/admin permissions and immutable payment history. |
+| `maintenance` | Maintenance requests and history included in the user's data export | Missing | Add request lifecycle, append-only history and controlled media references. |
+| `notices` | Property notices addressed to tenants | Missing | Add recipient-scoped notices with tenant membership checks and read state. |
+| `paymentProofs` | Tenant-submitted payment proof/receipt records | Missing | Add private evidence metadata, R2 uploads, immutable proof records and owner/admin review. |
+| `dataRequests` | Client-reported export event | Missing | Replace with server-audited data export/delete request workflow; client-side event is not proof of completed export. |
 | `serviceRequests` | Customer home-service requests; staff status/private-note updates | Missing | Add service-request schema, customer create/list/cancel and staff assignment/status operations. |
 | `notifications` | In-app notifications (rules cover this collection) | PostgreSQL table exists; API absent | Add recipient-scoped list/read APIs and event producers; define push delivery separately. |
 | `reports`, `feedback` | User reports and call/app feedback | Missing | Add authenticated creation, moderation queues, rate limits and data retention. |
 | `staffEvents` | Signup event stream for staff dashboard | Missing | Add server-generated audit/event records; never trust client-supplied staff identity. |
 | `config/ice`, `config/payments`, `config/owner` | TURN settings, bank transfer instructions, owner bootstrap/identity | Missing | Move privileged configuration to server-side secrets/config; provide narrow admin APIs. Never return TURN provider credentials to ordinary users. |
 | `waitlist` | Website waitlist collection | Not confirmed as app-backend scope | Determine whether this remains a separate marketing-site workflow before migrating it. |
-| `dataRequests` | Client-reported export event | Missing | Replace with server-audited data export/delete request workflow; client-side event is not proof of completed export. |
 
 ## Recommended implementation order
 
