@@ -625,8 +625,17 @@ service cloud.firestore {
     // Reports about other users, reviewed by the Faxton team.
     match /reports/{id} {
       allow create: if signedIn() && request.resource.data.reporterUid == request.auth.uid
-        && short(request.resource.data.reason, 80) && short(request.resource.data.details, 2000)
-        && request.resource.data.keys().size() <= 12;
+        && request.resource.data.keys().hasOnly(['reporterUid', 'reporterName', 'targetUid', 'targetName', 'convId', 'reason', 'details', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(['reporterUid', 'targetUid', 'targetName', 'reason', 'details', 'status', 'createdAt'])
+        && request.resource.data.targetUid is string && request.resource.data.targetUid.size() > 0
+        && short(request.resource.data.targetUid, 128)
+        && short(request.resource.data.get('reporterName', ''), 160)
+        && short(request.resource.data.targetName, 120)
+        && (!('convId' in request.resource.data) || short(request.resource.data.convId, 128))
+        && request.resource.data.reason in ['Spam or scam', 'Harassment or abuse', 'Fake or misleading listing', 'Inappropriate content', 'Pretending to be someone else', 'Something else']
+        && short(request.resource.data.details, 1500)
+        && request.resource.data.status == 'New'
+        && request.resource.data.createdAt == request.time;
       allow read: if isAdmin() || isSupport();
       allow update: if (isAdmin() || isSupport())
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note'])
