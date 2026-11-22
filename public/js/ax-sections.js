@@ -213,12 +213,30 @@ export function ticketCenter(ctx) {
         const test = (k) => TC_TABS.find((x) => x[0] === k)[2];
         if (cur) { const t = by.find((x) => x.id === cur); if (t) tab = isRes(t) ? "resolved" : "open"; else cur = null; }
         const rows = () => by.filter((t) => test(tab)(t) && (!q || hay(t.subject, t.name, t.ref, t.message, t.email).includes(q)));
+        const loadNotes = (ticket) => {
+          if (notesLoaded.has(ticket.id)) return;
+          notesLoaded.add(ticket.id);
+          st.getTicketNotes(ticket.id).then(async (items) => {
+            const legacy = (ticket.replies || []).filter((r) => r.internal);
+            const migrated = await Promise.all(legacy.map((r, i) => st.migrateTicketNote(ticket.id, `legacy_${ticket.id}_${i}`, ctx.S.user, r)));
+            if (legacy.length) {
+              const replies = (ticket.replies || []).filter((r) => !r.internal);
+              await st.patch("tickets", ticket.id, { replies });
+              ticket.replies = replies;
+              changed();
+            }
+            const all = new Map(items.map((r) => [r.id, r]));
+            migrated.forEach((r) => all.set(r.id, r));
+            notesByTicket.set(ticket.id, [...all.values()]);
+            if (cur === ticket.id) paint();
+          }).catch((e) => { notesLoaded.delete(ticket.id); if (cur === ticket.id) bad(e); });
+        };
         const pick = (id, push = true) => { cur = id; if (push && mobile()) { if (!hq().q.id) setQ({ id }, "push"); } else setQ({ id }); paint(); };
         const rowHtml = (t) => `<button type="button" class="ax-tr" data-t="${esc(t.id)}" aria-current="${t.id === cur}"><span class="ax-tr-a"><b class="num">${esc(t.ref || "—")}</b><span class="ax-tsp" data-s="${groupOf(t) === "Resolved" ? "done" : groupOf(t) === "In progress" ? "prog" : "open"}">${esc(groupOf(t).toLowerCase())}</span>${t.priority === "High" && !isRes(t) ? '<span class="ax-tsp" data-s="high">high</span>' : ""}<time>${esc(shortDay(t.createdAt))}</time></span><span class="ax-tr-b"><span>${esc(t.name || "Customer")}</span> · ${esc(t.subject || "Ticket")}</span></button>`;
         const paint = () => {
           const rs = rows(); if (!cur && rs.length && !mobile()) cur = rs[0].id; if (cur && !by.some((t) => t.id === cur)) cur = null;
           const t = by.find((x) => x.id === cur);
-          if (t && !notesLoaded.has(t.id)) { notesLoaded.add(t.id); st.getTicketNotes(t.id).then((items) => { notesByTicket.set(t.id, items); if (cur === t.id) paint(); }).catch(() => { notesLoaded.delete(t.id); }); }
+          if (t) loadNotes(t);
           box.dataset.view = mobile() && t && hq().q.id ? "thread" : "list";
           box.innerHTML = `<section class="ax-tcl" aria-label="Tickets"><div class="ax-pills" id="tcTabs"></div><div class="ax-tcr" role="list">${rs.map(rowHtml).join("") || empty({ icon: "inbox", title: q ? "No tickets match" : `No ${TC_TABS.find((x) => x[0] === tab)[1].toLowerCase()} tickets`, hint: q ? "Try another word." : "Tickets from the Contact us page appear here." })}</div></section><section class="ax-tcp" aria-label="Conversation">${t ? thread(t) : `<div class="ax-pane-empty">${empty({ icon: "chatdots", title: "Select a ticket", hint: "Choose a ticket on the left to read the conversation." })}</div>`}</section>`;
           const tb = $("#tcTabs", box); tb.innerHTML = tabs(TC_TABS.map(([k, label, f]) => ({ k, label, count: by.filter(f).length })), tab, { label: "Ticket filters" }); mountTabs(tb, (k) => { tab = k; cur = null; setQ({ id: "" }); paint(); });
@@ -253,6 +271,7 @@ export function ticketCenter(ctx) {
         document.addEventListener("keydown", key); ctx.S.cleanups.push(() => { live = false; document.removeEventListener("keydown", key); });
         AX.page.path = hq().path; AX.page.onSoft = (qq) => { if (qq.id) { cur = qq.id; const t = by.find((x) => x.id === cur); if (t && !test(tab)(t)) tab = isRes(t) ? "resolved" : "open"; } else if (mobile()) cur = null; paint(); };
         paint();
+        by.filter((t) => (t.replies || []).some((r) => r.internal)).forEach(loadNotes);
       } };
     } });
 }
