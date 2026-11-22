@@ -26,7 +26,7 @@ Firebase Authentication remains the identity provider. The API verifies Firebase
 |---|---|---|---|
 | `listings` | Public active listing reads; owner listing flows | Partial property API exists | Map legacy listing fields/statuses to property schema; integrate all listing create/edit/archive/moderation screens; verify public address privacy. |
 | `users` | Account/profile, role, saved IDs, onboarding and verification data | Partial profile API; auth user resolver | Define authoritative role/verification/onboarding mapping; migrate saved listings and preserve existing Firebase UID links. |
-| `profiles` | Public profile cards and verified badge sync | No public profile read API; admin profile API only | Add privacy-aware public profile endpoint; enforce profile visibility and verified badge authorization. |
+| `profiles` | Public profile cards and verified badge sync | Privacy-aware public profile endpoint added in backend draft PR #5; not merged or deployed; frontend still needs integration | Wire public profile cards to the API and define verified-badge semantics from authoritative verification data. |
 | `viewings` | Request/list viewings; renter check-in/check-out, SOS, trusted contacts, sharing, cancellation, reschedule requests and post-viewing ratings; listing owner/agent can manage status | Missing | Model the full lifecycle and safety metadata; enforce renter vs listing-owner permissions and status transitions; do not reduce this to create/list only. Preserve legacy Firebase UID and listing-ID references. |
 | `applications` | Rental application, move-in date, details, proposed rent and calculated amount; renter can withdraw while under review; listing owner can change status | Missing | Add schema and validation; derive owner and price from the authoritative listing rather than client input; enforce listing/tenant/owner relationships and explicit status transitions. Preserve legacy Firebase UID and listing-ID references. |
 | `documents` | User-uploaded verification documents and deletion | Generic upload category exists; document workflow missing | Store metadata and R2 object references; enforce owner/admin access, immutable evidence rules and retention/deletion policy. |
@@ -125,7 +125,7 @@ The rules also confirm that `documents` are immutable after creation and applica
 - Staging Firebase Admin credentials previously failed token verification and must be checked privately in Render.
 - Staging Neon migration history/schema and R2 upload credentials need live verification.
 - The public property response previously included exact `addressLine`, coordinates and internal owner UUIDs. Backend draft PR #5 removes those fields from public list/detail responses and adds regression assertions; private owner/admin responses retain the full listing details. The privacy fix, migration 008, and the public detail regression test passed backend CI runs [45056399817](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45056399817) and [45059089895](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45059089895). They remain in draft PR #5 and are not merged or deployed.
-- Profile visibility is stored but not enforced by a public profile endpoint.
+- Profile visibility enforcement is implemented in the new public profile endpoint on backend draft PR #5; its CI validation and frontend integration are still pending.
 - Real-time messaging and WebRTC signaling are not implemented.
 - Rate limiting currently uses per-process memory and does not share counters across instances.
 
