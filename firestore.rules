@@ -421,10 +421,13 @@ service cloud.firestore {
         && request.resource.data.amount is number && request.resource.data.amount >= 0 && request.resource.data.amount < 1000000000
         && request.resource.data.status in ['Due', 'Paid']
         && exists(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId))
-        && (request.resource.data.uid == request.auth.uid
+        && ((request.resource.data.uid == request.auth.uid
             && get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.uid == request.auth.uid
-          || (get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.get('ownerUid', '') == request.auth.uid || isAdmin())
-            && get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.uid == request.resource.data.uid);
+            && request.resource.data.status == 'Due'
+            && request.resource.data.get('by', '') == 'tenant')
+          || ((get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.get('ownerUid', '') == request.auth.uid || isAdmin())
+            && get(/databases/$(database)/documents/tenancies/$(request.resource.data.tenancyId)).data.uid == request.resource.data.uid
+            && request.resource.data.get('by', '') == 'owner'));
       allow read: if owns() || ownsListing() || isAdmin();
       // Tenants may add payment-date metadata, but cannot mark a charge as paid.
       // Only the property owner or an admin can confirm or change payment status.
