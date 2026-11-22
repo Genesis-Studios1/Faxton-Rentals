@@ -331,7 +331,12 @@ service cloud.firestore {
         && short(request.resource.data.subject, 160) && short(request.resource.data.message, 2000)
         && request.resource.data.keys().size() <= 12;
       allow read: if owns() || isAdmin() || isSupport();
-      allow update: if isAdmin() || isSupport();
+      allow update: if (isAdmin() || isSupport())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'priority', 'assignee', 'replies'])
+        && (!('status' in request.resource.data.diff(resource.data).affectedKeys()) || request.resource.data.status in ['Open', 'In progress', 'Resolved'])
+        && (!('priority' in request.resource.data.diff(resource.data).affectedKeys()) || request.resource.data.priority in ['Low', 'Medium', 'High'])
+        && (!('assignee' in request.resource.data.diff(resource.data).affectedKeys()) || short(request.resource.data.assignee, 120))
+        && (!('replies' in request.resource.data.diff(resource.data).affectedKeys()) || (request.resource.data.replies is list && request.resource.data.replies.size() <= 300));
     }
     // Home-service requests (tiling, plumbing, ...) from the /services page. A signed-in user creates their own; the person who made it can
     // read it and cancel it; admins and support read all of them and update the status and a note for the requester.
@@ -526,7 +531,10 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid
         && short(request.resource.data.text, 2000) && request.resource.data.text.size() >= 5
         && request.resource.data.keys().size() <= 10;
-      allow read, update: if isAdmin() || isSupport();
+      allow read: if isAdmin() || isSupport();
+      allow update: if (isAdmin() || isSupport())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['New', 'Reviewed', 'Planned', 'Done'];
     }
     // Voice and video calls: signalling for WebRTC plus the call log. Calls to "staff" ring every admin and support account.
     match /calls/{id} {
@@ -619,7 +627,11 @@ service cloud.firestore {
       allow create: if signedIn() && request.resource.data.reporterUid == request.auth.uid
         && short(request.resource.data.reason, 80) && short(request.resource.data.details, 2000)
         && request.resource.data.keys().size() <= 12;
-      allow read, update: if isAdmin() || isSupport();
+      allow read: if isAdmin() || isSupport();
+      allow update: if (isAdmin() || isSupport())
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'note'])
+        && (!('status' in request.resource.data.diff(resource.data).affectedKeys()) || request.resource.data.status in ['New', 'Reviewing', 'Action taken', 'Dismissed'])
+        && (!('note' in request.resource.data.diff(resource.data).affectedKeys()) || short(request.resource.data.get('note', ''), 1000));
     }
     // Bank-transfer proofs: a renter says "I've paid" with an optional receipt image. The owner of the home or an admin confirms or rejects it.
     match /paymentProofs/{id} {
