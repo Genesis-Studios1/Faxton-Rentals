@@ -90,7 +90,7 @@ The live UI call sites are present in `public/js/pages.js`, `public/js/views.js`
 
 - Staging Firebase Admin credentials previously failed token verification and must be checked privately in Render.
 - Staging Neon migration history/schema and R2 upload credentials need live verification.
-- The public property response previously included exact `addressLine`, coordinates and internal owner UUIDs. Backend draft PR #5 now removes those fields from public list/detail responses and adds regression assertions; private owner/admin responses retain the full listing details. This fix remains unmerged and awaits CI.
+- The public property response previously included exact `addressLine`, coordinates and internal owner UUIDs. Backend draft PR #5 removes those fields from public list/detail responses and adds regression assertions; private owner/admin responses retain the full listing details. The change passed CI run [45056399817](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45056399817), but is not merged or deployed. The privacy fix and migration 008 passed backend CI run [45056399817](https://github.com/Genesis-Studios1/Faxton-Backend/actions/runs/45056399817). They remain in draft PR #5 and are not merged or deployed.
 - Profile visibility is stored but not enforced by a public profile endpoint.
 - Real-time messaging and WebRTC signaling are not implemented.
 - Rate limiting currently uses per-process memory and does not share counters across instances.
