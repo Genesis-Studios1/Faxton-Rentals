@@ -62,7 +62,7 @@ The live UI call sites are present in `public/js/pages.js`, `public/js/views.js`
 - Viewing safety operations include renter check-in/check-out, SOS, trusted contact, `sharedWith`, cancellation, reschedule requests and a one-time rating. Owner/agent status updates are used by the dashboard. Model each operation as an explicit endpoint/transition and audit the actor; do not expose a generic unrestricted PATCH.
 - Application submission currently includes personal/contact data, current address, occupants, employment status, employer, job title, income band, document labels and attached ID/proof-of-income content. The ID document is required by the current UI. The backend must move file bytes to private R2 objects and store only verified upload/document references in PostgreSQL; do not carry base64 data URLs into JSON rows or logs.
 - Accepted rental offers can change the application rent and attach an `offerId`. The backend must verify the offer belongs to the authenticated applicant and the same listing, is accepted, and that the agreed rent matches the offer record. Calculate totals server-side from authoritative pricing rules.
-- Listing owner access must come from the database relationship (`properties.owner_user_id` / manager relationship), never from submitted `ownerUid` or `agentUid`. Preserve the source Firestore listing ID in an explicit unique legacy-ID mapping until every client and imported record uses the PostgreSQL UUID.
+- Listing owner access must come from the database relationship (`properties.owner_user_id` / manager relationship), never from submitted `ownerUid` or `agentUid`. Preserve the source Firestore listing ID in an explicit unique legacy-ID mapping until every client and imported record uses the PostgreSQL UUID. Backend draft PR #5 now adds nullable `properties.legacy_firestore_id` with a unique partial index in migration `008_property_legacy_firestore_ids.sql`.
 - Existing Firestore rules allow an applicant to withdraw only while `Under review`; listing owners can manage application status. Encode allowed transitions and prevent owners from editing applicant-provided details or documents.
 
 ## Recommended implementation order
@@ -90,7 +90,7 @@ The live UI call sites are present in `public/js/pages.js`, `public/js/views.js`
 
 - Staging Firebase Admin credentials previously failed token verification and must be checked privately in Render.
 - Staging Neon migration history/schema and R2 upload credentials need live verification.
-- The current public property response includes exact `addressLine` and internal user UUID fields; decide and test a privacy-safe public representation.
+- The public property response previously included exact `addressLine`, coordinates and internal owner UUIDs. Backend draft PR #5 now removes those fields from public list/detail responses and adds regression assertions; private owner/admin responses retain the full listing details. This fix remains unmerged and awaits CI.
 - Profile visibility is stored but not enforced by a public profile endpoint.
 - Real-time messaging and WebRTC signaling are not implemented.
 - Rate limiting currently uses per-process memory and does not share counters across instances.
@@ -98,5 +98,5 @@ The live UI call sites are present in `public/js/pages.js`, `public/js/views.js`
 ## Source files inspected
 
 - App: `public/js/api-config.js`, `public/js/store.js`, `public/js/calls.js`, `public/js/services.js`, `public/js/mydata.js`, `firestore.rules`.
-- Backend: `README.md`, `src/server.ts`, `src/routes/properties.ts`, `src/routes/profiles.ts`, `src/routes/conversations.ts`, `migrations/001_initial_schema.sql` and migrations 002–007.
+- Backend: `README.md`, `src/server.ts`, `src/routes/properties.ts`, `src/routes/profiles.ts`, `src/routes/conversations.ts`, `migrations/001_initial_schema.sql` and migrations 002–008.
 - This is a code inventory, not a claim that every Firestore collection or workflow has been exhaustively enumerated. The remaining UI modules and rules should be checked as each workflow is implemented.
