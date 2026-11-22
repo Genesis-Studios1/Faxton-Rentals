@@ -1,6 +1,6 @@
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { readFileSync } from "fs";
-import { setDoc, doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { setDoc, doc, updateDoc, addDoc, collection, serverTimestamp, getDoc } from "firebase/firestore";
 
 const env = await initializeTestEnvironment({
   projectId: "demo-faxton",
@@ -50,6 +50,23 @@ await t("staff cannot change ticket owner", updateDoc(doc(admin, "tickets/t1"), 
 await t("staff cannot add arbitrary ticket fields", updateDoc(doc(support, "tickets/t1"), { isAdmin: true }), false);
 await t("staff cannot set an unknown ticket status", updateDoc(doc(support, "tickets/t1"), { status: "Deleted" }), false);
 await t("ordinary user cannot update tickets", updateDoc(doc(renter, "tickets/t1"), { status: "Resolved" }), false);
+
+const privateNote = await addDoc(collection(support, "ticketNotes"), {
+  ticketId: "t1", uid: "sup", by: "Support", text: "Internal investigation", createdAt: serverTimestamp()
+});
+await t("support can read internal ticket notes", getDoc(privateNote));
+await t("admin can read internal ticket notes", getDoc(doc(admin, "ticketNotes", privateNote.id)));
+await t("ticket owner cannot read internal ticket notes", getDoc(doc(renter, "ticketNotes", privateNote.id)), false);
+await t("ordinary user cannot create internal ticket notes", addDoc(collection(renter, "ticketNotes"), {
+  ticketId: "t1", uid: "ren", by: "Renter", text: "Forged note", createdAt: serverTimestamp()
+}), false);
+await t("support cannot create a note under another user's identity", addDoc(collection(support, "ticketNotes"), {
+  ticketId: "t1", uid: "adm", by: "Support", text: "Forged author", createdAt: serverTimestamp()
+}), false);
+await t("support cannot create a note for a missing ticket", addDoc(collection(support, "ticketNotes"), {
+  ticketId: "missing", uid: "sup", by: "Support", text: "Orphan note", createdAt: serverTimestamp()
+}), false);
+await t("support cannot modify an existing internal note", updateDoc(doc(support, "ticketNotes", privateNote.id), { text: "Edited" }), false);
 
 await t("support can change suggestion status", updateDoc(doc(support, "suggestions/s1"), { status: "Reviewed" }));
 await t("admin can mark suggestion planned", updateDoc(doc(admin, "suggestions/s1"), { status: "Planned" }));
