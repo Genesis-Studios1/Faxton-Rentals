@@ -40,7 +40,10 @@ await t("stranger cannot update", updateDoc(doc(oth, "maintenance", m.id), { sta
 // records
 const R = { uid: "ten", ownerUid: "lord", tenancyId: "a1", listingId: "l1", kind: "Service charge", label: "Service charge 2026", amount: 350000, due: "2026-12-01", status: "Due", by: "owner", createdAt: serverTimestamp() };
 await t("owner adds a charge for the tenant", addDoc(collection(lord, "records"), R));
-await t("tenant adds own record", addDoc(collection(ten, "records"), { ...R, by: "tenant" }));
+await t("tenant adds own due record", addDoc(collection(ten, "records"), { ...R, by: "tenant" }));
+await t("tenant cannot create a record already marked paid", addDoc(collection(ten, "records"), { ...R, by: "tenant", status: "Paid" }), false);
+await t("tenant cannot impersonate the owner when creating a record", addDoc(collection(ten, "records"), { ...R, by: "owner" }), false);
+await t("owner can create a record for the approved tenant", addDoc(collection(lord, "records"), { ...R, by: "owner", status: "Paid" }));
 await t("stranger cannot add record to a tenancy", addDoc(collection(oth, "records"), { ...R, uid: "oth", by: "tenant" }), false);
 await t("owner cannot add for a different tenant", addDoc(collection(lord, "records"), { ...R, uid: "oth" }), false);
 const r = await addDoc(collection(lord, "records"), R);
