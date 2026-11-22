@@ -1,6 +1,6 @@
 import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import { readFileSync } from "fs";
-import { setDoc, doc, updateDoc } from "firebase/firestore";
+import { setDoc, doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 
 const env = await initializeTestEnvironment({
   projectId: "demo-faxton",
@@ -65,5 +65,17 @@ await t("staff cannot rewrite report details", updateDoc(doc(support, "reports/r
 await t("staff cannot change report target", updateDoc(doc(admin, "reports/r1"), { targetUid: "adm" }), false);
 await t("staff cannot set an unknown report status", updateDoc(doc(support, "reports/r1"), { status: "Deleted" }), false);
 await t("ordinary user cannot update reports", updateDoc(doc(renter, "reports/r1"), { status: "Dismissed" }), false);
+
+const report = {
+  reporterUid: "ren", reporterName: "Renter", targetUid: "other", targetName: "Other user",
+  convId: "conversation-1", reason: "Spam or scam", details: "Please review this account",
+  status: "New", createdAt: serverTimestamp()
+};
+await t("user can submit a valid report", addDoc(collection(renter, "reports"), report));
+await t("user cannot submit a report for another reporter", addDoc(collection(renter, "reports"), { ...report, reporterUid: "adm" }), false);
+await t("user cannot submit a report with forged staff status", addDoc(collection(renter, "reports"), { ...report, status: "Action taken" }), false);
+await t("user cannot add arbitrary report fields", addDoc(collection(renter, "reports"), { ...report, reviewedBy: "adm" }), false);
+await t("user cannot submit an unsupported report reason", addDoc(collection(renter, "reports"), { ...report, reason: "Other invalid reason" }), false);
+await t("user cannot submit an oversized report description", addDoc(collection(renter, "reports"), { ...report, details: "x".repeat(1501) }), false);
 
 await env.cleanup();
