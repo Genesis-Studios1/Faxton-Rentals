@@ -45,6 +45,8 @@ Firebase Authentication remains the identity provider. The API verifies Firebase
 | `serviceRequests` | Customer home-service requests; staff status/private-note updates | Missing | Add service-request schema, customer create/list/cancel and staff assignment/status operations. |
 | `notifications` | In-app notifications (rules cover this collection) | PostgreSQL table and authenticated list/read API are present in draft backend PR #5; not merged or frontend-integrated | Add trusted server-side event producers, migrate legacy notifications, integrate frontend list/read actions and define push delivery separately. |
 | `reports`, `feedback` | User reports and call/app feedback | Missing | Add authenticated creation, moderation queues, rate limits and data retention. |
+| `suggestions` | Users submit product suggestions; admin/support review and move status through `New`, `Reviewed`, `Planned` and `Done` | Missing | Add customer submission and staff-only review endpoints; keep submitter identity server-derived and preserve status history. |
+| `appReleases` | Signed-in users read published app-release notes and platform download metadata; admins publish/update/delete releases | Missing | Add public-to-authenticated read policy for published releases and admin-only publishing; validate file metadata and avoid treating client-provided download URLs as trusted binaries. |
 | `staffEvents` | Signup event stream for staff dashboard | Missing | Add server-generated audit/event records; never trust client-supplied staff identity. |
 | `config/ice`, `config/payments`, `config/owner` | TURN settings, bank transfer instructions, owner bootstrap/identity | Missing | Move privileged configuration to server-side secrets/config; provide narrow admin APIs. Never return TURN provider credentials to ordinary users. |
 | `waitlist` | Website waitlist collection | Not confirmed as app-backend scope | Determine whether this remains a separate marketing-site workflow before migrating it. |
@@ -90,6 +92,12 @@ The renter and owner UI exposes more than simple create/list records, so these a
 - Current offer creation snapshots asking rent and fee inputs from the listing, while client code calculates the negotiated move-in total. The backend must snapshot authoritative listing price/fees and compute totals itself.
 - Enforce one active negotiation per renter/listing (matching current UI behavior), amount bounds (currently at least half and below asking rent for initial offers; counters are bounded between half and asking rent), correct turn, participant identity and legal state transition.
 - Store negotiation entries as append-only offer events rather than trusting a client-submitted replacement `history` array. Accepting an offer must atomically freeze the agreed amount and record who accepted it.
+
+## Firestore rules cross-check (reviewed 2026-11-22)
+
+The current `firestore.rules` contains explicit matches for `appReleases`, `suggestions`, and the nested `calls/{callId}/ice/{candidateId}` signaling subcollection. These are included above as separate migration requirements; `ice` is nested under calls, not a standalone top-level collection. Published app releases are readable by signed-in users while write operations are admin-only. Suggestions are customer-created but readable/reviewable by admin or support, with staff updates limited to the status field. The historic `waitlist` collection is admin-readable only and all client writes are disabled, so it should remain a legacy archive unless a separate marketing workflow is deliberately brought into scope.
+
+The rules also confirm that `documents` are immutable after creation and applicant payment-proof uploads are tied to an existing application, listing, applicant and application state. The existing client currently stores document/proof/message media as base64 data URLs in Firestore. The target design should migrate these to private R2 objects with PostgreSQL metadata and short-lived authorized download access; ordinary application, ticket or message list responses must not expose document bytes.
 
 ## Recommended implementation order
 
