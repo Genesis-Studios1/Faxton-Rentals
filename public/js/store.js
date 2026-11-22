@@ -69,6 +69,7 @@ export const myTickets = (u) => mine("tickets", u);
 export const addTicket = (u, t) => addDoc(collection(db, "tickets"), { ...t, uid: u.uid, name: u.displayName || u.email, status: "Open", ref: "FR-" + (1000 + Math.floor(Math.random() * 9000)), createdAt: serverTimestamp() });
 export const getTicketNotes = async (ticketId) => (await getDocs(query(collection(db, "ticketNotes"), where("ticketId", "==", ticketId)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
 export const addTicketNote = (ticketId, user, text) => addDoc(collection(db, "ticketNotes"), { ticketId, uid: user.uid, by: user.displayName || user.email || "Support", text, createdAt: serverTimestamp() });
+export const migrateTicketNote = async (ticketId, noteId, user, note) => { const ref = doc(db, "ticketNotes", noteId), old = await getDoc(ref); if (old.exists()) return { ...old.data(), id: old.id }; const data = { ticketId, uid: user.uid, by: String(note.by || "Support").slice(0, 120), text: String(note.text || "").slice(0, 1500), createdAt: serverTimestamp() }; await setDoc(ref, data); return { ...data, id: noteId, createdAt: new Date() }; };
 
 // ---- messaging ----
 export const convId = (user, l) => `${user.uid}__${l.id}`;
