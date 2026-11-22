@@ -2,7 +2,7 @@
 
 **Status:** inventory only; no runtime behavior changed.  
 **App branch audited:** `staging` at `a3766bb857d3cefa0de9ca9fe55a0aa846b87b41`.  
-**Backend implementation audited:** `Genesis-Studios1/Faxton-Backend`, branch `feature/cloudflare-r2-storage`, draft PR #4.
+**Backend implementation audited:** `Genesis-Studios1/Faxton-Backend`, branch `feature/cloudflare-r2-storage`, draft PR #4; notifications API work is tracked separately in draft PR #5.
 
 ## Executive finding
 
@@ -27,8 +27,8 @@ Firebase Authentication remains the identity provider. The API verifies Firebase
 | `listings` | Public active listing reads; owner listing flows | Partial property API exists | Map legacy listing fields/statuses to property schema; integrate all listing create/edit/archive/moderation screens; verify public address privacy. |
 | `users` | Account/profile, role, saved IDs, onboarding and verification data | Partial profile API; auth user resolver | Define authoritative role/verification/onboarding mapping; migrate saved listings and preserve existing Firebase UID links. |
 | `profiles` | Public profile cards and verified badge sync | No public profile read API; admin profile API only | Add privacy-aware public profile endpoint; enforce profile visibility and verified badge authorization. |
-| `viewings` | Request a viewing; list a user's requests | Missing | Add schema, participant/owner authorization, status lifecycle, list/create/admin update endpoints. |
-| `applications` | Rental application, move-in date, details, rent and calculated amount | Missing | Add schema and validation; enforce listing/tenant/owner relationships; define application status transitions. |
+| `viewings` | Request/list viewings; renter check-in/check-out, SOS, trusted contacts, sharing, cancellation, reschedule requests and post-viewing ratings; listing owner/agent can manage status | Missing | Model the full lifecycle and safety metadata; enforce renter vs listing-owner permissions and status transitions; do not reduce this to create/list only. Preserve legacy Firebase UID and listing-ID references. |
+| `applications` | Rental application, move-in date, details, proposed rent and calculated amount; renter can withdraw while under review; listing owner can change status | Missing | Add schema and validation; derive owner and price from the authoritative listing rather than client input; enforce listing/tenant/owner relationships and explicit status transitions. Preserve legacy Firebase UID and listing-ID references. |
 | `documents` | User-uploaded verification documents and deletion | Generic upload category exists; document workflow missing | Store metadata and R2 object references; enforce owner/admin access, immutable evidence rules and retention/deletion policy. |
 | `tickets`, `ticketNotes` | Customer support tickets and staff-only internal notes | Missing | Add ticket lifecycle, staff roles, private notes and audit history. Keep internal notes inaccessible to customers. |
 | `conversations`, nested `messages` | Direct/support conversations, message attachments, reactions, pins, typing, unread/read/delivery state | Partial basic direct messaging | Preserve legacy thread IDs/participants and add real-time transport; implement reactions, pins, typing, delivery/read receipts, staff inbox and support conversations. |
@@ -43,11 +43,17 @@ Firebase Authentication remains the identity provider. The API verifies Firebase
 | `paymentProofs` | Tenant-submitted payment proof/receipt records | Missing | Add private evidence metadata, R2 uploads, immutable proof records and owner/admin review. |
 | `dataRequests` | Client-reported export event | Missing | Replace with server-audited data export/delete request workflow; client-side event is not proof of completed export. |
 | `serviceRequests` | Customer home-service requests; staff status/private-note updates | Missing | Add service-request schema, customer create/list/cancel and staff assignment/status operations. |
-| `notifications` | In-app notifications (rules cover this collection) | PostgreSQL table exists; API absent | Add recipient-scoped list/read APIs and event producers; define push delivery separately. |
+| `notifications` | In-app notifications (rules cover this collection) | PostgreSQL table and authenticated list/read API are present in draft backend PR #5; not merged or frontend-integrated | Add trusted server-side event producers, migrate legacy notifications, integrate frontend list/read actions and define push delivery separately. |
 | `reports`, `feedback` | User reports and call/app feedback | Missing | Add authenticated creation, moderation queues, rate limits and data retention. |
 | `staffEvents` | Signup event stream for staff dashboard | Missing | Add server-generated audit/event records; never trust client-supplied staff identity. |
 | `config/ice`, `config/payments`, `config/owner` | TURN settings, bank transfer instructions, owner bootstrap/identity | Missing | Move privileged configuration to server-side secrets/config; provide narrow admin APIs. Never return TURN provider credentials to ordinary users. |
 | `waitlist` | Website waitlist collection | Not confirmed as app-backend scope | Determine whether this remains a separate marketing-site workflow before migrating it. |
+
+## Additional workflow findings (reviewed 2026-11-22)
+
+The existing Firestore rules show that viewings and applications are not simple request records. Viewings include renter safety/check-in data, SOS, trusted contacts, cancellation, rescheduling and one-time ratings; listing owners can change viewing status. Applications are visible to the renter, listing owner and admins; the renter may withdraw only while the application is `Under review`, while the listing owner manages status. The API must derive listing ownership from the database and must not trust client-supplied `ownerUid`, applicant identity, calculated amount or status.
+
+The legacy helpers in `public/js/store.js` define basic create/list payloads, but repository search did not find confirmed UI call sites for `addViewing`, `addApplication`, `myViewings` or `myApplications`. Before frontend integration, trace the actual booking/application screens and all status updates; do not assume those helper payloads represent the complete live workflow.
 
 ## Recommended implementation order
 
