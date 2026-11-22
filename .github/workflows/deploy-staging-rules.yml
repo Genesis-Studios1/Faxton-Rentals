@@ -1,0 +1,63 @@
+name: Deploy staging Firestore rules
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - "firestore.rules"
+      - "tests/rules/**"
+      - "scripts/validate-staging-service-account.mjs"
+      - ".github/workflows/deploy-staging-rules.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: faxton-staging-firestore-rules
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-staging-rules:
+    if: github.ref == 'refs/heads/staging'
+    environment: staging
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Firestore rules test dependencies
+        run: npm --prefix tests/rules ci --no-audit --no-fund
+
+      - name: Run the complete Firestore rules test suite
+        run: npx --yes firebase-tools@15.35.0 emulators:exec --only firestore --project demo-faxton "node tests/rules/run.mjs"
+
+      - name: Validate staging-only Firebase credential
+        env:
+          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+        run: node scripts/validate-staging-service-account.mjs
+
+      - name: Deploy Firestore rules to staging only
+        env:
+          FIREBASE_STAGING_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_STAGING_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$FIREBASE_STAGING_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-staging-service-account.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-staging-service-account.json"
+          npx --yes firebase-tools@15.35.0 deploy --only firestore:rules --project faxton-rentals-staging --non-interactive
+          rm -f "$RUNNER_TEMP/firebase-staging-service-account.json"
+
+      - name: Remove staging credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-staging-service-account.json"
