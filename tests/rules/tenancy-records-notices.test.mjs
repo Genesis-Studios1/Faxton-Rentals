@@ -34,6 +34,7 @@ const U1 = [{ uid: "lord", by: "owner", text: "Plumber coming Tuesday", status: 
 await t("owner updates status with one entry", updateDoc(doc(lord, "maintenance", m.id), { status: "In progress", updates: U1, updatedAt: serverTimestamp() }));
 await t("cannot skip the entry", updateDoc(doc(lord, "maintenance", m.id), { status: "Resolved", updates: U1, updatedAt: serverTimestamp() }), false);
 await t("cannot sign as someone else", updateDoc(doc(lord, "maintenance", m.id), { status: "Resolved", updates: [...U1, { uid: "ten", text: "x", at: 1 }], updatedAt: serverTimestamp() }), false);
+await t("cannot rewrite an earlier maintenance update", updateDoc(doc(lord, "maintenance", m.id), { status: "Resolved", updates: [{ ...U1[0], text: "Edited history" }, { uid: "lord", by: "owner", text: "Resolved", status: "Resolved", at: Date.now() }], updatedAt: serverTimestamp() }), false);
 await t("tenant confirms resolved", updateDoc(doc(ten, "maintenance", m.id), { status: "Resolved", updates: [...U1, { uid: "ten", by: "tenant", text: "Fixed, thanks", status: "Resolved", at: Date.now() }], updatedAt: serverTimestamp() }));
 await t("stranger cannot update", updateDoc(doc(oth, "maintenance", m.id), { status: "Open", updates: [...U1, { uid: "oth" }, { uid: "oth" }] }), false);
 // records
