@@ -67,6 +67,8 @@ export const removeDocument = (id) => deleteDoc(doc(db, "documents", id));
 // ---- support tickets ----
 export const myTickets = (u) => mine("tickets", u);
 export const addTicket = (u, t) => addDoc(collection(db, "tickets"), { ...t, uid: u.uid, name: u.displayName || u.email, status: "Open", ref: "FR-" + (1000 + Math.floor(Math.random() * 9000)), createdAt: serverTimestamp() });
+export const getTicketNotes = async (ticketId) => (await getDocs(query(collection(db, "ticketNotes"), where("ticketId", "==", ticketId)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0));
+export const addTicketNote = (ticketId, user, text) => addDoc(collection(db, "ticketNotes"), { ticketId, uid: user.uid, by: user.displayName || user.email || "Support", text, createdAt: serverTimestamp() });
 
 // ---- messaging ----
 export const convId = (user, l) => `${user.uid}__${l.id}`;
