@@ -168,7 +168,7 @@ const P = {
 };
 export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${P[n] || ""}</svg>`;
 
-export const logoMark = (cls = "") => `<svg class="logo-svg ${cls}" viewBox="570 235 415 355" aria-hidden="true"><path class="lg-a" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/><path class="lg-b" d="M702 455L775 429V581H702Z"/><path class="lg-c" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/></svg>`;
+export const logoMark = (cls = "") => `<svg class="logo-svg ${cls}" viewBox="570 235 415 355" aria-hidden="true"><path class="lg-a" fill="#16996b" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/><path class="lg-b" fill="#124a38" d="M702 455L775 429V581H702Z"/><path class="lg-c" fill="#124a38" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/></svg>`;
 export const verifiedBadge = (px = 18) => `<svg class="vseal" viewBox="0 0 24 24" width="${px}" height="${px}" role="img" aria-label="Verified"><title>Verified</title><path fill="#22c55e" stroke="none" d="M12 2.5l7 2.5v6.2c0 4.6-2.9 8.4-7 10.3-4.1-1.9-7-5.7-7-10.3V5l7-2.5zm-1.4 8.7l-2.2-2.2-1.4 1.4 3.6 3.6 6.2-6.2-1.4-1.4-4.8 4.8z"/></svg>`;
 export const logo = (sub = "") => `<a class="logo" href="#/">${logoMark()}<span class="logo-word"><b>Faxton</b> Rentals${sub ? `<small>${sub}</small>` : ""}</span></a>`;
 
