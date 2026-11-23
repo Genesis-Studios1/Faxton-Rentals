@@ -29,7 +29,7 @@
 @keyframes au-img{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:none}}
 .au-photo::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(2,22,15,.5) 0%,rgba(2,22,15,0) 26%,rgba(2,22,15,0) 50%,rgba(2,22,15,.78) 100%)}
 .au-logo{display:inline-flex;align-items:center;gap:10px;align-self:flex-start;color:#fff;font-size:1.2rem;min-height:44px}
-.au-logo .logo-svg{height:30px;width:auto}.au-logo .lg-a{fill:#34d399}.au-logo .lg-b{fill:#fff}.au-logo .logo-word{font-family:var(--font-display);letter-spacing:-.03em;text-shadow:0 1px 14px rgba(0,0,0,.25)}
+.au-logo .logo-svg{height:30px;width:auto}.au-logo .lg-a{fill:#34d399}.au-logo .lg-b{fill:#fff}.au-logo .lg-c{fill:#fff}.au-logo .logo-word{font-family:var(--font-display);letter-spacing:-.03em;text-shadow:0 1px 14px rgba(0,0,0,.25)}
 .au-cap{margin:0;font-family:var(--font-display);font-size:clamp(1.7rem,1.1rem + 2vw,2.7rem);line-height:1.04;font-weight:var(--fw-semibold);letter-spacing:-.03em;text-shadow:0 2px 24px rgba(0,0,0,.3)}
 .au-cap::after{content:"";display:block;width:52px;height:3px;border-radius:3px;margin-top:18px;background:#34d399}
 
@@ -272,7 +272,7 @@ html.locked body>*:not(.lk-ov):not(#splash){visibility:hidden}
 .lk-ov.lk-wait{z-index:900}.lk-ov.lk-wait .lk-card{animation:none;opacity:0}.lk-ov.lk-fade{animation:lk-fade .28s ease-out both}@keyframes lk-fade{from{opacity:0}}
 .lk-card{width:min(360px,100%);text-align:center;display:grid;gap:14px;justify-items:center;animation:au-in .5s var(--a-rise,cubic-bezier(.2,.8,.2,1)) both}
 .lk-logo{display:grid;place-items:center;width:92px;height:92px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);box-shadow:0 0 0 10px rgba(52,211,153,.06)}
-.lk-logo .logo-svg{height:44px;width:auto}.lk-logo .lg-a{fill:#34d399}.lk-logo .lg-b{fill:#fff}
+.lk-logo .logo-svg{height:44px;width:auto}.lk-logo .lg-a{fill:#34d399}.lk-logo .lg-b{fill:#fff}.lk-logo .lg-c{fill:#fff}
 .lk-card h1{margin:6px 0 0;color:#fff;font-size:1.55rem;line-height:1.15;letter-spacing:var(--ls-display)}
 .lk-card p{margin:0;color:#b9d8cb;font-size:.95rem;line-height:1.5}
 .lk-ov .lk-go,.lk-go{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:220px;min-height:52px;margin-top:6px;padding:0 24px;border:0;border-radius:14px;background:linear-gradient(180deg,#3fdca3,#2dc491);color:#05140d;font:var(--fw-bold) 1.05rem/1 var(--font-body);box-shadow:0 14px 30px -12px rgba(52,211,153,.55);transition:transform .15s,filter .2s}
