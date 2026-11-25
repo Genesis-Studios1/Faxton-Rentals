@@ -36,3 +36,18 @@ export function toListingViewModel(property) {
     source: "backend"
   };
 }
+
+
+export function toPropertyImageViewModel(image) {
+  if (!image || typeof image !== "object" || typeof image.id !== "string" ||
+      typeof image.url !== "string" || !/^https:\/\//i.test(image.url)) {
+    throw new TypeError("Invalid property image returned by Faxton API.");
+  }
+  return {
+    id: image.id,
+    url: image.url,
+    displayOrder: Number.isFinite(Number(image.displayOrder)) ? Number(image.displayOrder) : 0,
+    contentType: String(image.contentType || ""),
+    byteSize: Number.isFinite(Number(image.byteSize)) ? Number(image.byteSize) : 0
+  };
+}
