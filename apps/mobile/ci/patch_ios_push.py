@@ -12,8 +12,9 @@ source = delegate.read_text(encoding="utf-8")
 
 if "capacitorDidRegisterForRemoteNotifications" not in source:
     if "import Capacitor" not in source:
-        source = re.sub(r"^(import UIKit\\s*)$", r"\\1\\nimport Capacitor", source, count=1, flags=re.M)
-        assert "import Capacitor" in source, "Could not add Capacitor import to AppDelegate.swift"
+        line = source.find("\n", source.find("import UIKit"))
+        assert line >= 0, "AppDelegate.swift has no UIKit import"
+        source = source[:line + 1] + "import Capacitor\n" + source[line + 1:]
     methods = """
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
@@ -49,8 +50,8 @@ assert len(projects) == 1, f"Expected one Xcode project, found {projects}"
 pbx = projects[0]
 project = pbx.read_text(encoding="utf-8")
 if "CODE_SIGN_ENTITLEMENTS = App/App.entitlements;" not in project:
-    pattern = r"(PRODUCT_BUNDLE_IDENTIFIER = com\\.faxton\\.rentals;)"
-    project, count = re.subn(pattern, r"CODE_SIGN_ENTITLEMENTS = App/App.entitlements;\\n\\t\\t\\t\\t\\1", project)
+    pattern = r"(PRODUCT_BUNDLE_IDENTIFIER = com\.faxton\.rentals;)"
+    project, count = re.subn(pattern, lambda match: "CODE_SIGN_ENTITLEMENTS = App/App.entitlements;\n" + match.group(1), project)
     assert count >= 1, "Could not attach APNs entitlements to the Faxton app build settings"
     pbx.write_text(project, encoding="utf-8")
 
