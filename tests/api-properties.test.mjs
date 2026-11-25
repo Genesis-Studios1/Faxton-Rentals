@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toListingViewModel, toPropertyImageViewModel, toProfileViewModel } from "../public/js/api-property-mapper.js";
+import { toListingViewModel, toPropertyImageViewModel, toPropertyVideoViewModel, toProfileViewModel } from "../public/js/api-property-mapper.js";
 
 test("maps backend property fields to the legacy listing view model without inventing media", () => {
   const listing = toListingViewModel({
@@ -47,4 +47,13 @@ test("maps the authenticated backend profile without exposing another user's pro
   assert.equal(profile.photo, "https://cdn.example/avatar.webp");
   assert.equal(profile.role, "landlord");
   assert.throws(() => toProfileViewModel(null), /Invalid profile/);
+});
+
+
+test("maps only secure MP4 and WebM property video URLs", () => {
+  assert.deepEqual(toPropertyVideoViewModel({ id: "video-1", url: "https://cdn.example/tour.mp4", displayOrder: "1", contentType: "video/mp4", byteSize: "5000" }), {
+    id: "video-1", url: "https://cdn.example/tour.mp4", displayOrder: 1, contentType: "video/mp4", byteSize: 5000
+  });
+  assert.throws(() => toPropertyVideoViewModel({ id: "video-2", url: "http://cdn.example/tour.mp4", contentType: "video/mp4" }), /Invalid property video/);
+  assert.throws(() => toPropertyVideoViewModel({ id: "video-3", url: "https://cdn.example/tour.exe", contentType: "application/octet-stream" }), /Invalid property video/);
 });
