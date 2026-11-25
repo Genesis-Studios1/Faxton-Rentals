@@ -9,8 +9,12 @@ export async function uploadBackendApplicationDocument(dataUrl, displayName) {
   if (typeof dataUrl !== "string" || !/^data:(application\/pdf|image\/(?:jpeg|png));base64,/i.test(dataUrl)) {
     throw new TypeError("The application document could not be read. Please attach it again.");
   }
-  const response = await fetch(dataUrl);
-  const blob = await response.blob();
+  const match = /^data:(application\\/pdf|image\\/(?:jpeg|png));base64,([A-Za-z0-9+/=]+)$/i.exec(dataUrl);
+  if (!match) throw new TypeError("The application document data is invalid.");
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blob = new Blob([bytes], { type: match[1] });
   if (!blob.size || blob.size > 10 * 1024 * 1024) throw new TypeError("Application documents must be smaller than 10 MB.");
   const form = new FormData();
   const safeName = String(displayName || "application-document").replace(/[\\/\u0000-\u001f]/g, "_").slice(0,120) || "application-document";
