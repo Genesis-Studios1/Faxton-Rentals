@@ -317,14 +317,14 @@ export function addProperty(ctx, done) {
     <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px">${btn("Set location on map", { size: "sm", ic: "pin", attrs: "id=npLoc" })}<span class="ax-muted" id="npLocT">Not set yet</span></div></div>
     <div class="ax-field full np-media-field">
       <span>Property photos</span>
-      <p class="ax-muted np-help">Upload JPG, PNG or WebP files (up to 20 photos, 15 MB each). You can also paste image links below.</p>
+      <p class="ax-muted np-help">Upload JPG, PNG or WebP files (up to 30 photos, 10 MB each). You can also paste image links below.</p>
       <input class="ax-input np-file-input" id="npPhotoFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
       <label class="ax-field"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label>
     </div>
     <div class="ax-field full np-media-field">
       <span>Property videos</span>
-      <p class="ax-muted np-help">Upload MP4, WebM or MOV files (up to 6 videos, 100 MB each), or paste video links.</p>
-      <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm,video/quicktime" multiple>
+      <p class="ax-muted np-help">Upload MP4 or WebM files (up to 5 videos, 25 MB each), or paste video links.</p>
+      <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm" multiple>
       <label class="ax-field"><span>Video links (one per line)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
     </div>
     <div class="ax-field full np-upload-status" id="npUploadStatus" hidden>
@@ -511,8 +511,8 @@ export function addProperty(ctx, done) {
         });
         uploadPaths = uploaded.paths;
       }
-      const images = [...photoLinks, ...uploaded.images].slice(0, 20);
-      const videos = [...videoLinks, ...uploaded.videos].slice(0, 6);
+      const images = [...photoLinks, ...uploaded.images].slice(0, 30);
+      const videos = [...videoLinks, ...uploaded.videos].slice(0, 5);
       if (!images.length) images.push("img/palm-court.webp");
       await st.createListing({
         id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths,
