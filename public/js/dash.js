@@ -273,8 +273,8 @@ export function addProperty(ctx, done) {
     ${locFields({ style: "ax", flow: true, ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "npCity" })}
     <label class="ax-field full"><span>Full street address <small>Private — required for backend listings, never shown publicly</small></span><input class="ax-input" name="streetAddress" maxlength="240" autocomplete="street-address" placeholder="House number, street name and estate"></label>
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
-    <label class="ax-field"><span>Property type</span><select class="ax-input" name="propertyType" required><option value="apartment">Apartment</option><option value="house">House</option><option value="room">Room / Studio</option><option value="commercial">Commercial</option></select></label>
-    <label class="ax-field"><span>Property category</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option></select></label>
+    <label class="ax-field"><span>Property type</span><select class="ax-input" name="propertyType" id="npPropertyType" required><option value="apartment">Apartment</option><option value="house">House</option><option value="room">Room / Studio</option><option value="commercial">Commercial</option></select></label>
+    <label class="ax-field"><span>Property subtype</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option></select></label>
     <label class="ax-field"><span>Listing mode</span><select class="ax-input" name="listingMode" required><option value="long_term">Long-term rental</option><option value="shortlet">Shortlet</option></select></label>
     ${["agent","agency"].includes(ctx.S.profile?.role) ? '<label class="ax-field full"><span>Property owner <small>Choose an owner who has authorised your account</small></span><select class="ax-input" name="ownerUserId" id="npOwner"><option value="">My own property</option></select></label>' : ""}
     <label class="ax-field"><span>Building type</span><select class="ax-input" name="buildingType" id="npBuildingType"><option>Bungalow</option><option>Storey building</option><option>Block of flats</option><option>Duplex</option><option>Terrace</option><option>Detached house</option><option>Other</option></select></label>
@@ -358,7 +358,27 @@ export function addProperty(ctx, done) {
   };
   typeField.addEventListener("change", syncFloorFields);
   buildingField.addEventListener("change", syncFloorFields);
-  syncFloorFields();
+  const propertyTypeField = $("#npPropertyType", d.el);
+  const subtypeOptions = {
+    apartment: ["Apartment", "Studio"],
+    house: ["House", "Duplex"],
+    room: ["Room", "Studio"],
+    commercial: ["Office", "Shop"]
+  };
+  const syncPropertySubtypes = () => {
+    const options = subtypeOptions[propertyTypeField.value] || subtypeOptions.apartment;
+    const previous = typeField.value;
+    typeField.replaceChildren(...options.map((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      return option;
+    }));
+    if (options.includes(previous)) typeField.value = previous;
+    syncFloorFields();
+  };
+  propertyTypeField.addEventListener("change", syncPropertySubtypes);
+  syncPropertySubtypes();
 
   const customFeatures = $("#npCustomFeatures", d.el);
   const addFeatureRow = (name = "", count = 1) => {
