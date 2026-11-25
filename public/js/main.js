@@ -17,6 +17,7 @@ import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
 import { resFields } from "./loc.js";
 import { apiConfigured } from "./api-client.js";
 import { submitBackendOnboarding } from "./api-onboarding.js";
+import { toBackendOnboardingPayload } from "./api-onboarding-mapper.js";
 import { watchIncoming } from "./calls.js";
 import "./lightbox.js";
 import { siteFooter, wireFooter } from "./footer.js";
@@ -320,31 +321,7 @@ async function syncBackendOnboarding(u) {
   const pending = (async () => {
   const snapshot = await getDoc(doc(db, "users", u.uid));
   const legacy = snapshot.exists() ? snapshot.data() : {};
-  const roleAliases = { business: "agency", homeowner: "landlord" };
-  const requestedRole = roleAliases[legacy.role] || legacy.role;
-  const role = ["renter", "landlord", "agent", "agency"].includes(requestedRole) ? requestedRole : "renter";
-  const agent = legacy.agentInfo || {};
-  const agency = legacy.agency || {};
-  const payload = {
-    role,
-    displayName: String(legacy.name || u.displayName || "").trim() || undefined,
-    phoneNumber: String(legacy.phone || agent.phone || agency.phone || "").trim() || undefined,
-    serviceArea: String(legacy.location || legacy.area || agent.areas || agency.city || "").trim() || undefined
-  };
-  if (role === "agency") {
-    if (!String(agency.business || "").trim()) {
-      throw new Error("Your agency profile needs its business name before account setup can finish.");
-    }
-    payload.agencyProfile = {
-      businessName: String(agency.business).trim(),
-      businessType: "real_estate",
-      registrationNumber: String(agency.cac || "").trim() || null,
-      supportEmail: String(agency.supportEmail || "").trim() || null,
-      supportPhone: String(agency.phone || "").trim() || null,
-      officeAddress: String(agency.address || "").trim() || null,
-      serviceLocation: [agency.city, agency.state, agency.country].filter(Boolean).join(", ") || null
-    };
-  }
+  const payload = toBackendOnboardingPayload(legacy, u);
   await submitBackendOnboarding(payload);
   })();
   backendOnboardingSyncs.set(u.uid, pending);
