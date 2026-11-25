@@ -1,4 +1,4 @@
-import { getMessaging, getToken, isSupported, onMessage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
+import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 import { app, auth } from "./firebase.js";
 import { PUSH_CONFIG } from "./push-config.js";
 
@@ -98,6 +98,9 @@ export async function removePushDevice() {
   if (!device?.id || device.uid !== auth.currentUser?.uid || !configured()) return false;
   try {
     await api(`/v1/me/push-devices/${encodeURIComponent(device.id)}`, { method: "DELETE" });
+    const instance = await messaging();
+    if (instance) { try { await deleteToken(instance); } catch {} }
+    stopPushMessageListener();
     write(DEVICE_KEY, "");
     return true;
   } catch (error) {
