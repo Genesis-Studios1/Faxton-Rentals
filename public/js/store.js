@@ -5,8 +5,8 @@ import { apiConfigured } from "./api-client.js";
 import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
 import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
-import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, confirmBackendViewing, declineBackendViewing, cancelBackendViewing } from "./api-viewings.js";
-import { localDateTime, toBackendTourType, toViewingViewModel } from "./api-viewings-mapper.js";
+import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, listBackendViewingReschedules, respondBackendViewingReschedule, confirmBackendViewing, declineBackendViewing, cancelBackendViewing } from "./api-viewings.js";
+import { localDateTime, toBackendTourType, toViewingViewModel, toLocalViewingTime } from "./api-viewings-mapper.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -129,10 +129,22 @@ export const addViewing = async (user, l, when, slot, extra = {}) => {
 export const addApplication = (user, l, moveIn, details = {}, extra = {}) => addDoc(collection(db, "applications"), { ...extra, details, rent: extra.rent || l.price, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: costOf(l, extra.rent || l.price).total, moveIn, status: "Under review", createdAt: serverTimestamp() });
 const mine = async (col, user) => { try { return (await getDocs(query(collection(db, col), where("uid", "==", user.uid)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); } catch { return []; } };
 async function mapBackendViewings(rows) {
+  const listingCache = new Map(), renterCache = new Map();
   const mapped = await Promise.all(rows.map(async (row) => {
-    const listing = await getListing(row.propertyId).catch(() => null);
-    const renter = row.renterUserId ? await getPublic(row.renterUserId).catch(() => null) : null;
-    return toViewingViewModel(row, listing || {}, renter || {});
+    if (!listingCache.has(row.propertyId)) listingCache.set(row.propertyId, getListing(row.propertyId).catch(() => null));
+    if (row.renterUserId && !renterCache.has(row.renterUserId)) renterCache.set(row.renterUserId, getPublic(row.renterUserId).catch(() => null));
+    const [listing, renter, proposals] = await Promise.all([
+      listingCache.get(row.propertyId),
+      row.renterUserId ? renterCache.get(row.renterUserId) : null,
+      listBackendViewingReschedules(row.id).catch(() => [])
+    ]);
+    const view = toViewingViewModel(row, listing || {}, renter || {});
+    const pending = proposals.find((p) => p.status === "pending");
+    if (pending) {
+      const proposed = toLocalViewingTime(pending.proposedStartAt);
+      view.reschedule = { ...proposed, id: pending.id, status: pending.status, requestedByUserId: pending.requestedByUserId, note: pending.note || "" };
+    }
+    return view;
   }));
   return mapped;
 }
@@ -143,6 +155,10 @@ export const updateViewingStatus = async (viewing, status) => {
   const action = ({ Confirmed: confirmBackendViewing, Declined: declineBackendViewing, Cancelled: cancelBackendViewing })[status];
   if (!action) throw new Error("That viewing status can’t be changed from this screen.");
   return action(viewing.id);
+};
+export const respondViewingReschedule = async (viewing, decision) => {
+  if (!apiConfigured() || !viewing?._backend || !viewing?.reschedule?.id) throw new Error("There is no backend reschedule request to answer.");
+  return respondBackendViewingReschedule(viewing.id, viewing.reschedule.id, decision);
 };
 export const myApplications = (u) => mine("applications", u);
 
