@@ -57,7 +57,7 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm version ${{ needs.version.outputs.v }} --no-git-tag-version --allow-same-version
-          node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent='FaxtonApp/mobile/${{ needs.version.outputs.v }}';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
+          node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent='FaxtonApp/mobile/${{ needs.version.outputs.v }} FaxtonPushReady';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           npx cap add android
           # Gives the google-services Gradle plugin the web client id (it becomes R.string.default_web_client_id, the serverClientId of Google sign-in).
           cp google-services.json android/app/google-services.json
@@ -190,7 +190,13 @@ jobs:
           if [ "$IOS_GOOGLE" != yes ]; then
             node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent+=' FaxtonNoGoogle';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
           fi
+          if [ "$IOS_FIREBASE_CONFIG" = yes ]; then
+            node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent+=' FaxtonPushReady';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
+          else
+            node -e "const f='capacitor.config.json',c=require('./'+f);c.appendUserAgent+=' FaxtonNoPush';require('fs').writeFileSync(f,JSON.stringify(c,null,2))"
+          fi
           npx cap sync ios
+          python3 ci/patch_ios_push.py ios
       - name: Version the iOS project
         working-directory: apps/mobile/ios/App
         run: |
