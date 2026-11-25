@@ -154,3 +154,7 @@ Dependabot proposes weekly npm dependency updates for the desktop, mobile and Fi
 The apps are thin wrappers that open the live website, so a website release updates them too. Build them from GitHub > Actions > **Build and release
 apps**. Android sign-in details: `apps/mobile/ANDROID-GOOGLE-SIGNIN.md`. The apps are hard-wired to `https://faxton-rentals.web.app`
 (`apps/mobile/capacitor.config.json`, `apps/desktop/main.js`); if you move to a custom domain, change those and rebuild.
+
+
+### Backend profile integration
+When `API_CONFIG.baseUrl` is configured, signed-in profile reads and editable profile fields use the authenticated `/v1/me/profile` API, and settings updates use `/v1/me/settings`. Profile-image uploads use the private upload endpoint and then attach the verified upload to the authenticated profile. Saved properties and account deletion are not switched by this phase; those need dedicated backend endpoints before Firestore can be retired.

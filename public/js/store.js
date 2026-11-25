@@ -3,6 +3,8 @@ import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
 import { apiConfigured } from "./api-client.js";
 import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
+import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
+import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -81,12 +83,33 @@ export async function getListings(force = false) {
 export const getListing = async (id) => (await getListings()).find((l) => l.id === id) || null;
 
 // ---- profile + saved homes ----
-export async function getProfile(uid) { try { const s = await getDoc(doc(db, "users", uid)); return s.exists() ? s.data() : null; } catch { return null; } }
-export const saveProfile = (uid, data) => setDoc(doc(db, "users", uid), data, { merge: true });
+export async function getProfile(uid) {
+  if (apiConfigured()) {
+    try { return { ...(await getBackendProfile()), saved: [] }; }
+    catch { return null; }
+  }
+  try { const snapshot = await getDoc(doc(db, "users", uid)); return snapshot.exists() ? snapshot.data() : null; }
+  catch { return null; }
+}
+export async function saveProfile(uid, data) {
+  if (apiConfigured()) {
+    const changes = {};
+    if (data?.name !== undefined || data?.displayName !== undefined) changes.displayName = data.displayName ?? data.name;
+    if (data?.phone !== undefined || data?.phoneNumber !== undefined) changes.phoneNumber = data.phoneNumber ?? data.phone;
+    if (data?.bio !== undefined) changes.bio = data.bio;
+    if (data?.website !== undefined || data?.websiteUrl !== undefined) changes.websiteUrl = data.websiteUrl ?? data.website;
+    if (data?.serviceArea !== undefined || data?.area !== undefined || data?.location !== undefined) changes.serviceArea = data.serviceArea ?? data.location ?? data.area;
+    if (Object.keys(changes).length) return updateBackendProfile(changes);
+    if (data?.settings && typeof data.settings === "object") return updateBackendSettings(data.settings);
+    return getBackendProfile();
+  }
+  return setDoc(doc(db, "users", uid), data, { merge: true });
+}
 const localSaved = () => { try { return JSON.parse(localStorage.getItem("saved") || "[]"); } catch { return []; } };
-export async function getSaved(user) { return user ? ((await getProfile(user.uid))?.saved || []) : localSaved(); }
+export async function getSaved(user) { if (!user) return localSaved(); if (apiConfigured()) return listBackendSavedProperties(); return (await getProfile(user.uid))?.saved || []; }
 export async function toggleSaved(user, id, on) {
   if (!user) { const s = new Set(localSaved()); on ? s.add(id) : s.delete(id); try { localStorage.setItem("saved", JSON.stringify([...s])); } catch {} return; }
+  if (apiConfigured()) { if (on) await saveBackendProperty(id); else await removeBackendSavedProperty(id); return; }
   await setDoc(doc(db, "users", user.uid), { saved: on ? arrayUnion(id) : arrayRemove(id) }, { merge: true });
 }
 

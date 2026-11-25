@@ -15,6 +15,9 @@ import { startTour, tourSeen, resetTour } from "./tour.js";
 import { playSound, setSounds } from "./sound.js";
 import { verifyPopup, verifiedPopup, askResidence } from "./onboard.js";
 import { resFields } from "./loc.js";
+import { apiConfigured } from "./api-client.js";
+import { submitBackendOnboarding } from "./api-onboarding.js";
+import { toBackendOnboardingPayload } from "./api-onboarding-mapper.js";
 import { watchIncoming } from "./calls.js";
 import "./lightbox.js";
 import { siteFooter, wireFooter } from "./footer.js";
@@ -310,8 +313,24 @@ async function ensureProfile(u, extra = {}) {
     await setDoc(ref, d); S.justCreated = role;
   }
 }
+// Copy the legacy, rules-protected account choice into the backend after Firebase email verification.
+const backendOnboardingSyncs = new Map();
+async function syncBackendOnboarding(u) {
+  if (!apiConfigured() || !u?.emailVerified) return;
+  if (backendOnboardingSyncs.has(u.uid)) return backendOnboardingSyncs.get(u.uid);
+  const pending = (async () => {
+  const snapshot = await getDoc(doc(db, "users", u.uid));
+  const legacy = snapshot.exists() ? snapshot.data() : {};
+  const payload = toBackendOnboardingPayload(legacy, u);
+  await submitBackendOnboarding(payload);
+  })();
+  backendOnboardingSyncs.set(u.uid, pending);
+  try { return await pending; }
+  catch (error) { backendOnboardingSyncs.delete(u.uid); throw error; }
+}
 // A banned account is signed out straight away and told why.
 async function rejectIfBanned(u) {
+  try { await syncBackendOnboarding(u); } catch (error) { console.warn("Backend onboarding sync is pending.", error?.message || ""); }
   const p = await getProfile(u.uid);
   if (p?.banned) { S.bannedNote = true; try { await signOut(auth); } catch {} throw Object.assign(new Error("banned"), { code: "app/banned" }); }
   return p;
@@ -580,6 +599,7 @@ async function refreshAuthState(u) {
   S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
+    try { await syncBackendOnboarding(u); } catch (error) { console.warn("Backend onboarding sync is pending.", error?.message || ""); }
     [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
     if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
     S.bannedNote = false;
