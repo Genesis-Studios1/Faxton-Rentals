@@ -2,11 +2,15 @@ name: Validate admin alerts
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/web-push-notifications]
     paths:
       - "public/js/**"
       - "apps/desktop/**"
       - "apps/mobile/ci/**"
+      - "apps/mobile/package.json"
+      - "apps/mobile/capacitor.config.json"
+      - ".github/workflows/release-apps.yml"
+      - ".github/workflows/validate-native-push.yml"
       - "apps/mobile/google-services.json"
       - "public/.well-known/assetlinks.json"
       - "firebase.json"
@@ -53,6 +57,8 @@ jobs:
           node --check apps/desktop/main.js
           node --check apps/desktop/preload.js
           bash -n apps/mobile/ci/build_android.sh
+          bash -n apps/mobile/ci/ios_google.sh
+          python3 -m py_compile apps/mobile/ci/patch_android.py apps/mobile/ci/patch_ios_push.py
           node -e "JSON.parse(require('fs').readFileSync('firebase.json', 'utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('apps/mobile/google-services.json', 'utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('public/.well-known/assetlinks.json', 'utf8'))"
