@@ -137,7 +137,7 @@ async function mapBackendViewings(rows) {
   return mapped;
 }
 export const myViewings = async (u) => apiConfigured() ? mapBackendViewings(await listBackendViewings()) : mine("viewings", u);
-export const myManagedViewings = async () => apiConfigured() ? mapBackendViewings(await listBackendOwnerViewings()) : [];
+export const myManagedViewings = async (u) => apiConfigured() ? mapBackendViewings(await listBackendOwnerViewings()) : mine("viewings", u);
 export const updateViewingStatus = async (viewing, status) => {
   if (!apiConfigured() || !viewing?._backend) throw new Error("This viewing is not connected to the backend.");
   const action = ({ Confirmed: confirmBackendViewing, Declined: declineBackendViewing, Cancelled: cancelBackendViewing })[status];
