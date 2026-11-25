@@ -3,7 +3,7 @@ import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
 import { apiConfigured } from "./api-client.js";
 import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
-import { getBackendProfile, updateBackendProfile } from "./api-profile.js";
+import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -97,8 +97,9 @@ export async function saveProfile(uid, data) {
     if (data?.phone !== undefined || data?.phoneNumber !== undefined) changes.phoneNumber = data.phoneNumber ?? data.phone;
     if (data?.bio !== undefined) changes.bio = data.bio;
     if (data?.website !== undefined || data?.websiteUrl !== undefined) changes.websiteUrl = data.websiteUrl ?? data.website;
-    if (data?.serviceArea !== undefined || data?.area !== undefined) changes.serviceArea = data.serviceArea ?? data.area;
+    if (data?.serviceArea !== undefined || data?.area !== undefined || data?.location !== undefined) changes.serviceArea = data.serviceArea ?? data.location ?? data.area;
     if (Object.keys(changes).length) return updateBackendProfile(changes);
+    if (data?.settings && typeof data.settings === "object") return updateBackendSettings(data.settings);
     return getBackendProfile();
   }
   return setDoc(doc(db, "users", uid), data, { merge: true });
