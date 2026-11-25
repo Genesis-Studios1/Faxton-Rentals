@@ -40,7 +40,7 @@ export function createApplicationOfferDialog(application, api, ui) {
 }
 
 export async function loadApplicationDocuments(application, root, ui) {
-  const { $, $$, esc, friendlyErr, toast } = ui;
+  const { $, esc, friendlyErr, toast } = ui;
   const host = $("#app-private-documents", root);
   if (!host) return;
   host.textContent = "Loading private documents…";
@@ -51,7 +51,7 @@ export async function loadApplicationDocuments(application, root, ui) {
       '</b><small>' + esc(String(doc.documentType).replaceAll("_", " ")) +
       '</small></div><button type="button" class="ax-btn sm" data-appdoc="' + esc(doc.id) + '">Open</button></div>'
     ).join("") : '<span class="ax-muted">No documents were attached.</span>';
-    $$("[data-appdoc]", host).forEach((button) => (button.onclick = async () => {
+    Array.from(host.querySelectorAll("[data-appdoc]")).forEach((button) => (button.onclick = async () => {
       button.disabled = true;
       try {
         const url = await st.getApplicationDocumentUrl(application.id, button.dataset.appdoc);
