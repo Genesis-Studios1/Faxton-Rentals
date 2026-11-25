@@ -113,7 +113,7 @@ export const isPast = (v, now = Date.now()) => !!v.checkOut || /declin|cancel/i.
 const stars = (n) => `<span class="rf-stars" aria-label="${n} out of 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}">${xicon("star", 16, 1.5)}</i>`).join("")}</span>`;
 export function viewingCard(v, now = Date.now()) {
   const phys = isPhysical(v), start = startOf(v).getTime(), live = v.status === "Confirmed", done = !!v.checkOut, off = /declin|cancel/i.test(v.status), asked = /request/i.test(v.status);
-  const canIn = live && phys && !v.checkIn && now >= start - 60 * 6e4 && now <= start + 5 * 36e5;
+  const canIn = live && phys && !v.checkIn && now >= start - 2 * 36e5 && now <= start + 4 * 36e5;
   const late = v.checkIn && !v.checkOut && now - v.checkIn.at > OVERDUE_MIN * 6e4;
   const stepState = [!!v.sharedWith, !!v.checkIn, done];
   const hint = !live ? "Safety tools unlock once the agent confirms." : v.checkIn ? "" : now > start + 5 * 36e5 ? "This viewing has passed." : `Check-in opens at ${clock(start - 60 * 6e4)}.`;
