@@ -1,7 +1,7 @@
 import { apiGet, apiPost } from "./api-client.js";
 import { localDateTime } from "./api-viewings-mapper.js";
 const validId = (id) => { if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || ""))) throw new Error("This viewing or property is not linked to a valid backend record yet."); return id; };
-const list = async (path) => { const result = await apiGet(path); if (!Array.isArray(result?.data)) throw new Error("The backend returned an invalid viewing list."); return result.data; };
+const list = async (path) => { const result = await apiGet(path); if (!Array.isArray(result)) throw new Error("The backend returned an invalid viewing list."); return result; };
 export const listBackendViewings = (options = {}) => list(`/v1/me/viewings?limit=${Math.min(100, Math.max(1, Number(options.limit) || 100))}&offset=${Math.max(0, Number(options.offset) || 0)}`);
 export const listBackendOwnerViewings = (options = {}) => list(`/v1/owner/viewings?limit=${Math.min(100, Math.max(1, Number(options.limit) || 100))}&offset=${Math.max(0, Number(options.offset) || 0)}`);
 export async function createBackendViewing(propertyId, input) {
