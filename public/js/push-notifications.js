@@ -4,7 +4,7 @@ import { PUSH_CONFIG } from "./push-config.js";
 
 const DEVICE_KEY = "faxton_push_device_v1";
 const DEVICE_ID_KEY = "faxton_push_client_id_v1";
-const NATIVE_PLUGIN_URL = "https://esm.sh/@capacitor-firebase/messaging@7.0.0?bundle&deps=@capacitor/core@7.4.3";
+const NATIVE_PLUGIN_URL = "https://esm.sh/@capacitor-firebase/messaging@7.5.0?bundle&deps=@capacitor/core@7.4.3";
 let messagingReady = null;
 let nativeMessagingReady = null;
 let messageUnsubscribe = null;
