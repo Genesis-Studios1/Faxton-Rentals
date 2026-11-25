@@ -9,12 +9,23 @@ test("maps backend property fields to the legacy listing view model without inve
     description: "A family home", propertyType: "house", listingMode: "long_term",
     status: "published", priceAmount: "2500000", currency: "NGN", pricePeriod: "yearly",
     bedrooms: 3, bathrooms: 2, addressLine: "12 Palm Road", city: "Lagos",
-    state: "Lagos", country: "Nigeria", latitude: "6.5", longitude: "3.3"
+    state: "Lagos", country: "Nigeria", latitude: "6.5", longitude: "3.3",
+    propertySubtype: "Apartment", buildingType: "Block of flats", floorLabel: "2nd floor",
+    parkingSpaces: 2, sizeSqm: "120", furnishingStatus: "furnished",
+    serviceChargeAmount: "350000", cautionDepositAmount: "200000",
+    amenities: ["Security"], features: [{ name: "Bedrooms", count: 3 }]
   });
   assert.equal(listing.status, "active");
   assert.equal(listing.price, 2500000);
   assert.equal(listing.ownerUid, "owner-1");
   assert.equal(listing.area, "Lagos, Lagos");
+  assert.equal(listing.type, "Apartment");
+  assert.equal(listing.buildingType, "Block of flats");
+  assert.equal(listing.floor, "2nd floor");
+  assert.equal(listing.sqm, 120);
+  assert.equal(listing.service, 350000);
+  assert.deepEqual(listing.amenities, ["Security"]);
+  assert.deepEqual(listing.features, [{ name: "Bedrooms", count: 3 }]);
   assert.deepEqual(listing.images, []);
   assert.equal(listing.source, "backend");
 });
