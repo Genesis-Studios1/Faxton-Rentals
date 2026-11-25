@@ -120,7 +120,7 @@ export async function getBackendPropertyWithImages(propertyId, { signal, managed
 export async function listBackendAgentAuthorisations({ signal } = {}) {
   const data = await apiGet("/v1/me/agent-authorisations", { signal });
   if (!Array.isArray(data)) throw new TypeError("Faxton API returned invalid agent authorisations.");
-  return data.filter((item) => item && item.status === "accepted" && typeof item.landlordUserId === "string");
+  return data.filter((item) => item && item.status === "accepted" && typeof (item.landlordUserId || item.landlord_user_id) === "string");
 }
 
 export async function submitBackendPropertyForReview(propertyId, { signal } = {}) {
