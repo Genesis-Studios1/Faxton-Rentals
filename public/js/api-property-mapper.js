@@ -109,3 +109,55 @@ export function toPropertyVideoViewModel(video) {
     byteSize: Number.isFinite(Number(video.byteSize)) ? Number(video.byteSize) : 0
   };
 }
+
+
+const optionalNumber = (value) => value === "" || value == null ? null : Number(value);
+export function toBackendPropertyPayload(listing) {
+  if (!listing || typeof listing !== "object") throw new TypeError("A property listing is required.");
+  const addressLine = String(listing.addressLine || listing.streetAddress || "").trim();
+  if (addressLine.length < 3) throw new TypeError("A full street address is required before this listing can be migrated.");
+  const subtype = String(listing.propertySubtype || listing.type || "").trim();
+  const kind = subtype.toLowerCase();
+  const propertyType = listing.propertyType || (
+    /commercial|office|shop/.test(kind) ? "commercial" :
+    /studio|room/.test(kind) ? "room" :
+    /apartment|flat/.test(kind) ? "apartment" : "house"
+  );
+  const furnishing = String(listing.furnishingStatus || listing.furnished || "").toLowerCase().replace(/[ -]+/g, "_");
+  const agencyFeeAmount = optionalNumber(listing.agencyFeeAmount ?? listing.agencyFee);
+  const legalFeeAmount = optionalNumber(listing.legalFeeAmount ?? listing.legalFee);
+  return {
+    title: String(listing.title || "").trim(),
+    description: String(listing.description ?? listing.desc ?? "").trim() || null,
+    propertyType,
+    propertySubtype: subtype || null,
+    listingMode: listing.listingMode === "shortlet" || kind === "shortlet" ? "shortlet" : "long_term",
+    priceAmount: Number(listing.priceAmount ?? listing.price),
+    currency: String(listing.currency || "NGN").toUpperCase(),
+    pricePeriod: listing.pricePeriod || "yearly",
+    bedrooms: optionalNumber(listing.bedrooms ?? listing.beds),
+    bathrooms: optionalNumber(listing.bathrooms ?? listing.baths),
+    addressLine,
+    city: String(listing.city || "").trim(),
+    state: String(listing.state || "").trim(),
+    country: String(listing.country || "Nigeria").trim(),
+    latitude: optionalNumber(listing.latitude ?? listing.lat),
+    longitude: optionalNumber(listing.longitude ?? listing.lng),
+    buildingType: listing.buildingType || null,
+    floorLabel: listing.floorLabel ?? listing.floor ?? null,
+    roomNumber: listing.roomNumber || null,
+    yearBuilt: optionalNumber(listing.yearBuilt),
+    parkingSpaces: optionalNumber(listing.parkingSpaces ?? listing.parking),
+    sizeSqm: optionalNumber(listing.sizeSqm ?? listing.sqm),
+    furnishingStatus: ["furnished", "semi_furnished", "unfurnished"].includes(furnishing) ? furnishing : null,
+    floorPlanUrl: /^https:\/\//i.test(String(listing.floorPlanUrl ?? listing.floorPlan ?? "")) ? String(listing.floorPlanUrl ?? listing.floorPlan) : null,
+    serviceChargeAmount: Number(listing.serviceChargeAmount ?? listing.service ?? 0) || 0,
+    cautionDepositAmount: Number(listing.cautionDepositAmount ?? listing.deposit ?? 0) || 0,
+    agencyFeeAmount,
+    agencyFeePercent: agencyFeeAmount == null ? Number(listing.agencyFeePercent ?? 10) : 0,
+    legalFeeAmount,
+    legalFeePercent: legalFeeAmount == null ? Number(listing.legalFeePercent ?? 5) : 0,
+    amenities: Array.isArray(listing.amenities) ? listing.amenities : [],
+    features: Array.isArray(listing.features) ? listing.features : []
+  };
+}
