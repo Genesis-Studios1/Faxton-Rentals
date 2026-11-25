@@ -2,7 +2,7 @@ name: Validate admin alerts
 
 on:
   pull_request:
-    branches: [main, feature/web-push-notifications, feature/native-push-notifications]
+    branches: [main, feature/web-push-notifications, feature/native-push-notifications, feature/backend-listing-form, migration/backend-api-client]
     paths:
       - "public/js/**"
       - "apps/desktop/**"

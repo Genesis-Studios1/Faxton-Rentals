@@ -116,3 +116,32 @@ export async function getBackendPropertyWithImages(propertyId, { signal, managed
   const images = media.sort((a, b) => a.displayOrder - b.displayOrder).map((item) => item.url);
   return { ...property, images, thumb: images[0] || "" };
 }
+
+export async function listBackendAgentAuthorisations({ signal } = {}) {
+  const data = await apiGet("/v1/me/agent-authorisations", { signal });
+  if (!Array.isArray(data)) throw new TypeError("Faxton API returned invalid agent authorisations.");
+  return data.filter((item) => item && item.status === "accepted" && typeof (item.landlordUserId || item.landlord_user_id) === "string");
+}
+
+export async function submitBackendPropertyForReview(propertyId, { signal } = {}) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(propertyId))) throw new TypeError("Invalid property identifier.");
+  const data = await apiPost(`/v1/me/properties/${encodeURIComponent(propertyId)}/submit`, {}, { signal });
+  return toListingViewModel(data);
+}
+
+export async function listBackendPropertyMedia(propertyIds, { signal } = {}) {
+  const ids = [...new Set((propertyIds || []).map((id) => String(id)))];
+  if (!ids.length) return [];
+  if (ids.length > 20 || ids.some((id) => !/^[0-9a-f-]{36}$/i.test(id))) throw new TypeError("Invalid property media batch.");
+  const params = new URLSearchParams({ propertyIds: ids.join(",") });
+  const data = await apiGet(`/v1/properties/media?${params.toString()}`, { authenticated: false, signal });
+  if (!Array.isArray(data)) throw new TypeError("Faxton API returned invalid batched property media.");
+  return data.map((group) => {
+    if (!group || typeof group.propertyId !== "string" || !ids.includes(group.propertyId)) throw new TypeError("Invalid property media group.");
+    return {
+      propertyId: group.propertyId,
+      images: Array.isArray(group.images) ? group.images.map(toPropertyImageViewModel).sort((x, y) => x.displayOrder - y.displayOrder).map((item) => item.url) : [],
+      videos: Array.isArray(group.videos) ? group.videos.map(toPropertyVideoViewModel).sort((x, y) => x.displayOrder - y.displayOrder).map((item) => item.url) : []
+    };
+  });
+}
