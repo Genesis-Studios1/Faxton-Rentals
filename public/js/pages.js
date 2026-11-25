@@ -4,6 +4,7 @@ import { db } from "./firebase.js";
 import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, naira, icon, toast, modal, verifiedBadge } from "./ui.js";
 import * as st from "./store.js";
+import { apiConfigured } from "./api-client.js";
 import * as AREA from "./area.js";
 import * as OFFERS from "./offers.js";
 import * as VS from "./viewsafe.js";
@@ -133,7 +134,7 @@ const readPdf = (f) => new Promise((res, rej) => { const r = new FileReader(); r
 export async function applyPage(ctx, id) {
   const l = await st.getListing(id); if (!l) return notFound();
   let rent = l.price, offerId = "";
-  if (ctx.q.offer) { const o = await OFFERS.getOffer(ctx.q.offer); if (o && o.uid === ctx.S.user.uid && o.listingId === l.id && o.status === "Accepted") { rent = o.amount; offerId = o.id; } }
+  if (!apiConfigured() && ctx.q.offer) { const o = await OFFERS.getOffer(ctx.q.offer); if (o && o.uid === ctx.S.user.uid && o.listingId === l.id && o.status === "Accepted") { rent = o.amount; offerId = o.id; } }
   const u = ctx.S.user, p = ctx.S.profile || {}, tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   const D = { name: u.displayName || "", email: u.email, phone: localPhone(p.phone), address: "", movein: "", occupants: "", note: "", status: "", employer: "", job: "", income: "", ...loadDraft(u, id) };
   let step = Math.min(Math.max(+D._step || 1, 1), 4); const files = { id: D.idFile || "", income: D.incomeFile || "" }, blobs = { id: D.idDoc || "", income: D.incomeDoc || "" };
@@ -158,7 +159,7 @@ export async function applyPage(ctx, id) {
           <label class="rf-fl">Phone number<span class="rf-phone"><span class="rf-cc"><i></i>+234</span><input id="f_phone" type="tel" inputmode="tel" placeholder="803 000 0000" value="${esc(D.phone)}" maxlength="20" autocomplete="tel-national"></span></label>${field("address", "Current address", "Where you live now", { opt: true, extra: 'maxlength="200" autocomplete="street-address"' })}
           <label class="rf-fl">Intended move-in date<span class="rf-date">${icon("cal", 18)}<input id="f_movein" type="date" min="${tomorrow}" value="${esc(D.movein)}"></span></label>${sel("occupants", "Number of occupants", "Select", ["1", "2", "3", "4", "5", "6+"])}</div>
           <label class="rf-fl"><span>Anything else? <span class="rf-optl">(optional)</span></span><textarea id="f_note" rows="3" maxlength="500" placeholder="Tell the agent anything that helps your application.">${esc(D.note)}</textarea></label><div class="rf-cnt"><span id="ncount">${D.note.length}</span>/500</div></div>`;
-        else if (step === 2) body = `<div class="rf-card-h"><div><h2>Employment</h2><p>This helps the agent assess your application.</p></div></div><div class="rf-form"><div class="rf-grid2">${sel("status", "Employment status", "Select status", ["Employed", "Self-employed", "Student", "Retired", "Other"])}${field("employer", "Employer or school", "Name", { extra: 'maxlength="120"' })}${field("job", "Job title", "Your job title", { opt: true, extra: 'maxlength="120"' })}${sel("income", "Monthly income", "Select range", ["Below ₦200,000", "₦200,000 – ₦500,000", "₦500,000 – ₦1,000,000", "Above ₦1,000,000"])}</div></div>`;
+        else if (step === 2) body = `<div class="rf-card-h"><div><h2>Employment</h2><p>This helps the agent assess your application.</p></div></div><div class="rf-form"><div class="rf-grid2">${sel("status", "Employment status", "Select status", ["Employed", "Self-employed", "Student", "Retired", "Other"])}${field("employer", "Employer or school", "Name", { extra: 'maxlength="120"' })}${field("job", "Job title", "Your job title", { opt: true, extra: 'maxlength="120"' })}${sel("income", "Monthly income", "Select range", ["Below ₦100,000", "₦100,000 – ₦250,000", "₦250,000 – ₦500,000", "₦500,000 – ₦1,000,000", "Above ₦1,000,000", "Prefer not to say"])}</div></div>`;
         else if (step === 3) body = `<div class="rf-card-h"><div><h2>Documents</h2><p>Attach a photo of your ID and, if you can, proof of income. Only the agent and Faxton can see them.</p></div></div>
           ${[["id", "Valid ID (required)", "National ID, passport or driver’s licence"], ["income", "Proof of income (optional)", "Payslip, bank statement or offer letter"]].map(([k2, t, d]) => `<div class="rf-up ${files[k2] ? "has" : ""}"><span class="rf-up-ic">${xicon(blobs[k2] ? "checkc" : "doc", 20)}</span><div><b>${t}</b><small>${files[k2] ? esc(files[k2]) + (blobs[k2] ? "" : " (attach it again)") : d}</small></div><label class="btn sm">${files[k2] ? "Replace" : "Choose file"}<input type="file" data-file="${k2}" accept="image/*,application/pdf" hidden></label></div>`).join("")}<p class="rf-meta" style="margin-top:10px">Photos are shrunk to fit. PDFs must be under 280 KB.</p>`;
         else { read(); body = `<div class="rf-card-h"><div><h2>Review your application</h2><p>Make sure everything is right before you submit.</p></div></div><div class="rf-kv"><div><span>Full name</span><b>${esc(D.name)}</b></div><div><span>Email</span><b>${esc(D.email)}</b></div><div><span>Phone</span><b>+234 ${esc(D.phone)}</b></div><div><span>Current address</span><b>${esc(D.address || "Not provided")}</b></div><div><span>Move-in date</span><b>${esc(D.movein ? longDay(D.movein) : "—")}</b></div><div><span>Occupants</span><b>${esc(D.occupants)}</b></div>
@@ -262,8 +263,8 @@ export const paymentsPage = (ctx) => import("./paymentspage.js").then((m) => m.p
 // ============================ applications ============================
 export async function applicationsPage(ctx) {
   const [apps, listings] = await Promise.all([st.myApplications(ctx.S.user), st.getListings()]);
-  const items = [...loadDrafts(ctx.S.user).filter((d) => !apps.some((a) => a.listingId === d.listingId && !/withdr/i.test(a.status))), ...apps].map((a) => ({ ...a, l: listings.find((x) => x.id === a.listingId) })).filter((a) => a.l);
-  const key = (a) => (a.draft ? a.listingId + "_d" : a.id), inProg = (s) => /review|draft|awaiting/i.test(s), closedS = (s) => /withdr|reject|declin/i.test(s);
+  const items = [...loadDrafts(ctx.S.user).filter((d) => !apps.some((a) => a.listingId === d.listingId && !/withdr/i.test(a.status))), ...apps].map((a) => ({ ...a, l: listings.find((x) => x.id === a.listingId) || a.l || { id: a.listingId, title: a.title, area: a.area, city: a.area, price: a.rent || 0, images: [a.image].filter(Boolean), thumb: a.image } })).filter((a) => a.l);
+  const key = (a) => (a.draft ? a.listingId + "_d" : a.id), inProg = (s) => /review|draft|awaiting|shortlist/i.test(s), closedS = (s) => /withdr|reject|declin/i.test(s);
   let tab = "all", sel = items[0] ? key(items[0]) : null;
   const match = (a, t) => t === "all" || (t === "prog" && inProg(a.status)) || (t === "ok" && ACTIVE(a.status)) || (t === "closed" && closedS(a.status));
   const list = () => items.filter((a) => match(a, tab)), cnt = (t) => items.filter((a) => match(a, t)).length;
