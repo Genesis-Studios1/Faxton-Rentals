@@ -2,11 +2,15 @@ name: Validate admin alerts
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feature/web-push-notifications, feature/native-push-notifications]
     paths:
       - "public/js/**"
       - "apps/desktop/**"
       - "apps/mobile/ci/**"
+      - "apps/mobile/package.json"
+      - "apps/mobile/capacitor.config.json"
+      - ".github/workflows/release-apps.yml"
+      - ".github/workflows/validate-native-push.yml"
       - "apps/mobile/google-services.json"
       - "public/.well-known/assetlinks.json"
       - "firebase.json"
@@ -23,6 +27,7 @@ on:
       - "scripts/check-app-cache-version.mjs"
       - "firestore.rules"
       - "tests/rules/**"
+      - "tests/api-properties.test.mjs"
       - "tests/area-security.test.mjs"
       - "tests/html-sanitizer-security.test.mjs"
       - ".github/workflows/validate-admin-alerts.yml"
@@ -46,6 +51,7 @@ jobs:
             node --experimental-default-type=module --check "$file"
           done
           node --experimental-default-type=module --test tests/listing-media.test.mjs
+          node --experimental-default-type=module --test tests/api-properties.test.mjs
           node --experimental-default-type=module --test tests/area-security.test.mjs
           node --experimental-default-type=module --test tests/html-sanitizer-security.test.mjs
           node --check public/sw.js
@@ -53,6 +59,8 @@ jobs:
           node --check apps/desktop/main.js
           node --check apps/desktop/preload.js
           bash -n apps/mobile/ci/build_android.sh
+          bash -n apps/mobile/ci/ios_google.sh
+          python3 -m py_compile apps/mobile/ci/patch_android.py apps/mobile/ci/patch_ios_push.py
           node -e "JSON.parse(require('fs').readFileSync('firebase.json', 'utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('apps/mobile/google-services.json', 'utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('public/.well-known/assetlinks.json', 'utf8'))"

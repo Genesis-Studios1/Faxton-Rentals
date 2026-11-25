@@ -22,15 +22,16 @@ detect)
   elif [ -n "${IOS_PLIST_B64:-}" ]; then echo "$IOS_PLIST_B64" | base64 -d > "$PLIST"; SRC="secret IOS_GOOGLE_SERVICE_INFO_BASE64"
   fi
   GOOGLE=no
-  if [ -n "$SRC" ]; then
-    if [ -n "$(pb_get "$PLIST" CLIENT_ID)" ] && [ -n "$(pb_get "$PLIST" REVERSED_CLIENT_ID)" ] && [ "$(pb_get "$PLIST" BUNDLE_ID)" = "$BUNDLE" ]; then
-      GOOGLE=yes
-    else
-      echo "::warning::$SRC is missing CLIENT_ID / REVERSED_CLIENT_ID or its BUNDLE_ID is not $BUNDLE. Download it again from Firebase > Project settings > your iOS app ($BUNDLE)."
-    fi
+  FIREBASE_CONFIG=no
+  if [ -n "$SRC" ] && [ "$(pb_get "$PLIST" BUNDLE_ID)" = "$BUNDLE" ] \
+    && [ -n "$(pb_get "$PLIST" GOOGLE_APP_ID)" ] \
+    && [ -n "$(pb_get "$PLIST" PROJECT_ID)" ] \
+    && [ -n "$(pb_get "$PLIST" GCM_SENDER_ID)" ]; then
+    FIREBASE_CONFIG=yes
+    if [ -n "$(pb_get "$PLIST" CLIENT_ID)" ] && [ -n "$(pb_get "$PLIST" REVERSED_CLIENT_ID)" ]; then GOOGLE=yes; fi
   fi
-  if [ "$GOOGLE" = no ]; then
-    # Minimal plist so FirebaseApp.configure() does not crash. Values come from the Android google-services.json of the same project.
+  if [ "$FIREBASE_CONFIG" = no ]; then
+    # Keep unsigned builds launchable, but do not enable native push without a real iOS Firebase app configuration.
     rm -f "$PLIST"
     read -r KEY SENDER PROJECT BUCKET < <(node -e '
       const j = require("./google-services.json"), c = j.client[0];
@@ -38,10 +39,12 @@ detect)
     "$PB" -c "Add :API_KEY string $KEY" -c "Add :GCM_SENDER_ID string $SENDER" -c "Add :BUNDLE_ID string $BUNDLE" \
       -c "Add :PROJECT_ID string $PROJECT" -c "Add :STORAGE_BUCKET string $BUCKET" \
       -c "Add :GOOGLE_APP_ID string 1:$SENDER:ios:0000000000000000" "$PLIST" >/dev/null
-    echo "::warning::iPhone: no valid GoogleService-Info.plist, so Google sign-in is disabled in the iPhone app (email sign-in works). See apps/mobile/ANDROID-GOOGLE-SIGNIN.md, section iPhone."
+    echo "::warning::iPhone push is disabled until a real GoogleService-Info.plist for $BUNDLE is supplied. The generated placeholder is only to keep the unsigned app launchable."
   fi
+  if [ "$GOOGLE" = no ]; then echo "::warning::iPhone Google sign-in is disabled until the iOS Firebase app has CLIENT_ID and REVERSED_CLIENT_ID."; fi
   echo "IOS_GOOGLE=$GOOGLE" >> "${GITHUB_ENV:-/dev/null}"
-  echo "iPhone Google sign-in: $GOOGLE"
+  echo "IOS_FIREBASE_CONFIG=$FIREBASE_CONFIG" >> "${GITHUB_ENV:-/dev/null}"
+  echo "iPhone Google sign-in: $GOOGLE; Firebase push config: $FIREBASE_CONFIG"
   ;;
 enable)
   REVERSED="$(pb_get "$PLIST" REVERSED_CLIENT_ID)"
