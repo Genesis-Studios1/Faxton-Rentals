@@ -54,3 +54,13 @@ export async function deleteBackendPropertyImage(propertyId, mediaId, { signal }
   if (!/^[0-9a-f-]{36}$/i.test(String(propertyId)) || !/^[0-9a-f-]{36}$/i.test(String(mediaId))) throw new TypeError("Invalid property image identifier.");
   return apiDelete(`/v1/me/properties/${encodeURIComponent(propertyId)}/images/${encodeURIComponent(mediaId)}`, { signal });
 }
+
+
+export async function getBackendPropertyWithImages(propertyId, { signal } = {}) {
+  const [property, media] = await Promise.all([
+    getBackendProperty(propertyId, { signal }),
+    listBackendPropertyImages(propertyId, { signal })
+  ]);
+  const images = media.sort((a, b) => a.displayOrder - b.displayOrder).map((item) => item.url);
+  return { ...property, images, thumb: images[0] || "" };
+}
