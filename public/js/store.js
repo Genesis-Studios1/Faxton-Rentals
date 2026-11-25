@@ -5,6 +5,8 @@ import { apiConfigured } from "./api-client.js";
 import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
 import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
+import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, confirmBackendViewing, declineBackendViewing, cancelBackendViewing } from "./api-viewings.js";
+import { localDateTime, toBackendTourType, toViewingViewModel } from "./api-viewings-mapper.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -114,10 +116,34 @@ export async function toggleSaved(user, id, on) {
 }
 
 // ---- viewings, applications ----
-export const addViewing = (user, l, when, slot, extra = {}) => addDoc(collection(db, "viewings"), { ...extra, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
+export const addViewing = async (user, l, when, slot, extra = {}) => {
+  if (apiConfigured()) {
+    const result = await createBackendViewing(l.id, {
+      tourType: toBackendTourType(extra.tour), requestedStartAt: localDateTime(when, slot),
+      contactPhone: extra.phone, renterNote: extra.note
+    });
+    return { id: result.id };
+  }
+  return addDoc(collection(db, "viewings"), { ...extra, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
+};
 export const addApplication = (user, l, moveIn, details = {}, extra = {}) => addDoc(collection(db, "applications"), { ...extra, details, rent: extra.rent || l.price, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: costOf(l, extra.rent || l.price).total, moveIn, status: "Under review", createdAt: serverTimestamp() });
 const mine = async (col, user) => { try { return (await getDocs(query(collection(db, col), where("uid", "==", user.uid)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); } catch { return []; } };
-export const myViewings = (u) => mine("viewings", u);
+async function mapBackendViewings(rows) {
+  const mapped = await Promise.all(rows.map(async (row) => {
+    const listing = await getListing(row.propertyId).catch(() => null);
+    const renter = row.renterUserId ? await getPublic(row.renterUserId).catch(() => null) : null;
+    return toViewingViewModel(row, listing || {}, renter || {});
+  }));
+  return mapped;
+}
+export const myViewings = async (u) => apiConfigured() ? mapBackendViewings(await listBackendViewings()) : mine("viewings", u);
+export const myManagedViewings = async () => apiConfigured() ? mapBackendViewings(await listBackendOwnerViewings()) : [];
+export const updateViewingStatus = async (viewing, status) => {
+  if (!apiConfigured() || !viewing?._backend) throw new Error("This viewing is not connected to the backend.");
+  const action = ({ Confirmed: confirmBackendViewing, Declined: declineBackendViewing, Cancelled: cancelBackendViewing })[status];
+  if (!action) throw new Error("That viewing status can’t be changed from this screen.");
+  return action(viewing.id);
+};
 export const myApplications = (u) => mine("applications", u);
 
 // ---- documents (stored per user; files up to ~700 KB are kept in the document itself) ----
