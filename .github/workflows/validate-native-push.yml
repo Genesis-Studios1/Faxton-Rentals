@@ -18,6 +18,10 @@ on:
       - "firebase.json"
       - ".github/workflows/validate-native-push.yml"
 
+concurrency:
+  group: native-push-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
