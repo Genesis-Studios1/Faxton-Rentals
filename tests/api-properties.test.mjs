@@ -95,3 +95,25 @@ test("requires a real street address before migrating a property listing", () =>
     title: "Palm Court", type: "Apartment", price: 2500000, city: "Lagos", state: "Lagos"
   }), /full street address is required/);
 });
+
+
+test("keeps property type separate from rental listing mode and preserves authorised owner", () => {
+  const payload = toBackendPropertyPayload({
+    title: "Shortlet Studio", type: "Studio", propertyType: "room",
+    listingMode: "shortlet", price: 45000, addressLine: "4 Example Street",
+    city: "Lagos", state: "Lagos", country: "Nigeria",
+    ownerUserId: "11111111-1111-4111-8111-111111111111"
+  });
+  assert.equal(payload.propertyType, "room");
+  assert.equal(payload.propertySubtype, "Studio");
+  assert.equal(payload.listingMode, "shortlet");
+  assert.equal(payload.ownerUserId, "11111111-1111-4111-8111-111111111111");
+});
+
+test("does not infer shortlet mode from a property category", () => {
+  const payload = toBackendPropertyPayload({
+    title: "Studio apartment", type: "Studio", propertyType: "room",
+    price: 900000, addressLine: "4 Example Street", city: "Lagos", state: "Lagos"
+  });
+  assert.equal(payload.listingMode, "long_term");
+});
