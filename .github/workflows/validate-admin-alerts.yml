@@ -2,7 +2,7 @@ name: Validate admin alerts
 
 on:
   pull_request:
-    branches: [main, feature/web-push-notifications, feature/native-push-notifications, feature/backend-listing-form, feature/backend-property-browse, migration/backend-api-client, feature/backend-profile-settings, feature/backend-viewings-integration]
+    branches: [main, feature/web-push-notifications, feature/native-push-notifications, feature/backend-listing-form, feature/backend-property-browse, migration/backend-api-client, feature/backend-profile-settings, feature/backend-viewings-integration, feature/backend-applications-offers]
     paths:
       - "public/js/**"
       - "apps/desktop/**"
@@ -31,6 +31,7 @@ on:
       - "tests/api-onboarding.test.mjs"
       - "tests/api-saved-properties.test.mjs"
       - "tests/api-viewings-mapper.test.mjs"
+      - "tests/api-rental-mapper.test.mjs"
       - "tests/listing-media.test.mjs"
       - "tests/area-security.test.mjs"
       - "tests/html-sanitizer-security.test.mjs"
@@ -57,6 +58,7 @@ jobs:
           node --experimental-default-type=module --test tests/listing-media.test.mjs
           node --experimental-default-type=module --test tests/api-properties.test.mjs
           node --experimental-default-type=module --test tests/api-viewings-mapper.test.mjs
+          node --experimental-default-type=module --test tests/api-rental-mapper.test.mjs
           node --experimental-default-type=module --test tests/area-security.test.mjs
           node --experimental-default-type=module --test tests/html-sanitizer-security.test.mjs
           node --check public/sw.js
