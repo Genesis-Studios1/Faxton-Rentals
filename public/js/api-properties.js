@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "./api-client.js";
-import { toListingViewModel, toPropertyImageViewModel, toPropertyVideoViewModel } from "./api-property-mapper.js";
-export { toListingViewModel } from "./api-property-mapper.js";
+import { toListingViewModel, toPropertyImageViewModel, toPropertyVideoViewModel, toBackendPropertyPayload } from "./api-property-mapper.js";
+export { toListingViewModel, toBackendPropertyPayload } from "./api-property-mapper.js";
 
 export async function listMyBackendProperties({ signal } = {}) {
   const data = await apiGet("/v1/me/properties", { signal });
