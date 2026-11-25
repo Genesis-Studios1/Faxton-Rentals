@@ -5,6 +5,8 @@ import { $, $$, esc, icon, toast, modal, friendlyErr, verifiedBadge } from "./ui
 import { fxErr, xicon, statusPill, ask } from "./fx.js";
 import * as st from "./store.js";
 import { reportDialog } from "./safety.js";
+import { apiConfigured } from "./api-client.js";
+import { checkInBackendViewing, checkOutBackendViewing, raiseBackendViewingSos, resolveBackendViewingSos, rateBackendViewing, requestBackendViewingReschedule, cancelBackendViewing } from "./api-viewings.js";
 
 export const EMERGENCY_NUMBER = "112";
 const OVERDUE_MIN = 90;
@@ -42,7 +44,33 @@ function sendTo(v, text) {
 const where = () => new Promise((res) => { if (!navigator.geolocation) return res(null); const t = setTimeout(() => res(null), 4000); navigator.geolocation.getCurrentPosition((p) => { clearTimeout(t); res({ lat: +p.coords.latitude.toFixed(5), lng: +p.coords.longitude.toFixed(5) }); }, () => { clearTimeout(t); res(null); }, { timeout: 4000, maximumAge: 60000 }); });
 const mapLink = (loc) => (loc ? `\n📌 My location: https://www.google.com/maps?q=${loc.lat},${loc.lng}` : "");
 
-const save = async (v, patch) => { await updateDoc(doc(db, "viewings", v.id), patch); Object.assign(v, patch); };
+const save = async (v, patch) => {
+  if (apiConfigured() && v?._backend) {
+    if (patch.checkIn) {
+      const result = await checkInBackendViewing(v.id);
+      patch = { ...patch, checkIn: { at: Date.parse(result.checkedInAt) } };
+    } else if (patch.checkOut) {
+      const result = await checkOutBackendViewing(v.id);
+      patch = { ...patch, checkOut: { at: Date.parse(result.checkedOutAt) }, status: "Completed" };
+    } else if (patch.sos) {
+      const result = patch.sos.resolved ? await resolveBackendViewingSos(v.id) : await raiseBackendViewingSos(v.id);
+      patch = { ...patch, sos: { ...patch.sos, at: patch.sos.at || Date.now(), resolved: result.status === "resolved" } };
+    } else if (patch.status === "Cancelled") {
+      await cancelBackendViewing(v.id);
+    } else if (patch.status === "Confirmed") {
+      const { confirmBackendViewing } = await import("./api-viewings.js"); await confirmBackendViewing(v.id);
+    } else if (patch.status === "Declined") {
+      const { declineBackendViewing } = await import("./api-viewings.js"); await declineBackendViewing(v.id);
+    } else if (patch.reschedule) {
+      const proposal = await requestBackendViewingReschedule(v.id, patch.reschedule.when, patch.reschedule.slot, patch.reschedule.note || ""); patch = { ...patch, reschedule: { ...patch.reschedule, id: proposal.id, status: proposal.status, requestedByUserId: v.uid } };
+    } else if (patch.rating) {
+      await rateBackendViewing(v.id, patch.rating.stars, patch.rating.text || "");
+    }
+    Object.assign(v, patch);
+    return;
+  }
+  await updateDoc(doc(db, "viewings", v.id), patch); Object.assign(v, patch);
+};
 
 export const resolveSos = (v) => save(v, { sos: { ...v.sos, resolved: true } });
 
@@ -85,7 +113,7 @@ export const isPast = (v, now = Date.now()) => !!v.checkOut || /declin|cancel/i.
 const stars = (n) => `<span class="rf-stars" aria-label="${n} out of 5">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= n ? "on" : ""}">${xicon("star", 16, 1.5)}</i>`).join("")}</span>`;
 export function viewingCard(v, now = Date.now()) {
   const phys = isPhysical(v), start = startOf(v).getTime(), live = v.status === "Confirmed", done = !!v.checkOut, off = /declin|cancel/i.test(v.status), asked = /request/i.test(v.status);
-  const canIn = live && phys && !v.checkIn && now >= start - 60 * 6e4 && now <= start + 5 * 36e5;
+  const canIn = live && phys && !v.checkIn && now >= start - 2 * 36e5 && now <= start + 4 * 36e5;
   const late = v.checkIn && !v.checkOut && now - v.checkIn.at > OVERDUE_MIN * 6e4;
   const stepState = [!!v.sharedWith, !!v.checkIn, done];
   const hint = !live ? "Safety tools unlock once the agent confirms." : v.checkIn ? "" : now > start + 5 * 36e5 ? "This viewing has passed." : `Check-in opens at ${clock(start - 60 * 6e4)}.`;
@@ -100,9 +128,9 @@ export function viewingCard(v, now = Date.now()) {
   ].filter(Boolean).join("");
   return `<article class="rf-vw ${off ? "off" : ""}" data-id="${esc(v.id)}"><header><img src="${esc(v.image)}" alt=""><div class="rf-vw-t"><h3>${esc(v.title)}</h3><p class="rf-loc">${icon("pin", 14)} ${esc(v.area)}</p><p class="rf-vw-when">${icon("cal", 15)} ${esc(fmtV(v))} · ${esc(v.tour || "In-person tour")}</p></div><div class="rf-vw-st">${statusPill(v.status)}${safeBadge(v)}</div></header>
     ${identityHtml({ name: v.agentName || "Faxton agent", avatar: v.agentPhoto }, !!v.agentVerified, true)}
-    ${r && !off ? `<div class="rf-note info">${xicon("undo", 20)}<div><b>You asked to move this viewing</b><p>Preferred: ${esc(fmtDate(String(r.when).slice(0, 10)))}, ${esc(r.slot)}. Your agent will reply in Messages.</p></div></div>` : ""}
+    ${r && !off ? `<div class="rf-note info">${xicon("undo", 20)}<div><b>${r.requestedByUserId && r.requestedByUserId !== v.uid ? "Your agent proposed a new time" : "You asked to move this viewing"}</b><p>Preferred: ${esc(fmtDate(String(r.when).slice(0, 10)))}, ${esc(r.slot)}. ${r.requestedByUserId && r.requestedByUserId !== v.uid ? "Please accept or decline this change." : "The other party will reply."}</p>${r.requestedByUserId && r.requestedByUserId !== v.uid ? `<div class="rf-vw-act"><button type="button" class="btn sm" data-reschedule="declined">Decline</button><button type="button" class="btn sm primary" data-reschedule="accepted">Accept new time</button></div>` : ""}</div></div>` : ""}
     ${rated ? `<div class="rf-vw-rated">${stars(rated.stars)}<span>${rated.text ? "“" + esc(rated.text) + "”" : "Thanks for rating your agent."}</span></div>` : ""}
-    ${phys && !off ? `<section class="rf-vs"><div class="rf-vs-head"><h4>${icon("shield", 18)} Viewing safety</h4>${live && !done ? `<button class="vs-sosbtn" data-sos>${icon("sos", 16)} Emergency</button>` : ""}</div>
+    ${phys && !off ? `<section class="rf-vs"><div class="rf-vs-head"><h4>${icon("shield", 18)} Viewing safety</h4>${live && v.checkIn && !done ? `<button class="vs-sosbtn" data-sos>${icon("sos", 16)} Emergency</button>` : ""}</div>
       ${late ? `<div class="vs-late">${icon("bell", 18)}<div><b>Are you OK?</b><small>You checked in at ${clock(v.checkIn.at)}. The viewing should be over by now.</small></div><button class="btn sm primary" data-act="out">I’m OK, check out</button><button class="btn sm red" data-sos>I need help</button></div>` : ""}
       <ol class="rf-vs-steps"><li class="${stepState[0] ? "ok" : ""}"><i>${stepState[0] ? icon("check", 13, 3) : 1}</i><div><b>Share the details</b><small>${v.sharedWith ? "Shared with " + esc(v.sharedWith) : v.trusted ? `Send to ${esc(v.trusted.name)} on WhatsApp` : "Pick someone who knows where you’ll be"}</small></div><button class="btn sm" data-act="share">${v.sharedWith ? "Send again" : v.trusted ? "Share" : "Add contact"}</button></li>
         <li class="${stepState[1] ? "ok" : ""}"><i>${stepState[1] ? icon("check", 13, 3) : 2}</i><div><b>Check in</b><small>${v.checkIn ? "Checked in at " + clock(v.checkIn.at) : esc(hint) || "When you arrive and meet the agent"}</small></div>${canIn ? `<button class="btn sm primary" data-act="in">Check in</button>` : ""}</li>
@@ -121,7 +149,15 @@ async function tellAgent(ctx, v, text) { try { const l = await st.getListing(v.l
 
 export function mountViewings(root, ctx, list, redraw) {
   const find = (el) => list.find((x) => x.id === el.closest(".rf-vw, .vw-card").dataset.id);
-  $$("[data-sos]", root).forEach((b) => (b.onclick = () => emergency(ctx, find(b), redraw)));
+  $("[data-sos]", root).forEach((b) => (b.onclick = () => emergency(ctx, find(b), redraw)));
+  $("[data-reschedule]", root).forEach((b) => (b.onclick = async () => {
+    const v = find(b); b.disabled = true;
+    try {
+      await st.respondViewingReschedule(v, b.dataset.reschedule);
+      if (b.dataset.reschedule === "accepted") { v.when = v.reschedule.when; v.slot = v.reschedule.slot; }
+      v.reschedule = null; toast(b.dataset.reschedule === "accepted" ? "New viewing time accepted." : "Proposed time declined."); redraw?.();
+    } catch (e) { toast(fxErr(e)); b.disabled = false; }
+  }));
   $$("[data-act]", root).forEach((b) => (b.onclick = async () => {
     const v = find(b), a = b.dataset.act; b.disabled = true;
     try {

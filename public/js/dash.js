@@ -550,14 +550,23 @@ export function addProperty(ctx, done) {
 // ---------- shared pieces for the portals ----------
 const verifyBanner = (ctx, needs, vst, agency) => (needs ? `<div class="ax-banner" data-t="${vst === "rejected" ? "bad" : "warn"}" data-t2="verify" data-tour="verify">${I(vst === "rejected" ? "info" : "clock", 20)}<div><b>${vst === "rejected" ? "We couldn’t verify your account" : "Your account is being verified"}</b><p>${vst === "rejected" ? esc(ctx.S.profile?.verification?.reason || "Please contact support for details.") : `This usually takes about ${agency ? "3 to 5 minutes" : "10 minutes"}. We’ll notify you the moment you’re verified, and then you can start listing properties.`}</p></div></div>` : "");
 function locHandler(ctx, ls, root) { $$("[data-loc]", root).forEach((b) => (b.onclick = async () => { const l = ls.find((x) => x.id === b.dataset.loc); const r = await pickLocation({ lat: l.hasPin ? l.lat : undefined, lng: l.hasPin ? l.lng : undefined, title: `Location of ${l.title}` }); if (!r) return; try { await st.patch("listings", l.id, { lat: r.lat, lng: r.lng, hasPin: true }); Object.assign(l, { lat: r.lat, lng: r.lng, hasPin: true }); toast("Location saved. It now shows on the map."); b.querySelector("span").textContent = "Edit location"; } catch (e) { bad(e); } })); }
-const VSTAT = ["Requested", "Confirmed", "Completed", "Cancelled"];
+const VSTAT = ["Requested", "Confirmed", "Declined", "Completed", "Cancelled"];
 function viewReqTable(rows, empty0) {
-  return rows.length ? `<div class="ax-scroll"><table class="ax-table ax-sm-table" aria-label="Viewing requests"><thead><tr><th>Prospect</th><th>When</th><th>Status</th><th class="al-right"></th></tr></thead><tbody>${rows.map((v) => `<tr data-id="${esc(v.id)}"><td data-role="title" data-label="Prospect"><div class="ax-id">${avatar(v.name, v.uid, 28)}<div><b>${esc(v.name || "")}</b><small>${esc(v.title || "")}</small></div></div></td><td data-label="When">${esc(fmt.day(v.when))}${v.slot ? `, ${esc(v.slot)}` : ""}</td><td data-role="status" data-label="Status"><button type="button" class="ax-chipbtn" data-vs="${esc(v.id)}" aria-haspopup="menu">${sosOpen(v) ? chipFor("sos", "open") : chipFor("viewing", v.status)}${I("chevD", 14)}</button></td><td data-role="actions" class="al-right">${v.status === "Requested" ? `<div class="ax-ra" style="justify-content:flex-end">${btn("Confirm", { v: "soft", size: "sm", attrs: `data-vc="${esc(v.id)}"` })}</div>` : ""}</td></tr>`).join("")}</tbody></table></div>` : empty0;
+  return rows.length ? `<div class="ax-scroll"><table class="ax-table ax-sm-table" aria-label="Viewing requests"><thead><tr><th>Prospect</th><th>When</th><th>Status</th><th class="al-right"></th></tr></thead><tbody>${rows.map((v) => `<tr data-id="${esc(v.id)}"><td data-role="title" data-label="Prospect"><div class="ax-id">${avatar(v.name, v.uid, 28)}<div><b>${esc(v.name || "")}</b><small>${esc(v.title || "")}</small></div></div></td><td data-label="When">${esc(fmt.day(v.when))}${v.slot ? `, ${esc(v.slot)}` : ""}</td><td data-role="status" data-label="Status"><button type="button" class="ax-chipbtn" data-vs="${esc(v.id)}" aria-haspopup="menu">${sosOpen(v) ? chipFor("sos", "open") : chipFor("viewing", v.status)}${I("chevD", 14)}</button></td><td data-role="actions" class="al-right">${v.reschedule && v.reschedule.requestedByUserId === v.uid ? `<div class="ax-ra" style="justify-content:flex-end"><span class="ax-muted">Proposed: ${esc(fmt.day(v.reschedule.when))}, ${esc(v.reschedule.slot)}</span><button type="button" class="btn sm" data-vra="${esc(v.id)}" data-decision="declined">Decline</button><button type="button" class="btn sm primary" data-vra="${esc(v.id)}" data-decision="accepted">Accept</button></div>` : v.status === "Requested" ? `<div class="ax-ra" style="justify-content:flex-end">${btn("Confirm", { v: "soft", size: "sm", attrs: `data-vc="${esc(v.id)}"` })}</div>` : ""}</td></tr>`).join("")}</tbody></table></div>` : empty0;
 }
 function wireViews(root, vws, rerender) {
-  const set = async (v, s) => { try { await st.setStatus("viewings", v.id, s); v.status = s; changed(); toast("Status updated."); rerender(); } catch (e) { bad(e); } };
-  $$("[data-vs]", root).forEach((b) => (b.onclick = () => { const v = vws.find((x) => x.id === b.dataset.vs); menu(b, VSTAT.map((s) => ({ label: s, checked: s === v.status, act: () => s !== v.status && set(v, s) })), { align: "left", label: "Status" }); }));
-  $$("[data-vc]", root).forEach((b) => (b.onclick = () => set(vws.find((x) => x.id === b.dataset.vc), "Confirmed")));
+  const set = async (v, s) => { try { if (v._backend) { if (s === "Completed" || s === "Requested") return toast("That viewing transition is handled by the renter or the viewing workflow."); await st.updateViewingStatus(v, s); } else await st.setStatus("viewings", v.id, s); v.status = s; changed(); toast("Status updated."); rerender(); } catch (e) { bad(e); } };
+  $$("[data-vs]", root).forEach((b) => (b.onclick = () => { const v = vws.find((x) => x.id === b.dataset.vs); menu(b, VSTAT.filter((s) => !v._backend || ["Confirmed", "Declined", "Cancelled"].includes(s)).map((s) => ({ label: s, checked: s === v.status, act: () => s !== v.status && set(v, s) })), { align: "left", label: "Status" }); }));
+  $("[data-vc]", root).forEach((b) => (b.onclick = () => set(vws.find((x) => x.id === b.dataset.vc), "Confirmed")));
+  $("[data-vra]", root).forEach((b) => (b.onclick = async () => {
+    const v = vws.find((x) => x.id === b.dataset.vra); if (!v?.reschedule?.id) return;
+    b.disabled = true;
+    try {
+      await st.respondViewingReschedule(v, b.dataset.decision);
+      if (b.dataset.decision === "accepted") { v.when = v.reschedule.when; v.slot = v.reschedule.slot; }
+      v.reschedule = null; changed(); toast(b.dataset.decision === "accepted" ? "New viewing time accepted." : "Proposed time declined."); rerender();
+    } catch (e) { bad(e); b.disabled = false; }
+  }));
 }
 
 // ---------- property owner and agency dashboard ----------
@@ -616,7 +625,7 @@ export async function ownerPage(ctx, kind, sub = "") {
   const subt = { landlord: "Here’s what’s happening with your properties.", agency: "Here’s your team’s performance and business overview.", agent: "Your listings, leads and viewings at a glance." }[kind];
   const addBtn = btn("Add property", { v: "primary", ic: "plus", attrs: `id="addp" ${needsV ? 'aria-disabled="true" title="Available once your account is verified"' : ""}` });
   const v = pageView(ctx, { title: kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
-    cols: [["ls", () => data.safe("listings", { uid: u })], ["apps", () => data.safe("applications", { uid: u })], ["views", () => data.safe("viewings", { uid: u })], ["offers", () => data.safe("offers", { uid: u })], ["maint", () => data.safe("maintenance", { uid: u })]],
+    cols: [["ls", () => data.safe("listings", { uid: u })], ["apps", () => data.safe("applications", { uid: u })], ["views", () => st.myManagedViewings({ uid: u })], ["offers", () => data.safe("offers", { uid: u })], ["maint", () => data.safe("maintenance", { uid: u })]],
     async render({ ls, apps, views, offers, maint }, { root }) {
       const r = kind === "agent" ? agentDash(ctx, { ls, apps, views, offers }, sub) : portfolio(ctx, { ls, apps, views, offers, maint }, kind);
       return { html: r.html, mount(el) {
