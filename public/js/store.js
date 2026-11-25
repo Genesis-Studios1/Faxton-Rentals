@@ -4,6 +4,7 @@ import { moveIn as costOf } from "./area.js";
 import { apiConfigured } from "./api-client.js";
 import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
+import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -105,9 +106,10 @@ export async function saveProfile(uid, data) {
   return setDoc(doc(db, "users", uid), data, { merge: true });
 }
 const localSaved = () => { try { return JSON.parse(localStorage.getItem("saved") || "[]"); } catch { return []; } };
-export async function getSaved(user) { return user ? ((await getProfile(user.uid))?.saved || []) : localSaved(); }
+export async function getSaved(user) { if (!user) return localSaved(); if (apiConfigured()) return listBackendSavedProperties(); return (await getProfile(user.uid))?.saved || []; }
 export async function toggleSaved(user, id, on) {
   if (!user) { const s = new Set(localSaved()); on ? s.add(id) : s.delete(id); try { localStorage.setItem("saved", JSON.stringify([...s])); } catch {} return; }
+  if (apiConfigured()) { if (on) await saveBackendProperty(id); else await removeBackendSavedProperty(id); return; }
   await setDoc(doc(db, "users", user.uid), { saved: on ? arrayUnion(id) : arrayRemove(id) }, { merge: true });
 }
 
