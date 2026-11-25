@@ -7,6 +7,8 @@ import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "
 import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
 import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, listBackendViewingReschedules, respondBackendViewingReschedule, confirmBackendViewing, declineBackendViewing, cancelBackendViewing } from "./api-viewings.js";
 import { localDateTime, toBackendTourType, toViewingViewModel, toLocalViewingTime } from "./api-viewings-mapper.js";
+import { uploadBackendApplicationDocument, createBackendApplication, listBackendApplications, withdrawBackendApplication, decideBackendApplication, listBackendApplicationDocuments, getBackendApplicationDocumentUrl, listBackendApplicationEvents, createBackendOffer, listBackendApplicationOffers, respondBackendOffer, withdrawBackendOffer, getBackendOffer } from "./api-rentals.js";
+import { toBackendApplicationPayload, toBackendApplicationViewModel } from "./api-rental-mapper.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -126,7 +128,16 @@ export const addViewing = async (user, l, when, slot, extra = {}) => {
   }
   return addDoc(collection(db, "viewings"), { ...extra, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], when, slot, status: "Requested", createdAt: serverTimestamp() });
 };
-export const addApplication = (user, l, moveIn, details = {}, extra = {}) => addDoc(collection(db, "applications"), { ...extra, details, rent: extra.rent || l.price, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: costOf(l, extra.rent || l.price).total, moveIn, status: "Under review", createdAt: serverTimestamp() });
+export const addApplication = async (user, l, moveIn, details = {}, extra = {}) => {
+  if (apiConfigured()) {
+    const documents = [];
+    if (details.idDoc) documents.push({ uploadId: await uploadBackendApplicationDocument(details.idDoc, details.idFile), documentType: "identity", displayName: details.idFile || "Identity document" });
+    if (details.incomeDoc) documents.push({ uploadId: await uploadBackendApplicationDocument(details.incomeDoc, details.incomeFile), documentType: "proof_of_income", displayName: details.incomeFile || "Proof of income" });
+    const payload = toBackendApplicationPayload(l.id, details, moveIn, documents);
+    return createBackendApplication(payload);
+  }
+  return addDoc(collection(db, "applications"), { ...extra, details, rent: extra.rent || l.price, ownerUid: l.ownerUid || null, uid: user.uid, name: user.displayName || user.email, email: user.email, listingId: l.id, title: l.title, area: l.area, image: l.thumb || l.images[0], amount: costOf(l, extra.rent || l.price).total, moveIn, status: "Under review", createdAt: serverTimestamp() });
+};
 const mine = async (col, user) => { try { return (await getDocs(query(collection(db, col), where("uid", "==", user.uid)))).docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); } catch { return []; } };
 async function mapBackendViewings(rows) {
   const listingCache = new Map(), renterCache = new Map();
@@ -160,7 +171,39 @@ export const respondViewingReschedule = async (viewing, decision) => {
   if (!apiConfigured() || !viewing?._backend || !viewing?.reschedule?.id) throw new Error("There is no backend reschedule request to answer.");
   return respondBackendViewingReschedule(viewing.id, viewing.reschedule.id, decision);
 };
-export const myApplications = (u) => mine("applications", u);
+async function mapBackendApplications(rows) {
+  const listings = new Map(), profiles = new Map();
+  return Promise.all(rows.map(async (row) => {
+    if (!listings.has(row.propertyId)) listings.set(row.propertyId, getListing(row.propertyId).catch(() => null));
+    if (!profiles.has(row.applicantUserId)) profiles.set(row.applicantUserId, getPublic(row.applicantUserId).catch(() => null));
+    const [listing, profile] = await Promise.all([listings.get(row.propertyId), profiles.get(row.applicantUserId)]);
+    const l = listing || { id: row.propertyId, title: row.propertyTitle || "Rental property", city: row.propertyCity || "", state: row.propertyState || "", area: [row.propertyCity,row.propertyState].filter(Boolean).join(", "), price: 0, images: [] };
+    const total = costOf(l, Number(l.price) || 0).total;
+    return toBackendApplicationViewModel(row, l, profile || {}, total);
+  }));
+}
+export const myApplications = async (u) => apiConfigured() ? mapBackendApplications(await listBackendApplications()) : mine("applications", u);
+export const ownerApplications = async (u) => apiConfigured() ? mapBackendApplications(await listBackendApplications({ owner: true })) : ownedDocs("applications", u?.uid);
+export const withdrawApplication = async (application) => {
+  if (apiConfigured() && application?._backend) return withdrawBackendApplication(application.id);
+  return updateDoc(doc(db, "applications", application.id), { status: "Withdrawn", withdrawnAt: Date.now() });
+};
+export const updateApplicationDecision = async (application, status) => {
+  if (apiConfigured() && application?._backend) {
+    const value = ({ Shortlisted: "shortlisted", Approved: "approved", Rejected: "rejected" })[status];
+    if (!value) throw new Error("That application decision is not supported.");
+    return decideBackendApplication(application.id, value);
+  }
+  return updateDoc(doc(db, "applications", application.id), { status });
+};
+export const getApplicationDocuments = (id) => listBackendApplicationDocuments(id);
+export const getApplicationDocumentUrl = (applicationId, documentId) => getBackendApplicationDocumentUrl(applicationId, documentId);
+export const getApplicationEvents = (id) => listBackendApplicationEvents(id);
+export const createRentalOffer = (applicationId, terms) => createBackendOffer(applicationId, terms);
+export const listRentalOffers = (applicationId) => listBackendApplicationOffers(applicationId);
+export const respondRentalOffer = (offerId, action, terms, message) => respondBackendOffer(offerId, action, terms, message);
+export const withdrawRentalOffer = (offerId) => withdrawBackendOffer(offerId);
+export const getRentalOffer = (offerId) => getBackendOffer(offerId);
 
 // ---- documents (stored per user; files up to ~700 KB are kept in the document itself) ----
 export const myDocs = (u) => mine("documents", u);
