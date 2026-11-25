@@ -2,7 +2,7 @@
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
 import { apiConfigured } from "./api-client.js";
-import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
+import { getBackendPropertyWithMedia, listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -78,7 +78,12 @@ export async function getListings(force = false) {
   if (stored?.length && !force) { cache = stored.filter(Boolean).map(norm); fetchFresh(); return cache; }
   return fetchFresh();
 }
-export const getListing = async (id) => (await getListings()).find((l) => l.id === id) || null;
+export const getListing = async (id) => {
+  if (apiConfigured()) {
+    try { return await getBackendPropertyWithMedia(id); } catch { return null; }
+  }
+  return (await getListings()).find((listing) => listing.id === id) || null;
+};
 
 // ---- profile + saved homes ----
 export async function getProfile(uid) { try { const s = await getDoc(doc(db, "users", uid)); return s.exists() ? s.data() : null; } catch { return null; } }
