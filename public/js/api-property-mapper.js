@@ -89,6 +89,7 @@ export function toProfileViewModel(profile) {
     website: profile.profile?.websiteUrl || "",
     serviceArea: profile.profile?.serviceArea || "",
     area: profile.profile?.serviceArea || "",
+    location: profile.profile?.serviceArea || "",
     verification: profile.verification || {},
     settings: profile.settings || {},
     agency: profile.agency || null
