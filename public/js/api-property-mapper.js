@@ -51,3 +51,27 @@ export function toPropertyImageViewModel(image) {
     byteSize: Number.isFinite(Number(image.byteSize)) ? Number(image.byteSize) : 0
   };
 }
+
+
+export function toProfileViewModel(profile) {
+  if (!profile || typeof profile !== "object" || typeof profile.id !== "string") {
+    throw new TypeError("Invalid profile returned by Faxton API.");
+  }
+  return {
+    id: profile.id,
+    uid: profile.id,
+    email: String(profile.email || ""),
+    name: String(profile.displayName || ""),
+    displayName: String(profile.displayName || ""),
+    role: String(profile.role || "renter"),
+    phone: profile.phoneNumber || "",
+    phoneNumber: profile.phoneNumber || "",
+    photo: profile.profile?.avatarUrl || "",
+    bio: profile.profile?.bio || "",
+    website: profile.profile?.websiteUrl || "",
+    serviceArea: profile.profile?.serviceArea || "",
+    verification: profile.verification || {},
+    settings: profile.settings || {},
+    agency: profile.agency || null
+  };
+}
