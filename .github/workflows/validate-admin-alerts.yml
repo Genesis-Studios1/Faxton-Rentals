@@ -28,6 +28,7 @@ on:
       - "firestore.rules"
       - "tests/rules/**"
       - "tests/api-properties.test.mjs"
+      - "tests/api-onboarding.test.mjs"
       - "tests/listing-media.test.mjs"
       - "tests/area-security.test.mjs"
       - "tests/html-sanitizer-security.test.mjs"
