@@ -9,14 +9,6 @@ on:
       - "public/js/main.js"
       - "firebase.json"
       - ".github/workflows/validate-native-push.yml"
-  push:
-    branches: [feature/native-push-notifications]
-    paths:
-      - "apps/mobile/**"
-      - "public/js/push-*.js"
-      - "public/js/main.js"
-      - "firebase.json"
-      - ".github/workflows/validate-native-push.yml"
 
 concurrency:
   group: native-push-${{ github.event.pull_request.number || github.ref }}
@@ -39,6 +31,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: gradle
       - name: Install Capacitor and native Firebase Messaging
         working-directory: apps/mobile
         run: |
