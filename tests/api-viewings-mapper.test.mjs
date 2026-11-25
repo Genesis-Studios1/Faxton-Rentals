@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { localDateTime, toViewingViewModel, toBackendTourType } from "../public/js/api-viewings-mapper.js";
+import { localDateTime, toViewingViewModel, toBackendTourType, toLocalViewingTime } from "../public/js/api-viewings-mapper.js";
 
 test("Lagos viewing times convert to the correct UTC instant", () => {
   assert.equal(localDateTime("2026-12-01", "10:00 AM"), "2026-12-01T09:00:00.000Z");
@@ -27,4 +27,8 @@ test("tour type maps to backend enum", () => {
 test("invalid dates and response rows are rejected", () => {
   assert.throws(() => localDateTime("not-a-date", "10:00 AM"), /valid viewing date and time/);
   assert.throws(() => toViewingViewModel({ id: "bad", propertyId: "bad" }), /invalid viewing/);
+});
+
+test("proposed viewing times are formatted in Lagos time", () => {
+  assert.deepEqual(toLocalViewingTime("2026-12-01T09:00:00.000Z"), { when: "2026-12-01", slot: "10:00 AM" });
 });
