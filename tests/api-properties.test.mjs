@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toListingViewModel } from "../public/js/api-properties.js";
+import { toListingViewModel } from "../public/js/api-property-mapper.js";
 
 test("maps backend property fields to the legacy listing view model without inventing media", () => {
   const listing = toListingViewModel({
