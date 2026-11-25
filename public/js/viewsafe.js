@@ -62,7 +62,7 @@ const save = async (v, patch) => {
     } else if (patch.status === "Declined") {
       const { declineBackendViewing } = await import("./api-viewings.js"); await declineBackendViewing(v.id);
     } else if (patch.reschedule) {
-      await requestBackendViewingReschedule(v.id, patch.reschedule.when, patch.reschedule.slot, patch.reschedule.note || "");
+      const proposal = await requestBackendViewingReschedule(v.id, patch.reschedule.when, patch.reschedule.slot, patch.reschedule.note || ""); patch = { ...patch, reschedule: { ...patch.reschedule, id: proposal.id, status: proposal.status, requestedByUserId: v.uid } };
     } else if (patch.rating) {
       await rateBackendViewing(v.id, patch.rating.stars, patch.rating.text || "");
     }
@@ -128,7 +128,7 @@ export function viewingCard(v, now = Date.now()) {
   ].filter(Boolean).join("");
   return `<article class="rf-vw ${off ? "off" : ""}" data-id="${esc(v.id)}"><header><img src="${esc(v.image)}" alt=""><div class="rf-vw-t"><h3>${esc(v.title)}</h3><p class="rf-loc">${icon("pin", 14)} ${esc(v.area)}</p><p class="rf-vw-when">${icon("cal", 15)} ${esc(fmtV(v))} · ${esc(v.tour || "In-person tour")}</p></div><div class="rf-vw-st">${statusPill(v.status)}${safeBadge(v)}</div></header>
     ${identityHtml({ name: v.agentName || "Faxton agent", avatar: v.agentPhoto }, !!v.agentVerified, true)}
-    ${r && !off ? `<div class="rf-note info">${xicon("undo", 20)}<div><b>You asked to move this viewing</b><p>Preferred: ${esc(fmtDate(String(r.when).slice(0, 10)))}, ${esc(r.slot)}. Your agent will reply in Messages.</p></div></div>` : ""}
+    ${r && !off ? `<div class="rf-note info">${xicon("undo", 20)}<div><b>${r.requestedByUserId && r.requestedByUserId !== v.uid ? "Your agent proposed a new time" : "You asked to move this viewing"}</b><p>Preferred: ${esc(fmtDate(String(r.when).slice(0, 10)))}, ${esc(r.slot)}. ${r.requestedByUserId && r.requestedByUserId !== v.uid ? "Please accept or decline this change." : "The other party will reply."}</p>${r.requestedByUserId && r.requestedByUserId !== v.uid ? `<div class="rf-vw-act"><button type="button" class="btn sm" data-reschedule="declined">Decline</button><button type="button" class="btn sm primary" data-reschedule="accepted">Accept new time</button></div>` : ""}</div></div>` : ""}
     ${rated ? `<div class="rf-vw-rated">${stars(rated.stars)}<span>${rated.text ? "“" + esc(rated.text) + "”" : "Thanks for rating your agent."}</span></div>` : ""}
     ${phys && !off ? `<section class="rf-vs"><div class="rf-vs-head"><h4>${icon("shield", 18)} Viewing safety</h4>${live && !done ? `<button class="vs-sosbtn" data-sos>${icon("sos", 16)} Emergency</button>` : ""}</div>
       ${late ? `<div class="vs-late">${icon("bell", 18)}<div><b>Are you OK?</b><small>You checked in at ${clock(v.checkIn.at)}. The viewing should be over by now.</small></div><button class="btn sm primary" data-act="out">I’m OK, check out</button><button class="btn sm red" data-sos>I need help</button></div>` : ""}
@@ -149,7 +149,15 @@ async function tellAgent(ctx, v, text) { try { const l = await st.getListing(v.l
 
 export function mountViewings(root, ctx, list, redraw) {
   const find = (el) => list.find((x) => x.id === el.closest(".rf-vw, .vw-card").dataset.id);
-  $$("[data-sos]", root).forEach((b) => (b.onclick = () => emergency(ctx, find(b), redraw)));
+  $("[data-sos]", root).forEach((b) => (b.onclick = () => emergency(ctx, find(b), redraw)));
+  $("[data-reschedule]", root).forEach((b) => (b.onclick = async () => {
+    const v = find(b); b.disabled = true;
+    try {
+      await st.respondViewingReschedule(v, b.dataset.reschedule);
+      if (b.dataset.reschedule === "accepted") { v.when = v.reschedule.when; v.slot = v.reschedule.slot; }
+      v.reschedule = null; toast(b.dataset.reschedule === "accepted" ? "New viewing time accepted." : "Proposed time declined."); redraw?.();
+    } catch (e) { toast(fxErr(e)); b.disabled = false; }
+  }));
   $$("[data-act]", root).forEach((b) => (b.onclick = async () => {
     const v = find(b), a = b.dataset.act; b.disabled = true;
     try {
