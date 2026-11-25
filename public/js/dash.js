@@ -271,7 +271,7 @@ export function addProperty(ctx, done) {
   const d = dialog({ title: "Add a property", size: "lg", icon: "home", body: `<p class="ax-p ax-muted">New listings are reviewed by the Faxton team before they go live.</p><form id="np" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
     ${locFields({ style: "ax", flow: true, ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "npCity" })}
-    <label class="ax-field full"><span>Full street address <small>Private — not shown on public listings</small></span><input class="ax-input" name="streetAddress" maxlength="240" autocomplete="street-address" placeholder="House number, street name and estate"></label>
+    <label class="ax-field full"><span>Full street address <small>Private — required for backend listings, never shown publicly</small></span><input class="ax-input" name="streetAddress" maxlength="240" autocomplete="street-address" placeholder="House number, street name and estate"></label>
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
     <label class="ax-field"><span>Property type</span><select class="ax-input" name="propertyType" required><option value="apartment">Apartment</option><option value="house">House</option><option value="room">Room / Studio</option><option value="commercial">Commercial</option></select></label>
     <label class="ax-field"><span>Property category</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option></select></label>
@@ -423,7 +423,6 @@ export function addProperty(ctx, done) {
     { const message = listingLocError(L, f.area); if (message) return (err.textContent = message); }
     const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
-    if (f.streetAddress.trim().length < 3) return (err.textContent = "Enter the full private street address, including the house number and street name.");
     if (photoLinks.some((u) => !/^https:\/\//.test(u)) || videoLinks.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const buildingIsMultiStorey = f.type === "Apartment" && ["Storey building", "Block of flats"].includes(f.buildingType);
     if (buildingIsMultiStorey && !String(f.floor || "").trim()) return (err.textContent = "Enter the floor where this apartment is located.");
@@ -450,6 +449,7 @@ export function addProperty(ctx, done) {
     try {
       const { apiConfigured } = await import("./api-client.js");
       if (apiConfigured()) {
+        if (f.streetAddress.trim().length < 3) throw new Error("Enter the full private street address, including the house number and street name.");
         if (photoLinks.length || videoLinks.length) throw new Error("For backend listings, upload media files directly instead of using external media links.");
         if (videoFiles.some((file) => !["video/mp4", "video/webm"].includes(file.type))) throw new Error("Backend video uploads currently support MP4 and WebM files only.");
         const { createBackendPropertyFromListing, uploadBackendPropertyImage, uploadBackendPropertyVideo, submitBackendPropertyForReview } = await import("./api-properties.js");
@@ -522,7 +522,7 @@ export function addProperty(ctx, done) {
         yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking,
         furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "",
         kitchens: +f.kitchens || 0, parlours: +f.parlours || 0, swimmingPools: +f.swimmingPools || 0, gardens: +f.gardens || 0,
-        features, desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0,
+        features, desc: f.desc.trim(), listingMode: f.listingMode, status: "pending", service: +f.service || 0, deposit: +f.deposit || 0,
         ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}),
         ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}),
         lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where,
