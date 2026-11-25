@@ -460,7 +460,7 @@ function viewingDrawer(ctx, v, api) {
     mount(el) {
       $("[data-callr]", el)?.addEventListener("click", () => callTo(ctx, v.uid, v.name, v.title)); $("[data-calla]", el)?.addEventListener("click", () => callTo(ctx, v.agentUid || v.ownerUid, v.agentName, v.title));
       $("[data-resolve]", el)?.addEventListener("click", () => resolveSos(ctx, v, api));
-      $("[data-status]", el)?.addEventListener("click", (e) => menu(e.currentTarget, VW_STATUS.filter((x) => !v._backend || x !== "Completed").map((x) => ({ label: x, checked: x === v.status, act: () => x !== v.status && setView(v, x, api) })), { align: "left" }));
+      $("[data-status]", el)?.addEventListener("click", (e) => menu(e.currentTarget, VW_STATUS.filter((x) => !v._backend || ["Confirmed", "Declined", "Cancelled"].includes(x)).map((x) => ({ label: x, checked: x === v.status, act: () => x !== v.status && setView(v, x, api) })), { align: "left" }));
     } };
 }
 export function viewings(ctx) {
@@ -486,7 +486,7 @@ export function viewings(ctx) {
           csv: { name: "faxton-viewings", head: ["Renter", "Property", "Date", "Time", "Status", "Agent", "Safety alert"], row: (v) => [v.name, v.title, v.when, v.slot, v.status, v.agentName || "", v.sos ? (sosOpen(v) ? "open" : "resolved") : ""] },
           quick: (v) => (sosOpen(v) ? btn("Resolve", { v: "primary", size: "xs", cls: "ax-qa", attrs: "data-qa=resolve" }) : v.status === "Requested" ? btn("Confirm", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=confirm" }) : ""),
           onQuick: (k, v, b, api) => (k === "resolve" ? resolveSos(ctx, v, api) : setView(v, "Confirmed", api)),
-          menu: (v, api) => [{ label: "Open", icon: "eye", act: api.open }, { sep: 1 }, ...VW_STATUS.map((s) => ({ label: `Mark ${s.toLowerCase()}`, icon: "clock", disabled: s === v.status, act: () => setView(v, s, api) })), ...(sosOpen(v) ? [{ sep: 1 }, { label: "Mark safety alert resolved", icon: "check", act: () => resolveSos(ctx, v, api) }] : [])],
+          menu: (v, api) => [{ label: "Open", icon: "eye", act: api.open }, { sep: 1 }, ...VW_STATUS.filter((s) => !v._backend || ["Confirmed", "Declined", "Cancelled"].includes(s)).map((s) => ({ label: `Mark ${s.toLowerCase()}`, icon: "clock", disabled: s === v.status, act: () => setView(v, s, api) })), ...(sosOpen(v) ? [{ sep: 1 }, { label: "Mark safety alert resolved", icon: "check", act: () => resolveSos(ctx, v, api) }] : [])],
           drawer: (v, api) => viewingDrawer(ctx, v, api),
           empty: { icon: "calDots", title: "No viewings yet", hint: "Viewing requests from renters appear here. A safety alert shows up the moment someone raises one." } });
       } };
