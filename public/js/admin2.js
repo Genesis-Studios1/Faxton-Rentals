@@ -495,7 +495,7 @@ export function viewings(ctx) {
 
 // ---------- review queue ----------
 export function queue(ctx) {
-  return pageView(ctx, { title: "Review queue", eyebrow: "Overview", sub: "Everything waiting on a person. Safety alerts always come first.", cols: ["listings", "users", "viewings"], what: "the review queue",
+  return pageView(ctx, { title: "Review queue", eyebrow: "Overview", sub: "Everything waiting on a person. Safety alerts always come first.", cols: ["listings", "users", ["viewings", () => apiConfigured() ? st.myManagedViewings(ctx.S.user) : data.safe("viewings")]], what: "the review queue",
     async render({ listings: ls, users: us, viewings: vw }) {
       let tab = hq().q.tab || ""; const apiFor = (row, again) => ({ row, refresh: again, update: (p) => { Object.assign(row, p); changed(); again(); }, close: () => drawer.close(), list: null });
       const items = () => [
