@@ -136,7 +136,7 @@ async function mapBackendViewings(rows) {
     const [listing, renter, proposals] = await Promise.all([
       listingCache.get(row.propertyId),
       row.renterUserId ? renterCache.get(row.renterUserId) : null,
-      listBackendViewingReschedules(row.id).catch(() => [])
+      ["requested", "confirmed"].includes(String(row.status).toLowerCase()) ? listBackendViewingReschedules(row.id).catch(() => []) : []
     ]);
     const view = toViewingViewModel(row, listing || {}, renter || {});
     const pending = proposals.find((p) => p.status === "pending");
