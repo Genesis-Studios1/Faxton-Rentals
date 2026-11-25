@@ -116,3 +116,15 @@ export async function getBackendPropertyWithImages(propertyId, { signal, managed
   const images = media.sort((a, b) => a.displayOrder - b.displayOrder).map((item) => item.url);
   return { ...property, images, thumb: images[0] || "" };
 }
+
+export async function listBackendAgentAuthorisations({ signal } = {}) {
+  const data = await apiGet("/v1/me/agent-authorisations", { signal });
+  if (!Array.isArray(data)) throw new TypeError("Faxton API returned invalid agent authorisations.");
+  return data.filter((item) => item && item.status === "accepted" && typeof item.landlordUserId === "string");
+}
+
+export async function submitBackendPropertyForReview(propertyId, { signal } = {}) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(propertyId))) throw new TypeError("Invalid property identifier.");
+  const data = await apiPost(`/v1/me/properties/${encodeURIComponent(propertyId)}/submit`, {}, { signal });
+  return toListingViewModel(data);
+}
