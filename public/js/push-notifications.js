@@ -120,6 +120,10 @@ function listenForMessages(instance) {
   });
 }
 
+export function pushAvailable() {
+  return nativeShell() ? nativePushEnabled() && apiConfigured() : webConfigured();
+}
+
 export async function requestPushPermission() {
   if (nativeShell()) {
     if (!nativePushEnabled() || !apiConfigured()) return false;
