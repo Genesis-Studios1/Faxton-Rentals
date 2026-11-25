@@ -171,18 +171,18 @@ export const respondViewingReschedule = async (viewing, decision) => {
   if (!apiConfigured() || !viewing?._backend || !viewing?.reschedule?.id) throw new Error("There is no backend reschedule request to answer.");
   return respondBackendViewingReschedule(viewing.id, viewing.reschedule.id, decision);
 };
-async function mapBackendApplications(rows) {
+async function mapBackendApplications(rows, currentUser = null) {
   const listings = new Map(), profiles = new Map();
   return Promise.all(rows.map(async (row) => {
     if (!listings.has(row.propertyId)) listings.set(row.propertyId, getListing(row.propertyId).catch(() => null));
-    if (!profiles.has(row.applicantUserId)) profiles.set(row.applicantUserId, getPublic(row.applicantUserId).catch(() => null));
+    if (!profiles.has(row.applicantUserId)) profiles.set(row.applicantUserId, row.applicantUserId === currentUser?.uid ? Promise.resolve({ name: currentUser.displayName || "Renter" }) : getPublic(row.applicantUserId).catch(() => null));
     const [listing, profile] = await Promise.all([listings.get(row.propertyId), profiles.get(row.applicantUserId)]);
     const l = listing || { id: row.propertyId, title: row.propertyTitle || "Rental property", city: row.propertyCity || "", state: row.propertyState || "", area: [row.propertyCity,row.propertyState].filter(Boolean).join(", "), price: 0, images: [] };
     const total = costOf(l, Number(l.price) || 0).total;
     return toBackendApplicationViewModel(row, l, profile || {}, total);
   }));
 }
-export const myApplications = async (u) => apiConfigured() ? mapBackendApplications(await listBackendApplications()) : mine("applications", u);
+export const myApplications = async (u) => apiConfigured() ? mapBackendApplications(await listBackendApplications(), u) : mine("applications", u);
 export const ownerApplications = async (u) => apiConfigured() ? mapBackendApplications(await listBackendApplications({ owner: true })) : ownedDocs("applications", u?.uid);
 export const withdrawApplication = async (application) => {
   if (apiConfigured() && application?._backend) return withdrawBackendApplication(application.id);
