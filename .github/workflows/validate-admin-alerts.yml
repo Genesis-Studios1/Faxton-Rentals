@@ -50,6 +50,7 @@ jobs:
             node --experimental-default-type=module --check "$file"
           done
           node --experimental-default-type=module --test tests/listing-media.test.mjs
+          node --experimental-default-type=module --test tests/api-properties.test.mjs
           node --experimental-default-type=module --test tests/area-security.test.mjs
           node --experimental-default-type=module --test tests/html-sanitizer-security.test.mjs
           node --check public/sw.js
