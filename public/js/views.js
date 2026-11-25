@@ -97,7 +97,7 @@ export async function route(ctx) {
 async function bookings(ctx) {
   const v = await st.myViewings(ctx.S.user);
   // Fill in who the agent is for viewings booked before the safety system existed.
-  v.forEach((x) => { if (!x.agentName) x.agentName = "Faxton agent"; });
+  v.forEach((x) => { if (!x.agentName) x.agentName = "Faxton agent"; if (!x.trusted) x.trusted = VS.getTrusted(ctx.S.user.uid); });
   let tab = "up"; const up = () => v.filter((x) => !VS.isPast(x)).sort((a, b) => VS.startOf(a) - VS.startOf(b)), past = () => v.filter((x) => VS.isPast(x)).sort((a, b) => VS.startOf(b) - VS.startOf(a));
   const draw = () => {
     const L = tab === "up" ? up() : past();
