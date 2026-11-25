@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toListingViewModel, toPropertyImageViewModel } from "../public/js/api-property-mapper.js";
+import { toListingViewModel, toPropertyImageViewModel, toProfileViewModel } from "../public/js/api-property-mapper.js";
 
 test("maps backend property fields to the legacy listing view model without inventing media", () => {
   const listing = toListingViewModel({
@@ -31,4 +31,20 @@ test("maps only secure, valid property image URLs", () => {
   });
   assert.throws(() => toPropertyImageViewModel({ id: "img-2", url: "http://insecure.example/image.jpg" }), /Invalid property image/);
   assert.throws(() => toPropertyImageViewModel({ id: "img-3", url: "javascript:alert(1)" }), /Invalid property image/);
+});
+
+
+test("maps the authenticated backend profile without exposing another user's profile", () => {
+  const profile = toProfileViewModel({
+    id: "user-1", email: "member@example.com", displayName: "Member", role: "landlord",
+    phoneNumber: "+2348000000000",
+    profile: { bio: "Owner", avatarUrl: "https://cdn.example/avatar.webp", websiteUrl: null, serviceArea: "Lagos" },
+    verification: { emailVerified: true, phoneVerified: false, accountStatus: "active" },
+    settings: { emailNotifications: true }, agency: null
+  });
+  assert.equal(profile.uid, "user-1");
+  assert.equal(profile.name, "Member");
+  assert.equal(profile.photo, "https://cdn.example/avatar.webp");
+  assert.equal(profile.role, "landlord");
+  assert.throws(() => toProfileViewModel(null), /Invalid profile/);
 });
