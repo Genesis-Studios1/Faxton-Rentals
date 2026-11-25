@@ -20,6 +20,7 @@ import "./lightbox.js";
 import { siteFooter, wireFooter } from "./footer.js";
 import { syncPublic } from "./store.js";
 import * as PRES from "./presence.js";
+import { syncPushDevice, removePushDevice } from "./push-notifications.js";
 
 export const S = { notes: [], evNotes: [], msgNotes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, staffUnread: 0, unsubConvs: null, unsubStaffConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 const app = $("#app");
@@ -538,7 +539,7 @@ async function reauthGoogle(user) {
   if (inAppShell()) { const { idToken, accessToken } = await nativeGoogleToken(); await reauthenticateWithCredential(user, GoogleAuthProvider.credential(idToken, accessToken || undefined)); return; }
   await reauthenticateWithPopup(user, google);
 }
-const logout = () => { PRES.stop(); return signOut(auth); };
+const logout = async () => { PRES.stop(); try { await removePushDevice(); } catch {} return signOut(auth); };
 // "Are you sure?" before signing out, with a red button.
 function confirmSignOut() {
   return new Promise((res) => {
@@ -554,7 +555,7 @@ function askNotifications() {
   try { if (!("Notification" in window) || Notification.permission !== "default" || localStorage.getItem(k)) return; localStorage.setItem(k, "1"); } catch { return; }
   const m = modal(`<div class="so-pop"><span class="vf-ic">${icon("bell", 30)}</span><h2>Turn on notifications?</h2><p class="muted">Get alerts for new messages, viewing confirmations and account updates, so you never miss a reply.</p><div class="so-act"><button class="btn" id="nfNo">Not now</button><button class="btn primary" id="nfYes">Turn on</button></div></div>`);
   $("#nfNo", m.el).onclick = () => m.close();
-  $("#nfYes", m.el).onclick = async () => { m.close(); try { const r = await Notification.requestPermission(); toast(r === "granted" ? "Notifications are on." : "Notifications stay off. You can change this in your browser settings."); } catch {} };
+  $("#nfYes", m.el).onclick = async () => { m.close(); try { const r = await Notification.requestPermission(); toast(r === "granted" ? "Notifications are on." : "Notifications stay off. You can change this in your browser settings."); if (r === "granted") await syncPushDevice(S.user); } catch {} };
 }
 // An approved deletion request is carried out once its one-day review period has passed.
 async function finalizeDeletion(u) {
@@ -628,7 +629,7 @@ async function refreshAuthState(u) {
     $$("[data-unread]").forEach((b) => { b.textContent = unreadTxt(n); b.hidden = !n; });
   });
 }
-onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); } catch (e) { console.error(e); } S.ready = true; render(); });
+onAuthStateChanged(auth, async (u) => { try { await refreshAuthState(u); if (u && "Notification" in window && Notification.permission === "granted") void syncPushDevice(u); } catch (e) { console.error(e); } S.ready = true; render(); });
 // Opening or leaving a chat inside Messages swaps the thread in place (no new page, no new listeners); see views.js messages().
 addEventListener("hashchange", () => { if (AXS?.softNav() || S.msgNav?.(parse().path)) { S.nav++; return; } S.nav++; render(); });
 matchMedia("(max-width: 860px)").addEventListener?.("change", () => render());
