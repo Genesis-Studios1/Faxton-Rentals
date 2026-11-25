@@ -57,6 +57,8 @@ test("maps the authenticated backend profile without exposing another user's pro
   assert.equal(profile.name, "Member");
   assert.equal(profile.photo, "https://cdn.example/avatar.webp");
   assert.equal(profile.role, "landlord");
+  assert.equal(profile.area, "Lagos");
+  assert.equal(profile.location, "Lagos");
   assert.throws(() => toProfileViewModel(null), /Invalid profile/);
 });
 
