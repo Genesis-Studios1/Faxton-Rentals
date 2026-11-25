@@ -1,3 +1,4 @@
+// Profile mutations are always scoped to the authenticated user by the backend.
 import { apiGet, apiPatch, apiPut, apiPost } from "./api-client.js";
 import { toProfileViewModel } from "./api-property-mapper.js";
 
