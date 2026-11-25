@@ -5,6 +5,7 @@ import { db } from "./firebase.js";
 import { collection, doc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
+import { apiConfigured } from "./api-client.js";
 import * as VS from "./viewsafe.js";
 import * as SVC from "./services.js";
 import * as AX from "./ax.js";
@@ -463,7 +464,7 @@ function viewingDrawer(ctx, v, api) {
     } };
 }
 export function viewings(ctx) {
-  return pageView(ctx, { title: "Viewings", eyebrow: "Activity", sub: "Every viewing request, with safety alerts raised to the top.", cols: [["viewings", () => st.myManagedViewings(ctx.S.user)]], what: "viewings",
+  return pageView(ctx, { title: "Viewings", eyebrow: "Activity", sub: "Every viewing request, with safety alerts raised to the top.", cols: [["viewings", () => apiConfigured() ? st.myManagedViewings(ctx.S.user) : data.safe("viewings")]], what: "viewings",
     async render({ viewings: vw }) {
       return { html: `<div id="vw"></div>`, mount(el) {
         const day0 = new Date(); day0.setHours(0, 0, 0, 0);
@@ -480,8 +481,8 @@ export function viewings(ctx) {
             { k: "status", label: "Status", role: "status", cell: (v) => `<button type="button" class="ax-chipbtn" data-cell="status" aria-haspopup="menu" aria-label="Change status, now ${esc(v.status)}">${chipFor("viewing", v.status)}${I("chevD", 14)}</button>` },
             { k: "alert", label: "Alert", pri: 2, cell: (v) => (v.sos ? chipFor("sos", sosOpen(v) ? "open" : "resolved") : "") },
           ],
-          onCell: (k, v, b, api) => menu(b, VW_STATUS.map((s) => ({ label: s, checked: s === v.status, act: () => s !== v.status && setView(v, s, api) })), { label: "Viewing status", align: "left" }),
-          bulk: [{ label: "Set status", icon: "refresh", run: (rs, c) => { const ok = rs.filter((v) => !sosOpen(v)); if (!ok.length) return toast("Resolve safety alerts one by one.", { tone: "bad" }); menu($("[data-bulk=0]"), VW_STATUS.map((s) => ({ label: s, act: async () => { const prev = new Map(ok.map((v) => [v.id, v.status])); const r = await bulkRun(ok.map((v) => v.id), async (id) => { const v = ok.find((x) => x.id === id); await st.patch("viewings", id, { status: s }); v.status = s; }, { label: "Updating" }); changed(); c.clear(); toast(`${r.ok.length} marked ${s.toLowerCase()}.`, { action: "Undo", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const v = ok.find((x) => x.id === id); await st.patch("viewings", id, { status: prev.get(id) }); v.status = prev.get(id); })); changed(); c.list.repaint(); } }); } })), { label: "Set status" }); } }],
+          onCell: (k, v, b, api) => menu(b, VW_STATUS.filter((s) => !v._backend || ["Confirmed", "Declined", "Cancelled"].includes(s)).map((s) => ({ label: s, checked: s === v.status, act: () => s !== v.status && setView(v, s, api) })), { label: "Viewing status", align: "left" }),
+          bulk: [{ label: "Set status", icon: "refresh", run: (rs, c) => { const ok = rs.filter((v) => !sosOpen(v)); if (!ok.length) return toast("Resolve safety alerts one by one.", { tone: "bad" }); menu($("[data-bulk=0]"), VW_STATUS.map((s) => ({ label: s, act: async () => { if (ok.some((v) => v._backend)) return toast("Use individual actions for backend-backed viewings."); const prev = new Map(ok.map((v) => [v.id, v.status])); const r = await bulkRun(ok.map((v) => v.id), async (id) => { const v = ok.find((x) => x.id === id); await st.patch("viewings", id, { status: s }); v.status = s; }, { label: "Updating" }); changed(); c.clear(); toast(`${r.ok.length} marked ${s.toLowerCase()}.`, { action: "Undo", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const v = ok.find((x) => x.id === id); await st.patch("viewings", id, { status: prev.get(id) }); v.status = prev.get(id); })); changed(); c.list.repaint(); } }); } })), { label: "Set status" }); } }],
           csv: { name: "faxton-viewings", head: ["Renter", "Property", "Date", "Time", "Status", "Agent", "Safety alert"], row: (v) => [v.name, v.title, v.when, v.slot, v.status, v.agentName || "", v.sos ? (sosOpen(v) ? "open" : "resolved") : ""] },
           quick: (v) => (sosOpen(v) ? btn("Resolve", { v: "primary", size: "xs", cls: "ax-qa", attrs: "data-qa=resolve" }) : v.status === "Requested" ? btn("Confirm", { v: "soft", size: "xs", cls: "ax-qa", attrs: "data-qa=confirm" }) : ""),
           onQuick: (k, v, b, api) => (k === "resolve" ? resolveSos(ctx, v, api) : setView(v, "Confirmed", api)),
