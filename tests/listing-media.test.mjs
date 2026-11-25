@@ -10,15 +10,15 @@ test("listing media accepts supported photos and videos within limits", () => {
 });
 
 test("listing media counts links and uploads together", () => {
-  assert.match(validateListingMedia(Array.from({ length: 2 }, () => file("image/png", 100)), [], 19, 0), /20 photos/);
-  assert.match(validateListingMedia([], Array.from({ length: 2 }, () => file("video/mp4", 100)), 0, 5), /6 videos/);
+  assert.match(validateListingMedia(Array.from({ length: 2 }, () => file("image/png", 100)), [], 29, 0), /30 photos/);
+  assert.match(validateListingMedia([], Array.from({ length: 2 }, () => file("video/mp4", 100)), 0, 4), /5 videos/);
 });
 
 test("listing media rejects unsupported formats and oversized files", () => {
   assert.match(validateListingMedia([file("image/gif", 100)]), /JPG, PNG or WebP/);
-  assert.match(validateListingMedia([file("image/jpeg", LISTING_MEDIA_LIMITS.imageBytes + 1)]), /15 MB/);
-  assert.match(validateListingMedia([], [file("video/avi", 100)]), /MP4, WebM or MOV/);
-  assert.match(validateListingMedia([], [file("video/mp4", LISTING_MEDIA_LIMITS.videoBytes + 1)]), /100 MB/);
+  assert.match(validateListingMedia([file("image/jpeg", LISTING_MEDIA_LIMITS.imageBytes + 1)]), /10 MB/);
+  assert.match(validateListingMedia([], [file("video/avi", 100)]), /MP4 or WebM/);
+  assert.match(validateListingMedia([], [file("video/mp4", LISTING_MEDIA_LIMITS.videoBytes + 1)]), /25 MB/);
 });
 
 test("structured features include bedrooms, bathrooms and countable amenities", () => {
