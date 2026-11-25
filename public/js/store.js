@@ -1,10 +1,13 @@
 // Firestore remains the active store until backend staging and screen-level parity checks are complete.
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
+import { apiConfigured } from "./api-client.js";
+import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
+let cacheUsesBackend = false;
 // Fill any missing fields so a partial or older Firestore listing can never break a page.
 const norm = (l) => { const o = { ...l }; o.agent = { ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
 
@@ -21,8 +24,41 @@ export const loadDemoSeed = async () => (await import("./data.js")).SEED;
 
 // Returns the live, active listings. When there are none (or Firestore cannot be reached) the answer is an empty list,
 // never sample homes. A failed load is flagged with `.failed` so a screen can offer a "Try again" button.
+async function attachBackendMedia(listings) {
+  for (let offset = 0; offset < listings.length; offset += 20) {
+    const batch = listings.slice(offset, offset + 20);
+    try {
+      const groups = await listBackendPropertyMedia(batch.map((listing) => listing.id));
+      const byId = new Map(groups.map((group) => [group.propertyId, group]));
+      for (const listing of batch) {
+        const media = byId.get(listing.id);
+        if (!media) continue;
+        listing.images = media.images;
+        listing.videos = media.videos;
+        listing.thumb = media.images[0] || "";
+      }
+    } catch {
+      // A media outage must not hide otherwise available property details.
+    }
+  }
+  return listings;
+}
+
 export async function getListings(force = false) {
-  if (cache && !force) return cache;
+  const useBackend = apiConfigured();
+  if (cache && !force && cacheUsesBackend === useBackend) return cache;
+  if (useBackend) {
+    try {
+      const list = await listBackendProperties({ limit: 50, offset: 0 });
+      cache = await attachBackendMedia(list);
+      cacheUsesBackend = true;
+      return cache;
+    } catch {
+      const failed = [];
+      failed.failed = true;
+      return failed;
+    }
+  }
   // Stale-while-revalidate: show the last known listings instantly, then refresh them in the background.
   let stored = null; try { localStorage.removeItem("lst"); stored = JSON.parse(localStorage.getItem("lst2") || "null"); } catch {}
   const fetchFresh = async () => {
@@ -35,6 +71,7 @@ export async function getListings(force = false) {
       return list;
     }
     cache = list;
+    cacheUsesBackend = false;
     try { localStorage.setItem("lst2", JSON.stringify(cache.slice(0, 60))); } catch {}
     return cache;
   };
@@ -151,7 +188,12 @@ export async function seedListings() {
 }
 
 // Documents (listings, viewings, applications) that belong to a landlord or agency account.
-export async function ownedDocs(col, uid) { try { return (await getDocs(query(collection(db, col), where("ownerUid", "==", uid)))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; } }
+export async function ownedDocs(col, uid) {
+  if (col === "listings" && apiConfigured()) {
+    try { return await attachBackendMedia(await listMyBackendProperties()); } catch { return []; }
+  }
+  try { return (await getDocs(query(collection(db, col), where("ownerUid", "==", uid)))).docs.map((d) => ({ ...d.data(), id: d.id })); } catch { return []; }
+}
 
 // ---- verification of agencies and agents, notifications, suggestions ----
 export const verifyUser = async (uid, verification) => {
