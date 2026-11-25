@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toListingViewModel, toPropertyImageViewModel, toPropertyVideoViewModel, toProfileViewModel } from "../public/js/api-property-mapper.js";
+import { toListingViewModel, toPropertyImageViewModel, toPropertyVideoViewModel, toProfileViewModel, toBackendPropertyPayload } from "../public/js/api-property-mapper.js";
 
 test("maps backend property fields to the legacy listing view model without inventing media", () => {
   const listing = toListingViewModel({
@@ -56,4 +56,31 @@ test("maps only secure MP4 and WebM property video URLs", () => {
   });
   assert.throws(() => toPropertyVideoViewModel({ id: "video-2", url: "http://cdn.example/tour.mp4", contentType: "video/mp4" }), /Invalid property video/);
   assert.throws(() => toPropertyVideoViewModel({ id: "video-3", url: "https://cdn.example/tour.exe", contentType: "application/octet-stream" }), /Invalid property video/);
+});
+
+
+test("maps the legacy listing form into the complete backend property payload", () => {
+  const payload = toBackendPropertyPayload({
+    title: "Palm Court", desc: "Family apartment", type: "Apartment",
+    price: 2500000, beds: 3, baths: 2, addressLine: "12 Palm Road",
+    city: "Lagos", state: "Lagos", country: "Nigeria",
+    buildingType: "Block of flats", floor: "2nd floor", roomNumber: "Flat 4B",
+    yearBuilt: 2022, parking: 2, sqm: 120, furnished: "Semi-furnished",
+    floorPlan: "https://example.test/floor-plan.pdf", service: 350000, deposit: 200000,
+    amenities: ["Security"], features: [{ name: "Bedrooms", count: 3 }]
+  });
+  assert.equal(payload.propertyType, "apartment");
+  assert.equal(payload.pricePeriod, "yearly");
+  assert.equal(payload.floorLabel, "2nd floor");
+  assert.equal(payload.furnishingStatus, "semi_furnished");
+  assert.equal(payload.agencyFeePercent, 10);
+  assert.equal(payload.legalFeePercent, 5);
+  assert.deepEqual(payload.amenities, ["Security"]);
+  assert.deepEqual(payload.features, [{ name: "Bedrooms", count: 3 }]);
+});
+
+test("requires a real street address before migrating a property listing", () => {
+  assert.throws(() => toBackendPropertyPayload({
+    title: "Palm Court", type: "Apartment", price: 2500000, city: "Lagos", state: "Lagos"
+  }), /full street address is required/);
 });
