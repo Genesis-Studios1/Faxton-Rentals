@@ -39,4 +39,12 @@ export function toViewingViewModel(row, listing = {}, renter = {}) {
     requestedStartAt: row.requestedStartAt, requestedEndAt: row.requestedEndAt || null
   };
 }
+export function toLocalViewingTime(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) throw new Error("The backend returned an invalid proposed viewing time.");
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
+  const p = Object.fromEntries(parts.map((x) => [x.type, x.value]));
+  const slot = new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Lagos", hour: "numeric", minute: "2-digit", hour12: true }).format(d).replace(/^0/, "");
+  return { when: `${p.year}-${p.month}-${p.day}`, slot };
+}
 export const toBackendTourType = (tour) => /virtual/i.test(String(tour || "")) ? "video" : /phone/i.test(String(tour || "")) ? "phone" : "in_person";
