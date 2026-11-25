@@ -442,7 +442,7 @@ export function applications(ctx) {
 const VW_STATUS = ["Requested", "Confirmed", "Completed", "Cancelled"];
 const sosOpen = (v) => !!(v.sos && !v.sos.resolved);
 const whenOf = (v) => { try { return VS.startOf(v); } catch { return new Date(String(v.when).slice(0, 10) + "T00:00:00"); } };
-async function setView(v, status, api) { try { await write("viewings", v, { status }, { msg: `Viewing ${status.toLowerCase()}.`, after: api.refresh }); } catch (e) { bad(e); } }
+async function setView(v, status, api) { try { if (v._backend) { if (status === "Completed") return toast("The renter completes a viewing by checking out."); await st.updateViewingStatus(v, status); v.status = status; changed(); toast(`Viewing ${status.toLowerCase()}.`); api.refresh(); return; } await write("viewings", v, { status }, { msg: `Viewing ${status.toLowerCase()}.`, after: api.refresh }); } catch (e) { bad(e); } }
 async function resolveSos(ctx, v, api) {
   try { v.sos = { ...v.sos, resolvedBy: meName(ctx), resolvedAt: Date.now() }; await VS.resolveSos(v); changed(); toast("Marked as resolved."); api.refresh(); } catch (e) { bad(e); }
 }
@@ -459,11 +459,11 @@ function viewingDrawer(ctx, v, api) {
     mount(el) {
       $("[data-callr]", el)?.addEventListener("click", () => callTo(ctx, v.uid, v.name, v.title)); $("[data-calla]", el)?.addEventListener("click", () => callTo(ctx, v.agentUid || v.ownerUid, v.agentName, v.title));
       $("[data-resolve]", el)?.addEventListener("click", () => resolveSos(ctx, v, api));
-      $("[data-status]", el)?.addEventListener("click", (e) => menu(e.currentTarget, VW_STATUS.map((x) => ({ label: x, checked: x === v.status, act: () => x !== v.status && setView(v, x, api) })), { align: "left" }));
+      $("[data-status]", el)?.addEventListener("click", (e) => menu(e.currentTarget, VW_STATUS.filter((x) => !v._backend || x !== "Completed").map((x) => ({ label: x, checked: x === v.status, act: () => x !== v.status && setView(v, x, api) })), { align: "left" }));
     } };
 }
 export function viewings(ctx) {
-  return pageView(ctx, { title: "Viewings", eyebrow: "Activity", sub: "Every viewing request, with safety alerts raised to the top.", cols: ["viewings"], what: "viewings",
+  return pageView(ctx, { title: "Viewings", eyebrow: "Activity", sub: "Every viewing request, with safety alerts raised to the top.", cols: [["viewings", () => st.myManagedViewings(ctx.S.user)]], what: "viewings",
     async render({ viewings: vw }) {
       return { html: `<div id="vw"></div>`, mount(el) {
         const day0 = new Date(); day0.setHours(0, 0, 0, 0);
