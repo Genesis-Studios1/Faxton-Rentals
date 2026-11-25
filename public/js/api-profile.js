@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPut } from "./api-client.js";
+import { apiGet, apiPatch, apiPut, apiPost } from "./api-client.js";
 import { toProfileViewModel } from "./api-property-mapper.js";
 
 export async function getBackendProfile({ signal } = {}) {
