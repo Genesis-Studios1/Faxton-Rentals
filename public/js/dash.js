@@ -423,6 +423,7 @@ export function addProperty(ctx, done) {
     { const message = listingLocError(L, f.area); if (message) return (err.textContent = message); }
     const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
+    if (f.streetAddress.trim().length < 3) return (err.textContent = "Enter the full private street address, including the house number and street name.");
     if (photoLinks.some((u) => !/^https:\/\//.test(u)) || videoLinks.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const buildingIsMultiStorey = f.type === "Apartment" && ["Storey building", "Block of flats"].includes(f.buildingType);
     if (buildingIsMultiStorey && !String(f.floor || "").trim()) return (err.textContent = "Enter the floor where this apartment is located.");
@@ -447,6 +448,52 @@ export function addProperty(ctx, done) {
     let uploadPaths = [];
     let mediaApi = null;
     try {
+      const { apiConfigured } = await import("./api-client.js");
+      if (apiConfigured()) {
+        if (photoLinks.length || videoLinks.length) throw new Error("For backend listings, upload media files directly instead of using external media links.");
+        if (videoFiles.some((file) => !["video/mp4", "video/webm"].includes(file.type))) throw new Error("Backend video uploads currently support MP4 and WebM files only.");
+        const { createBackendPropertyFromListing, uploadBackendPropertyImage, uploadBackendPropertyVideo, submitBackendPropertyForReview } = await import("./api-properties.js");
+        const backendListing = await createBackendPropertyFromListing({
+          title: f.title.trim(), description: f.desc.trim(), ...P,
+          addressLine: f.streetAddress.trim(), propertyType: f.propertyType,
+          propertySubtype: f.type, listingMode: f.listingMode, priceAmount: +f.price,
+          pricePeriod: "yearly", currency: "NGN", beds: +f.beds, baths: +f.baths,
+          sqm: +f.sqm || null, buildingType: f.buildingType,
+          floor: buildingIsMultiStorey ? String(f.floor || "").trim() : null,
+          roomNumber: buildingIsMultiStorey ? String(f.roomNumber || "").trim() : null,
+          yearBuilt: +f.yearBuilt || null, parking: f.parking === "" ? null : +f.parking,
+          furnished: f.furnished || null, floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : null,
+          service: +f.service || 0, deposit: +f.deposit || 0,
+          agencyFee: f.agencyFee === "" ? null : +f.agencyFee,
+          legalFee: f.legalFee === "" ? null : +f.legalFee,
+          amenities: amenityValues, features,
+          ownerUserId: f.ownerUserId || undefined
+        });
+        const status = $("#npUploadStatus", d.el), bar = $("#npUploadBar", d.el), label = $("#npUploadText", d.el), percent = $("#npUploadPercent", d.el);
+        const total = photoFiles.length + videoFiles.length;
+        if (total) status.hidden = false;
+        let completed = 0;
+        for (const file of photoFiles) {
+          label.textContent = "Uploading " + file.name;
+          await uploadBackendPropertyImage(backendListing.id, file);
+          completed++;
+          percent.textContent = Math.round(completed / total * 100) + "%";
+          bar.style.width = percent.textContent;
+        }
+        for (const file of videoFiles) {
+          label.textContent = "Uploading " + file.name;
+          await uploadBackendPropertyVideo(backendListing.id, file);
+          completed++;
+          percent.textContent = Math.round(completed / total * 100) + "%";
+          bar.style.width = percent.textContent;
+        }
+        await submitBackendPropertyForReview(backendListing.id);
+        data.invalidate("listings");
+        d.close();
+        toast("Property submitted for review.");
+        done?.();
+        return;
+      }
       let uploaded = { images: [], videos: [], paths: [] };
       if (photoFiles.length || videoFiles.length) {
         mediaApi = await import("./listing-media.js");
