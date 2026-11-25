@@ -271,8 +271,12 @@ export function addProperty(ctx, done) {
   const d = dialog({ title: "Add a property", size: "lg", icon: "home", body: `<p class="ax-p ax-muted">New listings are reviewed by the Faxton team before they go live.</p><form id="np" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
     ${locFields({ style: "ax", flow: true, ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "npCity" })}
+    <label class="ax-field full"><span>Full street address <small>Private — not shown on public listings</small></span><input class="ax-input" name="streetAddress" maxlength="240" autocomplete="street-address" placeholder="House number, street name and estate"></label>
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
-    <label class="ax-field"><span>Property category</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
+    <label class="ax-field"><span>Property type</span><select class="ax-input" name="propertyType" required><option value="apartment">Apartment</option><option value="house">House</option><option value="room">Room / Studio</option><option value="commercial">Commercial</option></select></label>
+    <label class="ax-field"><span>Property category</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option></select></label>
+    <label class="ax-field"><span>Listing mode</span><select class="ax-input" name="listingMode" required><option value="long_term">Long-term rental</option><option value="shortlet">Shortlet</option></select></label>
+    ${["agent","agency"].includes(ctx.S.profile?.role) ? '<label class="ax-field full"><span>Property owner <small>Choose an owner who has authorised your account</small></span><select class="ax-input" name="ownerUserId" id="npOwner"><option value="">My own property</option></select></label>' : ""}
     <label class="ax-field"><span>Building type</span><select class="ax-input" name="buildingType" id="npBuildingType"><option>Bungalow</option><option>Storey building</option><option>Block of flats</option><option>Duplex</option><option>Terrace</option><option>Detached house</option><option>Other</option></select></label>
     <label class="ax-field"><span>Bedrooms</span><input class="ax-input" name="beds" type="number" min="0" max="30" value="2" required></label>
     <label class="ax-field"><span>Bathrooms</span><input class="ax-input" name="baths" type="number" min="0" max="30" value="2" required></label>
@@ -330,6 +334,22 @@ export function addProperty(ctx, done) {
     <p class="ax-err full" id="npe" role="alert"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Submit for review", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea" }, cityId: "npCity" });
   const typeField = $("#npType", d.el), buildingField = $("#npBuildingType", d.el), floorDetails = $("#npFloorDetails", d.el), floorInput = $("#npFloor", d.el);
+  const ownerSelect = $("#npOwner", d.el);
+  if (ownerSelect) {
+    import("./api-client.js").then(async ({ apiConfigured }) => {
+      if (!apiConfigured()) return;
+      const { listBackendAgentAuthorisations } = await import("./api-properties.js");
+      const links = await listBackendAgentAuthorisations();
+      for (const link of links) {
+        const ownerId = link.landlordUserId || link.landlord_user_id;
+        if (!ownerId) continue;
+        const option = document.createElement("option");
+        option.value = ownerId;
+        option.textContent = link.landlordName || link.landlord_name || link.landlordEmail || link.landlord_email || "Authorised property owner";
+        ownerSelect.append(option);
+      }
+    }).catch((error) => { const err = $("#npe", d.el); if (err) err.textContent = "Could not load your authorised property owners. Please try again."; });
+  }
   const syncFloorFields = () => {
     const show = typeField.value === "Apartment" && ["Storey building", "Block of flats"].includes(buildingField.value);
     floorDetails.hidden = !show;
