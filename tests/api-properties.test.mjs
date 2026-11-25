@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { toListingViewModel } from "../public/js/api-property-mapper.js";
+import { toListingViewModel, toPropertyImageViewModel } from "../public/js/api-property-mapper.js";
 
 test("maps backend property fields to the legacy listing view model without inventing media", () => {
   const listing = toListingViewModel({
@@ -22,4 +22,13 @@ test("maps backend property fields to the legacy listing view model without inve
 test("rejects malformed backend property records", () => {
   assert.throws(() => toListingViewModel(null), /Invalid property/);
   assert.throws(() => toListingViewModel({ title: "Missing id" }), /Invalid property/);
+});
+
+
+test("maps only secure, valid property image URLs", () => {
+  assert.deepEqual(toPropertyImageViewModel({ id: "img-1", url: "https://cdn.example/image.webp", displayOrder: "2", contentType: "image/webp", byteSize: "1234" }), {
+    id: "img-1", url: "https://cdn.example/image.webp", displayOrder: 2, contentType: "image/webp", byteSize: 1234
+  });
+  assert.throws(() => toPropertyImageViewModel({ id: "img-2", url: "http://insecure.example/image.jpg" }), /Invalid property image/);
+  assert.throws(() => toPropertyImageViewModel({ id: "img-3", url: "javascript:alert(1)" }), /Invalid property image/);
 });
