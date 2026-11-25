@@ -75,3 +75,19 @@ export function toProfileViewModel(profile) {
     agency: profile.agency || null
   };
 }
+
+
+export function toPropertyVideoViewModel(video) {
+  if (!video || typeof video !== "object" || typeof video.id !== "string" ||
+      typeof video.url !== "string" || !/^https:\/\//i.test(video.url) ||
+      !["video/mp4", "video/webm"].includes(String(video.contentType || ""))) {
+    throw new TypeError("Invalid property video returned by Faxton API.");
+  }
+  return {
+    id: video.id,
+    url: video.url,
+    displayOrder: Number.isFinite(Number(video.displayOrder)) ? Number(video.displayOrder) : 0,
+    contentType: String(video.contentType),
+    byteSize: Number.isFinite(Number(video.byteSize)) ? Number(video.byteSize) : 0
+  };
+}
