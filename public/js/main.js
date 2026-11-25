@@ -313,8 +313,11 @@ async function ensureProfile(u, extra = {}) {
   }
 }
 // Copy the legacy, rules-protected account choice into the backend after Firebase email verification.
+const backendOnboardingSyncs = new Map();
 async function syncBackendOnboarding(u) {
   if (!apiConfigured() || !u?.emailVerified) return;
+  if (backendOnboardingSyncs.has(u.uid)) return backendOnboardingSyncs.get(u.uid);
+  const pending = (async () => {
   const snapshot = await getDoc(doc(db, "users", u.uid));
   const legacy = snapshot.exists() ? snapshot.data() : {};
   const roleAliases = { business: "agency", homeowner: "landlord" };
@@ -343,6 +346,10 @@ async function syncBackendOnboarding(u) {
     };
   }
   await submitBackendOnboarding(payload);
+  })();
+  backendOnboardingSyncs.set(u.uid, pending);
+  try { return await pending; }
+  catch (error) { backendOnboardingSyncs.delete(u.uid); throw error; }
 }
 // A banned account is signed out straight away and told why.
 async function rejectIfBanned(u) {
