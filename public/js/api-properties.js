@@ -1,5 +1,5 @@
 import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "./api-client.js";
-import { toListingViewModel, toPropertyImageViewModel } from "./api-property-mapper.js";
+import { toListingViewModel, toPropertyImageViewModel, toPropertyVideoViewModel } from "./api-property-mapper.js";
 export { toListingViewModel } from "./api-property-mapper.js";
 
 export async function listMyBackendProperties({ signal } = {}) {
@@ -63,6 +63,42 @@ export async function deleteBackendPropertyImage(propertyId, mediaId, { signal }
 }
 
 
+export async function listBackendPropertyVideos(propertyId, { signal, managed = false } = {}) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(propertyId))) throw new TypeError("Invalid property identifier.");
+  const path = managed ? `/v1/me/properties/${encodeURIComponent(propertyId)}/videos` : `/v1/properties/${encodeURIComponent(propertyId)}/videos`;
+  const data = await apiGet(path, { authenticated: managed, signal });
+  if (!Array.isArray(data)) throw new TypeError("Faxton API returned invalid property videos.");
+  return data.map(toPropertyVideoViewModel);
+}
+
+export async function uploadBackendPropertyVideo(propertyId, file, { signal } = {}) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(propertyId))) throw new TypeError("Invalid property identifier.");
+  if (!(file instanceof Blob) || !["video/mp4", "video/webm"].includes(file.type)) throw new TypeError("Choose an MP4 or WebM video file.");
+  if (file.size < 1 || file.size > 25 * 1024 * 1024) throw new TypeError("Property videos must be 25 MB or smaller.");
+  const form = new FormData();
+  form.append("file", file, file.name || "property-video");
+  return apiPost(`/v1/me/properties/${encodeURIComponent(propertyId)}/videos`, form, { signal });
+}
+
+export async function deleteBackendPropertyVideo(propertyId, mediaId, { signal } = {}) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(propertyId)) || !/^[0-9a-f-]{36}$/i.test(String(mediaId))) throw new TypeError("Invalid property video identifier.");
+  return apiDelete(`/v1/me/properties/${encodeURIComponent(propertyId)}/videos/${encodeURIComponent(mediaId)}`, { signal });
+}
+
+export async function getBackendPropertyWithMedia(propertyId, { signal, managed = false } = {}) {
+  const propertyPromise = managed
+    ? listMyBackendProperties({ signal }).then((items) => items.find((item) => item.id === propertyId))
+    : getBackendProperty(propertyId, { signal });
+  const [property, images, videos] = await Promise.all([
+    propertyPromise,
+    listBackendPropertyImages(propertyId, { signal, managed }),
+    listBackendPropertyVideos(propertyId, { signal, managed })
+  ]);
+  if (!property) throw new Error("Managed property not found.");
+  const orderedImages = images.sort((a, b) => a.displayOrder - b.displayOrder);
+  const orderedVideos = videos.sort((a, b) => a.displayOrder - b.displayOrder);
+  return { ...property, images: orderedImages.map((item) => item.url), videos: orderedVideos.map((item) => item.url), imageMedia: orderedImages, videoMedia: orderedVideos, thumb: orderedImages[0]?.url || "" };
+}
 export async function getBackendPropertyWithImages(propertyId, { signal, managed = false } = {}) {
   const propertyPromise = managed
     ? listMyBackendProperties({ signal }).then((items) => items.find((item) => item.id === propertyId))
