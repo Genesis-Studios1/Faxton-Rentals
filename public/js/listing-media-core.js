@@ -1,13 +1,13 @@
 // Validation and structured feature helpers shared by the property listing form and tests.
 export const LISTING_MEDIA_LIMITS = Object.freeze({
-  photos: 20,
-  videos: 6,
-  imageBytes: 15 * 1024 * 1024,
-  videoBytes: 100 * 1024 * 1024
+  photos: 30,
+  videos: 5,
+  imageBytes: 10 * 1024 * 1024,
+  videoBytes: 25 * 1024 * 1024
 });
 
 const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const VIDEO_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+const VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
 
 export function validateListingMedia(imageFiles = [], videoFiles = [], linkedImages = 0, linkedVideos = 0) {
   const images = Array.from(imageFiles || []).filter(Boolean);
@@ -15,15 +15,15 @@ export function validateListingMedia(imageFiles = [], videoFiles = [], linkedIma
   const totalImages = Math.max(0, Number(linkedImages) || 0) + images.length;
   const totalVideos = Math.max(0, Number(linkedVideos) || 0) + videos.length;
 
-  if (totalImages > LISTING_MEDIA_LIMITS.photos) return "Use up to 20 photos in total, including uploaded files and links.";
-  if (totalVideos > LISTING_MEDIA_LIMITS.videos) return "Use up to 6 videos in total, including uploaded files and links.";
+  if (totalImages > LISTING_MEDIA_LIMITS.photos) return "Use up to 30 photos in total, including uploaded files and links.";
+  if (totalVideos > LISTING_MEDIA_LIMITS.videos) return "Use up to 5 videos in total, including uploaded files and links.";
   for (const file of images) {
     if (!IMAGE_TYPES.has(file.type)) return "Photos must be JPG, PNG or WebP files.";
-    if (file.size > LISTING_MEDIA_LIMITS.imageBytes) return "Each photo must be 15 MB or smaller.";
+    if (file.size > LISTING_MEDIA_LIMITS.imageBytes) return "Each photo must be 10 MB or smaller.";
   }
   for (const file of videos) {
-    if (!VIDEO_TYPES.has(file.type)) return "Videos must be MP4, WebM or MOV files.";
-    if (file.size > LISTING_MEDIA_LIMITS.videoBytes) return "Each video must be 100 MB or smaller.";
+    if (!VIDEO_TYPES.has(file.type)) return "Videos must be MP4 or WebM files.";
+    if (file.size > LISTING_MEDIA_LIMITS.videoBytes) return "Each video must be 25 MB or smaller.";
   }
   return "";
 }

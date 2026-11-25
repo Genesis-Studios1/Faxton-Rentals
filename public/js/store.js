@@ -1,3 +1,4 @@
+// Firestore remains the active store until backend staging and screen-level parity checks are complete.
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
