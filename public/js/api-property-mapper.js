@@ -23,7 +23,7 @@ export function toListingViewModel(property) {
     roomNumber: property.roomNumber || "",
     yearBuilt: property.yearBuilt ?? "",
     parking: property.parkingSpaces ?? "",
-    sqm: property.sizeSqm ?? 0,
+    sqm: asNumber(property.sizeSqm),
     furnished: property.furnishingStatus || "",
     floorPlan: property.floorPlanUrl || "",
     service: asNumber(property.serviceChargeAmount),
