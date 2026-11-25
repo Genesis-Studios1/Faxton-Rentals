@@ -30,6 +30,11 @@ export async function createBackendProperty(details, { signal } = {}) {
   return toListingViewModel(await apiPost("/v1/properties", details, { signal }));
 }
 
+export async function createBackendPropertyFromListing(listing, { signal } = {}) {
+  const payload = toBackendPropertyPayload(listing);
+  return toListingViewModel(await apiPost("/v1/properties", payload, { signal }));
+}
+
 export async function updateBackendProperty(propertyId, changes, { signal } = {}) {
   if (!/^[0-9a-f-]{36}$/i.test(String(propertyId))) throw new TypeError("Invalid property identifier.");
   return toListingViewModel(await apiPatch(`/v1/me/properties/${encodeURIComponent(propertyId)}`, changes, { signal }));
