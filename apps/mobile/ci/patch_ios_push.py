@@ -45,9 +45,8 @@ entitlements.write_text("""<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 """, encoding="utf-8")
 
-projects = list(root.rglob("*.xcodeproj/project.pbxproj"))
-assert len(projects) == 1, f"Expected one Xcode project, found {projects}"
-pbx = projects[0]
+pbx = root / "App" / "App.xcodeproj" / "project.pbxproj"
+assert pbx.is_file(), f"Faxton app Xcode project not found: {pbx}"
 project = pbx.read_text(encoding="utf-8")
 if "CODE_SIGN_ENTITLEMENTS = App/App.entitlements;" not in project:
     pattern = r"(PRODUCT_BUNDLE_IDENTIFIER = com\.faxton\.rentals;)"
