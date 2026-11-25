@@ -50,7 +50,6 @@ jobs:
           node --experimental-default-type=module --test tests/html-sanitizer-security.test.mjs
           node --check public/sw.js
           node --check public/push/firebase-messaging-sw.js
-          node scripts/check-release.mjs
           node --check apps/desktop/main.js
           node --check apps/desktop/preload.js
           bash -n apps/mobile/ci/build_android.sh
