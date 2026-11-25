@@ -5,6 +5,8 @@ import { $, $$, esc, icon, toast, modal, friendlyErr, verifiedBadge } from "./ui
 import { fxErr, xicon, statusPill, ask } from "./fx.js";
 import * as st from "./store.js";
 import { reportDialog } from "./safety.js";
+import { apiConfigured } from "./api-client.js";
+import { checkInBackendViewing, checkOutBackendViewing, raiseBackendViewingSos, resolveBackendViewingSos, rateBackendViewing, requestBackendViewingReschedule, cancelBackendViewing } from "./api-viewings.js";
 
 export const EMERGENCY_NUMBER = "112";
 const OVERDUE_MIN = 90;
@@ -42,7 +44,33 @@ function sendTo(v, text) {
 const where = () => new Promise((res) => { if (!navigator.geolocation) return res(null); const t = setTimeout(() => res(null), 4000); navigator.geolocation.getCurrentPosition((p) => { clearTimeout(t); res({ lat: +p.coords.latitude.toFixed(5), lng: +p.coords.longitude.toFixed(5) }); }, () => { clearTimeout(t); res(null); }, { timeout: 4000, maximumAge: 60000 }); });
 const mapLink = (loc) => (loc ? `\n📌 My location: https://www.google.com/maps?q=${loc.lat},${loc.lng}` : "");
 
-const save = async (v, patch) => { await updateDoc(doc(db, "viewings", v.id), patch); Object.assign(v, patch); };
+const save = async (v, patch) => {
+  if (apiConfigured() && v?._backend) {
+    if (patch.checkIn) {
+      const result = await checkInBackendViewing(v.id);
+      patch = { ...patch, checkIn: { at: Date.parse(result.checkedInAt) } };
+    } else if (patch.checkOut) {
+      const result = await checkOutBackendViewing(v.id);
+      patch = { ...patch, checkOut: { at: Date.parse(result.checkedOutAt) }, status: "Completed" };
+    } else if (patch.sos) {
+      const result = patch.sos.resolved ? await resolveBackendViewingSos(v.id) : await raiseBackendViewingSos(v.id);
+      patch = { ...patch, sos: { ...patch.sos, at: patch.sos.at || Date.now(), resolved: result.status === "resolved" } };
+    } else if (patch.status === "Cancelled") {
+      await cancelBackendViewing(v.id);
+    } else if (patch.status === "Confirmed") {
+      const { confirmBackendViewing } = await import("./api-viewings.js"); await confirmBackendViewing(v.id);
+    } else if (patch.status === "Declined") {
+      const { declineBackendViewing } = await import("./api-viewings.js"); await declineBackendViewing(v.id);
+    } else if (patch.reschedule) {
+      await requestBackendViewingReschedule(v.id, patch.reschedule.when, patch.reschedule.slot, patch.reschedule.note || "");
+    } else if (patch.rating) {
+      await rateBackendViewing(v.id, patch.rating.stars, patch.rating.text || "");
+    }
+    Object.assign(v, patch);
+    return;
+  }
+  await updateDoc(doc(db, "viewings", v.id), patch); Object.assign(v, patch);
+};
 
 export const resolveSos = (v) => save(v, { sos: { ...v.sos, resolved: true } });
 
