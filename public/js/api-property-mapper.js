@@ -111,6 +111,7 @@ export function toPropertyVideoViewModel(video) {
 }
 
 
+// Backend property creation requires a real street address; neighbourhood text is not substituted.
 const optionalNumber = (value) => value === "" || value == null ? null : Number(value);
 export function toBackendPropertyPayload(listing) {
   if (!listing || typeof listing !== "object") throw new TypeError("A property listing is required.");
