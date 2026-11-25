@@ -128,3 +128,20 @@ export async function submitBackendPropertyForReview(propertyId, { signal } = {}
   const data = await apiPost(`/v1/me/properties/${encodeURIComponent(propertyId)}/submit`, {}, { signal });
   return toListingViewModel(data);
 }
+
+export async function listBackendPropertyMedia(propertyIds, { signal } = {}) {
+  const ids = [...new Set((propertyIds || []).map((id) => String(id)))];
+  if (!ids.length) return [];
+  if (ids.length > 20 || ids.some((id) => !/^[0-9a-f-]{36}$/i.test(id))) throw new TypeError("Invalid property media batch.");
+  const params = new URLSearchParams({ propertyIds: ids.join(",") });
+  const data = await apiGet(`/v1/properties/media?${params.toString()}`, { authenticated: false, signal });
+  if (!Array.isArray(data)) throw new TypeError("Faxton API returned invalid batched property media.");
+  return data.map((group) => {
+    if (!group || typeof group.propertyId !== "string" || !ids.includes(group.propertyId)) throw new TypeError("Invalid property media group.");
+    return {
+      propertyId: group.propertyId,
+      images: Array.isArray(group.images) ? group.images.map(toPropertyImageViewModel).sort((x, y) => x.displayOrder - y.displayOrder).map((item) => item.url) : [],
+      videos: Array.isArray(group.videos) ? group.videos.map(toPropertyVideoViewModel).sort((x, y) => x.displayOrder - y.displayOrder).map((item) => item.url) : []
+    };
+  });
+}
