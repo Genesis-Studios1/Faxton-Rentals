@@ -1,0 +1,76 @@
+name: Validate native push integration
+
+on:
+  pull_request:
+    branches: [main, feature/web-push-notifications]
+    paths:
+      - "apps/mobile/**"
+      - "public/js/push-*.js"
+      - "public/js/main.js"
+      - "firebase.json"
+      - ".github/workflows/validate-native-push.yml"
+  push:
+    branches: [feature/native-push-notifications]
+    paths:
+      - "apps/mobile/**"
+      - "public/js/push-*.js"
+      - "public/js/main.js"
+      - "firebase.json"
+      - ".github/workflows/validate-native-push.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Capacitor and native Firebase Messaging
+        working-directory: apps/mobile
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          cp google-services.json android/app/google-services.json
+          npx cap sync android
+      - name: Compile Android debug app
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22
+      - name: Install Capacitor and native Firebase Messaging
+        working-directory: apps/mobile
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add ios
+          bash ci/ios_google.sh detect
+          IOS_GOOGLE="$(grep '^IOS_GOOGLE=' "$GITHUB_ENV" | tail -1 | cut -d= -f2)"
+          if [ "$IOS_GOOGLE" = yes ]; then bash ci/ios_google.sh enable; fi
+          npx cap sync ios
+          python3 ci/patch_ios_push.py ios
+      - name: Compile iOS simulator app
+        working-directory: apps/mobile/ios/App
+        run: |
+          WS=App.xcworkspace
+          if [ -d "$WS" ]; then TARGET="-workspace $WS"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
