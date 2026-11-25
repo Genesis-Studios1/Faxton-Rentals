@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch } from "./api-client.js";
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from "./api-client.js";
 import { toListingViewModel, toPropertyImageViewModel } from "./api-property-mapper.js";
 export { toListingViewModel } from "./api-property-mapper.js";
 
