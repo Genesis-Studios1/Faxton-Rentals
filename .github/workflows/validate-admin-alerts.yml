@@ -2,7 +2,7 @@ name: Validate admin alerts
 
 on:
   pull_request:
-    branches: [main, feature/web-push-notifications, feature/native-push-notifications, feature/backend-listing-form, feature/backend-property-browse, migration/backend-api-client, feature/backend-profile-settings, feature/backend-viewings-integration, feature/backend-applications-offers, feature/backend-tenancy-management, feature/backend-verification-support, feature/backend-messaging-notifications, feature/backend-admin-account-review]
+    branches: [main, feature/web-push-notifications, feature/native-push-notifications, feature/backend-listing-form, feature/backend-property-browse, migration/backend-api-client, feature/backend-profile-settings, feature/backend-viewings-integration, feature/backend-applications-offers, feature/backend-tenancy-management, feature/backend-verification-support, feature/backend-messaging-notifications, feature/backend-admin-account-review, feature/backend-property-moderation]
     paths:
       - "public/js/**"
       - "apps/desktop/**"
