@@ -7,14 +7,15 @@ export function toTenancyAgreementViewModel(row) {
   const rent = row.terms.rent && typeof row.terms.rent === "object" ? row.terms.rent : {};
   const deposit = row.terms.deposit && typeof row.terms.deposit === "object" ? row.terms.deposit : {};
   const currency = String(rent.currency || deposit.currency || "");
-  if (!/^[A-Z]{3}$/.test(currency)) return null;
+  const rentAmount = Number(rent.amount), depositAmount = Number(deposit.amount || 0);
+  if (!/^[A-Z]{3}$/.test(currency) || !Number.isFinite(rentAmount) || rentAmount <= 0 || !Number.isFinite(depositAmount) || depositAmount < 0 || !/^[a-f0-9]{64}$/i.test(String(row.termsSha256 || ""))) return null;
   return {
     id: row.id, applicationId: row.applicationId, status: row.status,
     propertyTitle: String(row.propertyTitle || row.terms.property?.title || "Rental property"),
     landlordName: String(row.landlordName || row.terms.parties?.landlordName || "Landlord"),
     tenantName: String(row.tenantName || row.terms.parties?.tenantName || "Tenant"),
-    rentAmount: Number(rent.amount), rentPeriod: String(rent.period || "yearly"),
-    depositAmount: Number(deposit.amount || 0), currency,
+    rentAmount, rentPeriod: String(rent.period || "yearly"),
+    depositAmount, currency,
     moveInDate: row.terms.proposedMoveInDate || null,
     leaseMonths: Number.isInteger(row.terms.leaseMonths) ? row.terms.leaseMonths : null,
     termsSha256: String(row.termsSha256 || ""),
@@ -26,7 +27,7 @@ export function toTenancyAgreementViewModel(row) {
 export function toRentalPaymentViewModel(row) {
   const amountMinorUnits = Number(row?.amountMinorUnits);
   if (!row || !uuid(row.id) || !uuid(row.agreementId) || !Number.isSafeInteger(amountMinorUnits) || amountMinorUnits <= 0 ||
-      !/^[A-Z]{3}$/.test(String(row.currency || "")) || !PAYMENT_STATES.has(row.status)) return null;
+      !/^[A-Z]{3}$/.test(String(row.currency || "")) || !PAYMENT_STATES.has(row.status) || !["rent", "deposit", "other"].includes(row.paymentType)) return null;
   return {
     id: row.id, agreementId: row.agreementId, paymentType: row.paymentType,
     amountMinorUnits, amount: amountMinorUnits / 100, currency: row.currency,
