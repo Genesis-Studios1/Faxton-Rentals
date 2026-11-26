@@ -68,8 +68,8 @@ function shell(path, inner, o = {}) {
 // Console chrome for the other staff roles: same header and sidebar, with only the pages that role can use.
 const ROLE_UI = {
   support: { title: "Support console", home: "/support", nav: [["/support", "home", "Dashboard"], ["/support/tickets", "msg", "Tickets"], ["/support/suggestions", "chatlines", "Suggestions"], ["/support/data-requests", "download", "Data requests"], ["/support/services", "wrench", "Service requests"], ["/help", "help", "Help centre"], ["/settings", "gear", "Settings"]] },
-  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
-  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  landlord: { title: "Owner portal", home: "/portfolio", nav: [["/portfolio", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/agreements", "file-check", "Agreements"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
+  agency: { title: "Agency portal", home: "/agency", nav: [["/agency", "home", "Dashboard"], ["/offers", "tag", "Offers"], ["/agreements", "file-check", "Agreements"], ["/tenants", "users", "Tenants"], ["/messages", "msg", "Messages"], ["/settings", "gear", "Settings"]] },
   agent: { title: "Agent portal", home: "/agent-dashboard", nav: [["/agent-dashboard", "home", "Overview"], ["/agent-dashboard/leads", "users", "Leads"], ["/agent-dashboard/listings", "clipList", "Listings"], ["/agent-dashboard/viewings", "calDots", "Viewings"], ["/agent-dashboard/clients", "user", "Clients"], ["/offers", "tag", "Offers"], ["/tenants", "users", "Tenants"], ["/messages", "chatdots", "Messages"], ["/settings", "gear", "Settings"]] },
 };
 const roleHome = () => (S.isAdmin ? "/admin" : ROLE_UI[S.role]?.home || null);
@@ -83,7 +83,7 @@ function adminShell(path, inner, view, role = "") {
 // ---- navigation chrome: the desktop header, the phone's four-icon bar and its "Me" sheet ----
 // Phone bar (<= 860px): Home, Search, Messages, Me. Everything else lives in the Me sheet. The staff consoles (adminShell) draw their own bar.
 const BAR = [["/", "home", "homeFill", "Home"], ["/search", "search", "searchFill", "Search"], ["/messages", "msg", "msgFill", "Messages"]];
-const ME_PATHS = ["/settings", "/saved", "/bookings", "/payments", "/documents", "/rentals", "/applications", "/apply", "/book", "/offers", "/myhome", "/match", "/help", "/compare"];
+const ME_PATHS = ["/settings", "/saved", "/bookings", "/payments", "/documents", "/rentals", "/applications", "/apply", "/book", "/offers", "/agreements", "/myhome", "/match", "/help", "/compare"];
 const pathIs = (path, h) => path === h || path.startsWith(h + "/");
 const navOn = (path, h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers"].some((p) => pathIs(path, p)) : pathIs(path, h));
 const unreadTxt = (n) => (n > 99 ? "99+" : n || "");
