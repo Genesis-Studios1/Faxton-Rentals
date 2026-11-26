@@ -208,23 +208,8 @@ export const getRentalOffer = (offerId) => getBackendOffer(offerId);
 
 // Provider-neutral tenancy workflows; these create records only and never collect or confirm money.
 export const createTenancyAgreement = (applicationId) => createBackendTenancyAgreement(applicationId);
-export const myTenancyAgreements = () => listBackendTenancyAgreements();
-export const getTenancyAgreement = (agreementId) => getBackendTenancyAgreement(agreementId);
-export const sendTenancyAgreement = (agreementId) => sendBackendTenancyAgreement(agreementId);
-export const signTenancyAgreement = (agreementId, typedName, consent) => signBackendTenancyAgreement(agreementId, typedName, consent);
-export const createRentalPaymentRequest = (agreementId, details) => createBackendRentalPaymentRequest(agreementId, details);
-export const myRentalPaymentRequests = () => listBackendRentalPayments();
-export const getRentalPaymentRequest = (paymentId) => getBackendRentalPayment(paymentId);
 
 // Provider-neutral tenancy workflows. These requests create records only; they do not collect or confirm money.
-export const createTenancyAgreement = (applicationId) => createBackendTenancyAgreement(applicationId);
-export const myTenancyAgreements = () => listBackendTenancyAgreements();
-export const getTenancyAgreement = (agreementId) => getBackendTenancyAgreement(agreementId);
-export const sendTenancyAgreement = (agreementId) => sendBackendTenancyAgreement(agreementId);
-export const signTenancyAgreement = (agreementId, typedName, consent) => signBackendTenancyAgreement(agreementId, typedName, consent);
-export const createRentalPaymentRequest = (agreementId, details) => createBackendRentalPaymentRequest(agreementId, details);
-export const myRentalPaymentRequests = () => listBackendRentalPayments();
-export const getRentalPaymentRequest = (paymentId) => getBackendRentalPayment(paymentId);
 
 // ---- documents (stored per user; files up to ~700 KB are kept in the document itself) ----
 export const myDocs = (u) => mine("documents", u);
