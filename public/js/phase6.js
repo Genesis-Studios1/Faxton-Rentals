@@ -25,6 +25,7 @@ const roleStaff = (ctx) => ["admin", "owner", "support"].includes(ctx.S.role) ||
 const safeUrl = (value) => { try { const u = new URL(value); return u.protocol === "https:" ? u.href : ""; } catch { return ""; } };
 
 export function verificationPage(ctx) {
+  if (!apiConfigured()) return { title: "Account verification", html: '<div class="rf" style="max-width:760px;margin:0 auto;padding:24px 16px"><h1 class="rf-h1">Account verification</h1><p class="rf-sub">Document verification will become available when the Faxton backend is connected to this app build.</p><a class="btn primary" href="#/help">Visit Help Centre</a></div>' };
   return {
     title: "Account verification",
     html: `<div class="rf" style="max-width:900px;margin:0 auto;padding:24px 16px">
@@ -122,6 +123,7 @@ export function verificationAdminPage(ctx) {
 }
 
 export function supportCasesPage(ctx) {
+  if (!apiConfigured()) return { title: "Help, reports and disputes", html: '<div class="rf" style="max-width:760px;margin:0 auto;padding:24px 16px"><h1 class="rf-h1">Help, reports & disputes</h1><p class="rf-sub">The new support case centre will become available when the Faxton backend is connected. You can still use the existing Help Centre.</p><a class="btn primary" href="#/help">Open Help Centre</a></div>' };
   if (roleStaff(ctx)) return supportAdminPage(ctx);
   return {
     title: "Help, reports and disputes",
