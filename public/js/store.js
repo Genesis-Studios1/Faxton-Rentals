@@ -2,7 +2,6 @@
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
 import { apiConfigured } from "./api-client.js";
-import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
 import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
 import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, listBackendViewingReschedules, respondBackendViewingReschedule, confirmBackendViewing, declineBackendViewing, cancelBackendViewing } from "./api-viewings.js";
@@ -11,13 +10,14 @@ import { uploadBackendApplicationDocument, createBackendApplication, listBackend
 import { toBackendApplicationPayload, toBackendApplicationViewModel } from "./api-rental-mapper.js";
 import { createBackendTenancyAgreement, listBackendTenancyAgreements, getBackendTenancyAgreement, sendBackendTenancyAgreement, signBackendTenancyAgreement, createBackendRentalPaymentRequest, listBackendRentalPayments, getBackendRentalPayment } from "./api-tenancy.js";
 import { listBackendNotifications, markBackendNotificationRead, markAllBackendNotificationsRead } from "./api-notifications.js";
+import { getBackendPropertyWithMedia, listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
 let cacheUsesBackend = false;
 // Fill any missing fields so a partial or older Firestore listing can never break a page.
-const norm = (l) => { const o = { ...l }; o.agent = { ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
+const norm = (l) => { const o = { ...l }; o.listingMode = o.listingMode || (String(o.type || "").toLowerCase() === "shortlet" ? "shortlet" : "long_term"); o.agent = { ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
 
 // ---- demo mode ----
 // Real visitors must never see made-up homes. Sample data exists only for the owner, who switches demo mode on from
@@ -86,7 +86,12 @@ export async function getListings(force = false) {
   if (stored?.length && !force) { cache = stored.filter(Boolean).map(norm); fetchFresh(); return cache; }
   return fetchFresh();
 }
-export const getListing = async (id) => (await getListings()).find((l) => l.id === id) || null;
+export const getListing = async (id) => {
+  if (apiConfigured()) {
+    try { return await getBackendPropertyWithMedia(id); } catch { return null; }
+  }
+  return (await getListings()).find((listing) => listing.id === id) || null;
+};
 
 // ---- profile + saved homes ----
 export async function getProfile(uid) {
