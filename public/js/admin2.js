@@ -6,6 +6,7 @@ import { collection, doc, getDocs, writeBatch } from "https://www.gstatic.com/fi
 import { friendlyErr } from "./ui.js";
 import * as st from "./store.js";
 import { apiConfigured } from "./api-client.js";
+import { createApplicationOfferDialog, loadApplicationDocuments, loadApplicationHistory } from "./application-tools.js";
 import * as VS from "./viewsafe.js";
 import * as SVC from "./services.js";
 import * as AX from "./ax.js";
@@ -397,10 +398,10 @@ export function verifications(ctx) {
 }
 
 // ---------- applications ----------
-const APP_STATUS = ["Under review", "Awaiting documents", "Approved", "Rejected"];
+const APP_STATUS = ["Under review", "Shortlisted", "Awaiting documents", "Approved", "Rejected"];
 const appMonth = (a) => String(a.moveIn || "").slice(0, 7);
 const monthLabel = (m) => (m ? new Date(m + "-01T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "");
-async function setApp(a, status, api) { try { await write("applications", a, { status }, { msg: `Marked ${status.toLowerCase()}.`, after: api.refresh }); } catch (e) { bad(e); } }
+async function setApp(a, status, api) { try { if (a._backend) { await st.updateApplicationDecision(a, status); a.status = status; changed(); toast(`Marked ${status.toLowerCase()}.`); api.refresh(); return; } await write("applications", a, { status }, { msg: `Marked ${status.toLowerCase()}.`, after: api.refresh }); } catch (e) { bad(e); } }
 function appDrawer(ctx, a, api) {
   const idx = APP_STATUS.indexOf(a.status), steps = ["Submitted", "Under review", "Awaiting documents", "Decision"], cur = a.status === "Under review" ? 1 : a.status === "Awaiting documents" ? 2 : 3;
   const body = `<div class="ax-id" style="margin-bottom:14px">${avatar(a.name, a.uid, 44)}<div><b style="font-size:15px">${esc(a.name || "Applicant")}</b><small>${esc(a.email || "")}</small></div></div>
@@ -408,12 +409,12 @@ function appDrawer(ctx, a, api) {
     <div style="margin-top:16px">${section("Property", `<a class="ax-id" href="#/home/${esc(encodeURIComponent(a.listingId || ""))}" style="padding:8px;border:1px solid var(--ax-border);border-radius:10px">${thumb(a.image, 44)}<div><b>${esc(a.title || "Property")}</b><small>${esc(a.area || "")}</small></div>${I("chevR", 16)}</a>`)}
     ${section("Amounts", dl([["Yearly rent", naira(a.rent)], ["Move-in total", naira(a.amount)], ["Move-in date", a.moveIn ? esc(fmt.date(a.moveIn)) : ""], ["Phone", esc(a.details?.phone || a.phone || "")]]))}
     ${section("Activity", timeline([{ title: "Application submitted", meta: fmt.dateTime(a.createdAt) }, { title: `Now: ${a.status}`, meta: "Current status", tone: a.status === "Rejected" ? "bad" : "" }]))}</div>`;
-  const footer = `${btn("Approve", { v: "primary", ic: "check", attrs: "data-st=Approved" })}${btn("Request documents", { attrs: "data-st=Awaiting\\ documents" })}${btn("Reject", { v: "danger", attrs: "data-st=Rejected" })}`;
+  const footer = a._backend ? `${a.status === "Under review" ? btn("Shortlist", { attrs: "data-st=Shortlisted" }) : ""}${["Under review", "Shortlisted"].includes(a.status) ? btn("Approve", { v: "primary", ic: "check", attrs: "data-st=Approved" }) : a.status === "Approved" ? btn("Create rental offer", { v: "primary", ic: "tag", attrs: "data-create-offer" }) : ""}${["Under review", "Shortlisted"].includes(a.status) ? btn("Reject", { v: "danger", attrs: "data-st=Rejected" }) : ""}${btn("View documents", { attrs: "data-documents" })}${btn("View history", { attrs: "data-history" })}` : `${btn("Approve", { v: "primary", ic: "check", attrs: "data-st=Approved" })}${btn("Request documents", { attrs: "data-st=Awaiting\\ documents" })}${btn("Reject", { v: "danger", attrs: "data-st=Rejected" })}`;
   return { title: a.name || "Application", sub: chipFor("application", a.status), body, footer,
-    mount(el, b, f) { $$("[data-st]", f).forEach((x) => (x.onclick = async () => { const s = x.dataset.st.replace("\\ ", " "); if (s === a.status) return toast("Already " + s.toLowerCase() + "."); if (s === "Rejected" && !(await confirm({ title: `Reject ${a.name || "this application"}?`, body: "The renter will see the application as rejected.", confirmLabel: "Reject", tone: "danger" }))) return; setApp(a, s, api); })); } };
+    mount(el, b, f) { $("[data-st]", f).forEach((x) => (x.onclick = async () => { const s = x.dataset.st.replace("\\ ", " "); if (s === a.status) return toast("Already " + s.toLowerCase() + "."); if (s === "Rejected" && !(await confirm({ title: `Reject ${a.name || "this application"}?`, body: "The renter will see the application as rejected.", confirmLabel: "Reject", tone: "danger" }))) return; setApp(a, s, api); })); const create = $("[data-create-offer]", f); if (create) { create.onclick = () => createApplicationOfferDialog(a, api, { dialog, btn, $, esc, toast, friendlyErr: fe }); st.listRentalOffers(a.id).then((offers) => { const active = offers.find((offer) => ["pending", "accepted"].includes(offer.status)); if (active) { create.disabled = true; create.textContent = active.status === "accepted" ? "Offer accepted" : "Offer awaiting response"; create.title = "An active offer already exists for this application."; } }).catch(() => {}); } const docs = $("[data-documents]", f); if (docs) docs.onclick = () => { const d = dialog({ title: "Private application documents", size: "md", body: "<div id=app-private-documents>Loading…</div>", footer: btn("Close", { attrs: "data-x" }) }); loadApplicationDocuments(a, d.el, { $, esc, friendlyErr: fe, toast }); }; const history = $("[data-history]", f); if (history) history.onclick = () => { const d = dialog({ title: "Application history", size: "md", body: "<div id=app-private-history>Loading…</div>", footer: btn("Close", { attrs: "data-x" }) }); loadApplicationHistory(a, d.el, { $, esc, friendlyErr: fe }); }; } };
 }
 export function applications(ctx) {
-  return pageView(ctx, { title: "Applications", eyebrow: "Activity", sub: "Every rental application, from first look to decision.", cols: ["applications"], what: "applications",
+  return pageView(ctx, { title: "Applications", eyebrow: "Activity", sub: "Every rental application, from first look to decision.", cols: [["applications", () => apiConfigured() ? st.ownerApplications(ctx.S.user) : data.safe("applications")]], what: "applications",
     async render({ applications: ap }) {
       const stOf = (a) => a.status || "Under review";
       return { html: `<div id="app"></div>`, mount(el) {
@@ -430,10 +431,10 @@ export function applications(ctx) {
             { k: "created", label: "Submitted", pri: 2, sort: (a) => AX.ms(a.createdAt), cell: (a) => fmt.rel(a.createdAt) },
           ],
           onCell: (k, a, b, api) => menu(b, APP_STATUS.map((s) => ({ label: s, checked: s === stOf(a), act: () => s !== stOf(a) && setApp(a, s, api) })), { label: "Application status", align: "left" }),
-          bulk: [{ label: "Set status", icon: "refresh", run: (rs, c) => menu($("[data-bulk=0]"), APP_STATUS.map((s) => ({ label: s, act: async () => { const prev = new Map(rs.map((a) => [a.id, a.status])); const r = await bulkRun(rs.map((a) => a.id), async (id) => { const a = rs.find((x) => x.id === id); await st.patch("applications", id, { status: s }); a.status = s; }, { label: "Updating" }); changed(); c.clear(); toast(r.bad ? `${r.ok.length} updated, ${r.bad} failed.` : `${r.ok.length} marked ${s.toLowerCase()}.`, { tone: r.bad ? "bad" : "", action: "Undo", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const a = rs.find((x) => x.id === id); await st.patch("applications", id, { status: prev.get(id) }); a.status = prev.get(id); })); changed(); c.list.repaint(); } }); } })), { label: "Set status" }) },
+          bulk: apiConfigured() ? [] : [{ label: "Set status", icon: "refresh", run: (rs, c) => menu($("[data-bulk=0]"), APP_STATUS.map((s) => ({ label: s, act: async () => { const prev = new Map(rs.map((a) => [a.id, a.status])); const r = await bulkRun(rs.map((a) => a.id), async (id) => { const a = rs.find((x) => x.id === id); await st.patch("applications", id, { status: s }); a.status = s; }, { label: "Updating" }); changed(); c.clear(); toast(r.bad ? `${r.ok.length} updated, ${r.bad} failed.` : `${r.ok.length} marked ${s.toLowerCase()}.`, { tone: r.bad ? "bad" : "", action: "Undo", onAction: async () => { await Promise.allSettled(r.ok.map(async (id) => { const a = rs.find((x) => x.id === id); await st.patch("applications", id, { status: prev.get(id) }); a.status = prev.get(id); })); changed(); c.list.repaint(); } }); } })), { label: "Set status" }) },
             { label: "Export CSV", icon: "download", free: true, run: (rs) => csv("faxton-applications-selected", ["Applicant", "Email", "Property", "Move-in", "Status", "Amount"], rs.map((a) => [a.name, a.email, a.title, a.moveIn, a.status, a.amount])) }],
           csv: { name: "faxton-applications", head: ["Applicant", "Email", "Property", "Area", "Move-in", "Status", "Amount", "Submitted"], row: (a) => [a.name, a.email, a.title, a.area, a.moveIn, a.status, a.amount, fmt.date(a.createdAt)] },
-          menu: (a, api) => [{ label: "Open", icon: "eye", act: api.open }, { sep: 1 }, ...APP_STATUS.map((s) => ({ label: `Mark ${s.toLowerCase()}`, icon: s === "Approved" ? "check" : s === "Rejected" ? "x" : "clock", checked: undefined, disabled: s === stOf(a), act: () => setApp(a, s, api) }))],
+          menu: (a, api) => [{ label: "Open", icon: "eye", act: api.open }, { sep: 1 }, ...APP_STATUS.filter((s) => !a._backend || ["Shortlisted", "Approved", "Rejected"].includes(s)).map((s) => ({ label: `Mark ${s.toLowerCase()}`, icon: s === "Approved" ? "check" : s === "Rejected" ? "x" : "clock", checked: undefined, disabled: s === stOf(a), act: () => setApp(a, s, api) }))],
           drawer: (a, api) => appDrawer(ctx, a, api), empty: { icon: "doc", title: "No applications yet", hint: "Rental applications from renters appear here." } });
       } };
     } });

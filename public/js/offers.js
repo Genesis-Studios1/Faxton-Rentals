@@ -5,8 +5,11 @@ import { collection, doc, getDoc, addDoc, setDoc, updateDoc, onSnapshot, query, 
 import { $, $$, esc, naira, icon, toast, modal } from "./ui.js";
 import { fxErr as friendlyErr, empty as fxEmpty } from "./fx.js";
 import { moveIn } from "./area.js";
+import { apiConfigured } from "./api-client.js";
+import * as st from "./store.js";
+import { toBackendOfferThread } from "./api-rental-mapper.js";
 
-const FINAL = ["Accepted", "Declined", "Withdrawn"];
+const FINAL = ["Accepted", "Declined", "Withdrawn", "Expired"];
 export const isOpen = (o) => !FINAL.includes(o.status);
 const pctOff = (ask, v) => Math.round(((ask - v) / ask) * 100);
 const round10k = (n) => Math.round(n / 1e4) * 1e4;
@@ -20,6 +23,7 @@ export const watchReceived = (uid, cb) => onSnapshot(query(collection(db, "offer
 export const watchAll = (cb) => onSnapshot(collection(db, "offers"), (s) => cb(list(s)), () => cb([]));
 export async function getOffer(id) { try { const s = await getDoc(doc(db, "offers", id)); return s.exists() ? { ...s.data(), id: s.id } : null; } catch { return null; } }
 export async function myOpenOffer(uid, listingId) {
+  if (apiConfigured()) return null;
   try { return list(await getDocs(query(collection(db, "offers"), where("uid", "==", uid)))).find((o) => o.listingId === listingId && (isOpen(o) || o.status === "Accepted")) || null; } catch { return null; }
 }
 const NOTICE_BODY = {
@@ -44,6 +48,15 @@ export async function sendOffer(user, l, amount, note) {
 }
 // side: "renter" | "owner"; action: accept | counter | decline | withdraw
 export async function respond(o, user, side, action, amount, note = "") {
+  if (o?._backend) {
+    const latest = o._latestOffer;
+    if (!latest?.id) throw new Error("This offer is missing its backend reference.");
+    if (action === "withdraw") return st.withdrawRentalOffer(latest.id);
+    if (action === "accept") return st.respondRentalOffer(latest.id, "accept");
+    if (action === "decline") return st.respondRentalOffer(latest.id, "reject", null, note);
+    if (action === "counter") return st.respondRentalOffer(latest.id, "counter", { rentAmount: amount, currency: latest.currency, rentPeriod: latest.rentPeriod, depositAmount: Number(latest.depositAmount) || 0, leaseMonths: latest.leaseMonths ?? null, proposedMoveInDate: latest.proposedMoveInDate || null, message: note || null, expiresInHours: 72 });
+    throw new Error("Unsupported offer action.");
+  }
   const type = action, amt = action === "counter" ? amount : o.amount;
   const status = action === "accept" ? "Accepted" : action === "counter" ? (side === "owner" ? "Countered" : "Pending") : side === "owner" ? "Declined" : "Withdrawn";
   const turn = action === "counter" ? (side === "owner" ? "renter" : "owner") : "";
@@ -86,10 +99,11 @@ export function offerDialog(ctx, l, done) {
 }
 
 // ---- counter dialog (either side) ----
-function counterDialog(o, ctx, side) {
-  const ask = o.listPrice, mid = round10k((o.amount + (side === "owner" ? ask : o.amount)) / 2);
-  const m = modal(`<div class="of-dlg"><h2>${icon("refresh", 22)} Counter-offer</h2><p class="muted">Current offer ${naira(o.amount)} · asking ${naira(ask)}.</p>
-    <label class="rf-fl">Your counter (per year)<div class="of-in"><span>₦</span><input id="coAmt" inputmode="numeric" autocomplete="off" value="${mid.toLocaleString("en-NG")}"></div></label>
+function counterDialog(o, ctx, side, done) {
+  const ask = o._backend ? Math.round(o.amount * 1.5) : o.listPrice, mid = round10k((o.amount + ask) / 2);
+  const period = ({ daily: "day", weekly: "week", monthly: "month", yearly: "year" })[o.rentPeriod] || "year";
+  const m = modal(`<div class="of-dlg"><h2>${icon("refresh", 22)} Counter-offer</h2><p class="muted">Current offer ${naira(o.amount)} · ${o._backend ? "counter range up to" : "asking"} ${naira(ask)}.</p>
+    <label class="rf-fl">Your counter (per ${period})<div class="of-in"><span>₦</span><input id="coAmt" inputmode="numeric" autocomplete="off" value="${mid.toLocaleString("en-NG")}"></div></label>
     <label class="rf-fl">Message (optional)<textarea id="coNote" rows="2" maxlength="300"></textarea></label><p class="rf-err" id="coErr" role="alert"></p>
     <div class="rf-dlg-act"><button class="btn" type="button" id="coNo">Cancel</button><button class="btn primary" type="button" id="coGo">Send counter</button></div></div>`);
   const amt = $("#coAmt", m.el); amt.oninput = () => { const v = digits(amt.value); amt.value = v ? v.toLocaleString("en-NG") : ""; };
@@ -98,28 +112,35 @@ function counterDialog(o, ctx, side) {
     const v = digits(amt.value), err = $("#coErr", m.el); if (!v || v < ask * 0.5 || v > ask) return (err.textContent = `Enter an amount between ${naira(Math.round(ask * 0.5))} and ${naira(ask)}.`);
     if (v === o.amount) return (err.textContent = "That’s the same as the current offer. Choose Accept instead.");
     const b = $("#coGo", m.el); b.disabled = true;
-    try { await respond(o, ctx.S.user, side, "counter", v, $("#coNote", m.el).value.trim()); m.close(); toast("Counter-offer sent."); } catch (e) { err.textContent = friendlyErr(e); b.disabled = false; }
+    try { await respond(o, ctx.S.user, side, "counter", v, $("#coNote", m.el).value.trim()); m.close(); toast("Counter-offer sent."); done?.(); } catch (e) { err.textContent = friendlyErr(e); b.disabled = false; }
   };
 }
 
 // ---- the Offers page ----
-const STATUS_TONE = { Pending: "warn", Countered: "warn", Accepted: "", Declined: "bad", Withdrawn: "bad" };
+const STATUS_TONE = { Pending: "warn", Countered: "warn", Accepted: "", Declined: "bad", Withdrawn: "bad", Expired: "bad" };
 const label = (e, o, me) => {
   const who = e.uid === me ? "You" : e.by === "owner" ? o.ownerName || "The owner" : o.name || "The renter";
-  return { offer: `${who} offered`, counter: `${who} countered at`, accept: `${who} accepted`, decline: `${who} declined`, withdraw: `${who} withdrew the offer` }[e.type] || who;
+  return { offer: `${who} offered`, counter: `${who} countered at`, accept: `${who} accepted`, decline: `${who} declined`, withdraw: `${who} withdrew the offer`, expire: `${who} offer expired` }[e.type] || who;
 };
 function card(o, me, isAdmin) {
-  const iRenter = o.uid === me, iOwner = !iRenter && (o.ownerUid === me || (!o.ownerUid && isAdmin));
+  const iRenter = o.uid === me, iOwner = !iRenter && (o._backend || o.ownerUid === me || (!o.ownerUid && isAdmin));
   const myTurn = (iOwner && o.turn === "owner") || (iRenter && o.turn === "renter");
   const off = pctOff(o.listPrice, o.amount);
-  const state = o.status === "Accepted" ? `Agreed at ${naira(o.amount)} a year.` : o.status === "Declined" ? "The owner declined this offer." : o.status === "Withdrawn" ? "The renter withdrew this offer." : myTurn ? "It’s your turn to respond." : o.turn === "owner" ? "Waiting for the owner to reply." : "Waiting for the renter to reply.";
+  const period = ({ daily: "day", weekly: "week", monthly: "month", yearly: "year" })[o.rentPeriod] || "year";
+  const state = o.status === "Accepted" ? `Agreed at ${naira(o.amount)} per ${period}.` : o.status === "Expired" ? "This offer expired." : o.status === "Declined" ? "The recipient declined this offer." : o.status === "Withdrawn" ? "The sender withdrew this offer." : myTurn ? "It’s your turn to respond." : o.turn === "owner" ? "Waiting for the listing manager to reply." : "Waiting for the renter to reply.";
   const acts = [];
   if (isOpen(o)) {
-    if (iOwner && o.turn === "owner") acts.push(`<button class="btn primary" data-a="accept">Accept ${naira(o.amount)}</button><button class="btn" data-a="counter">Counter</button><button class="btn red" data-a="decline">Decline</button>`);
-    if (iRenter && o.turn === "renter") acts.push(`<button class="btn primary" data-a="accept">Accept ${naira(o.amount)}</button><button class="btn" data-a="counter">Counter again</button><button class="btn red-o" data-a="withdraw">Withdraw</button>`);
-    if (iRenter && o.turn === "owner") acts.push(`<button class="btn red-o" data-a="withdraw">Withdraw offer</button>`);
+    if (o._backend) {
+      const sender = o._latestOffer?.createdByUserId === me;
+      if (myTurn) acts.push('<button class="btn primary" data-a="accept">Accept ' + naira(o.amount) + '</button><button class="btn" data-a="counter">Counter</button><button class="btn red" data-a="decline">Decline</button>');
+      if (sender) acts.push('<button class="btn red-o" data-a="withdraw">Withdraw offer</button>');
+    } else {
+      if (iOwner && o.turn === "owner") acts.push('<button class="btn primary" data-a="accept">Accept ' + naira(o.amount) + '</button><button class="btn" data-a="counter">Counter</button><button class="btn red" data-a="decline">Decline</button>');
+      if (iRenter && o.turn === "renter") acts.push('<button class="btn primary" data-a="accept">Accept ' + naira(o.amount) + '</button><button class="btn" data-a="counter">Counter again</button><button class="btn red-o" data-a="withdraw">Withdraw</button>');
+      if (iRenter && o.turn === "owner") acts.push('<button class="btn red-o" data-a="withdraw">Withdraw offer</button>');
+    }
   }
-  if (iRenter && o.status === "Accepted") acts.push(`<a class="btn primary" href="#/apply/${esc(o.listingId)}?offer=${esc(o.id)}">Apply at ${naira(o.amount)} ${icon("arrow", 18)}</a>`);
+  if (iRenter && o._backend && o.status === "Accepted") acts.push(`<a class="btn primary" href="#/applications">View application ${icon("arrow", 18)}</a>`); else if (iRenter && o.status === "Accepted") acts.push(`<a class="btn primary" href="#/apply/${esc(o.listingId)}?offer=${esc(o.id)}">Apply at ${naira(o.amount)} ${icon("arrow", 18)}</a>`);
   if (iRenter && o.status === "Declined") acts.push(`<a class="btn" href="#/home/${esc(o.listingId)}">View the home</a>`);
   const tone = o.status === "Accepted" ? "ok" : STATUS_TONE[o.status] === "bad" ? "bad" : "warn";
   return `<article class="of-card rf-card" data-id="${esc(o.id)}"><header><a href="#/home/${esc(o.listingId)}"><img src="${esc(o.image || "img/palm-court.webp")}" alt=""></a><div><h3><a href="#/home/${esc(o.listingId)}">${esc(o.title)}</a></h3><p class="rf-loc">${icon("pin", 14)} ${esc(o.area)}${iRenter ? "" : " · from " + esc(o.name || "a renter")}</p></div><span class="rf-pill ${tone}"><i></i>${esc(o.status)}</span></header>
@@ -129,7 +150,70 @@ function card(o, me, isAdmin) {
     ${acts.length ? `<div class="of-act">${acts.join("")}</div>` : ""}</article>`;
 }
 
+async function backendOffersPage(ctx, rentalsNav) {
+  const me = ctx.S.user.uid, isAdmin = ctx.S.isAdmin;
+  const ownerRole = ["landlord", "agency", "agent", "business"].includes(ctx.S.role);
+  const manager = isAdmin || ownerRole;
+  const html = '<div class="rf of-pg">' + (manager ? "" : rentalsNav("/offers")) +
+    '<header class="rf-ph"><div><span class="rf-eyebrow">' + (manager ? "Rentals" : "My rentals") +
+    '</span><h1 class="rf-h1">Rent offers</h1><p class="rf-sub">Offers and counter-offers linked to rental applications, with a complete negotiation history.</p></div></header>' +
+    '<div class="rf-seg" id="ofTabs" role="tablist" style="margin-bottom:14px"></div><div id="ofList" class="of-list"><div class="rf-card">Loading offers…</div></div></div>';
+  return { title: "Rent offers", html, mount(root) {
+    let rows = [], tab = "all", busy = false;
+    const host = $("#ofList", root);
+    const refresh = async () => {
+      if (busy) return; busy = true;
+      host.innerHTML = '<div class="rf-card">Loading offers…</div>';
+      try {
+        const applications = manager ? await st.ownerApplications(ctx.S.user) : await st.myApplications(ctx.S.user);
+        const threads = await Promise.all(applications.map(async (application) => {
+          const offers = await st.listRentalOffers(application.id).catch(() => []);
+          if (!offers.length) return null;
+          const listing = application.l || await st.getListing(application.listingId).catch(() => null) || {};
+          const profile = manager ? await st.getPublic(application.uid).catch(() => null) : null;
+          return toBackendOfferThread(application, offers, listing, profile || {}, me);
+        }));
+        rows = threads.filter(Boolean).sort((a,b) => Date.parse(b.updatedAt || b.createdAt) - Date.parse(a.updatedAt || a.createdAt));
+        draw();
+      } catch (error) {
+        host.innerHTML = '<div class="rf-card">' + esc(friendlyErr(error)) + ' <button class="btn" type="button" id="ofRetry">Try again</button></div>';
+        $("#ofRetry", root)?.addEventListener("click", refresh);
+      } finally { busy = false; }
+    };
+    const draw = () => {
+      const tabs = [["all","All"],["open","Open"],["closed","Closed"]];
+      $("#ofTabs", root).innerHTML = tabs.map(([key,label]) => '<button type="button" role="tab" aria-selected="' + (tab === key) + '" class="' + (tab === key ? "on" : "") + '" data-backend-tab="' + key + '">' + label + ' <b>' + rows.filter((o) => key === "all" || (key === "open" ? isOpen(o) : !isOpen(o))).length + '</b></button>').join("");
+      const current = rows.filter((o) => tab === "all" || (tab === "open" ? isOpen(o) : !isOpen(o)));
+      host.innerHTML = current.length ? current.map((o) => card(o, me, isAdmin)).join("") : '<div class="rf-card">' + fxEmpty({ ic: "tag", title: "No offers yet", hint: manager ? "Offers can be sent after an application has been approved." : "A listing manager can send you proposed terms after reviewing your application.", action: manager ? "" : '<a class="btn primary" href="#/applications">View applications</a>' }) + '</div>';
+      $("[data-backend-tab]", root).forEach((button) => (button.onclick = () => { tab = button.dataset.backendTab; draw(); }));
+      $(".of-card [data-a]", root).forEach((button) => (button.onclick = async () => {
+        const offer = rows.find((o) => o.id === button.closest(".of-card")?.dataset.id);
+        if (!offer || button.disabled) return;
+        const action = button.dataset.a, side = offer.uid === me ? "renter" : "owner";
+        if (action === "counter") return counterDialog(offer, ctx, side, refresh);
+        if (action === "decline" || action === "withdraw") {
+          const m = modal('<div class="of-dlg"><h2>' + (action === "decline" ? "Decline this offer?" : "Withdraw your offer?") + '</h2><p class="rf-dlg-p">This decision will be recorded in the negotiation history.</p><div class="rf-dlg-act"><button class="btn" type="button" id="ofCancel">Cancel</button><button class="btn red" type="button" id="ofConfirm">' + (action === "decline" ? "Decline" : "Withdraw") + '</button></div></div>');
+          $("#ofCancel", m.el).onclick = m.close;
+          $("#ofConfirm", m.el).onclick = async () => { m.close(); await run(offer, side, action, button); };
+          return;
+        }
+        await run(offer, side, action, button);
+      }));
+    };
+    const run = async (offer, side, action, button) => {
+      button.disabled = true;
+      try {
+        await respond(offer, ctx.S.user, side, action, offer.amount);
+        toast({ accept: "Offer accepted.", decline: "Offer declined.", withdraw: "Offer withdrawn." }[action]);
+        await refresh();
+      } catch (error) { toast(friendlyErr(error)); button.disabled = false; }
+    };
+    refresh();
+    ctx.S.cleanups.push(() => {});
+  } };
+}
 export function offersPage(ctx, rentalsNav) {
+  if (apiConfigured()) return backendOffersPage(ctx, rentalsNav);
   const me = ctx.S.user.uid, isAdmin = ctx.S.isAdmin, ownerRole = ["landlord", "agency", "agent"].includes(ctx.S.role);
   if (isAdmin || ownerRole) return staffOffersPage(ctx);
   const staff = isAdmin ? { admin: true, pending: 0 } : ownerRole ? { role: ctx.S.role } : {};

@@ -1,6 +1,7 @@
 // The property page and the full-screen photo and video viewer. Styling lives in css/home.css (.pd*, .vx*).
 import { $, $$, esc, naira, icon, toast, friendlyErr, verifiedBadge, initials } from "./ui.js";
 import * as st from "./store.js";
+import { apiConfigured } from "./api-client.js";
 import * as AREA from "./area.js";
 import * as OFFERS from "./offers.js";
 import * as CALLS2 from "./calls.js";
@@ -131,7 +132,7 @@ export async function detail(ctx, id) {
         <div class="pd-seg" role="radiogroup" aria-label="Tour type"><button type="button" role="radio" aria-checked="true" class="on" data-tour="person">In person</button><button type="button" role="radio" aria-checked="false" data-tour="virtual">Virtual</button></div>
         ${ddSelect({ name: "bkDate", label: "Date", ic: "cal", options: bkDays, value: bkDays[0][0], bare: true, cls: "dd-field dd-block dd-sm", title: "Pick a day" })}
         <div class="pd-times" id="bkTimes" role="radiogroup" aria-label="Time">${TIMES.map(([v, t], k) => `<button type="button" role="radio" aria-checked="${!k}" class="${k ? "" : "on"}" data-time="${v}">${t}</button>`).join("")}</div>
-        <div class="pd-two"><button class="btn" id="view">${icon("cal", 17)} Book a viewing</button><button class="btn" id="offer">${icon("tag", 17)} Make an offer</button></div><div id="ofBanner"></div></div>
+        <div class="pd-two"><button class="btn" id="view">${icon("cal", 17)} Book a viewing</button><button class="btn" id="offer">${icon("tag", 17)} ${apiConfigured() ? "Apply before an offer" : "Make an offer"}</button></div><div id="ofBanner"></div></div>
       <p class="pd-terms">${icon("info", 16)}<span>Read the <a class="link" href="#/terms">terms</a> before you make a payment.</span></p></div>`;
 
   const html = `<div class="wrap pd">
@@ -218,7 +219,7 @@ export async function detail(ctx, id) {
     $$("[data-act]", root).forEach((b) => (b.onclick = b.dataset.act === "apply" ? apply : () => $("#msg").click()));
     const ofBan = async () => { if (!S.user) return; const o = await OFFERS.myOpenOffer(S.user.uid, l.id).catch(() => null), b = $("#ofBanner"); if (!b) return; b.innerHTML = o ? `<a class="of-ban ${esc(String(o.status).toLowerCase())}" href="#/offers">${icon("tag", 16)}<span><b>${o.status === "Accepted" ? "Offer accepted at " + naira(o.amount) : o.status === "Countered" ? "Counter-offer: " + naira(o.amount) : "Your offer: " + naira(o.amount)}</b><small>${o.status === "Accepted" ? "Apply at the agreed rent" : o.status === "Countered" ? "The owner replied. Your turn." : "Waiting for the owner"}</small></span>${icon("arrow", 16)}</a>` : ""; };
     ofBan();
-    $("#offer").onclick = authed(() => { if (S.user.uid === l.ownerUid) return toast("This is your own listing."); if (!open) return toast("This home isn’t available right now."); OFFERS.offerDialog(ctx, l, ofBan); });
+    $("#offer").onclick = authed(() => { if (S.user.uid === l.ownerUid) return toast("This is your own listing."); if (!open) return toast("This home isn’t available right now."); if (apiConfigured()) { if (S.role !== "renter") return toast("Only renter accounts can submit a rental application."); return ctx.go("#/apply/" + encodeURIComponent(l.id)); } OFFERS.offerDialog(ctx, l, ofBan); });
     // ---- similar homes ----
     const row = $("#pdSim", root);
     if (row) { const sc = (d) => row.scrollBy({ left: d * Math.max(260, row.clientWidth * .8), behavior: reduced() ? "auto" : "smooth" }); $("#simPrev", root).onclick = () => sc(-1); $("#simNext", root).onclick = () => sc(1); }

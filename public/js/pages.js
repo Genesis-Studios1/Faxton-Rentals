@@ -4,6 +4,8 @@ import { db } from "./firebase.js";
 import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { $, $$, esc, naira, icon, toast, modal, verifiedBadge } from "./ui.js";
 import * as st from "./store.js";
+import { apiConfigured } from "./api-client.js";
+import { loadApplicationDocuments, loadApplicationHistory } from "./application-tools.js";
 import * as AREA from "./area.js";
 import * as OFFERS from "./offers.js";
 import * as VS from "./viewsafe.js";
@@ -127,14 +129,15 @@ export async function bookPage(ctx, id) {
 
 // ============================ apply to rent ============================
 const DKEY = (u, id) => `draft_${u.uid}_${id}`;
-const loadDraft = (u, id) => { try { return JSON.parse(localStorage.getItem(DKEY(u, id))) || {}; } catch { return {}; } };
+const loadDraft = (u, id) => { try { const draft = JSON.parse(localStorage.getItem(DKEY(u, id))) || {}; if (apiConfigured() && (draft.idDoc || draft.incomeDoc)) { delete draft.idDoc; delete draft.incomeDoc; localStorage.setItem(DKEY(u, id), JSON.stringify(draft)); } return draft; } catch { return {}; } };
 const localPhone = (p) => { let d = String(p || "").replace(/\D/g, ""); if (d.startsWith("234")) d = d.slice(3); if (d.startsWith("0")) d = d.slice(1); return d.replace(/^(\d{3})(\d{3})(\d{0,4}).*$/, (m, a, b, c) => [a, b, c].filter(Boolean).join(" ")) || d; };
 const readPdf = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
 export async function applyPage(ctx, id) {
   const l = await st.getListing(id); if (!l) return notFound();
   let rent = l.price, offerId = "";
-  if (ctx.q.offer) { const o = await OFFERS.getOffer(ctx.q.offer); if (o && o.uid === ctx.S.user.uid && o.listingId === l.id && o.status === "Accepted") { rent = o.amount; offerId = o.id; } }
+  if (!apiConfigured() && ctx.q.offer) { const o = await OFFERS.getOffer(ctx.q.offer); if (o && o.uid === ctx.S.user.uid && o.listingId === l.id && o.status === "Accepted") { rent = o.amount; offerId = o.id; } }
   const u = ctx.S.user, p = ctx.S.profile || {}, tomorrow = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
+  if (apiConfigured()) { const existing = (await st.myApplications(u)).find((application) => application.listingId === id && ["Under review", "Shortlisted", "Approved"].includes(application.status)); if (existing) return { title: "Application already submitted", html: `<div class="rf"><div class="rf-card"><h2>You’ve already applied for this home</h2><p>Your application is currently ${esc(existing.status.toLowerCase())}. You can follow its progress or review any rental offer from your applications page.</p><div class="rf-btns"><a class="btn primary" href="#/applications">View my applications</a><a class="btn" href="#/offers">View offers</a></div></div></div>` }; }
   const D = { name: u.displayName || "", email: u.email, phone: localPhone(p.phone), address: "", movein: "", occupants: "", note: "", status: "", employer: "", job: "", income: "", ...loadDraft(u, id) };
   let step = Math.min(Math.max(+D._step || 1, 1), 4); const files = { id: D.idFile || "", income: D.incomeFile || "" }, blobs = { id: D.idDoc || "", income: D.incomeDoc || "" };
   const imgs = (l.images || []).filter(Boolean), STEPS = ["Personal details", "Employment", "Documents", "Review"];
@@ -146,6 +149,11 @@ export async function applyPage(ctx, id) {
       const imgTimer = imgs.length > 1 ? setInterval(() => { k = (k + 1) % imgs.length; const i = $("#apimg"); if (i) { i.src = imgs[k]; $("#apc").textContent = `${k + 1} / ${imgs.length}`; } }, 3500) : 0; ctx.S.cleanups.push(() => clearInterval(imgTimer));
       const save = (msg) => {
         const base = { ...D, _step: step, idFile: files.id, incomeFile: files.income };
+        if (apiConfigured()) {
+          try { localStorage.setItem(DKEY(u, id), JSON.stringify(base)); if (msg) toast("Draft saved. Reattach your documents before submitting."); }
+          catch { if (msg) toast("We couldn’t save the draft on this device."); }
+          return;
+        }
         try { localStorage.setItem(DKEY(u, id), JSON.stringify({ ...base, idDoc: blobs.id, incomeDoc: blobs.income })); if (msg) toast("Draft saved on this device."); }
         catch { try { localStorage.setItem(DKEY(u, id), JSON.stringify(base)); if (msg) toast("Draft saved. Attach your documents again before you submit."); } catch { if (msg) toast("We couldn’t save the draft on this device."); } }
       };
@@ -155,10 +163,10 @@ export async function applyPage(ctx, id) {
       const draw = () => {
         let body;
         if (step === 1) body = `<div class="rf-card-h"><div><h2>Personal details</h2><p>Tell us a little about yourself.</p></div></div><div class="rf-form"><div class="rf-grid2">${field("name", "Full name", "Your full name", { extra: 'autocomplete="name" maxlength="120"' })}${field("email", "Email address", "Your email", { type: "email", extra: "disabled" })}
-          <label class="rf-fl">Phone number<span class="rf-phone"><span class="rf-cc"><i></i>+234</span><input id="f_phone" type="tel" inputmode="tel" placeholder="803 000 0000" value="${esc(D.phone)}" maxlength="20" autocomplete="tel-national"></span></label>${field("address", "Current address", "Where you live now", { opt: true, extra: 'maxlength="200" autocomplete="street-address"' })}
+          <label class="rf-fl">Phone number<span class="rf-phone"><span class="rf-cc"><i></i>+234</span><input id="f_phone" type="tel" inputmode="tel" placeholder="803 000 0000" value="${esc(D.phone)}" maxlength="20" autocomplete="tel-national"></span></label>${field("address", "Current address", "Where you live now", { opt: !apiConfigured(), extra: 'maxlength="500" autocomplete="street-address"' })}
           <label class="rf-fl">Intended move-in date<span class="rf-date">${icon("cal", 18)}<input id="f_movein" type="date" min="${tomorrow}" value="${esc(D.movein)}"></span></label>${sel("occupants", "Number of occupants", "Select", ["1", "2", "3", "4", "5", "6+"])}</div>
           <label class="rf-fl"><span>Anything else? <span class="rf-optl">(optional)</span></span><textarea id="f_note" rows="3" maxlength="500" placeholder="Tell the agent anything that helps your application.">${esc(D.note)}</textarea></label><div class="rf-cnt"><span id="ncount">${D.note.length}</span>/500</div></div>`;
-        else if (step === 2) body = `<div class="rf-card-h"><div><h2>Employment</h2><p>This helps the agent assess your application.</p></div></div><div class="rf-form"><div class="rf-grid2">${sel("status", "Employment status", "Select status", ["Employed", "Self-employed", "Student", "Retired", "Other"])}${field("employer", "Employer or school", "Name", { extra: 'maxlength="120"' })}${field("job", "Job title", "Your job title", { opt: true, extra: 'maxlength="120"' })}${sel("income", "Monthly income", "Select range", ["Below ₦200,000", "₦200,000 – ₦500,000", "₦500,000 – ₦1,000,000", "Above ₦1,000,000"])}</div></div>`;
+        else if (step === 2) body = `<div class="rf-card-h"><div><h2>Employment</h2><p>This helps the agent assess your application.</p></div></div><div class="rf-form"><div class="rf-grid2">${sel("status", "Employment status", "Select status", ["Employed", "Self-employed", "Student", "Unemployed", "Retired", "Other"])}${field("employer", "Employer or school", "Name", { extra: 'maxlength="120"' })}${field("job", "Job title", "Your job title", { opt: true, extra: 'maxlength="120"' })}${sel("income", "Monthly income", "Select range", ["Below ₦100,000", "₦100,000 – ₦250,000", "₦250,000 – ₦500,000", "₦500,000 – ₦1,000,000", "Above ₦1,000,000", "Prefer not to say"])}</div></div>`;
         else if (step === 3) body = `<div class="rf-card-h"><div><h2>Documents</h2><p>Attach a photo of your ID and, if you can, proof of income. Only the agent and Faxton can see them.</p></div></div>
           ${[["id", "Valid ID (required)", "National ID, passport or driver’s licence"], ["income", "Proof of income (optional)", "Payslip, bank statement or offer letter"]].map(([k2, t, d]) => `<div class="rf-up ${files[k2] ? "has" : ""}"><span class="rf-up-ic">${xicon(blobs[k2] ? "checkc" : "doc", 20)}</span><div><b>${t}</b><small>${files[k2] ? esc(files[k2]) + (blobs[k2] ? "" : " (attach it again)") : d}</small></div><label class="btn sm">${files[k2] ? "Replace" : "Choose file"}<input type="file" data-file="${k2}" accept="image/*,application/pdf" hidden></label></div>`).join("")}<p class="rf-meta" style="margin-top:10px">Photos are shrunk to fit. PDFs must be under 280 KB.</p>`;
         else { read(); body = `<div class="rf-card-h"><div><h2>Review your application</h2><p>Make sure everything is right before you submit.</p></div></div><div class="rf-kv"><div><span>Full name</span><b>${esc(D.name)}</b></div><div><span>Email</span><b>${esc(D.email)}</b></div><div><span>Phone</span><b>+234 ${esc(D.phone)}</b></div><div><span>Current address</span><b>${esc(D.address || "Not provided")}</b></div><div><span>Move-in date</span><b>${esc(D.movein ? longDay(D.movein) : "—")}</b></div><div><span>Occupants</span><b>${esc(D.occupants)}</b></div>
@@ -176,7 +184,7 @@ export async function applyPage(ctx, id) {
         const b2 = $("#bk2"); if (b2) b2.onclick = () => { read(); step--; save(); draw(); scrollTo({ top: 0, behavior: "smooth" }); };
         $("#ct").onclick = async () => {
           read(); const err = $("#aerr");
-          if (step === 1) { if (!D.name.trim()) return (err.textContent = "Enter your full name."); if (!/^[\d\s-]{7,}$/.test(D.phone.trim())) return (err.textContent = "Enter a valid phone number."); if (!D.movein) return (err.textContent = "Choose your intended move-in date."); if (!D.occupants) return (err.textContent = "Select the number of occupants."); }
+          if (step === 1) { if (!D.name.trim()) return (err.textContent = "Enter your full name."); if (!/^[\d\s-]{7,}$/.test(D.phone.trim())) return (err.textContent = "Enter a valid phone number."); if (apiConfigured() && D.address.trim().length < 5) return (err.textContent = "Enter your current residential address."); if (!D.movein) return (err.textContent = "Choose your intended move-in date."); if (!D.occupants) return (err.textContent = "Select the number of occupants."); }
           if (step === 2 && !D.status) return (err.textContent = "Select your employment status.");
           if (step === 3 && !files.id) return (err.textContent = "Add a valid ID to continue.");
           if (step === 3 && !blobs.id) return (err.textContent = "Attach your ID again so we can send it with your application.");
@@ -262,8 +270,8 @@ export const paymentsPage = (ctx) => import("./paymentspage.js").then((m) => m.p
 // ============================ applications ============================
 export async function applicationsPage(ctx) {
   const [apps, listings] = await Promise.all([st.myApplications(ctx.S.user), st.getListings()]);
-  const items = [...loadDrafts(ctx.S.user).filter((d) => !apps.some((a) => a.listingId === d.listingId && !/withdr/i.test(a.status))), ...apps].map((a) => ({ ...a, l: listings.find((x) => x.id === a.listingId) })).filter((a) => a.l);
-  const key = (a) => (a.draft ? a.listingId + "_d" : a.id), inProg = (s) => /review|draft|awaiting/i.test(s), closedS = (s) => /withdr|reject|declin/i.test(s);
+  const items = [...loadDrafts(ctx.S.user).filter((d) => !apps.some((a) => a.listingId === d.listingId && !/withdr/i.test(a.status))), ...apps].map((a) => ({ ...a, l: listings.find((x) => x.id === a.listingId) || a.l || { id: a.listingId, title: a.title, area: a.area, city: a.area, price: a.rent || 0, images: [a.image].filter(Boolean), thumb: a.image } })).filter((a) => a.l);
+  const key = (a) => (a.draft ? a.listingId + "_d" : a.id), inProg = (s) => /review|draft|awaiting|shortlist/i.test(s), closedS = (s) => /withdr|reject|declin/i.test(s);
   let tab = "all", sel = items[0] ? key(items[0]) : null;
   const match = (a, t) => t === "all" || (t === "prog" && inProg(a.status)) || (t === "ok" && ACTIVE(a.status)) || (t === "closed" && closedS(a.status));
   const list = () => items.filter((a) => match(a, tab)), cnt = (t) => items.filter((a) => match(a, t)).length;
@@ -277,13 +285,15 @@ export async function applicationsPage(ctx) {
           <p class="rf-facts"><span>${icon("bed", 17)}${bedsLabel(a.l.beds)}</span><span>${icon("bath", 17)}${a.l.baths} baths</span>${a.l.sqm ? `<span>${icon("area", 17)}${a.l.sqm} m²</span>` : ""}</p>
           ${a.draft ? `<div class="rf-note">${icon("info", 20)}<div><b>This is a draft</b><p>It’s saved on this device and hasn’t been sent. Pick up where you left off.</p></div></div>` : `<h3 class="rf-h3">Progress</h3><ol class="rf-tl">${steps.map(([t, d], i) => `<li class="${bad && i === 3 ? "bad" : i < done ? "ok" : i === done ? "cur" : ""}"><i>${bad && i === 3 ? icon("x", 12, 3.2) : i < done ? icon("check", 12, 3.2) : ""}</i><div><b>${bad && i === 3 ? (/withdr/i.test(st1) ? "Withdrawn" : "Not successful") : t}</b><p>${bad && i === 3 ? (/withdr/i.test(st1) ? "You withdrew this application." : "The agent chose another applicant. Don’t be discouraged, there are more homes.") : d}</p></div><span>${i === 0 ? esc(fmtDay(a.createdAt)) : ""}</span></li>`).join("")}</ol>`}
           <h3 class="rf-h3">Cost to move in</h3>${costRows(a.l, a.rent || a.l.price, ACTIVE(st1) ? "Total due on signing" : "Total if approved")}
-          <div class="rf-btns" style="margin-top:14px"><button class="btn" data-ma>${icon("msg", 18)} Message agent</button>${a.draft ? `<a class="btn primary" href="#/apply/${esc(a.listingId)}">${icon("edit", 18)} Continue</a>` : `<button class="btn primary" data-va>${icon("doc", 18)} View application</button>`}</div>
+          <div class="rf-btns" style="margin-top:14px"><button class="btn" data-ma>${icon("msg", 18)} Message agent</button>${a.draft ? `<a class="btn primary" href="#/apply/${esc(a.listingId)}">${icon("edit", 18)} Continue</a>` : `<button class="btn primary" data-va>${icon("doc", 18)} View application</button>${a._backend ? '<button class="btn" data-my-docs>Attached documents</button><button class="btn" data-my-history>Application history</button>' : ""}`}</div>
           ${a.draft ? `<button class="btn red-o block" style="margin-top:8px" data-dd>${icon("trash", 17)} Delete draft</button>` : /review|awaiting/i.test(st1) ? `<button class="btn red-o block" style="margin-top:8px" data-wd>${xicon("undo", 17)} Withdraw application</button>` : ACTIVE(st1) ? `<a class="btn primary block" style="margin-top:8px" href="#/payments">${icon("wallet", 18)} Go to payments</a>` : ""}`;
       };
       const wireDetail = (c, a, close) => {
         const ma = $("[data-ma]", c); if (ma) ma.onclick = async () => { try { const cid = await st.ensureConversation(ctx.S.user, a.l); close?.(); ctx.go("#/messages/" + cid); } catch (e) { toast(fxErr(e)); } };
+        const myDocs = $("[data-my-docs]", c); if (myDocs) myDocs.onclick = () => { const m = modal(`<div class="rf-dlg"><h2>Attached documents</h2><div id="app-private-documents">Loading…</div></div>`); loadApplicationDocuments(a, m.el, { $, esc, friendlyErr: fxErr, toast }); };
+        const history = $("[data-my-history]", c); if (history) history.onclick = () => { const m = modal(`<div class="rf-dlg"><h2>Application history</h2><div id="app-private-history">Loading…</div></div>`); loadApplicationHistory(a, m.el, { $, esc, friendlyErr: fxErr }); };
         const va = $("[data-va]", c); if (va) va.onclick = () => { const d = a.details || {}; close?.(); modal(`<div class="rf-dlg"><h2>Your application</h2><p class="rf-dlg-p">${esc(a.l.title)}</p><div class="rf-kv">${[["Name", d.name], ["Phone", d.phone], ["Move-in date", a.moveIn ? longDay(a.moveIn) : ""], ["Occupants", d.occupants], ["Employment", d.employment], ["Employer", d.employer], ["Monthly income", d.income], ["Current address", d.address || "Not provided"], ["ID document", d.idFile], ["Proof of income", d.incomeFile]].filter((r) => r[1]).map(([k, v2]) => `<div><span>${k}</span><b>${esc(v2)}</b></div>`).join("")}</div>${d.note ? `<p class="rf-dlg-p">“${esc(d.note)}”</p>` : ""}</div>`); };
-        const wd = $("[data-wd]", c); if (wd) wd.onclick = async () => { close?.(); if (!(await ask({ title: "Withdraw this application?", body: "The agent will see that you’ve withdrawn. You can apply again later.", ok: "Withdraw", tone: "danger" }))) return; try { await updateDoc(doc(db, "applications", a.id), { status: "Withdrawn", withdrawnAt: Date.now() }); a.status = "Withdrawn"; toast("Application withdrawn."); draw(); } catch (e) { toast(fxErr(e)); } };
+        const wd = $("[data-wd]", c); if (wd) wd.onclick = async () => { close?.(); if (!(await ask({ title: "Withdraw this application?", body: "The listing manager will see that you’ve withdrawn. You can apply again later.", ok: "Withdraw", tone: "danger" }))) return; try { await st.withdrawApplication(a); a.status = "Withdrawn"; toast("Application withdrawn."); draw(); } catch (e) { toast(fxErr(e)); } };
         const dd = $("[data-dd]", c); if (dd) dd.onclick = async () => { close?.(); if (!(await ask({ title: "Delete this draft?", body: "It’s only saved on this device.", ok: "Delete", tone: "danger" }))) return; try { localStorage.removeItem(DKEY(ctx.S.user, a.listingId)); } catch {} items.splice(items.indexOf(a), 1); sel = items[0] ? key(items[0]) : null; draw(); toast("Draft deleted."); };
       };
       const draw = () => {
