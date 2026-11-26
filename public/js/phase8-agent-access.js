@@ -55,12 +55,17 @@ export function agentAccessPage(ctx) {
         rows.innerHTML = items.length ? items.map((item) => {
           const owner = item.landlord_name || item.landlordName || item.landlord_email || item.landlordEmail || "Property owner";
           const agent = item.agent_name || item.agentName || item.agent_email || item.agentEmail || "Agent";
-          const other = role === "agent" ? owner : agent;
+          const ownerEmail = String(item.landlord_email || item.landlordEmail || "").toLowerCase();
+          const agentEmail = String(item.agent_email || item.agentEmail || "").toLowerCase();
+          const currentEmail = String(ctx.S.user?.email || "").toLowerCase();
+          const isInvitedAgent = !!currentEmail && currentEmail === agentEmail;
+          const isInvitingOwner = !!currentEmail && currentEmail === ownerEmail;
+          const other = `${owner} · ${agent}`;
           const id = item.id;
           const status = item.status;
           const actions = [
-            canAccept && status === "pending" ? '<button class="btn primary" type="button" data-accept>Accept invitation</button>' : "",
-            canInvite && ["pending", "accepted"].includes(status) ? '<button class="btn danger" type="button" data-revoke>Revoke access</button>' : ""
+            canAccept && isInvitedAgent && status === "pending" ? '<button class="btn primary" type="button" data-accept>Accept invitation</button>' : "",
+            canInvite && isInvitingOwner && ["pending", "accepted"].includes(status) ? '<button class="btn danger" type="button" data-revoke>Revoke access</button>' : ""
           ].filter(Boolean).join("");
           return `<article class="rf-card" data-authorisation-id="${esc(id)}" style="padding:16px;margin:10px 0;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
             <div style="min-width:0;flex:1"><b>${esc(other)}</b><div class="rf-muted">${esc(statusName(status))}</div><small class="rf-muted">Invited ${esc(date(item.invited_at || item.invitedAt))}${item.accepted_at || item.acceptedAt ? " · Accepted " + esc(date(item.accepted_at || item.acceptedAt)) : ""}</small></div>
