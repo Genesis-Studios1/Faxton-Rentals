@@ -100,9 +100,10 @@ export function offerDialog(ctx, l, done) {
 
 // ---- counter dialog (either side) ----
 function counterDialog(o, ctx, side, done) {
-  const ask = o.listPrice, mid = round10k((o.amount + (side === "owner" ? ask : o.amount)) / 2);
-  const m = modal(`<div class="of-dlg"><h2>${icon("refresh", 22)} Counter-offer</h2><p class="muted">Current offer ${naira(o.amount)} · asking ${naira(ask)}.</p>
-    <label class="rf-fl">Your counter (per year)<div class="of-in"><span>₦</span><input id="coAmt" inputmode="numeric" autocomplete="off" value="${mid.toLocaleString("en-NG")}"></div></label>
+  const ask = o._backend ? Math.round(o.amount * 1.5) : o.listPrice, mid = round10k((o.amount + ask) / 2);
+  const period = ({ daily: "day", weekly: "week", monthly: "month", yearly: "year" })[o.rentPeriod] || "year";
+  const m = modal(`<div class="of-dlg"><h2>${icon("refresh", 22)} Counter-offer</h2><p class="muted">Current offer ${naira(o.amount)} · ${o._backend ? "counter range up to" : "asking"} ${naira(ask)}.</p>
+    <label class="rf-fl">Your counter (per ${period})<div class="of-in"><span>₦</span><input id="coAmt" inputmode="numeric" autocomplete="off" value="${mid.toLocaleString("en-NG")}"></div></label>
     <label class="rf-fl">Message (optional)<textarea id="coNote" rows="2" maxlength="300"></textarea></label><p class="rf-err" id="coErr" role="alert"></p>
     <div class="rf-dlg-act"><button class="btn" type="button" id="coNo">Cancel</button><button class="btn primary" type="button" id="coGo">Send counter</button></div></div>`);
   const amt = $("#coAmt", m.el); amt.oninput = () => { const v = digits(amt.value); amt.value = v ? v.toLocaleString("en-NG") : ""; };
@@ -125,7 +126,8 @@ function card(o, me, isAdmin) {
   const iRenter = o.uid === me, iOwner = !iRenter && (o._backend || o.ownerUid === me || (!o.ownerUid && isAdmin));
   const myTurn = (iOwner && o.turn === "owner") || (iRenter && o.turn === "renter");
   const off = pctOff(o.listPrice, o.amount);
-  const state = o.status === "Accepted" ? `Agreed at ${naira(o.amount)} a year.` : o.status === "Declined" ? "The owner declined this offer." : o.status === "Withdrawn" ? "The renter withdrew this offer." : myTurn ? "It’s your turn to respond." : o.turn === "owner" ? "Waiting for the owner to reply." : "Waiting for the renter to reply.";
+  const period = ({ daily: "day", weekly: "week", monthly: "month", yearly: "year" })[o.rentPeriod] || "year";
+  const state = o.status === "Accepted" ? `Agreed at ${naira(o.amount)} per ${period}.` : o.status === "Expired" ? "This offer expired." : o.status === "Declined" ? "The recipient declined this offer." : o.status === "Withdrawn" ? "The sender withdrew this offer." : myTurn ? "It’s your turn to respond." : o.turn === "owner" ? "Waiting for the listing manager to reply." : "Waiting for the renter to reply.";
   const acts = [];
   if (isOpen(o)) {
     if (o._backend) {
