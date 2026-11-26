@@ -9,6 +9,7 @@ import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, li
 import { localDateTime, toBackendTourType, toViewingViewModel, toLocalViewingTime } from "./api-viewings-mapper.js";
 import { uploadBackendApplicationDocument, createBackendApplication, listBackendApplications, withdrawBackendApplication, decideBackendApplication, listBackendApplicationDocuments, getBackendApplicationDocumentUrl, listBackendApplicationEvents, createBackendOffer, listBackendApplicationOffers, respondBackendOffer, withdrawBackendOffer, getBackendOffer } from "./api-rentals.js";
 import { toBackendApplicationPayload, toBackendApplicationViewModel } from "./api-rental-mapper.js";
+import { createBackendTenancyAgreement, listBackendTenancyAgreements, getBackendTenancyAgreement, sendBackendTenancyAgreement, signBackendTenancyAgreement, createBackendRentalPaymentRequest, listBackendRentalPayments, getBackendRentalPayment } from "./api-tenancy.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -204,6 +205,16 @@ export const listRentalOffers = (applicationId) => listBackendApplicationOffers(
 export const respondRentalOffer = (offerId, action, terms, message) => respondBackendOffer(offerId, action, terms, message);
 export const withdrawRentalOffer = (offerId) => withdrawBackendOffer(offerId);
 export const getRentalOffer = (offerId) => getBackendOffer(offerId);
+
+// Provider-neutral tenancy workflows. These requests create records only; they do not collect or confirm money.
+export const createTenancyAgreement = (applicationId) => createBackendTenancyAgreement(applicationId);
+export const myTenancyAgreements = () => listBackendTenancyAgreements();
+export const getTenancyAgreement = (agreementId) => getBackendTenancyAgreement(agreementId);
+export const sendTenancyAgreement = (agreementId) => sendBackendTenancyAgreement(agreementId);
+export const signTenancyAgreement = (agreementId, typedName, consent) => signBackendTenancyAgreement(agreementId, typedName, consent);
+export const createRentalPaymentRequest = (agreementId, details) => createBackendRentalPaymentRequest(agreementId, details);
+export const myRentalPaymentRequests = () => listBackendRentalPayments();
+export const getRentalPaymentRequest = (paymentId) => getBackendRentalPayment(paymentId);
 
 // ---- documents (stored per user; files up to ~700 KB are kept in the document itself) ----
 export const myDocs = (u) => mine("documents", u);
