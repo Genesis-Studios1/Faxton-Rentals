@@ -6,13 +6,13 @@ import { APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY } from "./app-check-config.js";
 
 // Web app config. These values are public identifiers, not secrets; access is enforced by firestore.rules.
 const firebaseConfig = {
-  apiKey: "AIzaSyBraCvOGzGiEfmOZPmmi1ceVtkipJeATeE",
-  authDomain: "faxton-rentals.firebaseapp.com",
-  projectId: "faxton-rentals",
-  storageBucket: "faxton-rentals.firebasestorage.app",
-  messagingSenderId: "426381186757",
-  appId: "1:426381186757:web:d543f2b40df35a9dddc2ac",
-  measurementId: "G-05NYRRFD70",
+  apiKey: "AIzaSyCsF-Ww6ZJOKl9gkyy20kUI00NM6m3MNX4",
+  authDomain: "faxton-rentals-staging.firebaseapp.com",
+  projectId: "faxton-rentals-staging",
+  storageBucket: "faxton-rentals-staging.firebasestorage.app",
+  messagingSenderId: "287549889482",
+  appId: "1:287549889482:web:b6bfdcc9a588fe63b40d33",
+  measurementId: "G-CE28RPKWRT",
 };
 
 export const app = initializeApp(firebaseConfig);
