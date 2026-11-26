@@ -11,16 +11,17 @@ test("maps backend message notifications to the existing bell view model", () =>
   });
   assert.equal(result.kind, "message");
   assert.equal(result.read, false);
-  assert.equal(result.href, "/messages/22222222-2222-4222-8222-222222222222");
+  assert.equal(result.href, undefined);
   assert.equal(result.createdAt.seconds, 1795694400);
 });
-test("does not create a notification link from untrusted or malformed payload data", () => {
+test("keeps conversation identifiers as data until the backend chat screen is integrated", () => {
   const result = toNotificationViewModel({
     id: "11111111-1111-4111-8111-111111111111",
     type: "message_received", title: "New message", data: { conversationId: "javascript:alert(1)" },
     readAt: "2026-11-26T12:00:00.000Z", createdAt: "2026-11-26T12:00:00.000Z"
   });
   assert.equal(result.href, undefined);
+  assert.equal(result.data.conversationId, "javascript:alert(1)");
   assert.equal(result.read, true);
 });
 test("rejects malformed notification records", () => {
