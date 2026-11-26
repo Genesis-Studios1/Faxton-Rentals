@@ -93,7 +93,7 @@ const meGroups = () => {
   const dash = S.isAdmin ? ["/admin", "building", "Admin console"] : ROLE_UI[S.role] ? [ROLE_UI[S.role].home, "building", "My dashboard"] : null;
   return [
     [S.tenant ? ["/myhome", "home", "My home"] : ["/rentals", "folder", "My rentals"], ["/saved", "heart", "Saved homes", 1], ["/bookings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/agreements", "file-check", "Agreements"], ["/payments", "card", "Payments"], ["/documents", "doc", "Documents"]],
-    [["/match", "sparkle", "Smart Home Match"], ["/verification", "shield-check", "Verify account"], ["/support-cases", "life-buoy", "Help, reports & disputes"], ["/help", "headset", "Contact us", 1], ["/settings", "cog", "Settings"]],
+    [["/match", "sparkle", "Smart Home Match"], ...(apiConfigured() ? [["/verification", "shield-check", "Verify account"], ["/support-cases", "life-buoy", "Help, reports & disputes"]] : []), ["/help", "headset", "Contact us", 1], ["/settings", "cog", "Settings"]],
     [["/?to=app", "download", "Get the app"], ...(dash ? [dash] : [])],
   ];
 };
