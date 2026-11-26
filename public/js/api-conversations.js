@@ -14,7 +14,8 @@ export async function createBackendConversation(recipientUserId) {
 export async function listBackendMessages(conversationId, { limit = 50, offset = 0 } = {}) {
   if (!uuid(conversationId)) throw new TypeError("Invalid conversation.");
   const q = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-  return rows(await apiGet(`/v1/conversations/${encodeURIComponent(conversationId)}/messages?${q}`), "message");
+  const messages = rows(await apiGet(`/v1/conversations/${encodeURIComponent(conversationId)}/messages?${q}`), "message");
+  return messages.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
 }
 export async function sendBackendTextMessage(conversationId, body, attachmentUploadIds = []) {
   if (!uuid(conversationId) || !String(body || "").trim() || String(body).length > 10000 || !Array.isArray(attachmentUploadIds) || attachmentUploadIds.length > 5 || attachmentUploadIds.some((id) => !uuid(id)) || new Set(attachmentUploadIds).size !== attachmentUploadIds.length) throw new TypeError("Enter a message and check its attachments.");
