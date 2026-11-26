@@ -21,7 +21,7 @@ test("validates UUID identifiers and complete identity evidence", () => {
 test("requires evidence that matches the verification subject", () => {
   assert.throws(() => toVerificationSubmission({ subjectType: "identity", documents: [{ uploadId: uploadA, documentType: "government_id" }] }), /requires an ID and proof of address/);
   assert.throws(() => toVerificationSubmission({ subjectType: "business", documents: [{ uploadId: uploadA, documentType: "ownership_proof" }] }), /does not match/);
-  assert.throws(() => toVerificationSubmission({ subjectType: "property_ownership", propertyId, documents: [{ uploadId: uploadA, documentType: "ownership_proof" }] }).documents[0].documentType, /never/);
+  assert.equal(toVerificationSubmission({ subjectType: "property_ownership", propertyId, documents: [{ uploadId: uploadA, documentType: "ownership_proof" }] }).propertyId, propertyId);
 });
 
 test("rejects duplicate upload references and property IDs on identity requests", () => {
