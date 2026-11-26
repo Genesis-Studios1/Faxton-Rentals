@@ -105,6 +105,7 @@ export function tenancyPage(ctx) {
           const card = button.closest("article");
           card.querySelector("[data-request-form]")?.remove();
           form.dataset.requestForm = "";
+          form.dataset.idempotencyKey = key();
           form.style.cssText = "display:grid;gap:10px;margin-top:12px;max-width:420px";
           card.append(form);
           form.addEventListener("submit", async (event) => {
@@ -116,8 +117,9 @@ export function tenancyPage(ctx) {
             const dueAt = due ? new Date(due + "T12:00:00.000Z").toISOString() : null;
             const submit = form.querySelector("button[type=submit]");
             submit.disabled = true;
+            form.querySelectorAll("input, select").forEach((field) => { field.disabled = true; });
             try {
-              await st.createRentalPaymentRequest(id, { paymentType: data.get("type"), amountMinorUnits, dueAt, idempotencyKey: key() });
+              await st.createRentalPaymentRequest(id, { paymentType: data.get("type"), amountMinorUnits, dueAt, idempotencyKey: form.dataset.idempotencyKey });
               toast("Payment request created. No money has been collected.");
               await reload();
             } catch (error) { toast(error?.message || "Could not create payment request."); submit.disabled = false; }
