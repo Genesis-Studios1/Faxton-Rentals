@@ -2,6 +2,7 @@ import * as st from "./store.js";
 
 export function createApplicationOfferDialog(application, api, ui) {
   const { dialog, btn, $, esc, toast, friendlyErr } = ui;
+  const defaultPeriod = application.l?.listingMode === "shortlet" ? "daily" : "yearly";
   const d = dialog({
     title: "Create rental offer",
     size: "md",
@@ -9,7 +10,7 @@ export function createApplicationOfferDialog(application, api, ui) {
     body:
       '<p class="ax-p">Send proposed terms to ' + esc(application.name || "the applicant") + '. They can accept, decline or counter. No payment is collected here.</p>' +
       '<label class="ax-lbl" for="ro-rent">Rent amount</label><input class="ax-input" id="ro-rent" inputmode="numeric" value="' + String(Math.round(Number(application.rent) || 0)) + '">' +
-      '<label class="ax-lbl" for="ro-period" style="margin-top:10px">Rent period</label><select class="ax-input" id="ro-period"><option value="yearly">Yearly</option><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="daily">Daily</option></select>' +
+      '<label class="ax-lbl" for="ro-period" style="margin-top:10px">Rent period</label><select class="ax-input" id="ro-period"><option value="yearly" ' + (defaultPeriod === "yearly" ? "selected" : "") + '>Yearly</option><option value="monthly">Monthly</option><option value="weekly">Weekly</option><option value="daily" ' + (defaultPeriod === "daily" ? "selected" : "") + '>Daily</option></select>' +
       '<label class="ax-lbl" for="ro-deposit" style="margin-top:10px">Deposit amount</label><input class="ax-input" id="ro-deposit" inputmode="numeric" value="0">' +
       '<label class="ax-lbl" for="ro-lease" style="margin-top:10px">Lease length in months (optional)</label><input class="ax-input" id="ro-lease" type="number" min="1" max="120" placeholder="12">' +
       '<label class="ax-lbl" for="ro-move" style="margin-top:10px">Proposed move-in date (optional)</label><input class="ax-input" id="ro-move" type="date" value="' + esc(application.moveIn || "") + '">' +
