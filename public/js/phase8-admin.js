@@ -27,7 +27,7 @@ export function accountReviewPage(ctx) {
       <h1 class="rf-h1">Account review</h1>
       <p class="rf-sub">Review account status and see an audit trail of every suspension or reactivation. Each change requires a reason.</p>
       <section class="rf-card" style="padding:16px;margin:18px 0">
-        <form id="accountFilters" style="display:grid;grid-template-columns:minmax(180px,2fr) repeat(2,minmax(130px,1fr)) auto;gap:10px;align-items:end">
+        <form id="accountFilters" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end">
           <label style="display:grid;gap:6px">Search accounts<input class="ax-input" name="search" type="search" maxlength="120" placeholder="Name or email"></label>
           <label style="display:grid;gap:6px">Role<select class="ax-input" name="role"><option value="">All roles</option><option>renter</option><option>landlord</option><option>agent</option><option>agency</option><option>support</option><option>admin</option><option>owner</option></select></label>
           <label style="display:grid;gap:6px">Status<select class="ax-input" name="status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option></select></label>
