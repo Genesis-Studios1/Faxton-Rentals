@@ -10,7 +10,6 @@ import { localDateTime, toBackendTourType, toViewingViewModel, toLocalViewingTim
 import { uploadBackendApplicationDocument, createBackendApplication, listBackendApplications, withdrawBackendApplication, decideBackendApplication, listBackendApplicationDocuments, getBackendApplicationDocumentUrl, listBackendApplicationEvents, createBackendOffer, listBackendApplicationOffers, respondBackendOffer, withdrawBackendOffer, getBackendOffer } from "./api-rentals.js";
 import { toBackendApplicationPayload, toBackendApplicationViewModel } from "./api-rental-mapper.js";
 import { createBackendTenancyAgreement, listBackendTenancyAgreements, getBackendTenancyAgreement, sendBackendTenancyAgreement, signBackendTenancyAgreement, createBackendRentalPaymentRequest, listBackendRentalPayments, getBackendRentalPayment } from "./api-tenancy.js";
-import { createBackendTenancyAgreement, listBackendTenancyAgreements, getBackendTenancyAgreement, sendBackendTenancyAgreement, signBackendTenancyAgreement, createBackendRentalPaymentRequest, listBackendRentalPayments, getBackendRentalPayment } from "./api-tenancy.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
