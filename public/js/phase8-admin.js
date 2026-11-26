@@ -11,7 +11,8 @@ const date = (value) => {
 const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const statusPill = (status) => {
   const good = status === "active";
-  return `<span class="rf-pill ${good ? "ok" : "bad"}"><i></i>${good ? "Active" : "Suspended"}</span>`;
+  const closed = status === "closed";
+  return `<span class="rf-pill ${good ? "ok" : closed ? "bad" : "warn"}"><i></i>${closed ? "Closed" : good ? "Active" : "Suspended"}</span>`;
 };
 const message = (value) => String(value || "Something went wrong. Please try again.");
 
@@ -85,7 +86,7 @@ export function accountReviewPage(ctx) {
             const suspended = user.status === "suspended";
             return `<article class="rf-card" data-account-id="${esc(user.id)}" style="padding:14px;margin:8px 0;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
               <div style="min-width:0;flex:1"><b>${esc(name)}</b><div class="rf-muted" style="overflow-wrap:anywhere">${esc(user.email || "")}</div><small class="rf-muted">${esc(title(user.role))} · Joined ${esc(date(user.createdAt || user.created_at))} · Email ${user.emailVerified ? "verified" : "not verified"} · Phone ${user.phoneVerified ? "verified" : "not verified"}</small></div>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${statusPill(user.status)}<button type="button" class="btn ${suspended ? "" : "danger"}" data-account-action="${suspended ? "active" : "suspended"}">${suspended ? "Reactivate" : "Suspend"}</button></div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${statusPill(user.status)}<button type="button" class="btn ${suspended ? "" : "danger"}" data-account-action="${suspended ? "active" : "suspended"}" ${user.status === "closed" ? "disabled" : ""}>${suspended ? "Reactivate" : "Suspend"}</button></div>
             </article>`;
           }).join("") : '<article class="rf-card" style="padding:16px">No accounts match these filters.</article>';
           pageLabel.textContent = currentUsers.length ? `Showing ${offset + 1}–${offset + currentUsers.length}` : `No results on this page`;
