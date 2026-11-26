@@ -546,8 +546,12 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
     const known = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/unauthorized-domain", "auth/operation-not-allowed", "auth/too-many-requests", "auth/popup-blocked"];
     if (known.includes(e?.code)) throw e;
     const ms = Math.round(performance.now() - t0);
-    const probes = e?.code === "auth/network-request-failed" ? await probeGoogle() : "";
-    throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
+    // Do not make the person wait for diagnostic network probes before showing the sign-in error.
+    // Collect them in the background for support logs only; popup failure feedback stays immediate.
+    if (e?.code === "auth/network-request-failed") void probeGoogle().then((details) => {
+      console.info("[google-signin-network]", { elapsedMs: ms, details });
+    }).catch(() => {});
+    throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}` });
   }
   const was = S.justCreated; S.justCreated = null;
   await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
