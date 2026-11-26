@@ -48,7 +48,7 @@ export async function listBackendAdminProperties({ status = "", limit = 20, offs
   const query = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (status) query.set("status", status);
   const result = await apiGet(`/v1/admin/properties?${query.toString()}`);
-  return list(result, "admin property").map(toListingViewModel);
+  return list(result, "admin property").map((property) => ({ ...toListingViewModel(property), backendStatus: property.status }));
 }
 
 export async function setBackendAdminPropertyStatus(propertyId, status) {
@@ -57,5 +57,6 @@ export async function setBackendAdminPropertyStatus(propertyId, status) {
   }
   if (!["published", "paused", "archived"].includes(status)) throw new TypeError("Choose a supported property status.");
   const result = await apiPatch(`/v1/admin/properties/${encodeURIComponent(propertyId)}/status`, { status });
-  return toListingViewModel(record(result, "property status response"));
+  const property = record(result, "property status response");
+  return { ...toListingViewModel(property), backendStatus: property.status };
 }
