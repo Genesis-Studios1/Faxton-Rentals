@@ -178,3 +178,12 @@ Admins review cases through the existing Admin Console verification queue. The d
 The support page creates general support cases, property reports and rental disputes tied to the user's own rental application. Users can view their case history and reply while a case is open. Support staff can triage cases, change status/priority and record a reasoned resolution. No internal-note UI is exposed.
 
 Verification remains a manual review workflow, not a guarantee of identity, business legitimacy or legal ownership. Before production, add malware scanning, reviewer procedures, document retention/deletion rules and local data-protection/legal review. Failed submissions after a successful document upload may leave an unlinked private upload for later retention cleanup. These routes are not production-enabled until the backend migrations and staging deployment are reviewed.
+
+
+## Notifications and messaging API integration (draft)
+
+When the shared backend origin is configured, the notification bell reads the authenticated Neon notification feed and polls every 15 seconds. Individual notifications and the "mark all as read" action use the backend notification endpoints. The notification payload remains generic; conversation IDs are retained as data but are not deep-linked into the legacy chat screen.
+
+Push-device registration now reuses the shared backend origin instead of requiring a second API URL. Web push still requires a Firebase Web Push VAPID public key. Backend device registration requires the server-side `FCM_DEVICE_TOKEN_ENCRYPTION_KEY` (a base64-encoded 32-byte key) and Firebase Admin credentials. Do not put either secret in the frontend or commit them. The one-shot backend FCM worker is not scheduled by this app change; a reviewed Render cron configuration is still required before real push delivery.
+
+The backend conversation adapter supports direct-conversation creation, paged message reads, text sends, private message-attachment uploads, read markers and the backend's 15-minute message-edit window. The existing chat UI remains on Firestore for now because it also relies on legacy calls, typing/presence, reactions, pins, blocking and voice/media workflows that do not yet have backend parity. No partial cutover is performed; a later integration stage must migrate these capabilities and test call compatibility before switching the chat UI.

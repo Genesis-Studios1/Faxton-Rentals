@@ -8,7 +8,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndP
 import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
-import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchStaffConversations, watchProfile, watchNotifications, watchAllNotifications, markNotificationRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
+import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchStaffConversations, watchProfile, watchNotifications, watchAllNotifications, markNotificationRead, markAllNotificationsRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
 import * as V from "./views.js";
 import { startUpdateWatch, stopUpdateWatch, syncShellAutoUpdate } from "./apps.js";
 import { startTour, tourSeen, resetTour } from "./tour.js";
@@ -430,7 +430,7 @@ function drawNotes() {
     <a class="fxn-foot" href="#/messages">Open messages${S.unread ? ` <b class="num">${unreadTxt(S.unread)}</b>` : ""}</a>`;
   const open = (x) => { const n = list.find((m) => m.id === x.dataset.id); if (n && !n.read) { n.read = true; markRead(n); paintBell(); } if (x.dataset.href) { closeNotes(); go("#" + x.dataset.href); } else drawNotes(); };
   $$(".fxn-item", box).forEach((x) => { x.onclick = () => open(x); x.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(x); } }; });
-  const all = $("#npAll", box); if (all) all.onclick = () => { allNotes().filter((n) => !n.read).forEach((n) => { n.read = true; markRead(n); }); paintBell(); drawNotes(); };
+  const all = $("#npAll", box); if (all) all.onclick = () => { allNotes().filter((n) => !n.read).forEach((n) => { n.read = true; if (n.ev) markRead(n); else if (!apiConfigured()) markNotificationRead(n.id); }); if (apiConfigured()) markAllNotificationsRead(); paintBell(); drawNotes(); };
   const x = $("[data-npclose]", box); if (x) x.onclick = () => closeNotes();
   dragClose($(".fxn-grab", box), box, () => closeNotes());
 }

@@ -10,6 +10,7 @@ import { localDateTime, toBackendTourType, toViewingViewModel, toLocalViewingTim
 import { uploadBackendApplicationDocument, createBackendApplication, listBackendApplications, withdrawBackendApplication, decideBackendApplication, listBackendApplicationDocuments, getBackendApplicationDocumentUrl, listBackendApplicationEvents, createBackendOffer, listBackendApplicationOffers, respondBackendOffer, withdrawBackendOffer, getBackendOffer } from "./api-rentals.js";
 import { toBackendApplicationPayload, toBackendApplicationViewModel } from "./api-rental-mapper.js";
 import { createBackendTenancyAgreement, listBackendTenancyAgreements, getBackendTenancyAgreement, sendBackendTenancyAgreement, signBackendTenancyAgreement, createBackendRentalPaymentRequest, listBackendRentalPayments, getBackendRentalPayment } from "./api-tenancy.js";
+import { listBackendNotifications, markBackendNotificationRead, markAllBackendNotificationsRead } from "./api-notifications.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -321,10 +322,27 @@ export const verifyUser = async (uid, verification) => {
   try { const u = (await getDoc(doc(db, "users", uid))).data() || {}; await setDoc(doc(db, "profiles", uid), { name: u.agency?.business || u.name || "User", role: u.role || "", photo: u.photo || "", verified: verification.status === "verified", updatedAt: serverTimestamp() }, { merge: true }); pubCache.delete(uid); } catch {}
 };
 export const notify = (uid, n) => addDoc(collection(db, "notifications"), { uid, read: false, createdAt: serverTimestamp(), ...n });
-export const watchNotifications = (uid, cb) => onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid), where("read", "==", false)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
-export const watchAllNotifications = (uid, cb) => onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid)),
-  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 40)), () => {});
-export const markNotificationRead = (id) => updateDoc(doc(db, "notifications", id), { read: true }).catch(() => {});
+export const watchNotifications = (uid, cb) => {
+  if (!apiConfigured()) return onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid), where("read", "==", false)), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
+  let active = true;
+  const refresh = () => listBackendNotifications({ unreadOnly: true, limit: 40 }).then((rows) => { if (active) cb(rows); }).catch(() => {});
+  void refresh(); const timer = setInterval(refresh, 15000);
+  return () => { active = false; clearInterval(timer); };
+};
+export const watchAllNotifications = (uid, cb) => {
+  if (!apiConfigured()) return onSnapshot(query(collection(db, "notifications"), where("uid", "==", uid)),
+    (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)).slice(0, 40)), () => {});
+  let active = true;
+  const refresh = () => listBackendNotifications({ limit: 40 }).then((rows) => { if (active) cb(rows); }).catch(() => {});
+  void refresh(); const timer = setInterval(refresh, 15000);
+  return () => { active = false; clearInterval(timer); };
+};
+export const markNotificationRead = (id) => apiConfigured()
+  ? markBackendNotificationRead(id).catch(() => {})
+  : updateDoc(doc(db, "notifications", id), { read: true }).catch(() => {});
+export const markAllNotificationsRead = () => apiConfigured()
+  ? markAllBackendNotificationsRead().catch(() => {})
+  : Promise.resolve();
 export const watchPendingVerifications = (cb) => onSnapshot(query(collection(db, "users"), where("verification.status", "==", "pending")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), () => {});
 export const addSuggestion = (u, s) => addDoc(collection(db, "suggestions"), { ...s, uid: u.uid, name: u.displayName || u.email, email: u.email, status: "New", createdAt: serverTimestamp() });
 export const setDeletion = (uid, d) => updateDoc(doc(db, "users", uid), { deletion: d ? d : deleteField() });
