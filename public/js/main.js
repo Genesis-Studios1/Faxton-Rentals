@@ -330,9 +330,11 @@ async function syncBackendOnboarding(u) {
 }
 // A banned account is signed out straight away and told why.
 async function rejectIfBanned(u) {
-  try { await syncBackendOnboarding(u); } catch (error) { console.warn("Backend onboarding sync is pending.", error?.message || ""); }
+  // Profile access and ban enforcement are critical to sign-in; backend onboarding
+  // reconciliation is best-effort and must not hold the user at the loading screen.
   const p = await getProfile(u.uid);
   if (p?.banned) { S.bannedNote = true; try { await signOut(auth); } catch {} throw Object.assign(new Error("banned"), { code: "app/banned" }); }
+  syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
   return p;
 }
 async function signIn(email, pw, remember = true) {
@@ -599,7 +601,9 @@ async function refreshAuthState(u) {
   S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
-    try { await syncBackendOnboarding(u); } catch (error) { console.warn("Backend onboarding sync is pending.", error?.message || ""); }
+    // Reconcile the backend in the background. Firebase profile/ownership reads
+    // determine the initial UI and should not wait for a separate API round-trip.
+    syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
     [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
     if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
     S.bannedNote = false;
