@@ -167,3 +167,14 @@ The backend tenancy screen is available at `#/agreements` when the authenticated
 Managers can create provider-neutral rent, deposit or other payment requests after execution. The renter and payee can view the request status; the app does not mark a request paid, collect funds or call a payment provider. Amounts are sent as integer minor units (kobo for NGN). Paystack remains a later, separate release phase.
 
 The in-app acknowledgement is workflow evidence, not a representation that a typed-name record is legally enforceable in every jurisdiction. A locally reviewed tenancy agreement and appropriate legal formalities may still be required. Backend staging, legal review and migration approval remain prerequisites before setting the API origin in a release.
+
+
+## Verification, support cases and disputes (draft integration)
+
+When the authenticated backend origin is configured, the account menu exposes `#/verification` and `#/support-cases`. Identity submissions require a government ID and proof of address. Agency accounts can submit business registration evidence, and landlords/agencies can submit ownership evidence for one of their managed properties. Documents are uploaded through the private `verification-document` category; the API checks the upload owner, verified status and subject-specific document types before creating a case.
+
+Admins review cases through the existing Admin Console verification queue. The detail view uses short-lived signed URLs for private documents and records approve, reject or needs-resubmission decisions with a reason. The backend is authoritative for role checks and case transitions.
+
+The support page creates general support cases, property reports and rental disputes tied to the user's own rental application. Users can view their case history and reply while a case is open. Support staff can triage cases, change status/priority and record a reasoned resolution. No internal-note UI is exposed.
+
+Verification remains a manual review workflow, not a guarantee of identity, business legitimacy or legal ownership. Before production, add malware scanning, reviewer procedures, document retention/deletion rules and local data-protection/legal review. Failed submissions after a successful document upload may leave an unlinked private upload for later retention cleanup. These routes are not production-enabled until the backend migrations and staging deployment are reviewed.
