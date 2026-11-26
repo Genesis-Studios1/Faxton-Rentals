@@ -1,6 +1,7 @@
 import { apiGet, apiPost, apiPatch, apiRequest } from "./api-client.js";
+import { isBackendUuid, toVerificationSubmission, toSupportCasePayload } from "./api-verification-support-mapper.js";
 
-const uuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+const uuid = isBackendUuid;
 const record = (value, label) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`The backend returned an invalid ${label}.`);
   return value;
@@ -21,14 +22,8 @@ export async function uploadBackendVerificationDocument(file) {
   return { uploadId: result.uploadId, contentType: result.contentType, contentLength: result.contentLength };
 }
 
-export async function submitBackendVerification({ subjectType, propertyId, documents }) {
-  if (!["identity", "business", "property_ownership"].includes(subjectType) || !Array.isArray(documents) || !documents.length) throw new TypeError("Complete the verification form first.");
-  if (subjectType === "property_ownership" && !uuid(propertyId)) throw new TypeError("Choose one of your properties.");
-  const clean = documents.map((item) => {
-    if (!uuid(item.uploadId) || !["government_id", "proof_of_address", "business_registration", "business_address", "ownership_proof", "other_supporting"].includes(item.documentType)) throw new TypeError("A verification document is invalid.");
-    return { uploadId: item.uploadId, documentType: item.documentType };
-  });
-  return record(await apiPost("/v1/me/verifications", { subjectType, ...(propertyId ? { propertyId } : {}), documents: clean }), "verification case");
+export async function submitBackendVerification(input) {
+  return record(await apiPost("/v1/me/verifications", toVerificationSubmission(input)), "verification case");
 }
 export async function listBackendVerifications() {
   return rows(await apiGet("/v1/me/verifications"), "verification");
@@ -48,16 +43,7 @@ export async function reviewBackendVerification(caseId, { status, reason }) {
 }
 
 export async function createBackendSupportCase(input) {
-  const body = {
-    caseType: input.caseType, subject: String(input.subject || "").trim(),
-    description: String(input.description || "").trim(),
-    ...(input.propertyId ? { propertyId: input.propertyId } : {}),
-    ...(input.applicationId ? { applicationId: input.applicationId } : {})
-  };
-  if (!["support", "property_report", "rental_dispute"].includes(body.caseType) || body.subject.length < 5 || body.description.length < 10) throw new TypeError("Complete the support form.");
-  if (body.caseType === "property_report" && !uuid(body.propertyId)) throw new TypeError("Choose the property you want to report.");
-  if (body.caseType === "rental_dispute" && !uuid(body.applicationId)) throw new TypeError("Choose the rental application connected to this dispute.");
-  return record(await apiPost("/v1/support/cases", body), "support case");
+  return record(await apiPost("/v1/support/cases", toSupportCasePayload(input)), "support case");
 }
 export async function listBackendSupportCases({ limit = 50, offset = 0 } = {}) {
   const q = new URLSearchParams({ limit: String(limit), offset: String(offset) });
