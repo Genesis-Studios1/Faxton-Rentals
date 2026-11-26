@@ -50,7 +50,7 @@ export function toBackendApplicationViewModel(row, listing = {}, profile = {}, t
   const status = APP_STATUS[String(row.status || "").toLowerCase()];
   if (!status) throw new TypeError("The backend returned an unknown application status.");
   const details = {
-    phone: row.applicantPhone || "", address: row.currentAddress || "",
+    name: profile.name || profile.displayName || "Renter", phone: row.applicantPhone || "", address: row.currentAddress || "",
     occupants: String(row.occupantsCount ?? ""), employment: String(row.employmentStatus || "").replaceAll("_"," "),
     employer: row.employerName || "", job: row.jobTitle || "",
     income: INCOME_LABEL[row.incomeBand] || "", note: row.applicantNote || ""
