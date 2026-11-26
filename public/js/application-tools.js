@@ -53,11 +53,15 @@ export async function loadApplicationDocuments(application, root, ui) {
       '</small></div><button type="button" class="ax-btn sm" data-appdoc="' + esc(doc.id) + '">Open</button></div>'
     ).join("") : '<span class="ax-muted">No documents were attached.</span>';
     Array.from(host.querySelectorAll("[data-appdoc]")).forEach((button) => (button.onclick = async () => {
+      if (button.dataset.url) { window.open(button.dataset.url, "_blank", "noopener,noreferrer"); return; }
+      const tab = window.open("about:blank", "_blank");
+      if (tab) tab.opener = null;
       button.disabled = true;
       try {
         const url = await st.getApplicationDocumentUrl(application.id, button.dataset.appdoc);
-        window.open(url, "_blank", "noopener,noreferrer");
-      } catch (error) { toast(friendlyErr(error)); }
+        if (tab) tab.location.replace(url);
+        else { button.dataset.url = url; button.textContent = "Open secure document"; toast("Tap Open secure document again to view it."); }
+      } catch (error) { tab?.close(); toast(friendlyErr(error)); }
       finally { button.disabled = false; }
     }));
   } catch (error) { host.textContent = friendlyErr(error); }
