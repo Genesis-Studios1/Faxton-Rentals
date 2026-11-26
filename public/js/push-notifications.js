@@ -1,6 +1,7 @@
 import { deleteToken, getMessaging, getToken, isSupported, onMessage } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 import { app, auth } from "./firebase.js";
 import { PUSH_CONFIG } from "./push-config.js";
+import { API_CONFIG } from "./api-config.js";
 
 const DEVICE_KEY = "faxton_push_device_v1";
 const DEVICE_ID_KEY = "faxton_push_client_id_v1";
@@ -15,7 +16,8 @@ const nativeShell = () => {
   try { return !!window.Capacitor?.isNativePlatform?.(); } catch { return false; }
 };
 const nativePushEnabled = () => nativeShell() && navigator.userAgent.includes("FaxtonPushReady");
-const apiConfigured = () => !!PUSH_CONFIG.apiBaseUrl;
+const apiBaseUrl = () => { const raw = String(PUSH_CONFIG.apiBaseUrl || API_CONFIG.baseUrl || "").trim(); try { const u = new URL(raw); return u.protocol === "https:" && u.pathname === "/" && !u.search && !u.hash && !u.username && !u.password ? u.origin : ""; } catch { return ""; } };
+const apiConfigured = () => !!apiBaseUrl();
 const webConfigured = () => apiConfigured() && !!PUSH_CONFIG.vapidKey;
 const read = (key) => { try { return localStorage.getItem(key) || ""; } catch { return ""; } };
 const write = (key, value) => { try { value ? localStorage.setItem(key, value) : localStorage.removeItem(key); } catch {} };
@@ -31,7 +33,7 @@ const api = async (path, options = {}) => {
   const user = auth.currentUser;
   if (!user) throw new Error("Sign in is required.");
   const token = await user.getIdToken();
-  const response = await fetch(new URL(path, PUSH_CONFIG.apiBaseUrl), {
+  const response = await fetch(new URL(path, apiBaseUrl()), {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
