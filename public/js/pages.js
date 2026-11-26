@@ -129,7 +129,7 @@ export async function bookPage(ctx, id) {
 
 // ============================ apply to rent ============================
 const DKEY = (u, id) => `draft_${u.uid}_${id}`;
-const loadDraft = (u, id) => { try { return JSON.parse(localStorage.getItem(DKEY(u, id))) || {}; } catch { return {}; } };
+const loadDraft = (u, id) => { try { const draft = JSON.parse(localStorage.getItem(DKEY(u, id))) || {}; if (apiConfigured() && (draft.idDoc || draft.incomeDoc)) { delete draft.idDoc; delete draft.incomeDoc; localStorage.setItem(DKEY(u, id), JSON.stringify(draft)); } return draft; } catch { return {}; } };
 const localPhone = (p) => { let d = String(p || "").replace(/\D/g, ""); if (d.startsWith("234")) d = d.slice(3); if (d.startsWith("0")) d = d.slice(1); return d.replace(/^(\d{3})(\d{3})(\d{0,4}).*$/, (m, a, b, c) => [a, b, c].filter(Boolean).join(" ")) || d; };
 const readPdf = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); });
 export async function applyPage(ctx, id) {
@@ -149,6 +149,11 @@ export async function applyPage(ctx, id) {
       const imgTimer = imgs.length > 1 ? setInterval(() => { k = (k + 1) % imgs.length; const i = $("#apimg"); if (i) { i.src = imgs[k]; $("#apc").textContent = `${k + 1} / ${imgs.length}`; } }, 3500) : 0; ctx.S.cleanups.push(() => clearInterval(imgTimer));
       const save = (msg) => {
         const base = { ...D, _step: step, idFile: files.id, incomeFile: files.income };
+        if (apiConfigured()) {
+          try { localStorage.setItem(DKEY(u, id), JSON.stringify(base)); if (msg) toast("Draft saved. Reattach your documents before submitting."); }
+          catch { if (msg) toast("We couldn’t save the draft on this device."); }
+          return;
+        }
         try { localStorage.setItem(DKEY(u, id), JSON.stringify({ ...base, idDoc: blobs.id, incomeDoc: blobs.income })); if (msg) toast("Draft saved on this device."); }
         catch { try { localStorage.setItem(DKEY(u, id), JSON.stringify(base)); if (msg) toast("Draft saved. Attach your documents again before you submit."); } catch { if (msg) toast("We couldn’t save the draft on this device."); } }
       };
