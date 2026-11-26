@@ -158,3 +158,12 @@ apps**. Android sign-in details: `apps/mobile/ANDROID-GOOGLE-SIGNIN.md`. The app
 
 ### Backend profile integration
 When `API_CONFIG.baseUrl` is configured, signed-in profile reads and editable profile fields use the authenticated `/v1/me/profile` API, and settings updates use `/v1/me/settings`. Profile-image uploads use the private upload endpoint and then attach the verified upload to the authenticated profile. Saved properties and account deletion are not switched by this phase; those need dedicated backend endpoints before Firestore can be retired.
+
+
+## Tenancy agreements and payment requests (draft integration)
+
+The backend tenancy screen is available at `#/agreements` when the authenticated API origin is configured. A listing manager can prepare an agreement only after the application's offer has been accepted, review the immutable offer/property/party terms snapshot, and send it for acknowledgement. The named landlord and renter record their own typed-name acknowledgements against the same terms hash. My Home is activated from an executed backend agreement, not merely an approved application.
+
+Managers can create provider-neutral rent, deposit or other payment requests after execution. The renter and payee can view the request status; the app does not mark a request paid, collect funds or call a payment provider. Amounts are sent as integer minor units (kobo for NGN). Paystack remains a later, separate release phase.
+
+The in-app acknowledgement is workflow evidence, not a representation that a typed-name record is legally enforceable in every jurisdiction. A locally reviewed tenancy agreement and appropriate legal formalities may still be required. Backend staging, legal review and migration approval remain prerequisites before setting the API origin in a release.
