@@ -8,6 +8,7 @@ import * as st from "./store.js";
 import { apiConfigured } from "./api-client.js";
 import { createApplicationOfferDialog, loadApplicationDocuments, loadApplicationHistory } from "./application-tools.js";
 import * as VS from "./viewsafe.js";
+import * as PHASE6 from "./phase6.js";
 import * as SVC from "./services.js";
 import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
@@ -354,6 +355,7 @@ export function userDrawer(ctx, u, api) {
 const VF_PRESETS = ["Documents unclear", "Details do not match", "Not eligible"];
 const VF_CHECK = ["Name matches the account", "Registration or licence number provided", "Contact details look genuine"];
 export function verifications(ctx) {
+  if (apiConfigured()) return PHASE6.verificationAdminPage(ctx);
   return pageView(ctx, { title: "Verifications", eyebrow: "Marketplace", sub: "Agencies and agents waiting to be verified, plus account deletion requests.", cols: ["users"], what: "verifications",
     async render({ users: us }, { body }) {
       let tab = hq().q.tab || "waiting";
