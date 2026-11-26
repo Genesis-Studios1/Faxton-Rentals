@@ -187,3 +187,10 @@ When the shared backend origin is configured, the notification bell reads the au
 Push-device registration now reuses the shared backend origin instead of requiring a second API URL. Web push still requires a Firebase Web Push VAPID public key. Backend device registration requires the server-side `FCM_DEVICE_TOKEN_ENCRYPTION_KEY` (a base64-encoded 32-byte key) and Firebase Admin credentials. Do not put either secret in the frontend or commit them. The one-shot backend FCM worker is not scheduled by this app change; a reviewed Render cron configuration is still required before real push delivery.
 
 The backend conversation adapter supports direct-conversation creation, paged message reads, text sends, private message-attachment uploads, read markers and the backend's 15-minute message-edit window. The existing chat UI remains on Firestore for now because it also relies on legacy calls, typing/presence, reactions, pins, blocking and voice/media workflows that do not yet have backend parity. No partial cutover is performed; a later integration stage must migrate these capabilities and test call compatibility before switching the chat UI.
+
+
+## Backend property moderation (draft integration)
+
+The Admin Console adds `#/admin/property-review` for authenticated administrators when the backend API origin is configured. It reads the backend listing queue and supports the moderation actions currently exposed by the API: publish, pause and archive. The original Firestore Listings screen remains available and is not switched over by this page.
+
+The current backend property moderation endpoint does not accept a reason, create a property-moderation audit event, restore archived listings or return property media in the admin queue. The page states these limitations rather than implying the actions are audited. The backend property endpoints must be included in the deployed backend branch stack before this page is enabled in staging. No Firestore migration, production cutover or deployment is performed by this draft.
