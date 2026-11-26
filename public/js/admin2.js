@@ -45,6 +45,7 @@ export async function route(ctx, sub) {
     case "waitlist": return (await import("./waitlist.js")).page(ctx);
     case "listings": return listings(ctx);
     case "users": return (await import("./ax-sections.js")).usersPage(ctx);
+    case "account-review": return (await import("./phase8-admin.js")).accountReviewPage(ctx);
     case "agents": return (await import("./ax-sections.js")).agents(ctx);
     case "team": return (await import("./ax-sections.js")).team(ctx);
     case "feedback": return (await import("./ax-sections.js")).feedback(ctx);
