@@ -194,3 +194,8 @@ The backend conversation adapter supports direct-conversation creation, paged me
 The Admin Console adds `#/admin/property-review` for authenticated administrators when the backend API origin is configured. It reads the backend listing queue and supports the moderation actions currently exposed by the API: publish, pause and archive. The original Firestore Listings screen remains available and is not switched over by this page.
 
 The current backend property moderation endpoint does not accept a reason, create a property-moderation audit event, restore archived listings or return property media in the admin queue. The page states these limitations rather than implying the actions are audited. The backend property endpoints must be included in the deployed backend branch stack before this page is enabled in staging. No Firestore migration, production cutover or deployment is performed by this draft.
+
+
+### Landlord-agent access
+
+Landlords and agencies can invite an existing active agent or agency from **Agent access** in their portal. The invited account accepts the invitation from its own portal; the owner can revoke an active or pending authorisation. Only accepted authorisations allow an agent to create and manage listings on behalf of that owner. This screen requires the backend authorisation endpoints and does not replace the existing Firestore workflow while the backend API remains unconfigured.

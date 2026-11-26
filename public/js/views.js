@@ -71,6 +71,7 @@ export async function route(ctx) {
   if (path === "/myhome" || path.startsWith("/myhome/")) return MYHOME.myHomePage(ctx, path.split("/")[2] || "");
   if (path === "/tenants" || path.startsWith("/tenants/")) return TENANTS.tenantsPage(ctx, path.split("/")[2] || "maintenance");
   if (path === "/agreements") return TENANCY.tenancyPage(ctx);
+  if (path === "/agent-access") return (await import("./phase8-agent-access.js")).agentAccessPage(ctx);
   if (path === "/verification") return PHASE6.verificationPage(ctx);
   if (path === "/support-cases") return PHASE6.supportCasesPage(ctx);
   if (path === "/match") return MATCH.matchPage(ctx);
