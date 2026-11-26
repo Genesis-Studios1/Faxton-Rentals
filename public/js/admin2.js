@@ -46,6 +46,7 @@ export async function route(ctx, sub) {
     case "listings": return listings(ctx);
     case "users": return (await import("./ax-sections.js")).usersPage(ctx);
     case "account-review": return (await import("./phase8-admin.js")).accountReviewPage(ctx);
+    case "property-review": return (await import("./phase8-property-review.js")).propertyReviewPage(ctx);
     case "agents": return (await import("./ax-sections.js")).agents(ctx);
     case "team": return (await import("./ax-sections.js")).team(ctx);
     case "feedback": return (await import("./ax-sections.js")).feedback(ctx);
@@ -252,7 +253,8 @@ async function listingAct(ctx, l, act, api, b) {
   } catch (e) { bad(e); } finally { busy(b, false); }
 }
 export function listings(ctx) {
-  const actions = btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add" })
+  const actions = `<a class="btn" href="#/admin/property-review">Backend listing review</a>`
+    + btn("Add listing", { v: "primary", ic: "plus", attrs: "data-act=add" })
     + (ctx.S.isOwner ? btn("Require verification", { v: "outline", ic: "shield", attrs: "data-act=require-verification" }) : "");
   return pageView(ctx, { title: "Listings", eyebrow: "Marketplace", sub: "Review, approve and manage every listing on Faxton Rentals.", cols: ["listings"], what: "listings", actions,
     async render({ listings: ls }, { root, body }) {
