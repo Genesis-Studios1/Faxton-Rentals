@@ -26,7 +26,7 @@ export function toBackendApplicationPayload(listingId, details, moveIn, document
   const incomeBand = INCOME[details.income];
   const applicantPhone = String(details.phone || "").trim();
   const currentAddress = String(details.address || "").trim();
-  if (!/^[0-9a-f-]{36}$/i.test(String(listingId))) throw new TypeError("Invalid property identifier.");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(listingId))) throw new TypeError("Invalid property identifier.");
   if (applicantPhone.length < 7 || applicantPhone.length > 40) throw new TypeError("Enter a valid phone number.");
   if (currentAddress.length < 5 || currentAddress.length > 500) throw new TypeError("Enter your current residential address.");
   if (!Number.isInteger(occupantsCount) || occupantsCount < 1 || occupantsCount > 100) throw new TypeError("Choose a valid number of occupants.");
@@ -44,7 +44,7 @@ export function toBackendApplicationPayload(listingId, details, moveIn, document
   };
 }
 export function toBackendApplicationViewModel(row, listing = {}, profile = {}, total = 0) {
-  if (!row || !/^[0-9a-f-]{36}$/i.test(String(row.id)) || !/^[0-9a-f-]{36}$/i.test(String(row.propertyId))) {
+  if (!row || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(row.id)) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(row.propertyId))) {
     throw new TypeError("The backend returned an invalid rental application.");
   }
   const status = APP_STATUS[String(row.status || "").toLowerCase()];
