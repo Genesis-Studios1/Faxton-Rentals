@@ -8,7 +8,7 @@ const date = (value) => {
     ? parsed.toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })
     : "—";
 };
-const title = (value) => String(value || "").replaceAll("_", " ").replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const statusLabel = (status) => ({
   draft: "Draft", pending_review: "Pending review", published: "Published",
   paused: "Paused", archived: "Archived"
@@ -66,7 +66,7 @@ export function propertyReviewPage(ctx) {
       const limit = 20;
       const render = () => {
         rows.innerHTML = currentProperties.length ? currentProperties.map((property) => {
-          const status = property.status;
+          const status = property.backendStatus;
           const actions = status === "archived" ? "" : [
             ...(status !== "published" ? ['<button class="btn primary" type="button" data-property-action="published">Publish</button>'] : []),
             ...(status === "published" ? ['<button class="btn" type="button" data-property-action="paused">Pause</button>'] : []),
