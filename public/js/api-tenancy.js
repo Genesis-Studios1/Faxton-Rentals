@@ -56,9 +56,13 @@ export async function createBackendRentalPaymentRequest(agreementId, details) {
   if (idempotencyKey.length < 12 || idempotencyKey.length > 128) throw new TypeError("A valid request reference is required.");
   const dueAt = details?.dueAt || null;
   if (dueAt !== null && (typeof dueAt !== "string" || Number.isNaN(Date.parse(dueAt)))) throw new TypeError("Enter a valid due date.");
-  return payment(await apiPost(`/v1/tenancy-agreements/${encodeURIComponent(agreementId)}/payment-requests`, {
+  const result = await apiPost(`/v1/tenancy-agreements/${encodeURIComponent(agreementId)}/payment-requests`, {
     paymentType: type, amountMinorUnits: amount, dueAt, idempotencyKey
-  }));
+  });
+  if (!idOk(result?.id) || !["pending", "processing", "paid", "failed", "refunded", "reversed", "cancelled"].includes(result.status) || result.currency !== "NGN" && !/^[A-Z]{3}$/.test(String(result.currency || "")) || Number(result.amountMinorUnits) !== amount || result.paymentType !== type) {
+    throw new TypeError("The backend returned an invalid payment request confirmation.");
+  }
+  return result;
 }
 export async function listBackendRentalPayments() {
   return rows(await apiGet("/v1/me/rental-payments"), "rental payment").map(payment);
