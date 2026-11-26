@@ -152,7 +152,7 @@ function card(o, me, isAdmin) {
 
 async function backendOffersPage(ctx, rentalsNav) {
   const me = ctx.S.user.uid, isAdmin = ctx.S.isAdmin;
-  const ownerRole = ["landlord", "agency", "agent"].includes(ctx.S.role);
+  const ownerRole = ["landlord", "agency", "agent", "business"].includes(ctx.S.role);
   const manager = isAdmin || ownerRole;
   const html = '<div class="rf of-pg">' + (manager ? "" : rentalsNav("/offers")) +
     '<header class="rf-ph"><div><span class="rf-eyebrow">' + (manager ? "Rentals" : "My rentals") +
