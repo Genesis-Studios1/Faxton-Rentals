@@ -123,6 +123,28 @@ export async function listBackendAgentAuthorisations({ signal } = {}) {
   return data.filter((item) => item && item.status === "accepted" && typeof (item.landlordUserId || item.landlord_user_id) === "string");
 }
 
+export async function listBackendAgentAuthorisationHistory({ signal } = {}) {
+  const data = await apiGet("/v1/me/agent-authorisations", { signal });
+  if (!Array.isArray(data)) throw new TypeError("Faxton API returned invalid agent authorisations.");
+  return data;
+}
+
+export async function inviteBackendAgent(agentEmail, { signal } = {}) {
+  const email = String(agentEmail || "").trim();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) throw new TypeError("Enter a valid agent email address.");
+  return apiPost("/v1/me/agent-authorisations", { agentEmail: email }, { signal });
+}
+
+export async function acceptBackendAgentInvitation(authorisationId, { signal } = {}) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(authorisationId))) throw new TypeError("Invalid invitation identifier.");
+  return apiPost(`/v1/me/agent-authorisations/${encodeURIComponent(authorisationId)}/accept`, {}, { signal });
+}
+
+export async function revokeBackendAgentAuthorisation(authorisationId, { signal } = {}) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(authorisationId))) throw new TypeError("Invalid authorisation identifier.");
+  return apiDelete(`/v1/me/agent-authorisations/${encodeURIComponent(authorisationId)}`, { signal });
+}
+
 export async function submitBackendPropertyForReview(propertyId, { signal } = {}) {
   if (!/^[0-9a-f-]{36}$/i.test(String(propertyId))) throw new TypeError("Invalid property identifier.");
   const data = await apiPost(`/v1/me/properties/${encodeURIComponent(propertyId)}/submit`, {}, { signal });
