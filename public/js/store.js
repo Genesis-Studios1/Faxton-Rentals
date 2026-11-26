@@ -131,8 +131,8 @@ export const addViewing = async (user, l, when, slot, extra = {}) => {
 export const addApplication = async (user, l, moveIn, details = {}, extra = {}) => {
   if (apiConfigured()) {
     const documents = [];
-    if (details.idDoc) documents.push({ uploadId: await uploadBackendApplicationDocument(details.idDoc, details.idFile), documentType: "identity", displayName: details.idFile || "Identity document" });
-    if (details.incomeDoc) documents.push({ uploadId: await uploadBackendApplicationDocument(details.incomeDoc, details.incomeFile), documentType: "proof_of_income", displayName: details.incomeFile || "Proof of income" });
+    if (details.idDoc) documents.push({ uploadId: await uploadBackendApplicationDocument(details.idDoc, details.idFile), documentType: "identity", displayName: String(details.idFile || "Identity document").replace(/[\\/\\u0000-\\u001f]/g, "_").slice(0, 120) || "Identity document" });
+    if (details.incomeDoc) documents.push({ uploadId: await uploadBackendApplicationDocument(details.incomeDoc, details.incomeFile), documentType: "proof_of_income", displayName: String(details.incomeFile || "Proof of income").replace(/[\\/\\u0000-\\u001f]/g, "_").slice(0, 120) || "Proof of income" });
     const payload = toBackendApplicationPayload(l.id, details, moveIn, documents);
     return createBackendApplication(payload);
   }
