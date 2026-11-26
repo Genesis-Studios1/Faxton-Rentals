@@ -62,3 +62,30 @@ export async function loadApplicationDocuments(application, root, ui) {
     }));
   } catch (error) { host.textContent = friendlyErr(error); }
 }
+
+export async function loadApplicationHistory(application, root, ui) {
+  const { $, esc, friendlyErr } = ui;
+  const host = $("#app-private-history", root);
+  if (!host) return;
+  host.textContent = "Loading application history…";
+  try {
+    const events = await st.getApplicationEvents(application.id);
+    if (!events.length) { host.textContent = "No application history is available yet."; return; }
+    const labels = {
+      submitted: "Application submitted", shortlisted: "Application shortlisted",
+      approved: "Application approved", rejected: "Application rejected",
+      withdrawn: "Application withdrawn"
+    };
+    const date = (value) => {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? "Date unavailable" :
+        new Intl.DateTimeFormat("en-NG", { dateStyle: "medium", timeStyle: "short" }).format(parsed);
+    };
+    host.innerHTML = '<ol class="ax-timeline">' + events.map((event) => {
+      const title = labels[event.type] || String(event.type || "Application updated").replaceAll("_", " ");
+      const status = event.toStatus ? "Status: " + String(event.toStatus).replaceAll("_", " ") : "";
+      return '<li><b>' + esc(title) + '</b><small>' + esc(date(event.createdAt)) + '</small>' +
+        (status ? '<span>' + esc(status) + '</span>' : '') + '</li>';
+    }).join("") + '</ol>';
+  } catch (error) { host.textContent = friendlyErr(error); }
+}
