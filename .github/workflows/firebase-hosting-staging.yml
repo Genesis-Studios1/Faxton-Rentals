@@ -34,10 +34,15 @@ jobs:
       - name: Validate frontend
         run: |
           node --experimental-default-type=module --test tests/listing-media.test.mjs
-          node --experimental-default-type=module --check public/js/dash.js
-          node --experimental-default-type=module --check public/js/store.js
-          node --experimental-default-type=module --check public/js/api-config.js
+          # Parse every browser module, including authentication and startup code.
+          find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --experimental-default-type=module --check
           node scripts/check-waitlist-icons.mjs
+          # Fail closed if staging is accidentally pointed at production Firebase.
+          grep -q '"projectId": "faxton-rentals-staging"' public/js/firebase.js
+          if grep -q '"projectId": "faxton-rentals"' public/js/firebase.js; then
+            echo "::error::Staging frontend must not use the production Firebase project."
+            exit 1
+          fi
 
       - name: Require staging-only Firebase credentials
         env:
