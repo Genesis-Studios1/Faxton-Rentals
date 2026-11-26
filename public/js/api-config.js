@@ -1,5 +1,5 @@
-// Public API origin. Set this only after the Render staging service is configured.
-// This is an origin, not a secret; authentication uses short-lived Firebase ID tokens.
+// Staging-only API origin. Production's api-config.js remains unchanged.
+// Authentication uses short-lived Firebase ID tokens; this URL is not a secret.
 export const API_CONFIG = Object.freeze({
-  baseUrl: ""
+  baseUrl: "https://faxton-backend-staging-ibon.onrender.com"
 });
