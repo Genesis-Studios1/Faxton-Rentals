@@ -6,6 +6,8 @@ import { doc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebas
 import * as CALLS from "./calls.js";
 import * as st from "./store.js";
 import { friendlyErr } from "./ui.js";
+import { apiConfigured } from "./api-client.js";
+import * as PHASE6 from "./phase6.js";
 import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import * as A2 from "./admin2.js";
@@ -204,6 +206,7 @@ const isComplaint = (t) => !isRes(t) && /complain/i.test(`${t.subject || ""} ${t
 const TC_TABS = [["open", "Open", (t) => !isRes(t)], ["agent", "Needs agent", needsAgent], ["complaints", "Complaints", isComplaint], ["resolved", "Resolved", isRes], ["all", "All", () => true]];
 const shortDay = (t) => { const m = ms(t); return m ? new Date(m).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""; };
 export function ticketCenter(ctx) {
+  if (apiConfigured() && (ctx.S.isAdmin || ["support","owner","admin"].includes(ctx.S.role))) return PHASE6.supportAdminPage(ctx);
   const base = ctx.S.isAdmin ? "/admin/support" : "/support/tickets";
   return pageView(ctx, { title: "Ticket center", head: false, cols: ["tickets"], what: "the ticket center", skeleton: `<div class="ax-card ax-tc is-skel" aria-hidden="true">${AX.skeleton.rows(5)}</div>`,
     async render({ tickets }) {
