@@ -34,7 +34,7 @@ function apiUrl(path) {
 export async function apiRequest(path, options = {}) {
   const {
     method = "GET", body, headers = {}, authenticated = true,
-    signal, forceRefresh = false
+    signal, forceRefresh = false, unwrapData = true
   } = options;
   const requestHeaders = new Headers(headers);
   if (authenticated) {
@@ -79,7 +79,7 @@ export async function apiRequest(path, options = {}) {
     });
   }
   if (!payload || typeof payload !== "object") throw new ApiError("The backend returned an invalid response.", { status: response.status, code: "INVALID_RESPONSE" });
-  return Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
+  return unwrapData && Object.prototype.hasOwnProperty.call(payload, "data") ? payload.data : payload;
 }
 
 export const apiGet = (path, options = {}) => apiRequest(path, { ...options, method: "GET" });
