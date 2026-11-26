@@ -59,7 +59,7 @@ export async function createBackendRentalPaymentRequest(agreementId, details) {
   const result = await apiPost(`/v1/tenancy-agreements/${encodeURIComponent(agreementId)}/payment-requests`, {
     paymentType: type, amountMinorUnits: amount, dueAt, idempotencyKey
   });
-  if (!idOk(result?.id) || !["pending", "processing", "paid", "failed", "refunded", "reversed", "cancelled"].includes(result.status) || result.currency !== "NGN" && !/^[A-Z]{3}$/.test(String(result.currency || "")) || Number(result.amountMinorUnits) !== amount || result.paymentType !== type) {
+  if (!idOk(result?.id) || !["pending", "processing", "paid", "failed", "refunded", "reversed", "cancelled"].includes(result.status) || !/^[A-Z]{3}$/.test(String(result.currency || "")) || Number(result.amountMinorUnits) !== amount || result.paymentType !== type) {
     throw new TypeError("The backend returned an invalid payment request confirmation.");
   }
   return result;
