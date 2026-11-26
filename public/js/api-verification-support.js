@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch } from "./api-client.js";
+import { apiGet, apiPost, apiPatch, apiRequest } from "./api-client.js";
 
 const uuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 const record = (value, label) => {
@@ -70,7 +70,7 @@ export async function listBackendAdminSupportCases({ status, limit = 50, offset 
 }
 export async function getBackendSupportCase(caseId) {
   if (!uuid(caseId)) throw new TypeError("Invalid support case.");
-  return record(await apiGet(`/v1/support/cases/${encodeURIComponent(caseId)}`), "support case details");
+  return record(await apiRequest(`/v1/support/cases/${encodeURIComponent(caseId)}`, { method: "GET", unwrapData: false }), "support case details");
 }
 export async function listBackendSupportCaseEvents(caseId) {
   if (!uuid(caseId)) throw new TypeError("Invalid support case.");
