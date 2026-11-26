@@ -2,7 +2,7 @@ name: Validate admin alerts
 
 on:
   pull_request:
-    branches: [main, feature/web-push-notifications, feature/native-push-notifications, feature/backend-listing-form, feature/backend-property-browse, migration/backend-api-client, feature/backend-profile-settings, feature/backend-viewings-integration, feature/backend-applications-offers]
+    branches: [main, feature/web-push-notifications, feature/native-push-notifications, feature/backend-listing-form, feature/backend-property-browse, migration/backend-api-client, feature/backend-profile-settings, feature/backend-viewings-integration, feature/backend-applications-offers, feature/backend-tenancy-management]
     paths:
       - "public/js/**"
       - "apps/desktop/**"
@@ -32,6 +32,7 @@ on:
       - "tests/api-saved-properties.test.mjs"
       - "tests/api-viewings-mapper.test.mjs"
       - "tests/api-rental-mapper.test.mjs"
+      - "tests/api-tenancy-mapper.test.mjs"
       - "tests/listing-media.test.mjs"
       - "tests/area-security.test.mjs"
       - "tests/html-sanitizer-security.test.mjs"
@@ -59,6 +60,7 @@ jobs:
           node --experimental-default-type=module --test tests/api-properties.test.mjs
           node --experimental-default-type=module --test tests/api-viewings-mapper.test.mjs
           node --experimental-default-type=module --test tests/api-rental-mapper.test.mjs
+          node --experimental-default-type=module --test tests/api-tenancy-mapper.test.mjs
           node --experimental-default-type=module --test tests/area-security.test.mjs
           node --experimental-default-type=module --test tests/html-sanitizer-security.test.mjs
           node --check public/sw.js

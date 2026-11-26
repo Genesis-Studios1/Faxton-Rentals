@@ -6,6 +6,8 @@ import { collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapsh
 import { $, $$, esc, naira, icon, toast, modal } from "./ui.js";
 import { fxErr as friendlyErr, statusPill as fxPill, empty as fxEmpty, ask } from "./fx.js";
 import * as st from "./store.js";
+import { apiConfigured } from "./api-client.js";
+import { toTenancyAgreementViewModel } from "./api-tenancy-mapper.js";
 import { moveIn } from "./area.js";
 
 const safeDataImage = (v) => typeof v === "string" && /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) ? v : "";
@@ -22,6 +24,26 @@ const rel = (n) => (n < 0 ? `${-n} day${n === -1 ? "" : "s"} overdue` : n === 0 
 
 // ---- who is a tenant? ----
 export async function detectTenant(user) {
+  if (apiConfigured()) {
+    const [apps, rawAgreements] = await Promise.all([st.myApplications(user), st.myTenancyAgreements()]);
+    const agreements = rawAgreements.map(toTenancyAgreementViewModel).filter(Boolean);
+    const agreement = agreements.find((item) => item.status === "executed");
+    if (!agreement) return null;
+    const app = apps.find((item) => item.id === agreement.applicationId);
+    if (!app) return null;
+    const l = (await st.getListing(app.listingId).catch(() => null)) || {
+      id: app.listingId, title: agreement.propertyTitle, area: app.area || "",
+      city: "", images: [app.image].filter(Boolean), thumb: app.image || "",
+      price: agreement.rentAmount, service: 0, deposit: agreement.depositAmount,
+      agent: { name: agreement.landlordName || "Your landlord" }
+    };
+    const start = parse(agreement.moveInDate || app.moveIn) || new Date(new Date().toDateString());
+    const end = new Date(start);
+    if (agreement.leaseMonths) end.setMonth(end.getMonth() + agreement.leaseMonths);
+    else end.setFullYear(end.getFullYear() + 1);
+    end.setDate(end.getDate() - 1);
+    return { app, l, id: agreement.id, start, end, rent: agreement.rentAmount, ownerUid: l.ownerUid || null, agreement };
+  }
   const apps = await st.myApplications(user), app = apps.find((a) => ACTIVE(a.status));
   if (!app) return null;
   const l = (await st.getListing(app.listingId).catch(() => null)) || { id: app.listingId, title: app.title, area: app.area, city: "", images: [app.image], thumb: app.image, price: app.rent || 0, service: 0, deposit: 0, agent: { name: "Your landlord" } };
@@ -29,6 +51,11 @@ export async function detectTenant(user) {
   return { app, l, id: app.id, start, end, rent: app.rent || l.price, ownerUid: app.ownerUid || l.ownerUid || null };
 }
 async function ensureTenancy(user, t) {
+  if (apiConfigured()) return {
+    id: t.id, uid: user.uid, ownerUid: t.ownerUid, title: t.l.title, area: t.l.area,
+    rent: t.rent, service: +t.l.service || 0, deposit: +t.agreement?.depositAmount || +t.l.deposit || 0,
+    startDate: iso(t.start), endDate: iso(t.end), agreementId: t.agreement?.id || t.id
+  };
   const ref = doc(db, "tenancies", t.id), s = await getDoc(ref);
   if (s.exists()) return { ...s.data(), id: s.id };
   const d = { uid: user.uid, name: user.displayName || user.email || "Tenant", ownerUid: t.ownerUid, listingId: t.l.id, title: t.l.title, area: t.l.area, image: t.l.thumb || t.l.images?.[0] || "", rent: t.rent, service: +t.l.service || 0, deposit: +t.l.deposit || 0, startDate: iso(t.start), endDate: iso(t.end), createdAt: serverTimestamp() };
@@ -51,12 +78,44 @@ const KINDS = ["Rent", "Service charge", "Electricity", "Water", "Waste", "Inter
 const CATS = [["Plumbing", "drop"], ["Electrical", "bolt"], ["Appliance", "chip"], ["Structure", "building"], ["Security", "shield"], ["Pests", "info"], ["Other", "wrench"]];
 const MOVE_STEPS = [["notice", "Tell your landlord", "Send your notice below with your move-out date."], ["pay", "Settle rent and service charge", "Make sure nothing is outstanding."], ["meters", "Take final meter readings", "Electricity and water, with photos."], ["photos", "Photograph every room", "Shows the condition you are leaving it in."], ["keys", "Return keys and gate access", "Cards, fobs, remotes and keys."], ["refund", "Ask for your caution deposit back", "Use the button below once the inspection is done."], ["address", "Update your address", "Cancel utilities and set mail forwarding."]];
 
+function backendMyHomePage(ctx, tenancy) {
+  const agreement = tenancy.agreement;
+  const currency = agreement.currency || "NGN";
+  const money = (amount) => {
+    try { return new Intl.NumberFormat("en-NG", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(amount) || 0); }
+    catch { return `${currency} ${Number(amount) || 0}`; }
+  };
+  return {
+    title: "My Home",
+    html: `<div class="rf mh" style="max-width:1000px;margin:0 auto;padding:24px 16px">
+      <header class="mh-head"><img src="${esc(tenancy.l.thumb || tenancy.l.images?.[0] || "")}" alt=""><div><span class="rf-pill ok"><i></i>Executed agreement</span><h1 class="rf-h1">${esc(tenancy.l.title)}</h1><p class="loc">${icon("pin",16)} ${esc(tenancy.l.area || "")}</p></div></header>
+      <div class="rf-card" style="padding:18px;margin:16px 0"><h2>Tenancy overview</h2><div class="rf-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px"><div><small>Rent</small><b style="display:block">${money(agreement.rentAmount)} / ${esc(agreement.rentPeriod)}</b></div><div><small>Deposit</small><b style="display:block">${money(agreement.depositAmount)}</b></div><div><small>Move-in date</small><b style="display:block">${esc(agreement.moveInDate || "Not set")}</b></div><div><small>Lease length</small><b style="display:block">${agreement.leaseMonths ? agreement.leaseMonths + " months" : "As agreed"}</b></div></div><p style="margin:14px 0 0"><a class="btn primary" href="#/agreements">View agreement and payment requests</a> <a class="btn" href="#/messages">Message landlord</a></p></div>
+      <div id="backendMyHomePayments"></div>
+      <p class="rf-muted" style="font-size:12px;margin-top:16px">This dashboard shows records from your executed agreement. Maintenance, renewal and move-out tools will be connected to the backend in a later stage.</p>
+    </div>`,
+    async mount(root) {
+      const host = $("#backendMyHomePayments", root);
+      host.textContent = "Loading payment requests…";
+      try {
+        const rows = await st.myRentalPaymentRequests();
+        const mine = rows.filter((row) => row.agreementId === agreement.id);
+        host.innerHTML = '<section><h2>Recent payment requests</h2>' + (mine.length ? mine.map((row) => {
+          const value = Number(row.amountMinorUnits) / 100;
+          const amount = money(value);
+          return '<article class="rf-card" style="padding:14px;margin:10px 0;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><b>' + esc(row.paymentType || "Rental payment") + ' · ' + esc(amount) + '</b><span class="rf-pill ' + (row.status === "paid" ? "ok" : "warn") + '"><i></i>' + esc(row.status) + '</span></article>';
+        }).join("") : '<div class="rf-card" style="padding:16px">No payment requests have been issued for this tenancy.</div>') + '</section>';
+      } catch { host.textContent = "Payment requests could not be loaded. Visit Agreements to retry."; }
+    }
+  };
+}
+
 // ---- the page ----
 export async function myHomePage(ctx, tab = "") {
   const user = ctx.S.user;
   let T = ctx.S.tenant || (await detectTenant(user).catch(() => null));
-  if (!T) return { title: "My Home", html: `<div class="rf"><div class="rf-card">${fxEmpty({ ic: "home", title: "You don’t have an active tenancy yet", hint: "When an application is approved, My Home opens here with rent reminders, maintenance requests and more.", action: `<div class="rf-btns"><a class="btn primary" href="#/search">Find a home</a><a class="btn" href="#/applications">My applications</a></div>` })}</div></div>` };
+  if (!T) return { title: "My Home", html: `<div class="rf"><div class="rf-card">${fxEmpty({ ic: "home", title: "You don’t have an active tenancy yet", hint: "When an application is approved, My Home opens here with rent reminders, maintenance requests and more.", action: `<div class="rf-btns"><a class="btn primary" href="#/search">Find a home</a><a class="btn" href="#/applications">My applications</a><a class="btn" href="#/agreements">Agreements</a></div>` })}</div></div>` };
   ctx.S.tenant = T;
+  if (apiConfigured() && T.agreement) return backendMyHomePage(ctx, T);
   let TN; try { TN = await ensureTenancy(user, T); } catch (e) { TN = { id: T.id, uid: user.uid, ownerUid: T.ownerUid, title: T.l.title, area: T.l.area, rent: T.rent, service: +T.l.service || 0, deposit: +T.l.deposit || 0, startDate: iso(T.start), endDate: iso(T.end), offline: true }; }
   const tabOk = TABS.some((x) => x[0] === tab) ? tab : "";
   return { title: "My Home", html: `<div class="rf mh"><div class="mh-head"><img src="${esc(T.l.thumb || T.l.images?.[0])}" alt=""><div><span class="rf-pill ok"><i></i>Active tenancy</span><h1 class="rf-h1">${esc(T.l.title)}</h1><p class="loc">${icon("pin", 16)} ${esc(T.l.area)}${T.l.city && !String(T.l.area).includes(T.l.city) ? ", " + esc(T.l.city) : ""}</p></div><div class="mh-hact"><button class="btn primary" id="mhChat">${icon("msg", 18)} Message landlord</button></div></div>

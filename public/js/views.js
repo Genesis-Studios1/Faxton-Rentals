@@ -20,6 +20,7 @@ import * as MYHOME from "./myhome.js";
 import * as LOCK from "./applock.js";
 import * as MYDATA from "./mydata.js";
 import * as TENANTS from "./tenants.js";
+import * as TENANCY from "./tenancy.js";
 import * as VS from "./viewsafe.js";
 import * as HOME from "./home.js";
 import * as RC from "./receipts.js";
@@ -68,6 +69,7 @@ export async function route(ctx) {
   if (path === "/bookings") return bookings(ctx);
   if (path === "/myhome" || path.startsWith("/myhome/")) return MYHOME.myHomePage(ctx, path.split("/")[2] || "");
   if (path === "/tenants" || path.startsWith("/tenants/")) return TENANTS.tenantsPage(ctx, path.split("/")[2] || "maintenance");
+  if (path === "/agreements") return TENANCY.tenancyPage(ctx);
   if (path === "/match") return MATCH.matchPage(ctx);
   if (path === "/services") return SVC.servicesPage(ctx);
   if (path === "/offers") return OFFERS.offersPage(ctx, PG.rentalsNav);
