@@ -376,7 +376,7 @@ export function setupPage(ctx) {
       back.hidden = current === 0;
       next.innerHTML = `${current === panels.length - 1 ? "Finish setup" : "Continue"} ${icon("arrow",19,1.8)}`;
       say("");
-      root.querySelector(".obp-card").scrollIntoView?.({ block: "start", behavior: "smooth" });
+      root.querySelector(".obp-card")?.scrollIntoView?.({ block: "start", behavior: "smooth" });
     };
     const validatePanel = () => {
       const active = panelsEls[current];
