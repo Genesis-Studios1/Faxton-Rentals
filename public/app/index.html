@@ -107,9 +107,9 @@
   #splash.leave{clip-path:circle(0% at 50% 44%);opacity:0;pointer-events:none}
   #splash.leave .sp-center{transform:translateX(-50%) scale(.8);opacity:0;transition:transform .7s cubic-bezier(.6,0,.4,1),opacity .6s}
   html.no-splash #splash{display:none}
-  #splash .sp-art{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;object-position:50% 100%;background:#01100c}
-  #splash .sp-fb{pointer-events:none;opacity:0;transform:translateY(3%);animation:spArt 1.6s .25s cubic-bezier(.2,.8,.2,1) forwards}
-  @keyframes spArt{to{opacity:1;transform:none}}
+  #splash .sp-art,#splash .sp-lines{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;object-position:50% 100%;background:#01100c}
+  #splash .sp-lines{clip-path:inset(0 100% 0 0);animation:spLineDraw 2.15s .15s cubic-bezier(.45,.05,.25,1) forwards}
+  @keyframes spLineDraw{to{clip-path:inset(0)}}
   #splash .sp-center{position:absolute;left:50%;top:21%;transform:translateX(-50%);display:grid;justify-items:center;text-align:center;width:max-content}
   #splash .sp-mark{display:block;width:clamp(84px,8vw,140px);height:auto;overflow:visible}
   #splash .sp-mark path{fill:transparent;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;opacity:1;animation:spDraw 1.15s cubic-bezier(.45,.05,.25,1) forwards,spLogoFill .45s 1.15s ease-out forwards}
@@ -139,7 +139,7 @@
   @keyframes spFill{to{transform:scaleX(1)}}
   @media (max-aspect-ratio:1/1){
     #splash{background:radial-gradient(70% 26% at 50% 24%,#04704a 0%,#02452f 45%,#01100c 100%)}
-    #splash .sp-art{inset:auto 0 0 0;height:calc(100vw * 941 / 1672);-webkit-mask-image:linear-gradient(180deg,transparent 42%,#000 50%);mask-image:linear-gradient(180deg,transparent 42%,#000 50%)}
+    #splash .sp-art,#splash .sp-lines{inset:auto 0 0 0;height:calc(100vw * 941 / 1672);-webkit-mask-image:linear-gradient(180deg,transparent 42%,#000 50%);mask-image:linear-gradient(180deg,transparent 42%,#000 50%)}
     #splash .sp-center{top:22%}
   }
   @media (prefers-reduced-motion:reduce){#splash *,#splash{animation-duration:.01s!important;animation-delay:0s!important;transition-duration:.2s!important}#splash .sp-bar i{transform:scaleX(1)}#splash .sp-cap span:nth-child(1){display:none}#splash .sp-cap span:nth-child(2){opacity:1}}
@@ -147,7 +147,8 @@
 </head>
 <body>
 <div id="splash" role="status" aria-label="Loading Faxton Rentals">
-  <img class="sp-art sp-fb" src="img/splash-final.webp" alt="" aria-hidden="true">
+  <img class="sp-art" src="img/splash-base.webp" alt="" aria-hidden="true">
+  <img class="sp-lines" src="img/splash-lines.webp" alt="" aria-hidden="true">
   <div class="sp-center">
     <svg class="sp-mark" viewBox="570 235 415 355" aria-hidden="true">
       <path class="sp-f" pathLength="1" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/>
