@@ -1,5 +1,5 @@
 import * as st from "./store.js";
-import { $, esc, icon, naira } from "./ui.js";
+import { $, esc, icon } from "./ui.js";
 import { statusPill } from "./fx.js";
 import { listingCard, bindCards } from "./cards.js";
 
@@ -14,15 +14,22 @@ const isOpenViewing = (v) => !/cancel|declin|complete/i.test(String(v.status || 
 const firstName = (ctx) => String(ctx.S.profile?.name || ctx.S.user?.displayName || "there").trim().split(/\s+/)[0];
 
 export async function renterDashboard(ctx) {
-  const [appsResult, viewingsResult, listingsResult] = await Promise.allSettled([
+  if (ctx.S.role !== "renter" && !ctx.S.tenant) {
+    ctx.go("#" + (ctx.dashHome() || "/"));
+    return { title: "Renter dashboard", html: "" };
+  }
+  const [appsResult, viewingsResult, listingsResult, savedResult] = await Promise.allSettled([
     st.myApplications(ctx.S.user),
     st.myViewings(ctx.S.user),
-    st.getListings()
+    st.getListings(),
+    st.getSaved(ctx.S.user)
   ]);
   const apps = appsResult.status === "fulfilled" ? appsResult.value : [];
   const viewings = viewingsResult.status === "fulfilled" ? viewingsResult.value : [];
   const listings = listingsResult.status === "fulfilled" ? listingsResult.value : [];
-  const savedIds = ctx.S.saved instanceof Set ? [...ctx.S.saved] : [];
+  const savedSet = savedResult.status === "fulfilled" ? new Set(savedResult.value || []) : (ctx.S.saved instanceof Set ? ctx.S.saved : new Set());
+  if (savedResult.status === "fulfilled") ctx.S.saved = savedSet;
+  const savedIds = [...savedSet];
   const saved = listings.filter((listing) => savedIds.includes(listing.id)).slice(0, 3);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const upcoming = viewings.filter((v) => isOpenViewing(v) && dateValue(v.when) >= today.getTime()).sort((a, b) => dateValue(a.when) - dateValue(b.when));
@@ -33,7 +40,7 @@ export async function renterDashboard(ctx) {
   const metric = (label, value, note, ic) => `<article class="rd-stat"><span class="rd-stat-ic">${icon(ic, 20)}</span><div><small>${label}</small><b>${value}</b><p>${note}</p></div></article>`;
   const appRows = activeApps.slice(0, 4).map((a) => `<a class="rd-row" href="#/applications"><img src="${esc(a.image || "img/palm-court.webp")}" alt="" loading="lazy"><span class="rd-row-main"><b>${esc(a.title || "Rental property")}</b><small>${esc(a.area || "Location not listed")} · Applied ${esc(appliedLabel(a.createdAt))}</small></span>${statusPill(a.status || "Submitted")}</a>`).join("");
   const viewingRows = upcoming.slice(0, 3).map((v) => `<a class="rd-row" href="#/bookings"><span class="rd-row-ic">${icon("cal", 20)}</span><span class="rd-row-main"><b>${esc(v.title || "Property viewing")}</b><small>${esc(dateLabel(v.when))} · ${esc(v.slot || "Time to be confirmed")}</small></span>${statusPill(v.status || "Requested")}</a>`).join("");
-  const savedRows = saved.map((l) => listingCard(l, ctx.S.saved, { i: 0 })).join("");
+  const savedRows = saved.map((l) => listingCard(l, savedSet, { i: 0 })).join("");
   const failed = [
     appsResult.status === "rejected" ? "applications" : "",
     viewingsResult.status === "rejected" ? "viewings" : "",
@@ -42,10 +49,10 @@ export async function renterDashboard(ctx) {
   const html = `<div class="wrap rd">
     <header class="rd-head"><div><span class="rd-eyebrow">Your rental space</span><h1>Welcome back, ${esc(firstName(ctx))}</h1><p>Keep track of your applications, viewings and saved homes.</p></div><a class="btn primary" href="#/search">${icon("search", 17)} Find a home</a></header>
     <section class="rd-stats" aria-label="Rental activity">
-      ${metric("Applications", activeApps.length, activeApps.length ? "Your active applications" : "Start with a home you love", "file-text")}
-      ${metric("Upcoming viewings", upcoming.length, nextViewing ? `Next: ${dateLabel(nextViewing.when)}` : "No viewings scheduled", "calendar")}
+      ${metric("Applications", activeApps.length, activeApps.length ? "Your active applications" : "Start with a home you love", "doc")}
+      ${metric("Upcoming viewings", upcoming.length, nextViewing ? `Next: ${dateLabel(nextViewing.when)}` : "No viewings scheduled", "cal")}
       ${metric("Saved homes", savedIds.length, savedIds.length ? "Homes on your shortlist" : "Save homes to compare later", "heart")}
-      ${metric("Approved", approved.length, approved.length ? "Application approved" : "No approvals yet", "check-circle")}
+      ${metric("Approved", approved.length, approved.length ? "Application approved" : "No approvals yet", "check")}
     </section>
     ${failed.length ? `<div class="rd-alert" role="status">Some information couldn’t load (${esc(failed.join(", "))}). Other sections are still available. <button type="button" id="rdRetry">Try again</button></div>` : ""}
     <section class="rd-grid">
