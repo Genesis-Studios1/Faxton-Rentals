@@ -6,6 +6,9 @@ import { GOOGLE, EMAIL_RE, authErr, strength, fieldHtml, fieldError } from "./au
 import { ROLE_INFO, detailsFields, residenceFields, checkDetails, verifyPopup, resizePhoto, askResidence, mountResidence } from "./onboard.js";
 import { saveProfile } from "./store.js";
 import { resFields } from "./loc.js";
+import { apiConfigured } from "./api-client.js";
+import { submitBackendOnboarding } from "./api-onboarding.js";
+import { toBackendOnboardingPayload } from "./api-onboarding-mapper.js";
 
 const ROLES = ["renter", "landlord", "agency", "agent"];
 const ROLE_ICON = { renter: "search", landlord: "home", agency: "building", agent: "handshake" };
@@ -441,11 +444,29 @@ export function setupPage(ctx) {
       }
       next.disabled = true; next.classList.add("loading"); next.textContent = "Saving your details…";
       try {
-        await saveProfile(ctx.S.user.uid, patch);
-        ctx.S.profile = { ...(ctx.S.profile || {}), ...patch };
+        if (apiConfigured()) {
+          // The backend has a dedicated, validated onboarding endpoint. The generic
+          // profile PATCH intentionally rejects role changes and onboarding payloads.
+          const details = role === "agency" ? patch.agency : role === "agent" ? patch.agentInfo : role === "landlord" ? patch.homeownerInfo : patch.tenantInfo;
+          const location = [details?.city, details?.state].filter(Boolean).join(", ");
+          const legacy = {
+            role,
+            name: profile.name || ctx.S.user?.displayName || "",
+            phone,
+            location,
+            ...(role === "agency" ? { agency: patch.agency } : {}),
+            ...(role === "agent" ? { agentInfo: patch.agentInfo } : {})
+          };
+          const payload = toBackendOnboardingPayload(legacy, ctx.S.user || {});
+          await submitBackendOnboarding(payload);
+        } else {
+          await saveProfile(ctx.S.user.uid, patch);
+        }
+        ctx.S.profile = { ...(ctx.S.profile || {}), ...patch, role, onboarding: { completed: true, step: current, draft: {} } };
         ctx.go("#" + (ctx.dashHome?.() || "/"));
       } catch (e) {
-        say(e?.code === "permission-denied" ? "We couldn't save your details because the account permissions need updating. Please try again shortly." : "We couldn't save your details. Check your connection and try again.");
+        console.error("Faxton setup submission failed:", e);
+        say(e?.message || (e?.code === "permission-denied" ? "We couldn't save your details because the account permissions need updating. Please try again shortly." : "We couldn't save your details. Check your connection and try again."));
       } finally { next.disabled = false; next.classList.remove("loading"); showStep(current); }
     };
     showStep(current);
