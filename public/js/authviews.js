@@ -439,7 +439,7 @@ export function setupPage(ctx) {
         const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { showStep(0); say("Enter a valid date of birth."); $("#dob", form)?.focus(); return; }
         patch.homeownerInfo = { phone, dob: v.dob, propertyType: v.propertyType, address: String(v.propertyAddress || "").trim(), city: String(v.propertyCity || "").trim(), state: String(v.propertyState || "").trim(), bedrooms: v.bedrooms, bathrooms: v.bathrooms, size: String(v.propertySize || "").trim(), features: v.propertyFeature || [], rent: Number(v.monthlyRent), leaseDuration: v.leaseDuration, tenantPreference: v.tenantPreference || "", notes: String(v.ownerNotes || "").trim() };
       } else {
-        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); showStep(0); $("#dob", form)?.focus(); return; }
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { showStep(0); say("Enter a valid date of birth."); $("#dob", form)?.focus(); return; }
         patch.tenantInfo = { phone, dob: v.dob, address: String(v.tenantAddress || "").trim(), city: String(v.tenantCity || "").trim(), state: String(v.tenantState || "").trim(), propertyType: v.propertyType, bedrooms: v.bedrooms, budget: Number(v.budget), preferredAreas: String(v.preferredAreas || "").trim(), amenities: v.tenantAmenity || [], employment: v.employment || "", moveIn: v.moveIn || "", notes: String(v.tenantNotes || "").trim() };
       }
       next.disabled = true; next.classList.add("loading"); next.textContent = "Saving your details…";
