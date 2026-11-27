@@ -612,13 +612,13 @@ async function refreshAuthState(u) {
     // Reconcile the backend in the background. Firebase profile/ownership reads
     // determine the initial UI and should not wait for a separate API round-trip.
     syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
-    [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
+    [S.profile, S.ownerUid] = await Promise.all([getDoc(doc(db, "users", u.uid)).then((snapshot) => snapshot.exists() ? snapshot.data() : null).catch(() => null), getOwnerUid()]);
     if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
     S.bannedNote = false;
     // Keep my public card (name, photo, role, about) up to date for the people who tap my picture.
     { const pr = S.profile || {}; if (pr.name || u.displayName) syncPublic(u.uid, { name: (pr.role === "agency" && pr.agency?.business) || pr.name || u.displayName || "User", photo: pr.photo || "", role: pr.role || "renter", city: pr.city || "", country: pr.country || "", website: pr.agency?.website || "" }); }
     if (S.profile?.deletion?.status === "approved" && Date.now() >= (S.profile.deletion.requestedAt || 0) + 864e5) return finalizeDeletion(u);
-    if (!S.profile) { try { await ensureProfile(u); S.profile = await getProfile(u.uid); } catch { /* rules refused; leave signed in without a profile */ } }
+    if (!S.profile) { try { S.profile = await ensureProfile(u); } catch { /* rules refused; leave signed in without a profile */ } }
     // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
     if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
       // emailVerified lets the admin Users list show unverified sign-ups as Pending; it is written only when it changes.
@@ -636,7 +636,7 @@ async function refreshAuthState(u) {
     S.unsubNotes?.(); S.unsubNotes = watchAllNotifications(u.uid, (list) => { S.notes = list; paintBell(); list.filter((n) => !n.read).forEach((n) => { if (S.shownNotes.has(n.id)) return; S.shownNotes.add(n.id); showNotification(n); }); if ($("#notePanel")) drawNotes(); });
     // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
     if (!S.ownerUid && u.emailVerified) {
-      try { await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = await getProfile(u.uid); toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
+      try { S.profile ||= await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = { ...S.profile, role: "owner" }; toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
     }
     S.isOwner = S.ownerUid === u.uid;
     S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
