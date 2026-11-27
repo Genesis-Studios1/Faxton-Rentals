@@ -627,6 +627,11 @@ function agencyPortfolio(ctx, { ls, apps, views, offers, maint }) {
   const ranked = [...ls].sort((a, b) => countFor(b.id) - countFor(a.id)).slice(0, 8);
   const rows = ranked.map((l) => `<tr data-id="${esc(l.id)}"><td data-role="title" data-label="Listing"><div class="ax-id">${thumb(thumbOf(l), 32)}<div><b>${esc(l.title)}</b><small>${esc([l.area, l.city].filter(Boolean).join(", "))}</small></div></div></td><td data-label="Enquiries" class="al-right num">${countFor(l.id)}</td><td data-label="Status">${isPendingL(l) ? chipFor("listing", "pending") : l.archived ? chipFor("listing", "archived") : chipFor("listing", isActive(l) ? "available" : "occupied")}</td><td data-role="actions" class="al-right">${btn("Manage", { size: "sm", href: "#/home/" + encodeURIComponent(l.id) })}</td></tr>`);
   const recent = [...apps].sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 5);
+  const portfolioTable = miniTable([["Listing"], ["Enquiries", "al-right"], ["Status"], [""]], rows,
+    empty({ icon: "building", title: "No agency listings yet", hint: "Add a property to start building your agency portfolio.", action: btn("Add property", { v: "primary", ic: "plus", attrs: "data-add" }) }));
+  const recentApplications = recent.length
+    ? `<ul class="ax-chats">${recent.map((a) => `<li>${avatar(a.name, a.uid, 32)}<div><b>${esc(a.name || "Applicant")}</b><small>${esc(a.title || "Property enquiry")}</small></div>${chipFor("application", a.status || "Under review")}</li>`).join("")}</ul>`
+    : empty({ icon: "doc", title: "No applications yet" });
   const html = `${verifyBanner(ctx, needsV, vst, true)}
     <div class="ax-attns" style="grid-template-columns:repeat(4,minmax(0,1fr))" data-t="att">
       ${attn({ label: "Listings awaiting review", count: pending.length, href: "/agency", icon: "doc" })}
@@ -642,8 +647,8 @@ function agencyPortfolio(ctx, { ls, apps, views, offers, maint }) {
     </div>
     <div class="ax-grid"><div class="ax-c8">${card("Enquiry performance", "Weekly applications and viewing requests", barChart([{ name: "Enquiries", data: enquirySeries }], weekly.map((x) => x.label)))}</div>
       <div class="ax-c4">${card("Agency pipeline", "Current activity across your portfolio", `<div class="ax-pipe"><div><b>${apps.length}</b><span>Applications</span></div><div><b>${views.length}</b><span>Viewings</span></div><div><b>${awaitingOffers.length}</b><span>Open offers</span></div></div>`)}</div></div>
-    <div class="ax-grid"><div class="ax-c8" data-t="props">${card("Portfolio performance", "Listings ranked by incoming interest", miniTable([["Listing"], ["Enquiries", "al-right"], ["Status"], [""]], rows, empty({ icon: "building", title: "No agency listings yet", hint: "Add a property to start building your agency portfolio.", action: btn("Add property", { v: "primary", ic: "plus", attrs: "data-add" }) }), { pad: false })}</div>
-      <div class="ax-c4">${card("Latest applications", "Most recent enquiries", recent.length ? `<ul class="ax-chats">${recent.map((a) => `<li>${avatar(a.name, a.uid, 32)}<div><b>${esc(a.name || "Applicant")}</b><small>${esc(a.title || "Property enquiry")}</small></div>${chipFor("application", a.status || "Under review")}</li>`).join("")}</ul>` : empty({ icon: "doc", title: "No applications yet" }), { pad: false })}</div></div>
+    <div class="ax-grid"><div class="ax-c8" data-t="props">${card("Portfolio performance", "Listings ranked by incoming interest", portfolioTable, { pad: false })}</div>
+      <div class="ax-c4">${card("Latest applications", "Most recent enquiries", recentApplications, { pad: false })}</div></div>
     <div class="ax-grid"><div class="ax-c12" data-t="views">${card("Viewing requests", "Review and respond to prospects", viewReqTable([...views].sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 8), empty({ icon: "calDots", title: "No viewing requests yet" })), { pad: false })}</div></div>`;
   return { html, mount(root) { locHandler(ctx, ls, root); wireViews(root, views, () => ctx.render()); } };
 }
