@@ -294,24 +294,36 @@ function wire() {
 async function ensureProfile(u, extra = {}) {
   const ref = doc(db, "users", u.uid);
   const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    let role = extra.role || "renter";
-    const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
-    // Business, agent and home-owner accounts start in manual verification review. Account type is never promoted by client-side onboarding.
-    if (role === "agency") {
-      if (extra.details) d.agency = extra.details;
-      d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
-    } else if (role === "agent") {
-      if (extra.details) d.agentInfo = extra.details;
-      d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
-    } else if (role === "landlord") {
-      d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
-    }
-    d.role = role; if (extra.photo) d.photo = extra.photo;
-    const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
-    if (res?.country) Object.assign(d, resFields(res));
-    await setDoc(ref, d); S.justCreated = role;
+  if (snap.exists()) return snap.data();
+  let role = extra.role || "renter";
+  const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
+  // Business, agent and home-owner accounts start in manual verification review. Account type is never promoted by client-side onboarding.
+  if (role === "agency") {
+    if (extra.details) d.agency = extra.details;
+    d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
+  } else if (role === "agent") {
+    if (extra.details) d.agentInfo = extra.details;
+    d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
+  } else if (role === "landlord") {
+    d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
   }
+  d.role = role; if (extra.photo) d.photo = extra.photo;
+  const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
+  if (res?.country) Object.assign(d, resFields(res));
+  await setDoc(ref, d); S.justCreated = role;
+  return d;
+}
+// Ban status remains enforced against the rules-protected Firebase user record.
+// Backend profile responses intentionally omit moderation fields.
+async function rejectIfBanned(u, legacyProfile) {
+  const profile = legacyProfile || await getProfile(u.uid);
+  if (profile?.banned) {
+    S.bannedNote = true;
+    try { await signOut(auth); } catch {}
+    throw Object.assign(new Error("banned"), { code: "app/banned" });
+  }
+  syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
+  return profile;
 }
 // Copy the legacy, rules-protected account choice into the backend after Firebase email verification.
 const backendOnboardingSyncs = new Map();
@@ -345,7 +357,8 @@ async function signIn(email, pw, remember = true) {
     // Firebase hides whether an email exists (on purpose), so a wrong password and a missing account look the same. Say so honestly instead of guessing.
     throw e;
   }
-  const p = await rejectIfBanned(c.user);
+  const legacyProfile = await getDoc(doc(db, "users", c.user.uid)).then((snapshot) => snapshot.exists() ? snapshot.data() : null);
+  const p = await rejectIfBanned(c.user, legacyProfile);
   return p?.role || "renter";
 }
 async function signUp(name, email, pw, role, details, photo, residence) {
@@ -537,7 +550,7 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
       if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
       throw Object.assign(new Error(e?.message), { code: `firebase/${code}${window.__csp ? " | " + window.__csp : ""}` });
     }
-    const was = S.justCreated; S.justCreated = null; await ensureProfile(c.user, { role: chosen, details, residence, photo }); const p = await rejectIfBanned(c.user); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
+    const was = S.justCreated; S.justCreated = null; const legacyProfile = await ensureProfile(c.user, { role: chosen, details, residence, photo }); const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
   }
   const t0 = performance.now();
   let c;
@@ -554,8 +567,8 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}` });
   }
   const was = S.justCreated; S.justCreated = null;
-  await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
-  const p = await rejectIfBanned(c.user); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
+  const legacyProfile = await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
+  const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
   return p?.role || "renter";
 }
 // Proves the signed-in person still controls their Google account (used by "Download my data"). In the Android / iPhone app the native Google
