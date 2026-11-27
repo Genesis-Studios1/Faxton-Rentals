@@ -297,7 +297,7 @@ async function ensureProfile(u, extra = {}) {
   // Firebase can fire onAuthStateChanged before signUp() reaches its explicit
   // ensureProfile call. Reuse the pending signup intent so that first profile
   // creation cannot silently default a selected non-renter role to renter.
-  const intent = extra?.role ? extra : (pendingSignupProfileIntent || extra);
+  const intent = extra?.role ? extra : (pendingSignupProfileIntent || pendingGoogleProfileIntent || extra);
   const existing = profileEnsureInFlight.get(u.uid);
   if (existing) return existing;
 
