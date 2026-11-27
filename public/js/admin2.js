@@ -185,7 +185,6 @@ async function addListingDialog(ctx, ls, list) {
       <strong>Property photos and video</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Upload up to 30 photos (10 MB each), plus one MP4 or WebM video longer than 1 minute 30 seconds (up to 250 MB).</small>
       <label class="ax-lbl" for="nlPhotoFiles">Upload photos</label><input class="ax-input" type="file" id="nlPhotoFiles" accept="image/jpeg,image/png,image/webp" multiple>
       <label class="ax-lbl" for="nlVideoFile" style="margin-top:10px">Upload one property video</label><input class="ax-input" type="file" id="nlVideoFile" accept="video/mp4,video/webm">
-      <label class="ax-lbl" for="nlPhotoLinks" style="margin-top:10px">Photo links (one per line)</label><textarea class="ax-input" name="im" id="nlPhotoLinks" rows="2" placeholder="https://…"></textarea>
       <p class="ax-muted" id="nlUploadStatus" aria-live="polite"></p>
     </div>
     <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
