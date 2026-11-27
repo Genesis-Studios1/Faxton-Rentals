@@ -534,9 +534,10 @@ async function nativeGoogleToken() {
   if (aud && aud !== GOOGLE_WEB_CLIENT_ID) throw Object.assign(new Error("Google token audience " + aud), { code: "google/audience", gcode: "G-AUD" });
   return { idToken, accessToken: r.credential.accessToken };
 }
+let pendingGoogleProfileIntent = null;
 async function signInGoogle(chosen = "renter", details, residence, photo) {
-  // Make the selected signup role available to the auth-state listener before the popup resolves.
-  const googleProfileIntent = { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo };
+  // Share the selected role with the auth-state listener while Firebase finishes signing in.
+  pendingGoogleProfileIntent = { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo };
   if (inAppShell()) {
     const { idToken, accessToken } = await nativeGoogleToken();
     let c;
@@ -547,12 +548,13 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
       if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
       throw Object.assign(new Error(e?.message), { code: `firebase/${code}${window.__csp ? " | " + window.__csp : ""}` });
     }
-    const was = S.justCreated; S.justCreated = null; const legacyProfile = await ensureProfile(c.user, googleProfileIntent); const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
+    const was = S.justCreated; S.justCreated = null; const legacyProfile = await ensureProfile(c.user, pendingGoogleProfileIntent || {}); const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
   }
   const t0 = performance.now();
   let c;
   try { c = await signInWithPopup(auth, google); }
   catch (e) {
+    pendingGoogleProfileIntent = null;
     const known = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/unauthorized-domain", "auth/operation-not-allowed", "auth/too-many-requests", "auth/popup-blocked"];
     if (known.includes(e?.code)) throw e;
     const ms = Math.round(performance.now() - t0);
@@ -626,7 +628,7 @@ async function refreshAuthState(u) {
     // Keep my public card (name, photo, role, about) up to date for the people who tap my picture.
     { const pr = S.profile || {}; if (pr.name || u.displayName) syncPublic(u.uid, { name: (pr.role === "agency" && pr.agency?.business) || pr.name || u.displayName || "User", photo: pr.photo || "", role: pr.role || "renter", city: pr.city || "", country: pr.country || "", website: pr.agency?.website || "" }); }
     if (S.profile?.deletion?.status === "approved" && Date.now() >= (S.profile.deletion.requestedAt || 0) + 864e5) return finalizeDeletion(u);
-    if (!S.profile) { try { S.profile = await ensureProfile(u, u.providerData.some((x) => x.providerId === "google.com") ? (googleProfileIntent || {}) : {}); } catch { /* rules refused; leave signed in without a profile */ } }
+    if (!S.profile) { try { S.profile = await ensureProfile(u, u.providerData.some((x) => x.providerId === "google.com") ? (pendingGoogleProfileIntent || {}) : {}); } catch { /* rules refused; leave signed in without a profile */ } }
     // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
     if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
       // emailVerified lets the admin Users list show unverified sign-ups as Pending; it is written only when it changes.
@@ -645,6 +647,7 @@ async function refreshAuthState(u) {
     S.isOwner = false;
     S.role = S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
     S.isAdmin = S.role === "admin";
+    if (u?.providerData?.some((x) => x.providerId === "google.com")) pendingGoogleProfileIntent = null;
     // Owner lookup and first-owner claiming are not required to paint the signed-in app.
     // Resolve them after the initial profile is ready, then refresh role-gated UI if needed.
     void ownerLookup.then(async (ownerUid) => {
