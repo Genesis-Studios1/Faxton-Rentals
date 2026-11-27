@@ -1,6 +1,6 @@
 import * as st from "./store.js";
 import { $, esc, icon, naira } from "./ui.js";
-import { statusPill, fmtDay } from "./fx.js";
+import { statusPill } from "./fx.js";
 import { listingCard, bindCards } from "./cards.js";
 
 const dateValue = (value) => {
@@ -8,6 +8,7 @@ const dateValue = (value) => {
   const d = new Date(String(value).slice(0, 10) + "T00:00:00");
   return Number.isNaN(d.getTime()) ? 0 : d.getTime();
 };
+const appliedLabel = (value) => { const ms = value?.seconds ? value.seconds * 1000 : value?.toMillis ? value.toMillis() : typeof value === "number" ? value : Date.parse(value || ""); return Number.isFinite(ms) && ms > 0 ? new Date(ms).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "recently"; };
 const dateLabel = (value) => value ? new Date(String(value).slice(0, 10) + "T00:00:00").toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "Date not set";
 const isOpenViewing = (v) => !/cancel|declin|complete/i.test(String(v.status || ""));
 const firstName = (ctx) => String(ctx.S.profile?.name || ctx.S.user?.displayName || "there").trim().split(/\s+/)[0];
@@ -30,8 +31,8 @@ export async function renterDashboard(ctx) {
   const nextViewing = upcoming[0];
   const tenancy = ctx.S.tenant;
   const metric = (label, value, note, ic) => `<article class="rd-stat"><span class="rd-stat-ic">${icon(ic, 20)}</span><div><small>${label}</small><b>${value}</b><p>${note}</p></div></article>`;
-  const appRows = activeApps.slice(0, 4).map((a) => `<a class="rd-row" href="#/applications"><img src="${esc(a.image || "img/palm-court.webp")}" alt="" loading="lazy"><span class="rd-row-main"><b>${esc(a.title || "Rental property")}</b><small>${esc(a.area || "Location not listed")} · Applied ${esc(fmtDay(a.createdAt))}</small></span>${statusPill(a.status || "Submitted")}</a>`).join("");
-  const viewingRows = upcoming.slice(0, 3).map((v) => `<a class="rd-row" href="#/bookings"><span class="rd-row-ic">${icon("calendar", 20)}</span><span class="rd-row-main"><b>${esc(v.title || "Property viewing")}</b><small>${esc(dateLabel(v.when))} · ${esc(v.slot || "Time to be confirmed")}</small></span>${statusPill(v.status || "Requested")}</a>`).join("");
+  const appRows = activeApps.slice(0, 4).map((a) => `<a class="rd-row" href="#/applications"><img src="${esc(a.image || "img/palm-court.webp")}" alt="" loading="lazy"><span class="rd-row-main"><b>${esc(a.title || "Rental property")}</b><small>${esc(a.area || "Location not listed")} · Applied ${esc(appliedLabel(a.createdAt))}</small></span>${statusPill(a.status || "Submitted")}</a>`).join("");
+  const viewingRows = upcoming.slice(0, 3).map((v) => `<a class="rd-row" href="#/bookings"><span class="rd-row-ic">${icon("cal", 20)}</span><span class="rd-row-main"><b>${esc(v.title || "Property viewing")}</b><small>${esc(dateLabel(v.when))} · ${esc(v.slot || "Time to be confirmed")}</small></span>${statusPill(v.status || "Requested")}</a>`).join("");
   const savedRows = saved.map((l) => listingCard(l, ctx.S.saved, { i: 0 })).join("");
   const failed = [
     appsResult.status === "rejected" ? "applications" : "",
@@ -49,10 +50,10 @@ export async function renterDashboard(ctx) {
     ${failed.length ? `<div class="rd-alert" role="status">Some information couldn’t load (${esc(failed.join(", "))}). Other sections are still available. <button type="button" id="rdRetry">Try again</button></div>` : ""}
     <section class="rd-grid">
       <article class="rd-panel"><div class="rd-panel-head"><div><h2>My applications</h2><p>Updates from properties you’ve applied for.</p></div><a href="#/applications">View all ${icon("arrow", 15)}</a></div>
-        ${appRows || `<div class="rd-empty">${icon("file-text", 25)}<b>No applications yet</b><p>When you apply for a property, its progress will appear here.</p><a class="btn sm" href="#/search">Browse homes</a></div>`}
+        ${appRows || `<div class="rd-empty">${icon("doc", 25)}<b>No applications yet</b><p>When you apply for a property, its progress will appear here.</p><a class="btn sm" href="#/search">Browse homes</a></div>`}
       </article>
       <article class="rd-panel"><div class="rd-panel-head"><div><h2>Upcoming viewings</h2><p>Your scheduled property visits.</p></div><a href="#/bookings">View all ${icon("arrow", 15)}</a></div>
-        ${viewingRows || `<div class="rd-empty">${icon("calendar", 25)}<b>No upcoming viewings</b><p>Book a viewing from any property you’re interested in.</p><a class="btn sm" href="#/search">Find a home</a></div>`}
+        ${viewingRows || `<div class="rd-empty">${icon("cal", 25)}<b>No upcoming viewings</b><p>Book a viewing from any property you’re interested in.</p><a class="btn sm" href="#/search">Find a home</a></div>`}
       </article>
       <article class="rd-panel rd-wide"><div class="rd-panel-head"><div><h2>Saved homes</h2><p>Your shortlist for the next move.</p></div><a href="#/saved">View all ${icon("arrow", 15)}</a></div>
         ${savedRows ? `<div class="hx-grid rd-saved-grid" id="rdSaved">${savedRows}</div>` : `<div class="rd-empty">${icon("heart", 25)}<b>No saved homes yet</b><p>Tap the heart on a listing to keep it on your shortlist.</p><a class="btn sm" href="#/search">Explore homes</a></div>`}
