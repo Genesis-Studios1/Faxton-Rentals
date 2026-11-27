@@ -459,6 +459,14 @@ export function setupPage(ctx) {
           };
           const payload = toBackendOnboardingPayload(legacy, ctx.S.user || {});
           await submitBackendOnboarding(payload);
+          // Keep the legacy Firebase profile in sync with the backend role so the
+          // auth listener and setup guard see completion after a reload.
+          const onboarding = { completed: true, step: current, draft: {} };
+          const roleDetails = role === "agency" ? { agency: patch.agency }
+            : role === "agent" ? { agentInfo: patch.agentInfo }
+              : role === "landlord" ? { homeownerInfo: patch.homeownerInfo }
+                : { tenantInfo: patch.tenantInfo };
+          await saveProfile(ctx.S.user.uid, { role, onboarding, ...roleDetails });
         } else {
           await saveProfile(ctx.S.user.uid, patch);
         }
