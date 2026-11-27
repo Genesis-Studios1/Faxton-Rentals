@@ -325,7 +325,6 @@ export function addProperty(ctx, done) {
       <span>Property videos</span>
       <p class="ax-muted np-help">Upload one MP4 or WebM video (up to 250 MB). It must be longer than 1 minute 30 seconds.</p>
       <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm">
-      <label class="ax-field"><span>Video links (one per line)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
     </div>
     <div class="ax-field full np-upload-status" id="npUploadStatus" hidden>
       <div class="np-upload-top"><span id="npUploadText">Preparing uploads…</span><b id="npUploadPercent">0%</b></div>
