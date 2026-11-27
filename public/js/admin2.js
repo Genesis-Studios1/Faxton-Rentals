@@ -14,7 +14,8 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
-import { validateListingMedia } from "./listing-media-core.js";
+import { validateListingMedia, readPropertyVideoDuration, validatePropertyVideoDuration } from "./listing-media-core.js";
+import { pickLocation } from "./maps.js";
 import { collectListingFeatures } from "./listing-media-core.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
@@ -149,6 +150,8 @@ async function addListingDialog(ctx, ls, list) {
   const d = dialog({ title: "Add listing", size: "lg", icon: "clipList", body: `<form id="nl" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
     ${locFields({ style: "ax", flow: true, ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "nlCity" })}
+    <label class="ax-field full"><span>Full street address <small>Private — not shown publicly</small></span><input class="ax-input" name="streetAddress" maxlength="240" placeholder="House number, street name and estate"></label>
+    <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px"><button type="button" class="ax-btn" id="nlLoc">Set location on map</button><span class="ax-muted" id="nlLocT">Not set yet</span></div></div>
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
     <label class="ax-field"><span>Property type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
     <label class="ax-field"><span>House structure</span><select class="ax-input" name="buildingType" id="nlBuildingType"><option value="Bungalow">Bungalow</option><option value="Storey building">Storey building</option><option value="Other">Other</option></select></label>
@@ -173,12 +176,20 @@ async function addListingDialog(ctx, ls, list) {
       <button type="button" class="ax-btn" id="nlAddFeature" style="margin-top:10px">+ Add another feature</button>
     </div>
     <div class="ax-field full" style="padding:14px;border:1px solid var(--ax-border);border-radius:12px">
-      <strong>Property photos and videos</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Add publicly accessible HTTPS links. Direct file uploads are disabled until Firebase Storage is configured.</small>
-      <label class="ax-lbl" for="nlPhotoLinks">Photo links (one per line)</label><textarea class="ax-input" name="im" id="nlPhotoLinks" rows="2" placeholder="https://…"></textarea>
-      <label class="ax-lbl" for="nlVideoLinks" style="margin-top:10px">Video links (one per line)</label><textarea class="ax-input" name="vd" id="nlVideoLinks" rows="2" placeholder="YouTube, Vimeo or direct video URL"></textarea>
+      <strong>Property photos and video</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Upload up to 30 photos (10 MB each), plus one MP4 or WebM video longer than 1 minute 30 seconds (up to 250 MB).</small>
+      <label class="ax-lbl" for="nlPhotoFiles">Upload photos</label><input class="ax-input" type="file" id="nlPhotoFiles" accept="image/jpeg,image/png,image/webp" multiple>
+      <label class="ax-lbl" for="nlVideoFile" style="margin-top:10px">Upload one property video</label><input class="ax-input" type="file" id="nlVideoFile" accept="video/mp4,video/webm">
+      <label class="ax-lbl" for="nlPhotoLinks" style="margin-top:10px">Photo links (one per line)</label><textarea class="ax-input" name="im" id="nlPhotoLinks" rows="2" placeholder="https://…"></textarea>
+      <label class="ax-lbl" for="nlVideoLinks" style="margin-top:10px">Video link (optional)</label><textarea class="ax-input" name="vd" id="nlVideoLinks" rows="1" placeholder="https://…"></textarea>
+      <p class="ax-muted" id="nlUploadStatus" aria-live="polite"></p>
     </div>
     <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea" }, cityId: "nlCity" });
+  let where = null;
+  $("#nlLoc", d.el).addEventListener("click", async () => {
+    const pin = await pickLocation({ lat: where?.lat, lng: where?.lng });
+    if (pin) { where = pin; $("#nlLocT", d.el).textContent = "Saved (" + pin.lat.toFixed(4) + ", " + pin.lng.toFixed(4) + ")"; }
+  });
   const form = $("#nl", d.el), structure = $("#nlBuildingType", d.el), storyFields = $("#nlStoryFields", d.el);
   const syncStructure = () => { storyFields.hidden = structure.value !== "Storey building"; };
   structure.addEventListener("change", syncStructure); syncStructure();
