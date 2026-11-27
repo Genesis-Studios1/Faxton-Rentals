@@ -165,8 +165,12 @@ const P = {
   msgFill: '<path fill="currentColor" d="M4 5h16v11H9l-5 4z"/>',
   userFill: '<circle cx="12" cy="8" r="4.200" fill="currentColor"/><path fill="currentColor" d="M4.200 21c.9-4 4-6 7.800-6s6.900 2 7.800 6z"/>',
   bellFill: '<path fill="currentColor" d="M6 17V11a6 6 0 0112 0v6l1.500 2h-15z"/><path d="M10 21h4"/>',
+  crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/><path d="M5 22h14"/>',
+  more: '<circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/>',
+  panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+  device: '<rect x="6" y="2.5" width="12" height="19" rx="2"/><path d="M10 18.5h4"/>',
 };
-export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${P[n] || ""}</svg>`;
+export const icon = (n, s = 22, sw = 1.7) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${P[n] || P.help}</svg>`;
 
 export const logoMark = (cls = "") => `<svg class="logo-svg ${cls}" viewBox="570 235 415 355" aria-hidden="true"><path class="lg-a" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/><path class="lg-b" d="M702 455L775 429V581H702Z"/><path class="lg-c" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/></svg>`;
 export const verifiedBadge = (px = 18) => `<svg class="vseal" viewBox="0 0 24 24" width="${px}" height="${px}" role="img" aria-label="Verified"><title>Verified</title><path fill="#22c55e" stroke="none" d="M12 2.5l7 2.5v6.2c0 4.6-2.9 8.4-7 10.3-4.1-1.9-7-5.7-7-10.3V5l7-2.5zm-1.4 8.7l-2.2-2.2-1.4 1.4 3.6 3.6 6.2-6.2-1.4-1.4-4.8 4.8z"/></svg>`;
@@ -215,4 +219,4 @@ export const friendlyErr = (e) => {
   return `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`;
 };
 
-export const BUILD = "2026-11-27.07";
+export const BUILD = "2026-11-27.08";
