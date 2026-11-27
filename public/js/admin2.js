@@ -186,7 +186,6 @@ async function addListingDialog(ctx, ls, list) {
       <label class="ax-lbl" for="nlPhotoFiles">Upload photos</label><input class="ax-input" type="file" id="nlPhotoFiles" accept="image/jpeg,image/png,image/webp" multiple>
       <label class="ax-lbl" for="nlVideoFile" style="margin-top:10px">Upload one property video</label><input class="ax-input" type="file" id="nlVideoFile" accept="video/mp4,video/webm">
       <label class="ax-lbl" for="nlPhotoLinks" style="margin-top:10px">Photo links (one per line)</label><textarea class="ax-input" name="im" id="nlPhotoLinks" rows="2" placeholder="https://…"></textarea>
-      <label class="ax-lbl" for="nlVideoLinks" style="margin-top:10px">Video link (optional)</label><textarea class="ax-input" name="vd" id="nlVideoLinks" rows="1" placeholder="https://…"></textarea>
       <p class="ax-muted" id="nlUploadStatus" aria-live="polite"></p>
     </div>
     <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
