@@ -539,7 +539,10 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
   // Share the selected role with the auth-state listener while Firebase finishes signing in.
   pendingGoogleProfileIntent = { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo };
   if (inAppShell()) {
-    const { idToken, accessToken } = await nativeGoogleToken();
+    let nativeCredential;
+    try { nativeCredential = await nativeGoogleToken(); }
+    catch (e) { pendingGoogleProfileIntent = null; throw e; }
+    const { idToken, accessToken } = nativeCredential;
     let c;
     try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, accessToken || undefined)); }
     catch (e) {
