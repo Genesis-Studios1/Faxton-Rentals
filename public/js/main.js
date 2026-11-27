@@ -642,7 +642,7 @@ async function refreshAuthState(u) {
     S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
     S.isAdmin = S.isOwner || S.role === "admin";
     // Approved tenants get a My Home dashboard instead of "My rentals". The lookup never holds up sign-in for long.
-    S.tenant = null; if (!S.isAdmin && S.role === "renter") S.tenant = await Promise.race([detectTenant(u).catch(() => null), new Promise((r) => setTimeout(() => r(null), 2500))]);
+    S.tenant = null; if (!S.isAdmin && S.role === "renter") detectTenant(u).then((tenant) => { if (S.user?.uid === u.uid && tenant) { S.tenant = tenant; render(); } }).catch(() => {});
     S.unsubCalls?.(); S.unsubCalls = watchIncoming({ S, user: u }, S.isAdmin || S.role === "support");
     S.unsubVerif?.(); S.unsubVerif = null;
     S.unsubStaffEv?.(); S.unsubStaffEv = null; S.unsubStaffConvs?.(); S.unsubStaffConvs = null; S.evNotes = []; S.msgNotes = []; S.staffUnread = 0;
