@@ -125,12 +125,13 @@ export async function saveProfile(uid, data) {
     if (Object.keys(changes).length) {
       try { return await updateBackendProfile(changes); }
       catch (error) {
-        if (!Object.keys(legacyLocation).length) throw error;
+        if (!Object.keys(legacyProfile).length) throw error;
         console.warn("Residence details are saved; backend profile sync is pending.", error?.message || "");
-        return legacyLocation;
+        return legacyProfile;
       }
     }
     if (data?.settings && typeof data.settings === "object") return updateBackendSettings(data.settings);
+    if (Object.keys(legacyProfile).length) return legacyProfile;
     return getBackendProfile();
   }
   return setDoc(doc(db, "users", uid), data, { merge: true });
