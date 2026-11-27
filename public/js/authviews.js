@@ -77,7 +77,7 @@ export function authPage(ctx, mode) {
       ${fieldHtml("name", "Full name", { ic: "user", ph: "Your full name", attrs: 'autocomplete="name" autocapitalize="words" enterkeyhint="next" maxlength="80"' })}
       ${fieldHtml("email", "Email address", { ic: "mail", type: "email", ph: "you@example.com", attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next"' })}
       <div class="au-pw">${pwField}<p class="au-caps" id="caps" hidden>${icon("info", 16, 1.8)} Caps Lock is on</p>${strengthUi}</div>
-      <div class="au-f au-terms data-f="terms"><label class="au-chk"><input type="checkbox" id="terms" aria-describedby="terms-e"><span>I agree to the <a class="au-link" href="#/terms">Terms</a> and <a class="au-link" href="#/privacy">Privacy Policy</a></span></label><p class="au-fe" id="terms-e" hidden></p></div>`;
+      <div class="au-f au-terms" data-f="terms"><label class="au-chk"><input type="checkbox" id="terms" aria-describedby="terms-e"><span>I agree to the <a class="au-link" href="#/terms">Terms</a> and <a class="au-link" href="#/privacy">Privacy Policy</a></span></label><p class="au-fe" id="terms-e" hidden></p></div>`;
   const html = `<div class="au au-${mode}">
     <aside class="au-photo"><img src="img/${login ? "login-hero" : "signup-hero"}.webp" alt="" decoding="async">${logoLink("au-logo")}
       <p class="au-cap">${login ? "A fresh start<br>begins here." : "Make room for<br>what comes next."}</p></aside>
