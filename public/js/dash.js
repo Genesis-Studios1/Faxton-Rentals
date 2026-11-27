@@ -319,7 +319,6 @@ export function addProperty(ctx, done) {
       <span>Property photos</span>
       <p class="ax-muted np-help">Upload JPG, PNG or WebP files (up to 30 photos, 10 MB each). You can also paste image links below.</p>
       <input class="ax-input np-file-input" id="npPhotoFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-      <label class="ax-field"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label>
     </div>
     <div class="ax-field full np-media-field">
       <span>Property videos</span>
