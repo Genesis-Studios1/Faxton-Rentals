@@ -20,7 +20,7 @@ const dateLabel = (value) => {
   const ms = dateValue(value);
   return ms ? new Date(ms).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "Date not set";
 };
-const appliedLabel = (value) => { const ms = value?.seconds ? value.seconds * 1000 : value?.toMillis ? value.toMillis() : typeof value === "number" ? value : Date.parse(value || ""); return Number.isFinite(ms) && ms > 0 ? new Date(ms).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "recently"; };
+const appliedLabel = (value) => { const ms = dateValue(value); return ms > 0 ? new Date(ms).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" }) : "recently"; };
 const isOpenViewing = (v) => !/cancel|declin|complete/i.test(String(v.status || ""));
 const firstName = (ctx) => String(ctx.S.profile?.name || ctx.S.user?.displayName || "there").trim().split(/\s+/)[0];
 
