@@ -79,7 +79,7 @@ export async function listBackendPropertyVideos(propertyId, { signal, managed = 
 export async function uploadBackendPropertyVideo(propertyId, file, { signal } = {}) {
   if (!/^[0-9a-f-]{36}$/i.test(String(propertyId))) throw new TypeError("Invalid property identifier.");
   if (!(file instanceof Blob) || !["video/mp4", "video/webm"].includes(file.type)) throw new TypeError("Choose an MP4 or WebM video file.");
-  if (file.size < 1 || file.size > 25 * 1024 * 1024) throw new TypeError("Property videos must be 25 MB or smaller.");
+  if (file.size < 1 || file.size > 250 * 1024 * 1024) throw new TypeError("Property videos must be 250 MB or smaller.");
   const form = new FormData();
   form.append("file", file, file.name || "property-video");
   return apiPost(`/v1/me/properties/${encodeURIComponent(propertyId)}/videos`, form, { signal });
