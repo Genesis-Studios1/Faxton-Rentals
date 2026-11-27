@@ -566,7 +566,7 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}` });
   }
   const was = S.justCreated; S.justCreated = null;
-  const legacyProfile = await ensureProfile(c.user, googleProfileIntent);
+  const legacyProfile = await ensureProfile(c.user, pendingGoogleProfileIntent || {});
   const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
   return p?.role || "renter";
 }
