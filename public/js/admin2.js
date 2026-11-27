@@ -127,8 +127,14 @@ function mediaDialog(ctx, l, done) {
   $(" [data-ok]".trim(), d.el).onclick = async (e) => {
     const im = lines($("#mfi", d.el).value), vd = lines($("#mfv", d.el).value);
     const err = $("#mfe", d.el); err.textContent = "";
-    const invalid = validateListingMedia([], [], im.length, vd.length);
+    const invalid = validateListingMedia(photoFiles, videoFiles, im.length, vd.length);
     if (invalid) return (err.textContent = invalid);
+    if (videoFiles.length) {
+      try {
+        const durationError = validatePropertyVideoDuration(await readPropertyVideoDuration(videoFiles[0]));
+        if (durationError) return (err.textContent = durationError);
+      } catch (error) { return (err.textContent = error.message || "Could not validate the property video."); }
+    }
     if (!im.length) return (err.textContent = "Add at least one photo link.");
     if (im.some((u) => !/^(https:\/\/|img\/)/.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Links must start with https://");
     busy(e.currentTarget, true);
@@ -204,6 +210,7 @@ async function addListingDialog(ctx, ls, list) {
   $("#nlCustomFeatures", d.el).addEventListener("click", (e) => { if (e.target.closest("[data-remove-feature]")) e.target.closest(".nl-feature-row").remove(); });
   $("[data-ok]", d.el).onclick = async (e) => {
     const L = loc.commit(), f = Object.fromEntries(new FormData(form)), err = $("#nle", d.el);
+    const photoFiles = [...($("#nlPhotoFiles", d.el).files || [])], videoFiles = [...($("#nlVideoFile", d.el).files || [])];
     err.textContent = ""; const im = lines(f.im), vd = lines(f.vd), P = listingLoc(L, f.area);
     if (!f.title?.trim()) return (err.textContent = "Add a title.");
     { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
@@ -220,8 +227,37 @@ async function addListingDialog(ctx, ls, list) {
     const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
     busy(e.currentTarget, true);
     try {
+      if (apiConfigured()) {
+        if (String(f.streetAddress || "").trim().length < 3) throw new Error("Enter the full private street address.");
+        if (im.length || vd.length) throw new Error("Use the upload fields for backend listings. External media links are not supported here yet.");
+        const propertyType = /house|duplex/i.test(f.type) ? "house" : /room|studio/i.test(f.type) ? "room" : "apartment";
+        const api = await import("./api-properties.js");
+        const property = await api.createBackendPropertyFromListing({
+          title: f.title.trim(), description: f.desc.trim(), ...P,
+          addressLine: String(f.streetAddress).trim(), latitude: where?.lat ?? null, longitude: where?.lng ?? null,
+          propertyType, propertySubtype: f.type, listingMode: f.type === "Shortlet" ? "shortlet" : "long_term",
+          priceAmount: +f.price, pricePeriod: "yearly", currency: "NGN", beds: +f.beds || 0, baths: +f.baths || 0,
+          buildingType: f.buildingType, parking: +f.parking || 0, amenities: [], features
+        });
+        const status = $("#nlUploadStatus", d.el);
+        const total = photoFiles.length + videoFiles.length;
+        let doneCount = 0;
+        for (const file of photoFiles) {
+          status.textContent = "Uploading " + file.name + "…";
+          await api.uploadBackendPropertyImage(property.id, file);
+          doneCount++; status.textContent = "Uploaded " + doneCount + " of " + total + " files.";
+        }
+        for (const file of videoFiles) {
+          status.textContent = "Uploading " + file.name + "…";
+          await api.uploadBackendPropertyVideo(property.id, file);
+          doneCount++; status.textContent = "Uploaded " + doneCount + " of " + total + " files.";
+        }
+        await api.submitBackendPropertyForReview(property.id);
+        data.invalidate("listings"); changed(); d.close(); toast("Property submitted for review."); return;
+      }
+      if (photoFiles.length || videoFiles.length) throw new Error("Direct uploads require the Faxton backend to be configured. Please try again later.");
       const images = im, videos = vd;
-      const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: Math.max(0, +f.beds || 0), baths: Math.max(0, +f.baths || 0), sqm: 0, type: f.type, buildingType: f.buildingType, ...(f.buildingType === "Storey building" ? { floorNumber: +f.floorNumber, ...(f.roomNumber.trim() ? { roomNumber: f.roomNumber.trim() } : {}) } : {}), desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images, thumb: images[0] || "", videos, mediaItems: [], features, amenities: features.map((x) => x.name), parking: +f.parking || 0, ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
+      const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: Math.max(0, +f.beds || 0), baths: Math.max(0, +f.baths || 0), sqm: 0, type: f.type, buildingType: f.buildingType, ...(f.buildingType === "Storey building" ? { floorNumber: +f.floorNumber, ...(f.roomNumber.trim() ? { roomNumber: f.roomNumber.trim() } : {}) } : {}), desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: where?.lat ?? null, lng: where?.lng ?? null, images, thumb: images[0] || "", videos, mediaItems: [], features, amenities: features.map((x) => x.name), parking: +f.parking || 0, ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
       await st.createListing(doc);
       ls.unshift({ ...doc, createdAt: { seconds: Math.floor(Date.now() / 1000) } }); changed(); list.repaint(); d.close(); toast("Listing created.");
     } catch (x) {
