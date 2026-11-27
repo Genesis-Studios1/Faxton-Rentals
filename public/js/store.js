@@ -2,7 +2,7 @@
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
 import { apiConfigured } from "./api-client.js";
-import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
+import { getBackendProfile, updateBackendProfile, updateBackendSettings, uploadBackendProfileImage } from "./api-profile.js";
 import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
 import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, listBackendViewingReschedules, respondBackendViewingReschedule, confirmBackendViewing, declineBackendViewing, cancelBackendViewing } from "./api-viewings.js";
 import { localDateTime, toBackendTourType, toViewingViewModel, toLocalViewingTime } from "./api-viewings-mapper.js";
@@ -104,18 +104,35 @@ export async function getProfile(uid) {
 }
 export async function saveProfile(uid, data) {
   if (apiConfigured()) {
-    // Residence prompts still read the Firebase user document while the profile API
-    // stores only the normalized service area. Keep the full location fields there
-    // so country/state/LGA do not disappear and trigger the prompt on every visit.
+    // Keep fields still consumed by Firebase auth guards and role-specific setup screens in sync.
     const legacyProfile = {};
-    // These fields remain in the Firebase user document for the auth guard and
-    // role-specific setup screens while the normalized account lives in the API.
     for (const key of ["country", "state", "city", "lga", "location", "role", "onboarding", "agency", "agentInfo", "homeownerInfo", "tenantInfo"]) {
       if (data?.[key] !== undefined) legacyProfile[key] = data[key];
     }
+
+    // Profile images belong in R2. Mirror the resulting URL to the Firebase user
+    // document because the admin Users table and auth bootstrap still read it there.
+    let avatarProfile = null;
+    if (typeof data?.photo === "string" && data.photo.startsWith("data:image/")) {
+      const response = await fetch(data.photo);
+      if (!response.ok) throw new Error("The selected profile photo could not be read.");
+      const blob = await response.blob();
+      if (!blob.type.startsWith("image/")) throw new TypeError("Choose a valid image for your profile photo.");
+      const file = new File([blob], "profile-photo", { type: blob.type });
+      avatarProfile = await uploadBackendProfileImage(file);
+      if (!avatarProfile?.photo) throw new Error("Faxton could not confirm the saved profile photo.");
+      // Keep the small compressed copy as the durable Firebase/admin/public-card
+      // value; the backend also stores the original in R2 for API-backed views.
+      if (data.photo.length > 70000) throw new RangeError("The profile photo is too large after compression. Choose a smaller image.");
+      legacyProfile.photo = data.photo;
+    } else if (data?.photo !== undefined) {
+      legacyProfile.photo = data.photo;
+    }
+
     if (Object.keys(legacyProfile).length) {
       await setDoc(doc(db, "users", uid), legacyProfile, { merge: true });
     }
+
     const changes = {};
     if (data?.name !== undefined || data?.displayName !== undefined) changes.displayName = data.displayName ?? data.name;
     if (data?.phone !== undefined || data?.phoneNumber !== undefined) changes.phoneNumber = data.phoneNumber ?? data.phone;
@@ -123,14 +140,11 @@ export async function saveProfile(uid, data) {
     if (data?.website !== undefined || data?.websiteUrl !== undefined) changes.websiteUrl = data.websiteUrl ?? data.website;
     if (data?.serviceArea !== undefined || data?.area !== undefined || data?.location !== undefined) changes.serviceArea = data.serviceArea ?? data.location ?? data.area;
     if (Object.keys(changes).length) {
-      try { return await updateBackendProfile(changes); }
-      catch (error) {
-        if (!Object.keys(legacyProfile).length) throw error;
-        console.warn("Residence details are saved; backend profile sync is pending.", error?.message || "");
-        return legacyProfile;
-      }
+      const updated = await updateBackendProfile(changes);
+      return { ...updated, ...legacyProfile };
     }
     if (data?.settings && typeof data.settings === "object") return updateBackendSettings(data.settings);
+    if (avatarProfile) return { ...avatarProfile, ...legacyProfile };
     if (Object.keys(legacyProfile).length) return legacyProfile;
     return getBackendProfile();
   }
