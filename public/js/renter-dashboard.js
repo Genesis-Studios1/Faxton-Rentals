@@ -50,7 +50,7 @@ export async function renterDashboard(ctx) {
   const failed = [
     appsResult.status === "rejected" ? "applications" : "",
     viewingsResult.status === "rejected" ? "viewings" : "",
-    listingsResult.status === "rejected" ? "saved homes" : ""
+    listingsResult.status === "rejected" || savedResult.status === "rejected" ? "saved homes" : ""
   ].filter(Boolean);
   const html = `<div class="wrap rd">
     <header class="rd-head"><div><span class="rd-eyebrow">Your rental space</span><h1>Welcome back, ${esc(firstName(ctx))}</h1><p>Keep track of your applications, viewings and saved homes.</p></div><a class="btn primary" href="#/search">${icon("search", 17)} Find a home</a></header>
