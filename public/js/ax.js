@@ -46,6 +46,9 @@ const X = {
   reply: '<path d="M9 14L4 9l5-5"/><path d="M4 9h9a7 7 0 017 7v2"/>',
   starF: '<path d="M12 3.400l2.700 5.600 6.100.9-4.400 4.300 1 6.100L12 17.400 6.600 20.300l1-6.100L3.200 9.900l6.100-.9z" fill="currentColor"/>',
   tool: '<path d="M14.700 6.300a4 4 0 00-5.400 5.100L3 17.700 6.300 21l6.300-6.300a4 4 0 005.100-5.400l-2.500 2.500-2.300-.4-.4-2.300z"/>',
+  "file-check": '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 14l2 2 4-4"/>',
+  "shield-check": '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+  "life-buoy": '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="m5.6 5.6 4.3 4.3m4.2 4.2 4.3 4.3m0-12.8-4.3 4.3m-4.2 4.2-4.3 4.3"/>',
 };
 export const I = (n, s = 18, sw = 1.75) => (X[n] ? `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${X[n]}</svg>` : baseIcon(n, s, sw));
 
