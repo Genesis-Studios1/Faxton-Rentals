@@ -215,4 +215,4 @@ export const friendlyErr = (e) => {
   return `Something went wrong. Please try again.${e?.code || e?.message ? ` (${String(e.code || e.message).slice(0, 120)})` : ""}`;
 };
 
-export const BUILD = "2026-11-27.02";
+export const BUILD = "2026-11-27.03";
