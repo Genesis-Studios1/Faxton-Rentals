@@ -307,7 +307,7 @@ async function ensureProfile(u, extra = {}) {
       const snap = await tx.get(ref);
       if (snap.exists()) return { profile: snap.data(), created: false };
       const role = intent.role || "renter";
-      const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
+      const d = { name: u.displayName || intent.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
       if (role === "agency") {
         if (intent.details) d.agency = intent.details;
         d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
