@@ -424,19 +424,19 @@ export function setupPage(ctx) {
       if (v.referralSource === "Other" && !String(v.referralOther || "").trim()) { say("Please tell us where you heard about Faxton Rentals."); $("#referralOther", form)?.focus(); return; }
       const patch = { referralSource: v.referralSource, referralOther: v.referralSource === "Other" ? String(v.referralOther || "").trim() : "", onboarding: { completed: true, step: current, draft: {} } };
       const phone = String(v.phone || "").trim();
-      if (phone.replace(/\D/g, "").length < 8) { say("Enter a valid phone number."); await saveDraft(0); showStep(0); $("#phone", form)?.focus(); return; }
+      if (phone.replace(/\D/g, "").length < 8) { await saveDraft(0); showStep(0); say("Enter a valid phone number."); $("#phone", form)?.focus(); return; }
       patch.phone = phone;
       if (role === "agency") {
-        if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(String(v.cac || "").trim())) { say("Enter a valid CAC registration number, such as RC 1234567."); showStep(0); $("#cac", form)?.focus(); return; }
+        if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(String(v.cac || "").trim())) { showStep(0); say("Enter a valid CAC registration number, such as RC 1234567."); $("#cac", form)?.focus(); return; }
         const servicePanel = $(v.businessType === "Home services provider" ? "#ob-home-services" : "#ob-real-estate-services", form);
         const selected = Array.from(servicePanel.querySelectorAll('input[name="businessService"]:checked'), (el) => el.value);
         patch.businessTypes = selected;
         patch.agency = { business: String(v.business || "").trim(), cac: String(v.cac || "").trim().toUpperCase(), position: String(v.position || "").trim(), supportEmail: String(v.supportEmail || "").trim(), phone, address: String(v.officeAddress || "").trim(), city: String(v.officeCity || "").trim(), state: String(v.officeState || "").trim(), areas: String(v.areas || "").trim(), website: String(v.website || "").trim(), businessType: v.businessType, businessTypes: selected, description: String(v.description || "").trim() };
       } else if (role === "agent") {
-        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); await saveDraft(0); showStep(0); $("#dob", form)?.focus(); return; }
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { await saveDraft(0); showStep(0); say("Enter a valid date of birth."); $("#dob", form)?.focus(); return; }
         patch.agentInfo = { phone, dob: v.dob, experience: Number(v.experience), company: String(v.company || "").trim(), licence: String(v.licence || "").trim(), areas: String(v.areas || "").trim(), address: String(v.agentAddress || "").trim(), city: String(v.agentCity || "").trim(), state: String(v.agentState || "").trim() };
       } else if (role === "landlord") {
-        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); showStep(0); $("#dob", form)?.focus(); return; }
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { showStep(0); say("Enter a valid date of birth."); $("#dob", form)?.focus(); return; }
         patch.homeownerInfo = { phone, dob: v.dob, propertyType: v.propertyType, address: String(v.propertyAddress || "").trim(), city: String(v.propertyCity || "").trim(), state: String(v.propertyState || "").trim(), bedrooms: v.bedrooms, bathrooms: v.bathrooms, size: String(v.propertySize || "").trim(), features: v.propertyFeature || [], rent: Number(v.monthlyRent), leaseDuration: v.leaseDuration, tenantPreference: v.tenantPreference || "", notes: String(v.ownerNotes || "").trim() };
       } else {
         const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); showStep(0); $("#dob", form)?.focus(); return; }
