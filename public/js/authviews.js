@@ -475,7 +475,7 @@ export function setupPage(ctx) {
       } catch (e) {
         console.error("Faxton setup submission failed:", e);
         say(e?.message || (e?.code === "permission-denied" ? "We couldn't save your details because the account permissions need updating. Please try again shortly." : "We couldn't save your details. Check your connection and try again."));
-      } finally { next.disabled = false; next.classList.remove("loading"); showStep(current); }
+      } finally { next.disabled = false; next.classList.remove("loading"); next.innerHTML = `${current === panels.length - 1 ? "Finish setup" : "Continue"} ${icon("arrow",19,1.8)}`; }
     };
     showStep(current);
   } };
