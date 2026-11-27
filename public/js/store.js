@@ -256,8 +256,8 @@ export async function ensureConversation(user, l) {
   if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: user.uid, userName: user.displayName || user.email, userPhoto: user.photoURL || "", listingId: l.id, listingTitle: l.title, area: l.area, price: l.price, beds: l.beds, baths: l.baths, image: l.thumb || l.images[0], agent: l.agent, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
   return ref.id;
 }
-export const watchConversations = (user, cb) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
-  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
+export const watchConversations = (user, cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
+  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), (e) => onErr?.(e));
 export const watchMessages = (cid, cb, onErr) => onSnapshot(query(collection(db, "conversations", cid, "messages"), orderBy("at")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), (e) => { if (onErr) onErr(e); else cb([]); });
 // Every conversation the Faxton team has with users (admins, the owner and support see all of them).
 export const watchStaffConversations = (cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("listingId", "==", "direct")),
@@ -268,8 +268,8 @@ export async function ensureStaffPersonalConversation(staff, me, u) {
   if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: u.id, userName: u.name || u.email, listingId: "direct", listingTitle: name, area: "", price: 0, beds: 0, baths: 0, image: photo, userPhoto: u.photo || "", byStaff: staff.uid, agent: { id: staff.uid, name, avatar: photo, photo }, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
   return id;
 }
-export const watchStaffDMs = (uid, cb) => onSnapshot(query(collection(db, "conversations"), where("byStaff", "==", uid)),
-  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
+export const watchStaffDMs = (uid, cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("byStaff", "==", uid)),
+  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), (e) => onErr?.(e));
 export const getConversation = async (cid) => { try { const s = await getDoc(doc(db, "conversations", cid)); return s.exists() ? { ...s.data(), id: s.id } : null; } catch { return null; } };
 // A small "typing" marker for the other side (the screen shows it for 5 seconds; it is written at most every 4 seconds).
 export const setTyping = (cid, uid) => updateDoc(doc(db, "conversations", cid), { typing: { uid, at: Date.now() } });
