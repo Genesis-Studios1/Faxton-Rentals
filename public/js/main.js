@@ -27,35 +27,44 @@ import { syncPushDevice, removePushDevice, requestPushPermission, pushAvailable 
 
 export const S = { notes: [], evNotes: [], msgNotes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, staffUnread: 0, unsubConvs: null, unsubStaffConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
 
-let activityUid = "", activityTimer = 0, activityLastWrite = 0;
+let activityUid = "", activityTimer = 0, activityLastWrite = 0, activityLastInteraction = 0;
 const touchLastActive = (uid) => {
+  const now = Date.now();
   if (!uid || uid !== activityUid || document.visibilityState === "hidden" || navigator.onLine === false) return;
-  if (Date.now() - activityLastWrite < 5 * 60 * 1000) return;
-  activityLastWrite = Date.now();
+  if (now - activityLastInteraction > 10 * 60 * 1000 || now - activityLastWrite < 5 * 60 * 1000) return;
+  activityLastWrite = now;
   patchDoc("users", uid, { lastActive: serverTimestamp() }).catch(() => { activityLastWrite = 0; });
 };
-const onActivityVisibility = () => { if (document.visibilityState === "visible") touchLastActive(activityUid); };
-const onActivityFocus = () => touchLastActive(activityUid);
+const markActivity = () => {
+  if (!activityUid || document.visibilityState === "hidden") return;
+  activityLastInteraction = Date.now();
+  touchLastActive(activityUid);
+};
+const onActivityVisibility = () => { if (document.visibilityState === "visible") markActivity(); };
 function startLastActiveHeartbeat(uid) {
   if (!uid) return;
   if (activityUid === uid) { touchLastActive(uid); return; }
   stopLastActiveHeartbeat();
   activityUid = uid;
   activityLastWrite = 0;
+  activityLastInteraction = Date.now();
   touchLastActive(uid);
   activityTimer = setInterval(() => touchLastActive(uid), 60 * 1000);
   document.addEventListener("visibilitychange", onActivityVisibility);
-  addEventListener("focus", onActivityFocus);
-  addEventListener("online", onActivityFocus);
+  addEventListener("focus", markActivity);
+  addEventListener("online", markActivity);
+  for (const event of ["pointerdown", "keydown", "touchstart", "scroll"]) addEventListener(event, markActivity, { passive: true });
 }
 function stopLastActiveHeartbeat() {
   clearInterval(activityTimer);
   activityTimer = 0;
   document.removeEventListener("visibilitychange", onActivityVisibility);
-  removeEventListener("focus", onActivityFocus);
-  removeEventListener("online", onActivityFocus);
+  removeEventListener("focus", markActivity);
+  removeEventListener("online", markActivity);
+  for (const event of ["pointerdown", "keydown", "touchstart", "scroll"]) removeEventListener(event, markActivity);
   activityUid = "";
   activityLastWrite = 0;
+  activityLastInteraction = 0;
 }
 
 const app = $("#app");
