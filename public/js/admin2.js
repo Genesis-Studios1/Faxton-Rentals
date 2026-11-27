@@ -227,6 +227,7 @@ async function addListingDialog(ctx, ls, list) {
     busy(e.currentTarget, true);
     try {
       if (apiConfigured()) {
+        if (f.agent && f.agent !== me) throw new Error("To list on behalf of another owner, use an authorised agent account or ask the owner to submit the property.");
         if (String(f.streetAddress || "").trim().length < 3) throw new Error("Enter the full private street address.");
         if (im.length || vd.length) throw new Error("Use the upload fields for backend listings. External media links are not supported here yet.");
         const propertyType = /house|duplex/i.test(f.type) ? "house" : /room|studio/i.test(f.type) ? "room" : "apartment";
