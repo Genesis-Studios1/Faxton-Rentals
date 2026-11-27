@@ -30,7 +30,9 @@ export async function renterDashboard(ctx) {
   const savedSet = savedResult.status === "fulfilled" ? new Set(savedResult.value || []) : (ctx.S.saved instanceof Set ? ctx.S.saved : new Set());
   if (savedResult.status === "fulfilled") ctx.S.saved = savedSet;
   const savedIds = [...savedSet];
-  const saved = listings.filter((listing) => savedIds.includes(listing.id)).slice(0, 3);
+  const listingById = new Map(listings.map((listing) => [listing.id, listing]));
+  const savedResults = await Promise.allSettled(savedIds.slice(0, 3).map((id) => listingById.has(id) ? Promise.resolve(listingById.get(id)) : st.getListing(id)));
+  const saved = savedResults.filter((result) => result.status === "fulfilled" && result.value).map((result) => result.value);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const upcoming = viewings.filter((v) => isOpenViewing(v) && dateValue(v.when) >= today.getTime()).sort((a, b) => dateValue(a.when) - dateValue(b.when));
   const activeApps = apps.filter((a) => !/withdrawn|rejected/i.test(String(a.status || "")));
@@ -38,7 +40,11 @@ export async function renterDashboard(ctx) {
   const nextViewing = upcoming[0];
   const tenancy = ctx.S.tenant;
   const metric = (label, value, note, ic) => `<article class="rd-stat"><span class="rd-stat-ic">${icon(ic, 20)}</span><div><small>${label}</small><b>${value}</b><p>${note}</p></div></article>`;
-  const appRows = activeApps.slice(0, 4).map((a) => `<a class="rd-row" href="#/applications"><img src="${esc(a.image || "img/palm-court.webp")}" alt="" loading="lazy"><span class="rd-row-main"><b>${esc(a.title || "Rental property")}</b><small>${esc(a.area || "Location not listed")} · Applied ${esc(appliedLabel(a.createdAt))}</small></span>${statusPill(a.status || "Submitted")}</a>`).join("");
+  const recentApps = [...apps].sort((a, b) => {
+    const time = (value) => value?.seconds ? value.seconds * 1000 : value?.toMillis ? value.toMillis() : Date.parse(value || "") || 0;
+    return time(b.createdAt) - time(a.createdAt);
+  });
+  const appRows = recentApps.slice(0, 4).map((a) => `<a class="rd-row" href="#/applications"><img src="${esc(a.image || "img/palm-court.webp")}" alt="" loading="lazy"><span class="rd-row-main"><b>${esc(a.title || "Rental property")}</b><small>${esc(a.area || "Location not listed")} · Applied ${esc(appliedLabel(a.createdAt))}</small></span>${statusPill(a.status || "Submitted")}</a>`).join("");
   const viewingRows = upcoming.slice(0, 3).map((v) => `<a class="rd-row" href="#/bookings"><span class="rd-row-ic">${icon("cal", 20)}</span><span class="rd-row-main"><b>${esc(v.title || "Property viewing")}</b><small>${esc(dateLabel(v.when))} · ${esc(v.slot || "Time to be confirmed")}</small></span>${statusPill(v.status || "Requested")}</a>`).join("");
   const savedRows = saved.map((l) => listingCard(l, savedSet, { i: 0 })).join("");
   const failed = [
