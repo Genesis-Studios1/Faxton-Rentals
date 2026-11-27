@@ -150,18 +150,7 @@
 </head>
 <body>
 <div id="splash" role="status" aria-label="Loading Faxton Rentals">
-<script>
-  (() => {
-    const splash = document.getElementById("splash");
-    if (!splash) return;
-    const images = Array.from(splash.querySelectorAll("img"));
-    Promise.all(images.map((img) => img.decode ? img.decode().catch(() => {}) : new Promise((resolve) => {
-      if (img.complete) return resolve();
-      img.addEventListener("load", resolve, { once: true });
-      img.addEventListener("error", resolve, { once: true });
-    }))).then(() => splash.classList.add("assets-ready"));
-  })();
-</script>
+
   <img class="sp-art" src="img/splash-base.webp" alt="" aria-hidden="true">
   <img class="sp-lines" src="img/splash-lines.webp" alt="" aria-hidden="true">
   <div class="sp-center">
@@ -175,6 +164,18 @@
   </div>
   <div class="sp-load" aria-hidden="true"><div class="sp-bar"><i></i></div><div class="sp-cap"><span>Finding your place</span><span>Almost there</span></div></div>
 </div>
+<script>
+  (() => {
+    const splash = document.getElementById("splash");
+    if (!splash) return;
+    const images = Array.from(splash.querySelectorAll("img"));
+    Promise.all(images.map((img) => img.decode ? img.decode().catch(() => {}) : new Promise((resolve) => {
+      if (img.complete) return resolve();
+      img.addEventListener("load", resolve, { once: true });
+      img.addEventListener("error", resolve, { once: true });
+    }))).then(() => splash.classList.add("assets-ready"));
+  })();
+</script>
 <div id="app"></div>
 <noscript><main style="font-family:system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:0 20px;line-height:1.5"><h1>Faxton Rentals</h1><p>Find, view and rent homes across Nigeria. Faxton Rentals needs JavaScript to run, so please turn it on in your browser settings and reload this page.</p></main></noscript>
 <script type="module" src="js/main.js?v=2026-11-27.06"></script>
