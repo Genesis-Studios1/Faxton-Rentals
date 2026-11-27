@@ -83,14 +83,14 @@ function adminShell(path, inner, view, role = "") {
 // ---- navigation chrome: the desktop header, the phone's four-icon bar and its "Me" sheet ----
 // Phone bar (<= 860px): Home, Search, Messages, Me. Everything else lives in the Me sheet. The staff consoles (adminShell) draw their own bar.
 const BAR = [["/", "home", "homeFill", "Home"], ["/search", "search", "searchFill", "Search"], ["/messages", "msg", "msgFill", "Messages"]];
-const ME_PATHS = ["/settings", "/saved", "/bookings", "/payments", "/documents", "/rentals", "/applications", "/apply", "/book", "/offers", "/agreements", "/verification", "/support-cases", "/myhome", "/match", "/help", "/compare"];
+const ME_PATHS = ["/renter-dashboard", "/settings", "/saved", "/bookings", "/payments", "/documents", "/rentals", "/applications", "/apply", "/book", "/offers", "/agreements", "/verification", "/support-cases", "/myhome", "/match", "/help", "/compare"];
 const pathIs = (path, h) => path === h || path.startsWith(h + "/");
 const navOn = (path, h) => (h === "/" ? path === "/" : h === "/search" ? path === "/search" || path.startsWith("/home/") : h === "/rentals" ? ["/rentals", "/bookings", "/payments", "/documents", "/applications", "/apply", "/offers", "/agreements"].some((p) => pathIs(path, p)) : pathIs(path, h));
 const unreadTxt = (n) => (n > 99 ? "99+" : n || "");
 const roleLabel = () => (S.isOwner ? "Owner" : S.tenant ? "Tenant" : { renter: "Renter", landlord: "Home owner", agency: "Agency", agent: "Agent", support: "Support", admin: "Admin" }[S.role] || "Member");
 // One list feeds both the desktop account menu and the phone sheet. A fourth entry of 1 means "the top bar already links here" (left out of the desktop menu).
 const meGroups = () => {
-  const dash = S.isAdmin ? ["/admin", "building", "Admin console"] : ROLE_UI[S.role] ? [ROLE_UI[S.role].home, "building", "My dashboard"] : null;
+  const dash = S.isAdmin ? ["/admin", "building", "Admin console"] : ROLE_UI[S.role] ? [ROLE_UI[S.role].home, "building", "My dashboard"] : S.role === "renter" ? ["/renter-dashboard", "layout-dashboard", "Renter dashboard"] : null;
   return [
     [S.tenant ? ["/myhome", "home", "My home"] : ["/rentals", "folder", "My rentals"], ["/saved", "heart", "Saved homes", 1], ["/bookings", "calDots", "Viewings"], ["/offers", "tag", "Offers"], ["/agreements", "file-check", "Agreements"], ["/payments", "card", "Payments"], ["/documents", "doc", "Documents"]],
     [["/match", "sparkle", "Smart Home Match"], ...(apiConfigured() ? [["/verification", "shield-check", "Verify account"], ["/support-cases", "life-buoy", "Help, reports & disputes"]] : []), ["/help", "headset", "Contact us", 1], ["/settings", "cog", "Settings"]],
