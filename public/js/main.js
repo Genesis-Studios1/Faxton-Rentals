@@ -5,7 +5,7 @@ import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { doc, getDoc, setDoc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
 import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchStaffConversations, watchProfile, watchNotifications, watchAllNotifications, markNotificationRead, markAllNotificationsRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
@@ -293,25 +293,29 @@ function wire() {
 // ---------- auth ----------
 async function ensureProfile(u, extra = {}) {
   const ref = doc(db, "users", u.uid);
-  const snap = await getDoc(ref);
-  if (snap.exists()) return snap.data();
-  let role = extra.role || "renter";
-  const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
-  // Business, agent and home-owner accounts start in manual verification review. Account type is never promoted by client-side onboarding.
-  if (role === "agency") {
-    if (extra.details) d.agency = extra.details;
-    d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
-  } else if (role === "agent") {
-    if (extra.details) d.agentInfo = extra.details;
-    d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
-  } else if (role === "landlord") {
-    d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
-  }
-  d.role = role; if (extra.photo) d.photo = extra.photo;
-  const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
-  if (res?.country) Object.assign(d, resFields(res));
-  await setDoc(ref, d); S.justCreated = role;
-  return d;
+  const result = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (snap.exists()) return { profile: snap.data(), created: false };
+    const role = extra.role || "renter";
+    const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
+    // Business, agent and home-owner accounts start in manual verification review. Account type is never promoted by client-side onboarding.
+    if (role === "agency") {
+      if (extra.details) d.agency = extra.details;
+      d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
+    } else if (role === "agent") {
+      if (extra.details) d.agentInfo = extra.details;
+      d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
+    } else if (role === "landlord") {
+      d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
+    }
+    d.role = role; if (extra.photo) d.photo = extra.photo;
+    const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
+    if (res?.country) Object.assign(d, resFields(res));
+    tx.set(ref, d);
+    return { profile: d, created: true };
+  });
+  if (result.created) S.justCreated = result.profile.role;
+  return result.profile;
 }
 // Ban status remains enforced against the rules-protected Firebase user record.
 // Backend profile responses intentionally omit moderation fields.
@@ -531,6 +535,8 @@ async function nativeGoogleToken() {
   return { idToken, accessToken: r.credential.accessToken };
 }
 async function signInGoogle(chosen = "renter", details, residence, photo) {
+  // Make the selected signup role available to the auth-state listener before the popup resolves.
+  const googleProfileIntent = { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo };
   if (inAppShell()) {
     const { idToken, accessToken } = await nativeGoogleToken();
     let c;
@@ -541,7 +547,7 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
       if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
       throw Object.assign(new Error(e?.message), { code: `firebase/${code}${window.__csp ? " | " + window.__csp : ""}` });
     }
-    const was = S.justCreated; S.justCreated = null; const legacyProfile = await ensureProfile(c.user, { role: chosen, details, residence, photo }); const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
+    const was = S.justCreated; S.justCreated = null; const legacyProfile = await ensureProfile(c.user, googleProfileIntent); const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
   }
   const t0 = performance.now();
   let c;
@@ -558,7 +564,7 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
     throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}` });
   }
   const was = S.justCreated; S.justCreated = null;
-  const legacyProfile = await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
+  const legacyProfile = await ensureProfile(c.user, googleProfileIntent);
   const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
   return p?.role || "renter";
 }
@@ -620,7 +626,7 @@ async function refreshAuthState(u) {
     // Keep my public card (name, photo, role, about) up to date for the people who tap my picture.
     { const pr = S.profile || {}; if (pr.name || u.displayName) syncPublic(u.uid, { name: (pr.role === "agency" && pr.agency?.business) || pr.name || u.displayName || "User", photo: pr.photo || "", role: pr.role || "renter", city: pr.city || "", country: pr.country || "", website: pr.agency?.website || "" }); }
     if (S.profile?.deletion?.status === "approved" && Date.now() >= (S.profile.deletion.requestedAt || 0) + 864e5) return finalizeDeletion(u);
-    if (!S.profile) { try { S.profile = await ensureProfile(u); } catch { /* rules refused; leave signed in without a profile */ } }
+    if (!S.profile) { try { S.profile = await ensureProfile(u, u.providerData.some((x) => x.providerId === "google.com") ? (googleProfileIntent || {}) : {}); } catch { /* rules refused; leave signed in without a profile */ } }
     // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
     if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
       // emailVerified lets the admin Users list show unverified sign-ups as Pending; it is written only when it changes.
