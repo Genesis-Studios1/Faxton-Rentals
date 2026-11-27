@@ -56,20 +56,15 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy hosting to the staging Firebase project only
+      - name: Deploy hosting and Firestore rules to the staging Firebase project only
         env:
           KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
         run: |
           set -euo pipefail
           printf '%s' "$KEY" > "$RUNNER_TEMP/firebase-staging.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-staging.json"
-          npx --yes firebase-tools@15.35.0 deploy --only hosting --config firebase.staging.json --project faxton-rentals-staging --non-interactive
+          npx --yes firebase-tools@15.35.0 deploy --only hosting,firestore:rules --config firebase.staging.json --project faxton-rentals-staging --non-interactive
           rm -f "$RUNNER_TEMP/firebase-staging.json"
-
-      - name: Deploy Firestore security rules to the staging project only
-        run: |
-          set -euo pipefail
-          npx --yes firebase-tools@15.35.0 deploy --only firestore:rules --config firebase.staging.json --project faxton-rentals-staging --non-interactive
 
       - name: Smoke test staging Hosting
         run: |
