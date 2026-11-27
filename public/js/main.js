@@ -612,7 +612,9 @@ async function refreshAuthState(u) {
     // Reconcile the backend in the background. Firebase profile/ownership reads
     // determine the initial UI and should not wait for a separate API round-trip.
     syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
-    [S.profile, S.ownerUid] = await Promise.all([getDoc(doc(db, "users", u.uid)).then((snapshot) => snapshot.exists() ? snapshot.data() : null).catch(() => null), getOwnerUid()]);
+    const ownerLookup = getOwnerUid().catch(() => null);
+    S.profile = await getDoc(doc(db, "users", u.uid)).then((snapshot) => snapshot.exists() ? snapshot.data() : null).catch(() => null);
+    S.ownerUid = null;
     if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
     S.bannedNote = false;
     // Keep my public card (name, photo, role, about) up to date for the people who tap my picture.
@@ -634,13 +636,25 @@ async function refreshAuthState(u) {
       else if (was && (p.verified !== was.verified || p.verification?.status !== was.verification?.status || p.onboarding?.completed !== was.onboarding?.completed)) render();
     });
     S.unsubNotes?.(); S.unsubNotes = watchAllNotifications(u.uid, (list) => { S.notes = list; paintBell(); list.filter((n) => !n.read).forEach((n) => { if (S.shownNotes.has(n.id)) return; S.shownNotes.add(n.id); showNotification(n); }); if ($("#notePanel")) drawNotes(); });
-    // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
-    if (!S.ownerUid && u.emailVerified) {
-      try { S.profile ||= await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = { ...S.profile, role: "owner" }; toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
-    }
-    S.isOwner = S.ownerUid === u.uid;
-    S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
-    S.isAdmin = S.isOwner || S.role === "admin";
+    S.isOwner = false;
+    S.role = S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
+    S.isAdmin = S.role === "admin";
+    // Owner lookup and first-owner claiming are not required to paint the signed-in app.
+    // Resolve them after the initial profile is ready, then refresh role-gated UI if needed.
+    void ownerLookup.then(async (ownerUid) => {
+      if (S.user?.uid !== u.uid) return;
+      S.ownerUid = ownerUid;
+      if (!ownerUid && u.emailVerified) {
+        try { S.profile ||= await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = { ...S.profile, role: "owner" }; toast("You are the owner of Faxton Rentals."); }
+        catch { /* not the designated owner: expected */ }
+      }
+      if (S.user?.uid !== u.uid) return;
+      const wasOwner = S.isOwner, wasRole = S.role;
+      S.isOwner = S.ownerUid === u.uid;
+      S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
+      S.isAdmin = S.isOwner || S.role === "admin";
+      if (wasOwner !== S.isOwner || wasRole !== S.role) render();
+    });
     // Approved tenants get a My Home dashboard instead of "My rentals". The lookup never holds up sign-in for long.
     S.tenant = null; if (!S.isAdmin && S.role === "renter") detectTenant(u).then((tenant) => { if (S.user?.uid === u.uid && tenant) { S.tenant = tenant; render(); } }).catch(() => {});
     S.unsubCalls?.(); S.unsubCalls = watchIncoming({ S, user: u }, S.isAdmin || S.role === "support");
@@ -678,7 +692,7 @@ new MutationObserver(() => $$(".tbl-wrap table").forEach((t) => { const hd = [..
 (function splash() {
   const el = $("#splash"), root = document.documentElement;
   if (!el || root.classList.contains("no-splash")) return;
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 2800;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 2500;
   let done = false;
   const finish = () => { if (done) return; done = true; try { sessionStorage.setItem("splashed", "1"); } catch {} el.classList.add("leave"); root.classList.add("ready"); document.dispatchEvent(new Event("splash-done")); setTimeout(() => el.remove(), 1000); };
   const poll = setInterval(() => { if (S.ready && performance.now() - started >= MIN) { clearInterval(poll); finish(); } }, 100);
