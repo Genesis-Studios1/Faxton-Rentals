@@ -546,6 +546,7 @@ async function signInGoogle(chosen = "renter", details, residence, photo) {
     let c;
     try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, accessToken || undefined)); }
     catch (e) {
+      pendingGoogleProfileIntent = null;
       const code = e?.code || "error";
       if (["auth/invalid-credential", "auth/invalid-idp-response", "auth/missing-or-invalid-nonce"].includes(code)) throw Object.assign(new Error(e?.message), { code: "google/token-rejected", gcode: "G-AUD" });
       if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
