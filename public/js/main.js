@@ -291,31 +291,41 @@ function wire() {
 }
 
 // ---------- auth ----------
+const profileEnsureInFlight = new Map();
 async function ensureProfile(u, extra = {}) {
-  const ref = doc(db, "users", u.uid);
-  const result = await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (snap.exists()) return { profile: snap.data(), created: false };
-    const role = extra.role || "renter";
-    const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
-    // Business, agent and home-owner accounts start in manual verification review. Account type is never promoted by client-side onboarding.
-    if (role === "agency") {
-      if (extra.details) d.agency = extra.details;
-      d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
-    } else if (role === "agent") {
-      if (extra.details) d.agentInfo = extra.details;
-      d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
-    } else if (role === "landlord") {
-      d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
-    }
-    d.role = role; if (extra.photo) d.photo = extra.photo;
-    const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
-    if (res?.country) Object.assign(d, resFields(res));
-    tx.set(ref, d);
-    return { profile: d, created: true };
-  });
-  if (result.created) S.justCreated = result.profile.role;
-  return result.profile;
+  if (!u?.uid) throw new TypeError("A signed-in user is required to create a profile.");
+  const existing = profileEnsureInFlight.get(u.uid);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    const ref = doc(db, "users", u.uid);
+    const result = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists()) return { profile: snap.data(), created: false };
+      const role = extra.role || "renter";
+      const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
+      if (role === "agency") {
+        if (extra.details) d.agency = extra.details;
+        d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
+      } else if (role === "agent") {
+        if (extra.details) d.agentInfo = extra.details;
+        d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
+      } else if (role === "landlord") {
+        d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
+      }
+      d.role = role; if (extra.photo) d.photo = extra.photo;
+      const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
+      if (res?.country) Object.assign(d, resFields(res));
+      tx.set(ref, d);
+      return { profile: d, created: true };
+    });
+    if (result.created) S.justCreated = result.profile.role;
+    return result.profile;
+  })();
+
+  profileEnsureInFlight.set(u.uid, pending);
+  try { return await pending; }
+  finally { if (profileEnsureInFlight.get(u.uid) === pending) profileEnsureInFlight.delete(u.uid); }
 }
 // Ban status remains enforced against the rules-protected Firebase user record.
 // Backend profile responses intentionally omit moderation fields.
@@ -356,13 +366,29 @@ async function signIn(email, pw, remember = true) {
   const p = await rejectIfBanned(c.user, legacyProfile);
   return p?.role || "renter";
 }
+let pendingSignupProfileIntent = null;
 async function signUp(name, email, pw, role, details, photo, residence) {
-  const c = await createUserWithEmailAndPassword(auth, email, pw);
+  pendingSignupProfileIntent = {
+    name,
+    role: ["agent", "landlord", "agency"].includes(role) ? role : "renter",
+    details, photo, residence
+  };
+  let c;
+  try {
+    c = await createUserWithEmailAndPassword(auth, email, pw);
+  } catch (error) {
+    pendingSignupProfileIntent = null;
+    throw error;
+  }
   try { await updateProfile(c.user, { displayName: name }); } catch {}
-  const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter", details, photo, residence });
-  try { await mk(); } catch { await mk(); }
+  try {
+    // The auth-state listener may already be creating this profile. Share the same
+    // selected role and profile details, and coalesce both writes into one transaction.
+    await ensureProfile(c.user, pendingSignupProfileIntent);
+  } finally {
+    pendingSignupProfileIntent = null;
+  }
   try { await sendEmailVerification(c.user); } catch {}
-  // Load the new profile now so the app opens signed in on the home page.
   await refreshAuthState(auth.currentUser);
   announce(c.user, S.profile, "signup");
 }
@@ -632,7 +658,10 @@ async function refreshAuthState(u) {
     // Keep my public card (name, photo, role, about) up to date for the people who tap my picture.
     { const pr = S.profile || {}; if (pr.name || u.displayName) syncPublic(u.uid, { name: (pr.role === "agency" && pr.agency?.business) || pr.name || u.displayName || "User", photo: pr.photo || "", role: pr.role || "renter", city: pr.city || "", country: pr.country || "", website: pr.agency?.website || "" }); }
     if (S.profile?.deletion?.status === "approved" && Date.now() >= (S.profile.deletion.requestedAt || 0) + 864e5) return finalizeDeletion(u);
-    if (!S.profile) { try { S.profile = await ensureProfile(u, u.providerData.some((x) => x.providerId === "google.com") ? (pendingGoogleProfileIntent || {}) : {}); } catch { /* rules refused; leave signed in without a profile */ } }
+    if (!S.profile) {
+      try { S.profile = await ensureProfile(u, pendingGoogleProfileIntent || pendingSignupProfileIntent || {}); }
+      catch (error) { console.warn("Signed in, but profile creation is still pending.", error?.code || error?.message || "unknown"); }
+    }
     // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
     if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
       // emailVerified lets the admin Users list show unverified sign-ups as Pending; it is written only when it changes.
