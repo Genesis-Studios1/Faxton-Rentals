@@ -26,6 +26,38 @@ import * as PRES from "./presence.js";
 import { syncPushDevice, removePushDevice, requestPushPermission, pushAvailable } from "./push-notifications.js";
 
 export const S = { notes: [], evNotes: [], msgNotes: [], shownNotes: new Set(), pendingV: 0, nav: 0, unread: 0, staffUnread: 0, unsubConvs: null, unsubStaffConvs: null, user: null, profile: null, saved: new Set(), ready: false, cleanups: [], ownerUid: null, isOwner: false, isAdmin: false, role: "renter" };
+
+let activityUid = "", activityTimer = 0, activityLastWrite = 0;
+const touchLastActive = (uid) => {
+  if (!uid || uid !== activityUid || document.visibilityState === "hidden" || navigator.onLine === false) return;
+  if (Date.now() - activityLastWrite < 5 * 60 * 1000) return;
+  activityLastWrite = Date.now();
+  patchDoc("users", uid, { lastActive: serverTimestamp() }).catch(() => { activityLastWrite = 0; });
+};
+const onActivityVisibility = () => { if (document.visibilityState === "visible") touchLastActive(activityUid); };
+const onActivityFocus = () => touchLastActive(activityUid);
+function startLastActiveHeartbeat(uid) {
+  if (!uid) return;
+  if (activityUid === uid) { touchLastActive(uid); return; }
+  stopLastActiveHeartbeat();
+  activityUid = uid;
+  activityLastWrite = 0;
+  touchLastActive(uid);
+  activityTimer = setInterval(() => touchLastActive(uid), 60 * 1000);
+  document.addEventListener("visibilitychange", onActivityVisibility);
+  addEventListener("focus", onActivityFocus);
+  addEventListener("online", onActivityFocus);
+}
+function stopLastActiveHeartbeat() {
+  clearInterval(activityTimer);
+  activityTimer = 0;
+  document.removeEventListener("visibilitychange", onActivityVisibility);
+  removeEventListener("focus", onActivityFocus);
+  removeEventListener("online", onActivityFocus);
+  activityUid = "";
+  activityLastWrite = 0;
+}
+
 const app = $("#app");
 
 // ---------- theme ----------
@@ -645,6 +677,7 @@ export const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 async function refreshAuthState(u) {
   if (!u) { S.unsubCalls?.(); S.unsubCalls = null; S.unsubNotes?.(); S.unsubNotes = null; S.notes = []; S.unsubVerif?.(); S.unsubVerif = null; S.pendingV = 0; S.unsubStaffEv?.(); S.unsubStaffEv = null; S.unsubStaffConvs?.(); S.unsubStaffConvs = null; S.evNotes = []; S.msgNotes = []; S.staffUnread = 0; }
   S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
+  if (!u) stopLastActiveHeartbeat();
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
     // Reconcile the backend in the background. Firebase profile/ownership reads
@@ -662,12 +695,14 @@ async function refreshAuthState(u) {
       try { S.profile = await ensureProfile(u, pendingGoogleProfileIntent || pendingSignupProfileIntent || {}); }
       catch (error) { console.warn("Signed in, but profile creation is still pending.", error?.code || error?.message || "unknown"); }
     }
-    // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
-    if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
-      // emailVerified lets the admin Users list show unverified sign-ups as Pending; it is written only when it changes.
-      if (Date.now() - t0 > 36e5 || S.profile.provider !== prov) patchDoc("users", u.uid, { lastActive: serverTimestamp(), provider: prov }).catch(() => {});
+    // Keep the admin Users table current while this signed-in tab is active.
+    if (S.profile) {
+      startLastActiveHeartbeat(u.uid);
+      const prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
+      if (S.profile.provider !== prov) patchDoc("users", u.uid, { provider: prov }).catch(() => {});
       if (S.profile.emailVerified !== !!u.emailVerified) (async () => { try { if (u.emailVerified) await u.getIdToken(true); await patchDoc("users", u.uid, { emailVerified: !!u.emailVerified }); if (S.profile) S.profile.emailVerified = !!u.emailVerified; } catch {} })();
-      if (typeof S.profile.prefs?.sounds === "boolean") setSounds(S.profile.prefs.sounds); }
+      if (typeof S.profile.prefs?.sounds === "boolean") setSounds(S.profile.prefs.sounds);
+    }
     S.unsubProfile?.(); S.unsubProfile = watchProfile(u.uid, (p) => {
       if (S.user?.uid !== u.uid || !p) return;
       if (p.banned) { S.bannedNote = true; signOut(auth); return; }
