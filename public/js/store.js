@@ -121,7 +121,10 @@ export async function saveProfile(uid, data) {
       const file = new File([blob], "profile-photo", { type: blob.type });
       avatarProfile = await uploadBackendProfileImage(file);
       if (!avatarProfile?.photo) throw new Error("Faxton could not confirm the saved profile photo.");
-      legacyProfile.photo = avatarProfile.photo;
+      // Keep the small compressed copy as the durable Firebase/admin/public-card
+      // value; the backend also stores the original in R2 for API-backed views.
+      if (data.photo.length > 70000) throw new RangeError("The profile photo is too large after compression. Choose a smaller image.");
+      legacyProfile.photo = data.photo;
     } else if (data?.photo !== undefined) {
       legacyProfile.photo = data.photo;
     }
