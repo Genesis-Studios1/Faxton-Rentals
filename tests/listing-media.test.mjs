@@ -1,24 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LISTING_MEDIA_LIMITS, validateListingMedia, collectListingFeatures } from "../public/js/listing-media-core.js";
+import { LISTING_MEDIA_LIMITS, validateListingMedia, validatePropertyVideoDuration, collectListingFeatures } from "../public/js/listing-media-core.js";
 import { uploadListingMedia, removeListingMedia } from "../public/js/listing-media.js";
 
 const file = (type, size) => ({ type, size });
 
 test("listing media accepts supported photos and videos within limits", () => {
-  assert.equal(validateListingMedia([file("image/jpeg", 1024)], [file("video/mp4", 2048)], 2, 1), "");
+  assert.equal(validateListingMedia([file("image/jpeg", 1024)], [file("video/mp4", 2048)], 2, 0), "");
 });
 
 test("listing media counts links and uploads together", () => {
   assert.match(validateListingMedia(Array.from({ length: 2 }, () => file("image/png", 100)), [], 29, 0), /30 photos/);
-  assert.match(validateListingMedia([], Array.from({ length: 2 }, () => file("video/mp4", 100)), 0, 4), /5 videos/);
+  assert.match(validateListingMedia([], [file("video/mp4", 100), file("video/mp4", 100)]), /only one property video/);
 });
 
 test("listing media rejects unsupported formats and oversized files", () => {
   assert.match(validateListingMedia([file("image/gif", 100)]), /JPG, PNG or WebP/);
   assert.match(validateListingMedia([file("image/jpeg", LISTING_MEDIA_LIMITS.imageBytes + 1)]), /10 MB/);
   assert.match(validateListingMedia([], [file("video/avi", 100)]), /MP4 or WebM/);
-  assert.match(validateListingMedia([], [file("video/mp4", LISTING_MEDIA_LIMITS.videoBytes + 1)]), /25 MB/);
+  assert.match(validateListingMedia([], [file("video/mp4", LISTING_MEDIA_LIMITS.videoBytes + 1)]), /250 MB/);
 });
 
 test("structured features include bedrooms, bathrooms and countable amenities", () => {
@@ -45,4 +45,10 @@ test("property uploads fail closed while Firebase Storage is not configured", as
     /Firebase Storage is not configured/
   );
   await assert.doesNotReject(removeListingMedia(["listing-media/staff-user/test-listing/images/unused.jpg"]));
+});
+
+test("property videos must be strictly longer than 90 seconds", () => {
+  assert.match(validatePropertyVideoDuration(90), /longer than 1 minute 30 seconds/);
+  assert.equal(validatePropertyVideoDuration(90.01), "");
+  assert.match(validatePropertyVideoDuration(Number.NaN), /longer than 1 minute 30 seconds/);
 });
