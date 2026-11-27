@@ -340,15 +340,6 @@ async function syncBackendOnboarding(u) {
   try { return await pending; }
   catch (error) { backendOnboardingSyncs.delete(u.uid); throw error; }
 }
-// A banned account is signed out straight away and told why.
-async function rejectIfBanned(u) {
-  // Profile access and ban enforcement are critical to sign-in; backend onboarding
-  // reconciliation is best-effort and must not hold the user at the loading screen.
-  const p = await getProfile(u.uid);
-  if (p?.banned) { S.bannedNote = true; try { await signOut(auth); } catch {} throw Object.assign(new Error("banned"), { code: "app/banned" }); }
-  syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
-  return p;
-}
 async function signIn(email, pw, remember = true) {
   await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
   let c;
