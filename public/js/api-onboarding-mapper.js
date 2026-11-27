@@ -18,7 +18,7 @@ export function toBackendOnboardingPayload(legacy = {}, user = {}) {
     }
     payload.agencyProfile = {
       businessName: String(agency.business).trim(),
-      businessType: "real_estate",
+      businessType: String(agency.businessType || "real_estate").trim(),
       registrationNumber: String(agency.cac || "").trim() || null,
       supportEmail: String(agency.supportEmail || "").trim() || null,
       supportPhone: String(agency.phone || "").trim() || null,
