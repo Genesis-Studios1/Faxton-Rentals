@@ -160,7 +160,7 @@ async function messages(ctx, cid) {
       if (vv) { vv.addEventListener("resize", fitVV); vv.addEventListener("scroll", fitVV); fitVV(); }
       if (CACHE_UID !== me) { LISTS.uid = ""; MSG_CACHE.clear(); BLOBS.forEach((u) => URL.revokeObjectURL(u)); BLOBS.clear(); LISTINGS.clear(); CACHE_UID = me; } // never carry one person's chats over to the next sign-in
       ctx.S.openChat = cid;
-      let mine = [], base = [], dms = [], team = [], calls = [], unsubM = null, unsubP = null, tab = "all", term = "", mode = getMode(), teamErr = false, fetched = new Set(), fetchDone = new Set(), loaded = false, dmsLoaded = false, teamLoaded = false, callsLoaded = false, listBelow = false;
+      let mine = [], base = [], dms = [], team = [], calls = [], unsubM = null, unsubP = null, tab = "all", term = "", mode = getMode(), teamErr = false, baseErr = false, dmsErr = false, fetched = new Set(), fetchDone = new Set(), loaded = false, dmsLoaded = false, teamLoaded = false, callsLoaded = false, listBelow = false;
       const listsReady = () => loaded && (!staff || (dmsLoaded && teamLoaded));
       const faxton = () => mode === "faxton", convs = () => (faxton() ? team : mine);
       // two icons the shared set doesn't have: reply arrow and push-pin
@@ -204,13 +204,14 @@ async function messages(ctx, cid) {
         const h = tab === "calls" ? (calls.length ? calls.filter((c) => !term || ((c.callerName || "") + (c.calleeName || "") + (c.title || "")).toLowerCase().includes(term)).map((c) => CALLS.logRow(c, me, (x) => light(CALLS.peerPhoto(x, me)))).join("") || nothing("phone", "No calls match", "Try a different search.") : callsLoaded ? nothing("phone", "No calls yet", "Open a conversation and tap Call or Video call.") : skel)
           : list.length ? list.map((c) => { const o = other(c), tick = RC.tickHtml(RC.listStatus(c, sideOf(c)), "mini"); return `<a class="mx-conv" data-cid="${esc(c.id)}" href="#/messages/${esc(c.id)}"><img class="mx-av" src="${esc(o.avatar)}" alt="" referrerpolicy="no-referrer" decoding="async"><div><div class="mx-ct"><b>${esc(o.name)}</b><time>${c.lastAt ? fmtTime(c.lastAt) : ""}</time></div><p>${tick}<span class="mx-lp1">${lastLine(c)}</span></p></div>${unreadOf(c) ? '<i class="mx-dot" aria-label="Unread"></i>' : ""}</a>`; }).join("")
           : (!loaded || !listsReady()) && !convs().length ? skel
-          : faxton() && teamErr ? nothing("chatdots", "Couldn’t load the inbox", "Check your connection and try again. If it keeps happening, the database rules may not be published yet.")
+          : (baseErr || dmsErr || (faxton() && teamErr)) ? nothing("alert-circle", "Couldn’t load your conversations", "Your messages haven’t been deleted. Check your connection and try again.", '<button type="button" class="btn sm" data-list-retry>Try again</button>')
           : convs().length ? nothing("search", "No conversations match", "Try a different search, or switch tab.")
           : faxton() ? nothing("chatdots", "No one has written yet", "When a renter messages Faxton Rentals, the conversation shows up here.")
           : nothing("chatdots", "No conversations yet", "Open a home and tap “Message agent” to start chatting.", `<a class="btn sm" href="#/search">Find a home</a>`);
         // Only repaint the list when what it shows changed (every snapshot used to rebuild it), and keep its scroll position.
         if (box.__h !== h) {
           const keep = box.scrollTop; box.innerHTML = h; box.__h = h; box.scrollTop = keep; drawList.n = (drawList.n || 0) + 1;
+          const retryList = $("[data-list-retry]", box); if (retryList) retryList.onclick = () => window.location.reload();
           $$("[data-cb]", box).forEach((b) => (b.onclick = () => { const c = calls.find((x) => x.id === b.dataset.cb); if (!c) return; const out = c.callerUid === me; CALLS.startCall(ctx, { convId: c.convId, to: out ? c.calleeUid : c.callerUid, toName: out ? c.calleeName : c.callerName, kind: b.dataset.k, title: c.title }); }));
         }
         syncOn();
@@ -532,8 +533,8 @@ async function messages(ctx, cid) {
       ctx.S.msgNav = (path) => { if (!(path === "/messages" || path.startsWith("/messages/"))) return false; navTo(decodeURIComponent(path.split("/")[2] || "")); return true; };
       // Seed from the last visit so a full page re-run never starts from empty lists.
       if (LISTS.uid === me) { base = LISTS.base; dms = LISTS.dms; team = LISTS.team; merge(); loaded = true; dmsLoaded = teamLoaded = true; }
-      const unsubC = st.watchConversations(ctx.S.user, (c) => { loaded = true; base = c; merge(); remember(); refresh(); });
-      const unsubD = staff ? st.watchStaffDMs(me, (c) => { dmsLoaded = true; dms = c; merge(); remember(); refresh(); }) : null;
+      const unsubC = st.watchConversations(ctx.S.user, (c) => { loaded = true; baseErr = false; base = c; merge(); remember(); refresh(); }, () => { loaded = true; baseErr = true; refresh(); });
+      const unsubD = staff ? st.watchStaffDMs(me, (c) => { dmsLoaded = true; dmsErr = false; dms = c; merge(); remember(); refresh(); }, () => { dmsLoaded = true; dmsErr = true; refresh(); }) : null;
       const unsubT = staff ? st.watchStaffConversations((c) => { teamLoaded = true; team = c.length || !team.length ? c : team; teamErr = false; remember(); refresh(); }, () => { teamLoaded = true; teamErr = true; refresh(); }) : null;
       const unsubL = CALLS.watchLogs(me, (l) => { callsLoaded = true; calls = l; CALLS.warmPeers(l, me, () => { if ($("#convs") && tab === "calls") drawList(); }); if ($("#convs")) drawList(); else drawSide(); paintThread(); });
       drawSide(); drawChat();

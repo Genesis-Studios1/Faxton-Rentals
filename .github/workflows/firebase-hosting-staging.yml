@@ -1,0 +1,76 @@
+name: Deploy Firebase staging
+
+on:
+  push:
+    branches: [phase9-frontend-staging]
+    paths:
+      - "public/**"
+      - "firebase.staging.json"
+      - ".github/workflows/firebase-hosting-staging.yml"
+      - "scripts/**"
+      - "tests/**"
+      - "package.json"
+  workflow_dispatch:
+
+concurrency:
+  group: faxton-firebase-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22
+
+      - name: Validate frontend
+        run: |
+          # Run every pure frontend test, not just the original listing-media smoke test.
+          node --experimental-default-type=module --test tests/*.test.mjs
+          # Run Firestore authorization tests in the emulator before any staging deploy.
+          npm run test:rules
+          # Parse every browser module, including authentication and startup code.
+          find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --experimental-default-type=module --check
+          node scripts/check-waitlist-icons.mjs
+          # Fail closed if staging is accidentally pointed at production Firebase.
+          grep -q 'projectId: "faxton-rentals-staging"' public/js/firebase.js
+          if grep -q 'projectId: "faxton-rentals"' public/js/firebase.js; then
+            echo "::error::Staging frontend must not use the production Firebase project."
+            exit 1
+          fi
+
+      - name: Require staging-only Firebase credentials
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::Add FIREBASE_SERVICE_ACCOUNT_STAGING to the GitHub staging Environment."
+            exit 1
+          fi
+
+      - name: Deploy hosting and Firestore rules to the staging Firebase project only
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_STAGING }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEY" > "$RUNNER_TEMP/firebase-staging.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-staging.json"
+          npx --yes firebase-tools@15.35.0 deploy --only hosting,firestore:rules --config firebase.staging.json --project faxton-rentals-staging --non-interactive
+          rm -f "$RUNNER_TEMP/firebase-staging.json"
+
+      - name: Smoke test staging Hosting
+        run: |
+          set -euo pipefail
+          HOST="https://faxton-rentals-staging.web.app"
+          curl -fsS "$HOST/" -o /dev/null
+          curl -fsS "$HOST/app/" -o /dev/null
+          curl -fsSI "$HOST/" | grep -qi '^content-security-policy:'
+          echo "Firebase staging Hosting is responding with its security policy."

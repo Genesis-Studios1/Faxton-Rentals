@@ -5,7 +5,7 @@ import { auth, db, google, reauthenticateWithCredential, reauthenticateWithPopup
 import { GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signInWithCredential, signOut, updateProfile, sendPasswordResetEmail, sendEmailVerification, deleteUser, setPersistence, browserLocalPersistence, browserSessionPersistence }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { doc, getDoc, setDoc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { patch as patchDoc } from "./store.js";
 import { $, $$, esc, icon, logo, initials, toast, friendlyErr, modal } from "./ui.js";
 import { getProfile, getSaved, toggleSaved, getOwnerUid, claimOwnership, watchConversations, watchStaffConversations, watchProfile, watchNotifications, watchAllNotifications, markNotificationRead, markAllNotificationsRead, watchPendingVerifications, deleteProfile, saveProfile, logStaffEvent, watchStaffEvents } from "./store.js";
@@ -291,27 +291,53 @@ function wire() {
 }
 
 // ---------- auth ----------
+const profileEnsureInFlight = new Map();
 async function ensureProfile(u, extra = {}) {
-  const ref = doc(db, "users", u.uid);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    let role = extra.role || "renter";
-    const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
-    // Business, agent and home-owner accounts start in manual verification review. Account type is never promoted by client-side onboarding.
-    if (role === "agency") {
-      if (extra.details) d.agency = extra.details;
-      d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
-    } else if (role === "agent") {
-      if (extra.details) d.agentInfo = extra.details;
-      d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
-    } else if (role === "landlord") {
-      d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
-    }
-    d.role = role; if (extra.photo) d.photo = extra.photo;
-    const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
-    if (res?.country) Object.assign(d, resFields(res));
-    await setDoc(ref, d); S.justCreated = role;
+  if (!u?.uid) throw new TypeError("A signed-in user is required to create a profile.");
+  const existing = profileEnsureInFlight.get(u.uid);
+  if (existing) return existing;
+
+  const pending = (async () => {
+    const ref = doc(db, "users", u.uid);
+    const result = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (snap.exists()) return { profile: snap.data(), created: false };
+      const role = extra.role || "renter";
+      const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
+      if (role === "agency") {
+        if (extra.details) d.agency = extra.details;
+        d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
+      } else if (role === "agent") {
+        if (extra.details) d.agentInfo = extra.details;
+        d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
+      } else if (role === "landlord") {
+        d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
+      }
+      d.role = role; if (extra.photo) d.photo = extra.photo;
+      const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
+      if (res?.country) Object.assign(d, resFields(res));
+      tx.set(ref, d);
+      return { profile: d, created: true };
+    });
+    if (result.created) S.justCreated = result.profile.role;
+    return result.profile;
+  })();
+
+  profileEnsureInFlight.set(u.uid, pending);
+  try { return await pending; }
+  finally { if (profileEnsureInFlight.get(u.uid) === pending) profileEnsureInFlight.delete(u.uid); }
+}
+// Ban status remains enforced against the rules-protected Firebase user record.
+// Backend profile responses intentionally omit moderation fields.
+async function rejectIfBanned(u, legacyProfile) {
+  const profile = legacyProfile || await getProfile(u.uid);
+  if (profile?.banned) {
+    S.bannedNote = true;
+    try { await signOut(auth); } catch {}
+    throw Object.assign(new Error("banned"), { code: "app/banned" });
   }
+  syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
+  return profile;
 }
 // Copy the legacy, rules-protected account choice into the backend after Firebase email verification.
 const backendOnboardingSyncs = new Map();
@@ -328,13 +354,6 @@ async function syncBackendOnboarding(u) {
   try { return await pending; }
   catch (error) { backendOnboardingSyncs.delete(u.uid); throw error; }
 }
-// A banned account is signed out straight away and told why.
-async function rejectIfBanned(u) {
-  try { await syncBackendOnboarding(u); } catch (error) { console.warn("Backend onboarding sync is pending.", error?.message || ""); }
-  const p = await getProfile(u.uid);
-  if (p?.banned) { S.bannedNote = true; try { await signOut(auth); } catch {} throw Object.assign(new Error("banned"), { code: "app/banned" }); }
-  return p;
-}
 async function signIn(email, pw, remember = true) {
   await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
   let c;
@@ -343,16 +362,33 @@ async function signIn(email, pw, remember = true) {
     // Firebase hides whether an email exists (on purpose), so a wrong password and a missing account look the same. Say so honestly instead of guessing.
     throw e;
   }
-  const p = await rejectIfBanned(c.user);
+  const legacyProfile = await getDoc(doc(db, "users", c.user.uid)).then((snapshot) => snapshot.exists() ? snapshot.data() : null);
+  const p = await rejectIfBanned(c.user, legacyProfile);
   return p?.role || "renter";
 }
+let pendingSignupProfileIntent = null;
 async function signUp(name, email, pw, role, details, photo, residence) {
-  const c = await createUserWithEmailAndPassword(auth, email, pw);
+  pendingSignupProfileIntent = {
+    name,
+    role: ["agent", "landlord", "agency"].includes(role) ? role : "renter",
+    details, photo, residence
+  };
+  let c;
+  try {
+    c = await createUserWithEmailAndPassword(auth, email, pw);
+  } catch (error) {
+    pendingSignupProfileIntent = null;
+    throw error;
+  }
   try { await updateProfile(c.user, { displayName: name }); } catch {}
-  const mk = () => ensureProfile(c.user, { name, role: ["agent", "landlord", "agency"].includes(role) ? role : "renter", details, photo, residence });
-  try { await mk(); } catch { await mk(); }
+  try {
+    // The auth-state listener may already be creating this profile. Share the same
+    // selected role and profile details, and coalesce both writes into one transaction.
+    await ensureProfile(c.user, pendingSignupProfileIntent);
+  } finally {
+    pendingSignupProfileIntent = null;
+  }
   try { await sendEmailVerification(c.user); } catch {}
-  // Load the new profile now so the app opens signed in on the home page.
   await refreshAuthState(auth.currentUser);
   announce(c.user, S.profile, "signup");
 }
@@ -524,32 +560,44 @@ async function nativeGoogleToken() {
   if (aud && aud !== GOOGLE_WEB_CLIENT_ID) throw Object.assign(new Error("Google token audience " + aud), { code: "google/audience", gcode: "G-AUD" });
   return { idToken, accessToken: r.credential.accessToken };
 }
+let pendingGoogleProfileIntent = null;
 async function signInGoogle(chosen = "renter", details, residence, photo) {
+  // Share the selected role with the auth-state listener while Firebase finishes signing in.
+  pendingGoogleProfileIntent = { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo };
   if (inAppShell()) {
-    const { idToken, accessToken } = await nativeGoogleToken();
+    let nativeCredential;
+    try { nativeCredential = await nativeGoogleToken(); }
+    catch (e) { pendingGoogleProfileIntent = null; throw e; }
+    const { idToken, accessToken } = nativeCredential;
     let c;
     try { c = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken, accessToken || undefined)); }
     catch (e) {
+      pendingGoogleProfileIntent = null;
       const code = e?.code || "error";
       if (["auth/invalid-credential", "auth/invalid-idp-response", "auth/missing-or-invalid-nonce"].includes(code)) throw Object.assign(new Error(e?.message), { code: "google/token-rejected", gcode: "G-AUD" });
       if (["auth/operation-not-allowed", "auth/network-request-failed", "auth/user-disabled", "auth/account-exists-with-different-credential", "auth/too-many-requests", "auth/unauthorized-domain"].includes(code)) throw e;
       throw Object.assign(new Error(e?.message), { code: `firebase/${code}${window.__csp ? " | " + window.__csp : ""}` });
     }
-    const was = S.justCreated; S.justCreated = null; await ensureProfile(c.user, { role: chosen, details, residence, photo }); const p = await rejectIfBanned(c.user); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
+    const was = S.justCreated; S.justCreated = null; const legacyProfile = await ensureProfile(c.user, pendingGoogleProfileIntent || {}); const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was; return p?.role || "renter";
   }
   const t0 = performance.now();
   let c;
   try { c = await signInWithPopup(auth, google); }
   catch (e) {
+    pendingGoogleProfileIntent = null;
     const known = ["auth/popup-closed-by-user", "auth/cancelled-popup-request", "auth/unauthorized-domain", "auth/operation-not-allowed", "auth/too-many-requests", "auth/popup-blocked"];
     if (known.includes(e?.code)) throw e;
     const ms = Math.round(performance.now() - t0);
-    const probes = e?.code === "auth/network-request-failed" ? await probeGoogle() : "";
-    throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}${probes}` });
+    // Do not make the person wait for diagnostic network probes before showing the sign-in error.
+    // Collect them in the background for support logs only; popup failure feedback stays immediate.
+    if (e?.code === "auth/network-request-failed") void probeGoogle().then((details) => {
+      console.info("[google-signin-network]", { elapsedMs: ms, details });
+    }).catch(() => {});
+    throw Object.assign(new Error(e?.message), { code: `${String(e?.code || "error").replace("auth/", "")}|${ms}ms|${String(e?.customData?.message || "-").slice(0, 30)}${window.__csp ? "|csp" : ""}` });
   }
   const was = S.justCreated; S.justCreated = null;
-  await ensureProfile(c.user, { role: ["landlord", "agency", "agent"].includes(chosen) ? chosen : "renter", details, residence, photo });
-  const p = await rejectIfBanned(c.user); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
+  const legacyProfile = await ensureProfile(c.user, pendingGoogleProfileIntent || {});
+  const p = await rejectIfBanned(c.user, legacyProfile); announce(c.user, p, S.justCreated ? "signup" : "login"); S.justCreated ||= was;
   return p?.role || "renter";
 }
 // Proves the signed-in person still controls their Google account (used by "Download my data"). In the Android / iPhone app the native Google
@@ -599,14 +647,21 @@ async function refreshAuthState(u) {
   S.user = u; S.profile = null; S.tenant = null; S.saved = new Set(); S.isOwner = S.isAdmin = false; S.role = "renter";
   if (!u) { S.unsubProfile?.(); S.unsubProfile = null; }
   if (u) {
-    try { await syncBackendOnboarding(u); } catch (error) { console.warn("Backend onboarding sync is pending.", error?.message || ""); }
-    [S.profile, S.ownerUid] = await Promise.all([getProfile(u.uid), getOwnerUid()]);
+    // Reconcile the backend in the background. Firebase profile/ownership reads
+    // determine the initial UI and should not wait for a separate API round-trip.
+    syncBackendOnboarding(u).catch((error) => console.warn("Backend onboarding sync is pending.", error?.message || ""));
+    const ownerLookup = getOwnerUid().catch(() => null);
+    S.profile = await getDoc(doc(db, "users", u.uid)).then((snapshot) => snapshot.exists() ? snapshot.data() : null).catch(() => null);
+    S.ownerUid = null;
     if (S.profile?.banned) { S.bannedNote = true; S.unsubProfile?.(); S.unsubProfile = null; try { await signOut(auth); } catch {} return refreshAuthState(null); }
     S.bannedNote = false;
     // Keep my public card (name, photo, role, about) up to date for the people who tap my picture.
     { const pr = S.profile || {}; if (pr.name || u.displayName) syncPublic(u.uid, { name: (pr.role === "agency" && pr.agency?.business) || pr.name || u.displayName || "User", photo: pr.photo || "", role: pr.role || "renter", city: pr.city || "", country: pr.country || "", website: pr.agency?.website || "" }); }
     if (S.profile?.deletion?.status === "approved" && Date.now() >= (S.profile.deletion.requestedAt || 0) + 864e5) return finalizeDeletion(u);
-    if (!S.profile) { try { await ensureProfile(u); S.profile = await getProfile(u.uid); } catch { /* rules refused; leave signed in without a profile */ } }
+    if (!S.profile) {
+      try { S.profile = await ensureProfile(u, pendingGoogleProfileIntent || pendingSignupProfileIntent || {}); }
+      catch (error) { console.warn("Signed in, but profile creation is still pending.", error?.code || error?.message || "unknown"); }
+    }
     // Last active and sign-in method, for the admin Users table: stamped at most once an hour, and never in anyone's way.
     if (S.profile) { const la = S.profile.lastActive, t0 = la?.seconds ? la.seconds * 1000 : la?.toMillis ? la.toMillis() : 0, prov = u.providerData.some((x) => x.providerId === "google.com") ? "google" : "password";
       // emailVerified lets the admin Users list show unverified sign-ups as Pending; it is written only when it changes.
@@ -622,15 +677,28 @@ async function refreshAuthState(u) {
       else if (was && (p.verified !== was.verified || p.verification?.status !== was.verification?.status || p.onboarding?.completed !== was.onboarding?.completed)) render();
     });
     S.unsubNotes?.(); S.unsubNotes = watchAllNotifications(u.uid, (list) => { S.notes = list; paintBell(); list.filter((n) => !n.read).forEach((n) => { if (S.shownNotes.has(n.id)) return; S.shownNotes.add(n.id); showNotification(n); }); if ($("#notePanel")) drawNotes(); });
-    // While there is no owner, a verified account may try to claim it. Firestore rules only allow the designated owner.
-    if (!S.ownerUid && u.emailVerified) {
-      try { await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = await getProfile(u.uid); toast("You are the owner of Faxton Rentals."); } catch { /* not the owner: expected */ }
-    }
-    S.isOwner = S.ownerUid === u.uid;
-    S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
-    S.isAdmin = S.isOwner || S.role === "admin";
+    S.isOwner = false;
+    S.role = S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
+    S.isAdmin = S.role === "admin";
+    if (u?.providerData?.some((x) => x.providerId === "google.com")) pendingGoogleProfileIntent = null;
+    // Owner lookup and first-owner claiming are not required to paint the signed-in app.
+    // Resolve them after the initial profile is ready, then refresh role-gated UI if needed.
+    void ownerLookup.then(async (ownerUid) => {
+      if (S.user?.uid !== u.uid) return;
+      S.ownerUid = ownerUid;
+      if (!ownerUid && u.emailVerified) {
+        try { S.profile ||= await ensureProfile(u); await claimOwnership(u); S.ownerUid = u.uid; S.profile = { ...S.profile, role: "owner" }; toast("You are the owner of Faxton Rentals."); }
+        catch { /* not the designated owner: expected */ }
+      }
+      if (S.user?.uid !== u.uid) return;
+      const wasOwner = S.isOwner, wasRole = S.role;
+      S.isOwner = S.ownerUid === u.uid;
+      S.role = S.isOwner ? "owner" : S.profile?.role === "owner" ? "admin" : S.profile?.role || "renter";
+      S.isAdmin = S.isOwner || S.role === "admin";
+      if (wasOwner !== S.isOwner || wasRole !== S.role) render();
+    });
     // Approved tenants get a My Home dashboard instead of "My rentals". The lookup never holds up sign-in for long.
-    S.tenant = null; if (!S.isAdmin && S.role === "renter") S.tenant = await Promise.race([detectTenant(u).catch(() => null), new Promise((r) => setTimeout(() => r(null), 2500))]);
+    S.tenant = null; if (!S.isAdmin && S.role === "renter") detectTenant(u).then((tenant) => { if (S.user?.uid === u.uid && tenant) { S.tenant = tenant; render(); } }).catch(() => {});
     S.unsubCalls?.(); S.unsubCalls = watchIncoming({ S, user: u }, S.isAdmin || S.role === "support");
     S.unsubVerif?.(); S.unsubVerif = null;
     S.unsubStaffEv?.(); S.unsubStaffEv = null; S.unsubStaffConvs?.(); S.unsubStaffConvs = null; S.evNotes = []; S.msgNotes = []; S.staffUnread = 0;
@@ -666,7 +734,7 @@ new MutationObserver(() => $$(".tbl-wrap table").forEach((t) => { const hd = [..
 (function splash() {
   const el = $("#splash"), root = document.documentElement;
   if (!el || root.classList.contains("no-splash")) return;
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 2800;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches, started = performance.now(), MIN = reduce ? 600 : 2500;
   let done = false;
   const finish = () => { if (done) return; done = true; try { sessionStorage.setItem("splashed", "1"); } catch {} el.classList.add("leave"); root.classList.add("ready"); document.dispatchEvent(new Event("splash-done")); setTimeout(() => el.remove(), 1000); };
   const poll = setInterval(() => { if (S.ready && performance.now() - started >= MIN) { clearInterval(poll); finish(); } }, 100);

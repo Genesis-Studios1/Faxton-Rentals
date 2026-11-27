@@ -14,7 +14,8 @@ import * as AX from "./ax.js";
 import { createList } from "./ax-list.js";
 import { emailPending } from "./gate.js";
 import { locFields, mountLoc, listingLoc, listingLocError } from "./loc.js";
-import { validateListingMedia } from "./listing-media-core.js";
+import { validateListingMedia, readPropertyVideoDuration, validatePropertyVideoDuration } from "./listing-media-core.js";
+import { pickLocation } from "./maps.js";
 import { collectListingFeatures } from "./listing-media-core.js";
 
 const { $, $$, esc, I, btn, chipFor, chip, avatar, thumb, fmt, toast, dialog, confirm, reason, typed, menu, drawer, data, empty, tabs, mountTabs, dl, section, timeline, setQ, hq, changed, copy, pageView, csv, bulkRun, bulkRun: _b } = AX;
@@ -126,8 +127,14 @@ function mediaDialog(ctx, l, done) {
   $(" [data-ok]".trim(), d.el).onclick = async (e) => {
     const im = lines($("#mfi", d.el).value), vd = lines($("#mfv", d.el).value);
     const err = $("#mfe", d.el); err.textContent = "";
-    const invalid = validateListingMedia([], [], im.length, vd.length);
+    const invalid = validateListingMedia(photoFiles, videoFiles, im.length, vd.length);
     if (invalid) return (err.textContent = invalid);
+    if (videoFiles.length) {
+      try {
+        const durationError = validatePropertyVideoDuration(await readPropertyVideoDuration(videoFiles[0]));
+        if (durationError) return (err.textContent = durationError);
+      } catch (error) { return (err.textContent = error.message || "Could not validate the property video."); }
+    }
     if (!im.length) return (err.textContent = "Add at least one photo link.");
     if (im.some((u) => !/^(https:\/\/|img\/)/.test(u)) || vd.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Links must start with https://");
     busy(e.currentTarget, true);
@@ -149,6 +156,8 @@ async function addListingDialog(ctx, ls, list) {
   const d = dialog({ title: "Add listing", size: "lg", icon: "clipList", body: `<form id="nl" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
     ${locFields({ style: "ax", flow: true, ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "nlCity" })}
+    <label class="ax-field full"><span>Full street address <small>Private — not shown publicly</small></span><input class="ax-input" name="streetAddress" maxlength="240" placeholder="House number, street name and estate"></label>
+    <div class="ax-field full"><span>Location on the map</span><div style="display:flex;align-items:center;gap:10px"><button type="button" class="ax-btn" id="nlLoc">Set location on map</button><span class="ax-muted" id="nlLocT">Not set yet</span></div></div>
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
     <label class="ax-field"><span>Property type</span><select class="ax-input" name="type"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option><option>Shortlet</option></select></label>
     <label class="ax-field"><span>House structure</span><select class="ax-input" name="buildingType" id="nlBuildingType"><option value="Bungalow">Bungalow</option><option value="Storey building">Storey building</option><option value="Other">Other</option></select></label>
@@ -173,12 +182,18 @@ async function addListingDialog(ctx, ls, list) {
       <button type="button" class="ax-btn" id="nlAddFeature" style="margin-top:10px">+ Add another feature</button>
     </div>
     <div class="ax-field full" style="padding:14px;border:1px solid var(--ax-border);border-radius:12px">
-      <strong>Property photos and videos</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Add publicly accessible HTTPS links. Direct file uploads are disabled until Firebase Storage is configured.</small>
-      <label class="ax-lbl" for="nlPhotoLinks">Photo links (one per line)</label><textarea class="ax-input" name="im" id="nlPhotoLinks" rows="2" placeholder="https://…"></textarea>
-      <label class="ax-lbl" for="nlVideoLinks" style="margin-top:10px">Video links (one per line)</label><textarea class="ax-input" name="vd" id="nlVideoLinks" rows="2" placeholder="YouTube, Vimeo or direct video URL"></textarea>
+      <strong>Property photos and video</strong><small class="ax-muted" style="display:block;margin:4px 0 12px">Upload up to 30 photos (10 MB each), plus one MP4 or WebM video longer than 1 minute 30 seconds (up to 250 MB).</small>
+      <label class="ax-lbl" for="nlPhotoFiles">Upload photos</label><input class="ax-input" type="file" id="nlPhotoFiles" accept="image/jpeg,image/png,image/webp" multiple>
+      <label class="ax-lbl" for="nlVideoFile" style="margin-top:10px">Upload one property video</label><input class="ax-input" type="file" id="nlVideoFile" accept="video/mp4,video/webm">
+      <p class="ax-muted" id="nlUploadStatus" aria-live="polite"></p>
     </div>
     <p class="ax-err full" role="alert" id="nle"></p></form>`, footer: `${btn("Cancel", { attrs: "data-x" })}${btn("Create listing", { v: "primary", attrs: "data-ok" })}` });
   const loc = mountLoc(d.el, { ids: { country: "nlCountry", state: "nlState", lga: "nlLga" }, area: { id: "nlArea" }, cityId: "nlCity" });
+  let where = null;
+  $("#nlLoc", d.el).addEventListener("click", async () => {
+    const pin = await pickLocation({ lat: where?.lat, lng: where?.lng });
+    if (pin) { where = pin; $("#nlLocT", d.el).textContent = "Saved (" + pin.lat.toFixed(4) + ", " + pin.lng.toFixed(4) + ")"; }
+  });
   const form = $("#nl", d.el), structure = $("#nlBuildingType", d.el), storyFields = $("#nlStoryFields", d.el);
   const syncStructure = () => { storyFields.hidden = structure.value !== "Storey building"; };
   structure.addEventListener("change", syncStructure); syncStructure();
@@ -193,6 +208,7 @@ async function addListingDialog(ctx, ls, list) {
   $("#nlCustomFeatures", d.el).addEventListener("click", (e) => { if (e.target.closest("[data-remove-feature]")) e.target.closest(".nl-feature-row").remove(); });
   $("[data-ok]", d.el).onclick = async (e) => {
     const L = loc.commit(), f = Object.fromEntries(new FormData(form)), err = $("#nle", d.el);
+    const photoFiles = [...($("#nlPhotoFiles", d.el).files || [])], videoFiles = [...($("#nlVideoFile", d.el).files || [])];
     err.textContent = ""; const im = lines(f.im), vd = lines(f.vd), P = listingLoc(L, f.area);
     if (!f.title?.trim()) return (err.textContent = "Add a title.");
     { const m = listingLocError(L, f.area); if (m) return (err.textContent = m); }
@@ -209,8 +225,38 @@ async function addListingDialog(ctx, ls, list) {
     const id = f.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) + "-" + Date.now().toString(36).slice(-4);
     busy(e.currentTarget, true);
     try {
+      if (apiConfigured()) {
+        if (f.agent && f.agent !== me) throw new Error("To list on behalf of another owner, use an authorised agent account or ask the owner to submit the property.");
+        if (String(f.streetAddress || "").trim().length < 3) throw new Error("Enter the full private street address.");
+        if (im.length || vd.length) throw new Error("Use the upload fields for backend listings. External media links are not supported here yet.");
+        const propertyType = /house|duplex/i.test(f.type) ? "house" : /room|studio/i.test(f.type) ? "room" : "apartment";
+        const api = await import("./api-properties.js");
+        const property = await api.createBackendPropertyFromListing({
+          title: f.title.trim(), description: f.desc.trim(), ...P,
+          addressLine: String(f.streetAddress).trim(), latitude: where?.lat ?? null, longitude: where?.lng ?? null,
+          propertyType, propertySubtype: f.type, listingMode: f.type === "Shortlet" ? "shortlet" : "long_term",
+          priceAmount: +f.price, pricePeriod: "yearly", currency: "NGN", beds: +f.beds || 0, baths: +f.baths || 0,
+          buildingType: f.buildingType, parking: +f.parking || 0, amenities: [], features
+        });
+        const status = $("#nlUploadStatus", d.el);
+        const total = photoFiles.length + videoFiles.length;
+        let doneCount = 0;
+        for (const file of photoFiles) {
+          status.textContent = "Uploading " + file.name + "…";
+          await api.uploadBackendPropertyImage(property.id, file);
+          doneCount++; status.textContent = "Uploaded " + doneCount + " of " + total + " files.";
+        }
+        for (const file of videoFiles) {
+          status.textContent = "Uploading " + file.name + "…";
+          await api.uploadBackendPropertyVideo(property.id, file);
+          doneCount++; status.textContent = "Uploaded " + doneCount + " of " + total + " files.";
+        }
+        await api.submitBackendPropertyForReview(property.id);
+        data.invalidate("listings"); changed(); d.close(); toast("Property submitted for review."); return;
+      }
+      if (photoFiles.length || videoFiles.length) throw new Error("Direct uploads require the Faxton backend to be configured. Please try again later.");
       const images = im, videos = vd;
-      const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: Math.max(0, +f.beds || 0), baths: Math.max(0, +f.baths || 0), sqm: 0, type: f.type, buildingType: f.buildingType, ...(f.buildingType === "Storey building" ? { floorNumber: +f.floorNumber, ...(f.roomNumber.trim() ? { roomNumber: f.roomNumber.trim() } : {}) } : {}), desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: 6.45, lng: 3.47, images, thumb: images[0] || "", videos, mediaItems: [], features, amenities: features.map((x) => x.name), parking: +f.parking || 0, ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
+      const doc = { id, title: f.title.trim(), ...P, price: +f.price, beds: Math.max(0, +f.beds || 0), baths: Math.max(0, +f.baths || 0), sqm: 0, type: f.type, buildingType: f.buildingType, ...(f.buildingType === "Storey building" ? { floorNumber: +f.floorNumber, ...(f.roomNumber.trim() ? { roomNumber: f.roomNumber.trim() } : {}) } : {}), desc: f.desc.trim(), status: "active", service: 0, deposit: 0, lat: where?.lat ?? null, lng: where?.lng ?? null, images, thumb: images[0] || "", videos, mediaItems: [], features, amenities: features.map((x) => x.name), parking: +f.parking || 0, ...(self ? {} : { ownerUid: u.id }), agent: { id: self ? me : u.id, name, avatar: photo, photo } };
       await st.createListing(doc);
       ls.unshift({ ...doc, createdAt: { seconds: Math.floor(Date.now() / 1000) } }); changed(); list.repaint(); d.close(); toast("Listing created.");
     } catch (x) {

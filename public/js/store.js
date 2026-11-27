@@ -2,7 +2,6 @@
 import { db } from "./firebase.js";
 import { moveIn as costOf } from "./area.js";
 import { apiConfigured } from "./api-client.js";
-import { listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { getBackendProfile, updateBackendProfile, updateBackendSettings } from "./api-profile.js";
 import { listBackendSavedProperties, saveBackendProperty, removeBackendSavedProperty } from "./api-saved-properties.js";
 import { createBackendViewing, listBackendViewings, listBackendOwnerViewings, listBackendViewingReschedules, respondBackendViewingReschedule, confirmBackendViewing, declineBackendViewing, cancelBackendViewing } from "./api-viewings.js";
@@ -11,13 +10,14 @@ import { uploadBackendApplicationDocument, createBackendApplication, listBackend
 import { toBackendApplicationPayload, toBackendApplicationViewModel } from "./api-rental-mapper.js";
 import { createBackendTenancyAgreement, listBackendTenancyAgreements, getBackendTenancyAgreement, sendBackendTenancyAgreement, signBackendTenancyAgreement, createBackendRentalPaymentRequest, listBackendRentalPayments, getBackendRentalPayment } from "./api-tenancy.js";
 import { listBackendNotifications, markBackendNotificationRead, markAllBackendNotificationsRead } from "./api-notifications.js";
+import { getBackendPropertyWithMedia, listBackendProperties, listMyBackendProperties, listBackendPropertyMedia } from "./api-properties.js";
 import { collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, arrayUnion, arrayRemove, writeBatch, deleteDoc, deleteField }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 let cache = null;
 let cacheUsesBackend = false;
 // Fill any missing fields so a partial or older Firestore listing can never break a page.
-const norm = (l) => { const o = { ...l }; o.agent = { ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
+const norm = (l) => { const o = { ...l }; o.listingMode = o.listingMode || (String(o.type || "").toLowerCase() === "shortlet" ? "shortlet" : "long_term"); o.agent = { ...(l.agent || {}) }; if (!o.agent.name) o.agent.name = "Faxton agent"; if (!o.agent.avatar) o.agent.avatar = "img/av-daniel.webp"; if (!o.agent.photo) o.agent.photo = o.agent.avatar; o.images = o.images?.length ? o.images : [o.thumb || "img/palm-court.webp"]; o.thumb = o.thumb || o.images[0]; o.amenities = o.amenities || []; o.desc = o.desc || ""; o.area = o.area || ""; o.city = o.city || ""; o.beds = o.beds ?? 1; o.baths = o.baths ?? 1; o.price = o.price || 0; o.videos = (Array.isArray(o.videos) ? o.videos : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, 6); return o; };
 
 // ---- demo mode ----
 // Real visitors must never see made-up homes. Sample data exists only for the owner, who switches demo mode on from
@@ -86,7 +86,12 @@ export async function getListings(force = false) {
   if (stored?.length && !force) { cache = stored.filter(Boolean).map(norm); fetchFresh(); return cache; }
   return fetchFresh();
 }
-export const getListing = async (id) => (await getListings()).find((l) => l.id === id) || null;
+export const getListing = async (id) => {
+  if (apiConfigured()) {
+    try { return await getBackendPropertyWithMedia(id); } catch { return null; }
+  }
+  return (await getListings()).find((listing) => listing.id === id) || null;
+};
 
 // ---- profile + saved homes ----
 export async function getProfile(uid) {
@@ -99,14 +104,34 @@ export async function getProfile(uid) {
 }
 export async function saveProfile(uid, data) {
   if (apiConfigured()) {
+    // Residence prompts still read the Firebase user document while the profile API
+    // stores only the normalized service area. Keep the full location fields there
+    // so country/state/LGA do not disappear and trigger the prompt on every visit.
+    const legacyProfile = {};
+    // These fields remain in the Firebase user document for the auth guard and
+    // role-specific setup screens while the normalized account lives in the API.
+    for (const key of ["country", "state", "city", "lga", "location", "role", "onboarding", "agency", "agentInfo", "homeownerInfo", "tenantInfo"]) {
+      if (data?.[key] !== undefined) legacyProfile[key] = data[key];
+    }
+    if (Object.keys(legacyProfile).length) {
+      await setDoc(doc(db, "users", uid), legacyProfile, { merge: true });
+    }
     const changes = {};
     if (data?.name !== undefined || data?.displayName !== undefined) changes.displayName = data.displayName ?? data.name;
     if (data?.phone !== undefined || data?.phoneNumber !== undefined) changes.phoneNumber = data.phoneNumber ?? data.phone;
     if (data?.bio !== undefined) changes.bio = data.bio;
     if (data?.website !== undefined || data?.websiteUrl !== undefined) changes.websiteUrl = data.websiteUrl ?? data.website;
     if (data?.serviceArea !== undefined || data?.area !== undefined || data?.location !== undefined) changes.serviceArea = data.serviceArea ?? data.location ?? data.area;
-    if (Object.keys(changes).length) return updateBackendProfile(changes);
+    if (Object.keys(changes).length) {
+      try { return await updateBackendProfile(changes); }
+      catch (error) {
+        if (!Object.keys(legacyProfile).length) throw error;
+        console.warn("Residence details are saved; backend profile sync is pending.", error?.message || "");
+        return legacyProfile;
+      }
+    }
     if (data?.settings && typeof data.settings === "object") return updateBackendSettings(data.settings);
+    if (Object.keys(legacyProfile).length) return legacyProfile;
     return getBackendProfile();
   }
   return setDoc(doc(db, "users", uid), data, { merge: true });
@@ -234,8 +259,8 @@ export async function ensureConversation(user, l) {
   if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: user.uid, userName: user.displayName || user.email, userPhoto: user.photoURL || "", listingId: l.id, listingTitle: l.title, area: l.area, price: l.price, beds: l.beds, baths: l.baths, image: l.thumb || l.images[0], agent: l.agent, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
   return ref.id;
 }
-export const watchConversations = (user, cb) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
-  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
+export const watchConversations = (user, cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("uid", "==", user.uid)),
+  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), (e) => onErr?.(e));
 export const watchMessages = (cid, cb, onErr) => onSnapshot(query(collection(db, "conversations", cid, "messages"), orderBy("at")), (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id }))), (e) => { if (onErr) onErr(e); else cb([]); });
 // Every conversation the Faxton team has with users (admins, the owner and support see all of them).
 export const watchStaffConversations = (cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("listingId", "==", "direct")),
@@ -246,8 +271,8 @@ export async function ensureStaffPersonalConversation(staff, me, u) {
   if (!(await getDoc(ref)).exists()) await setDoc(ref, { uid: u.id, userName: u.name || u.email, listingId: "direct", listingTitle: name, area: "", price: 0, beds: 0, baths: 0, image: photo, userPhoto: u.photo || "", byStaff: staff.uid, agent: { id: staff.uid, name, avatar: photo, photo }, last: "", lastAt: serverTimestamp(), createdAt: serverTimestamp() });
   return id;
 }
-export const watchStaffDMs = (uid, cb) => onSnapshot(query(collection(db, "conversations"), where("byStaff", "==", uid)),
-  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), () => cb([]));
+export const watchStaffDMs = (uid, cb, onErr) => onSnapshot(query(collection(db, "conversations"), where("byStaff", "==", uid)),
+  (s) => cb(s.docs.map((d) => ({ ...d.data(), id: d.id })).sort((a, b) => (b.lastAt?.seconds || 0) - (a.lastAt?.seconds || 0))), (e) => onErr?.(e));
 export const getConversation = async (cid) => { try { const s = await getDoc(doc(db, "conversations", cid)); return s.exists() ? { ...s.data(), id: s.id } : null; } catch { return null; } };
 // A small "typing" marker for the other side (the screen shows it for 5 seconds; it is written at most every 4 seconds).
 export const setTyping = (cid, uid) => updateDoc(doc(db, "conversations", cid), { typing: { uid, at: Date.now() } });

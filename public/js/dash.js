@@ -271,10 +271,10 @@ export function addProperty(ctx, done) {
   const d = dialog({ title: "Add a property", size: "lg", icon: "home", body: `<p class="ax-p ax-muted">New listings are reviewed by the Faxton team before they go live.</p><form id="np" class="ax-form" novalidate>
     <label class="ax-field full"><span>Title</span><input class="ax-input" name="title" required maxlength="80" placeholder="3 Bedroom Apartment"></label>
     ${locFields({ style: "ax", flow: true, ids: { country: "npCountry", state: "npState", lga: "npLga" }, area: { id: "npArea", name: "area", label: "Area / neighbourhood", ph: "e.g. Lekki Phase 1" }, cityId: "npCity" })}
-    <label class="ax-field full"><span>Full street address <small>Private — not shown on public listings</small></span><input class="ax-input" name="streetAddress" maxlength="240" autocomplete="street-address" placeholder="House number, street name and estate"></label>
+    <label class="ax-field full"><span>Full street address <small>Private — required for backend listings, never shown publicly</small></span><input class="ax-input" name="streetAddress" maxlength="240" autocomplete="street-address" placeholder="House number, street name and estate"></label>
     <label class="ax-field"><span>Yearly rent (₦)</span><input class="ax-input" name="price" type="number" min="0" inputmode="numeric" required></label>
-    <label class="ax-field"><span>Property type</span><select class="ax-input" name="propertyType" required><option value="apartment">Apartment</option><option value="house">House</option><option value="room">Room / Studio</option><option value="commercial">Commercial</option></select></label>
-    <label class="ax-field"><span>Property category</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option></select></label>
+    <label class="ax-field"><span>Property type</span><select class="ax-input" name="propertyType" id="npPropertyType" required><option value="apartment">Apartment</option><option value="house">House</option><option value="room">Room / Studio</option><option value="commercial">Commercial</option></select></label>
+    <label class="ax-field"><span>Property subtype</span><select class="ax-input" name="type" id="npType"><option>Apartment</option><option>House</option><option>Duplex</option><option>Studio</option></select></label>
     <label class="ax-field"><span>Listing mode</span><select class="ax-input" name="listingMode" required><option value="long_term">Long-term rental</option><option value="shortlet">Shortlet</option></select></label>
     ${["agent","agency"].includes(ctx.S.profile?.role) ? '<label class="ax-field full"><span>Property owner <small>Choose an owner who has authorised your account</small></span><select class="ax-input" name="ownerUserId" id="npOwner"><option value="">My own property</option></select></label>' : ""}
     <label class="ax-field"><span>Building type</span><select class="ax-input" name="buildingType" id="npBuildingType"><option>Bungalow</option><option>Storey building</option><option>Block of flats</option><option>Duplex</option><option>Terrace</option><option>Detached house</option><option>Other</option></select></label>
@@ -319,13 +319,11 @@ export function addProperty(ctx, done) {
       <span>Property photos</span>
       <p class="ax-muted np-help">Upload JPG, PNG or WebP files (up to 30 photos, 10 MB each). You can also paste image links below.</p>
       <input class="ax-input np-file-input" id="npPhotoFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-      <label class="ax-field"><span>Photo links (one per line)</span><textarea class="ax-input" name="im" rows="2" placeholder="https://…"></textarea></label>
     </div>
     <div class="ax-field full np-media-field">
       <span>Property videos</span>
-      <p class="ax-muted np-help">Upload MP4 or WebM files (up to 5 videos, 25 MB each), or paste video links.</p>
-      <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm" multiple>
-      <label class="ax-field"><span>Video links (one per line)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
+      <p class="ax-muted np-help">Upload one MP4 or WebM video (up to 250 MB). It must be longer than 1 minute 30 seconds.</p>
+      <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm">
     </div>
     <div class="ax-field full np-upload-status" id="npUploadStatus" hidden>
       <div class="np-upload-top"><span id="npUploadText">Preparing uploads…</span><b id="npUploadPercent">0%</b></div>
@@ -358,7 +356,27 @@ export function addProperty(ctx, done) {
   };
   typeField.addEventListener("change", syncFloorFields);
   buildingField.addEventListener("change", syncFloorFields);
-  syncFloorFields();
+  const propertyTypeField = $("#npPropertyType", d.el);
+  const subtypeOptions = {
+    apartment: ["Apartment", "Studio"],
+    house: ["House", "Duplex"],
+    room: ["Room", "Studio"],
+    commercial: ["Office", "Shop"]
+  };
+  const syncPropertySubtypes = () => {
+    const options = subtypeOptions[propertyTypeField.value] || subtypeOptions.apartment;
+    const previous = typeField.value;
+    typeField.replaceChildren(...options.map((value) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value;
+      return option;
+    }));
+    if (options.includes(previous)) typeField.value = previous;
+    syncFloorFields();
+  };
+  propertyTypeField.addEventListener("change", syncPropertySubtypes);
+  syncPropertySubtypes();
 
   const customFeatures = $("#npCustomFeatures", d.el);
   const addFeatureRow = (name = "", count = 1) => {
@@ -406,7 +424,7 @@ export function addProperty(ctx, done) {
   });
   $("#npVideoFiles", d.el).addEventListener("change", () => {
     const files = Array.from($("#npVideoFiles", d.el).files || []);
-    $("#npVideoFiles", d.el).title = files.length ? `${files.length} video file(s) selected` : "";
+    $("#npVideoFiles", d.el).title = files.length ? `${files.length} video file selected` : "";
   });
 
   $("[data-ok]", d.el).onclick = async (e) => {
@@ -423,7 +441,6 @@ export function addProperty(ctx, done) {
     { const message = listingLocError(L, f.area); if (message) return (err.textContent = message); }
     const P = listingLoc(L, f.area);
     if (!(+f.price > 0)) return (err.textContent = "Enter the yearly rent in naira.");
-    if (f.streetAddress.trim().length < 3) return (err.textContent = "Enter the full private street address, including the house number and street name.");
     if (photoLinks.some((u) => !/^https:\/\//.test(u)) || videoLinks.some((u) => !/^https:\/\//.test(u))) return (err.textContent = "Photo and video links must start with https://");
     const buildingIsMultiStorey = f.type === "Apartment" && ["Storey building", "Block of flats"].includes(f.buildingType);
     if (buildingIsMultiStorey && !String(f.floor || "").trim()) return (err.textContent = "Enter the floor where this apartment is located.");
@@ -434,6 +451,13 @@ export function addProperty(ctx, done) {
     const mediaCore = await import("./listing-media-core.js");
     const fileError = mediaCore.validateListingMedia(photoFiles, videoFiles, photoLinks.length, videoLinks.length);
     if (fileError) return (err.textContent = fileError);
+    if (videoFiles.length) {
+      try {
+        const duration = await mediaCore.readPropertyVideoDuration(videoFiles[0]);
+        const durationError = mediaCore.validatePropertyVideoDuration(duration);
+        if (durationError) return (err.textContent = durationError);
+      } catch (error) { return (err.textContent = error.message || "Could not validate the property video."); }
+    }
     let features;
     try {
       features = mediaCore.collectListingFeatures({
@@ -450,11 +474,13 @@ export function addProperty(ctx, done) {
     try {
       const { apiConfigured } = await import("./api-client.js");
       if (apiConfigured()) {
-        if (photoLinks.length || videoLinks.length) throw new Error("For backend listings, upload media files directly instead of using external media links.");
+        if (f.streetAddress.trim().length < 3) throw new Error("Enter the full private street address, including the house number and street name.");
+        if (photoLinks.length || videoLinks.length) throw new Error("For backend listings, use the direct photo and video upload fields.");
         if (videoFiles.some((file) => !["video/mp4", "video/webm"].includes(file.type))) throw new Error("Backend video uploads currently support MP4 and WebM files only.");
         const { createBackendPropertyFromListing, uploadBackendPropertyImage, uploadBackendPropertyVideo, submitBackendPropertyForReview } = await import("./api-properties.js");
         const backendListing = await createBackendPropertyFromListing({
           title: f.title.trim(), description: f.desc.trim(), ...P,
+          latitude: where?.lat ?? null, longitude: where?.lng ?? null,
           addressLine: f.streetAddress.trim(), propertyType: f.propertyType,
           propertySubtype: f.type, listingMode: f.listingMode, priceAmount: +f.price,
           pricePeriod: "yearly", currency: "NGN", beds: +f.beds, baths: +f.baths,
@@ -512,7 +538,7 @@ export function addProperty(ctx, done) {
         uploadPaths = uploaded.paths;
       }
       const images = [...photoLinks, ...uploaded.images].slice(0, 30);
-      const videos = [...videoLinks, ...uploaded.videos].slice(0, 5);
+      const videos = [...videoLinks, ...uploaded.videos].slice(0, 1);
       if (!images.length) images.push("img/palm-court.webp");
       await st.createListing({
         id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths,
@@ -522,7 +548,7 @@ export function addProperty(ctx, done) {
         yearBuilt: +f.yearBuilt || "", parking: f.parking === "" ? "" : +f.parking,
         furnished: f.furnished || "", floorPlan: /^https:\/\//.test(f.floorPlan || "") ? f.floorPlan : "",
         kitchens: +f.kitchens || 0, parlours: +f.parlours || 0, swimmingPools: +f.swimmingPools || 0, gardens: +f.gardens || 0,
-        features, desc: f.desc.trim(), status: "pending", service: +f.service || 0, deposit: +f.deposit || 0,
+        features, desc: f.desc.trim(), listingMode: f.listingMode, status: "pending", service: +f.service || 0, deposit: +f.deposit || 0,
         ...(f.agencyFee !== "" ? { agencyFee: +f.agencyFee } : {}),
         ...(f.legalFee !== "" ? { legalFee: +f.legalFee } : {}),
         lat: where?.lat ?? 6.45, lng: where?.lng ?? 3.47, hasPin: !!where,

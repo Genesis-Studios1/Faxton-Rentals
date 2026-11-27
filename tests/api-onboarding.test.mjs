@@ -35,6 +35,15 @@ test("maps legacy agency details into the backend business profile schema", () =
   });
 });
 
+
+test("preserves the selected agency business type", () => {
+  const payload = toBackendOnboardingPayload({
+    role: "agency",
+    agency: { business: "Home Services Co", businessType: "Home services provider" }
+  });
+  assert.equal(payload.agencyProfile.businessType, "Home services provider");
+});
+
 test("missing agency business details fail safely instead of creating a blank business profile", () => {
   assert.throws(() => toBackendOnboardingPayload({ role: "agency", agency: {} }), /business name/);
 });

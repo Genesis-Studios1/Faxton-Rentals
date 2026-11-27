@@ -1,0 +1,36 @@
+name: Validate staging frontend fixes
+
+on:
+  pull_request:
+    branches: [phase9-frontend-staging]
+  push:
+    branches: [fix/staging-firebase-auth-csp]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run frontend tests
+        run: |
+          node --experimental-default-type=module --test tests/*.test.mjs
+          find public/js -type f -name '*.js' -print0 | xargs -0 -n1 node --experimental-default-type=module --check
+          node scripts/check-waitlist-icons.mjs
+      - name: Verify staging Firebase isolation
+        run: |
+          grep -q 'projectId: "faxton-rentals-staging"' public/js/firebase.js
+          if grep -q 'projectId: "faxton-rentals"' public/js/firebase.js; then
+            echo "::error::Staging frontend must not use production Firebase."
+            exit 1
+          fi
+          node --input-type=module -e "import('./public/js/app-check-config.js').then(m => { if (m.APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY !== '') process.exit(1); })"
+      - name: Validate Firestore security rules
+        run: npm run test:rules

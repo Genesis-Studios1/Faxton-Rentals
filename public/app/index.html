@@ -43,18 +43,18 @@
 <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
 <link rel="preload" href="fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/inter-tight-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
-<script src="js/boot.js?v=2026-11-26.08"></script>
-<script type="module" src="js/robust.js?v=2026-11-26.08"></script>
-<link rel="stylesheet" href="css/fonts.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/app.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/theme.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/shell.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/home.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/flow.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/admin.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/chat.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/auth.css?v=2026-11-26.08">
-<link rel="stylesheet" href="css/robust.css?v=2026-11-26.08">
+<script src="js/boot.js?v=2026-11-27.06"></script>
+<script type="module" src="js/robust.js?v=2026-11-27.06"></script>
+<link rel="stylesheet" href="css/fonts.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/app.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/theme.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/shell.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/home.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/flow.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/admin.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/chat.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/auth.css?v=2026-11-27.06">
+<link rel="stylesheet" href="css/robust.css?v=2026-11-27.06">
 <!-- Start downloading the app modules in parallel (after the stylesheets, so styles are never queued behind them). -->
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js">
 <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js">
@@ -107,15 +107,14 @@
   #splash.leave{clip-path:circle(0% at 50% 44%);opacity:0;pointer-events:none}
   #splash.leave .sp-center{transform:translateX(-50%) scale(.8);opacity:0;transition:transform .7s cubic-bezier(.6,0,.4,1),opacity .6s}
   html.no-splash #splash{display:none}
-  #splash .sp-art{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;object-position:50% 100%;background:#01100c}
-  #splash .sp-fb{pointer-events:none;opacity:0;transform:translateY(3%);animation:spArt 1.6s .25s cubic-bezier(.2,.8,.2,1) forwards}
-  @keyframes spArt{to{opacity:1;transform:none}}
+  #splash .sp-art,#splash .sp-lines{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;object-position:50% 100%;background:#01100c}
+  #splash .sp-lines{clip-path:inset(0 100% 0 0);animation:spLineDraw 2.15s .15s cubic-bezier(.45,.05,.25,1) forwards}
+  @keyframes spLineDraw{to{clip-path:inset(0)}}
   #splash .sp-center{position:absolute;left:50%;top:21%;transform:translateX(-50%);display:grid;justify-items:center;text-align:center;width:max-content}
   #splash .sp-mark{display:block;width:clamp(84px,8vw,140px);height:auto;overflow:visible}
-  #splash .sp-mark path{transform-box:fill-box;opacity:0}
-  #splash .sp-f{fill:#fff;transform-origin:left center;animation:spF .8s .2s cubic-bezier(.2,.9,.25,1) forwards}
-  #splash .sp-s{fill:#fff;transform-origin:center bottom;animation:spS .6s .6s cubic-bezier(.2,.9,.25,1) forwards}
-  #splash .sp-r{fill:#fff;transform-origin:left bottom;animation:spR .8s .4s cubic-bezier(.2,.9,.25,1) forwards}
+  #splash .sp-mark path{fill:transparent;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;opacity:1;animation:spDraw 1.15s cubic-bezier(.45,.05,.25,1) forwards,spLogoFill .45s 1.15s ease-out forwards}
+  #splash .sp-mark path:nth-child(2){animation-delay:.22s,1.37s}
+  #splash .sp-mark path:nth-child(3){animation-delay:.42s,1.57s}
   #splash .sp-word{font:400 clamp(1.5rem,2.6vw,2.4rem)/1.1 var(--font-display,system-ui),system-ui,sans-serif;letter-spacing:-.03em;margin-top:clamp(12px,1.6vw,24px);white-space:nowrap}
   #splash .sp-word b{font-weight:800;display:inline-block;opacity:0;animation:spWord .9s .9s cubic-bezier(.2,.8,.2,1) forwards}
   #splash .sp-word span{display:inline-block;opacity:0;animation:spWord .9s 1.1s cubic-bezier(.2,.8,.2,1) forwards}
@@ -128,6 +127,7 @@
   #splash .sp-cap span:nth-child(1){animation:spCap 1.4s .6s ease-in-out forwards}
   #splash .sp-cap span:nth-child(2){animation:spCapIn .6s 2s ease-out forwards}
   @keyframes spDraw{to{stroke-dashoffset:0}}
+  @keyframes spLogoFill{to{fill:#fff}}
   @keyframes spFin{to{opacity:1}}
   @keyframes spF{from{opacity:0;transform:translateX(-45%) scaleX(.4)}to{opacity:1;transform:none}}
   @keyframes spS{from{opacity:0;transform:scaleY(0)}to{opacity:1;transform:none}}
@@ -139,7 +139,7 @@
   @keyframes spFill{to{transform:scaleX(1)}}
   @media (max-aspect-ratio:1/1){
     #splash{background:radial-gradient(70% 26% at 50% 24%,#04704a 0%,#02452f 45%,#01100c 100%)}
-    #splash .sp-art{inset:auto 0 0 0;height:calc(100vw * 941 / 1672);-webkit-mask-image:linear-gradient(180deg,transparent 42%,#000 50%);mask-image:linear-gradient(180deg,transparent 42%,#000 50%)}
+    #splash .sp-art,#splash .sp-lines{inset:auto 0 0 0;height:calc(100vw * 941 / 1672);-webkit-mask-image:linear-gradient(180deg,transparent 42%,#000 50%);mask-image:linear-gradient(180deg,transparent 42%,#000 50%)}
     #splash .sp-center{top:22%}
   }
   @media (prefers-reduced-motion:reduce){#splash *,#splash{animation-duration:.01s!important;animation-delay:0s!important;transition-duration:.2s!important}#splash .sp-bar i{transform:scaleX(1)}#splash .sp-cap span:nth-child(1){display:none}#splash .sp-cap span:nth-child(2){opacity:1}}
@@ -147,12 +147,13 @@
 </head>
 <body>
 <div id="splash" role="status" aria-label="Loading Faxton Rentals">
-  <img class="sp-art sp-fb" src="img/splash-final.webp" alt="" aria-hidden="true">
+  <img class="sp-art" src="img/splash-base.webp" alt="" aria-hidden="true">
+  <img class="sp-lines" src="img/splash-lines.webp" alt="" aria-hidden="true">
   <div class="sp-center">
     <svg class="sp-mark" viewBox="570 235 415 355" aria-hidden="true">
-      <path class="sp-f" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/>
-      <path class="sp-s" d="M702 455L775 429V581H702Z"/>
-      <path class="sp-r" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/>
+      <path class="sp-f" pathLength="1" d="M576 242H803L745 316H651V377H775V411L651 455V581H576Z"/>
+      <path class="sp-s" pathLength="1" d="M702 455L775 429V581H702Z"/>
+      <path class="sp-r" pathLength="1" d="M825 242H860C915 242 958 290 958 346C958 395 925 430 884 441L977 581H885L793 443V377H847C865 377 878 363 878 346C878 329 865 316 847 316H766Z"/>
     </svg>
     <div class="sp-word"><b>Faxton</b> <span>Rentals</span></div>
     <p class="sp-tag">Your next home starts here.</p>
@@ -161,6 +162,6 @@
 </div>
 <div id="app"></div>
 <noscript><main style="font-family:system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:0 20px;line-height:1.5"><h1>Faxton Rentals</h1><p>Find, view and rent homes across Nigeria. Faxton Rentals needs JavaScript to run, so please turn it on in your browser settings and reload this page.</p></main></noscript>
-<script type="module" src="js/main.js?v=2026-11-26.08"></script>
+<script type="module" src="js/main.js?v=2026-11-27.06"></script>
 </body>
 </html>
