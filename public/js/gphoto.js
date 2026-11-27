@@ -27,10 +27,12 @@ async function squareData(url) {
 export async function useGooglePhoto(S) {
   const u = S.user, raw = googlePhotoUrl(u); if (!raw) throw Object.assign(new Error("none"), { userMessage: "We couldn’t find a Google photo on this account." });
   let data = ""; try { data = await squareData(sized(raw)); } catch { try { data = await squareData(raw); } catch {} }
-  // Last resort: keep the Google link itself (the page may show https pictures).
-  if (!data) data = sized(raw);
-  await saveProfile(u.uid, { photo: data }); S.profile = { ...(S.profile || {}), photo: data }; await syncPublic(u.uid, { photo: data });
-  return data;
+  if (!data) throw Object.assign(new Error("photo_unavailable"), { userMessage: "We couldn’t prepare your Google photo. Please upload a photo in Settings instead." });
+  const saved = await saveProfile(u.uid, { photo: data });
+  const photo = saved?.photo || data;
+  S.profile = { ...(S.profile || {}), photo };
+  await syncPublic(u.uid, { photo });
+  return photo;
 }
 export function askGooglePhoto(S, onDone) {
   const u = S.user, url = googlePhotoUrl(u); if (!url) return null;
