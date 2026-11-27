@@ -107,12 +107,14 @@ export async function saveProfile(uid, data) {
     // Residence prompts still read the Firebase user document while the profile API
     // stores only the normalized service area. Keep the full location fields there
     // so country/state/LGA do not disappear and trigger the prompt on every visit.
-    const legacyLocation = {};
-    for (const key of ["country", "state", "city", "lga", "location"]) {
-      if (data?.[key] !== undefined) legacyLocation[key] = data[key];
+    const legacyProfile = {};
+    // These fields remain in the Firebase user document for the auth guard and
+    // role-specific setup screens while the normalized account lives in the API.
+    for (const key of ["country", "state", "city", "lga", "location", "role", "onboarding", "agency", "agentInfo", "homeownerInfo", "tenantInfo"]) {
+      if (data?.[key] !== undefined) legacyProfile[key] = data[key];
     }
-    if (Object.keys(legacyLocation).length) {
-      await setDoc(doc(db, "users", uid), legacyLocation, { merge: true });
+    if (Object.keys(legacyProfile).length) {
+      await setDoc(doc(db, "users", uid), legacyProfile, { merge: true });
     }
     const changes = {};
     if (data?.name !== undefined || data?.displayName !== undefined) changes.displayName = data.displayName ?? data.name;
