@@ -466,7 +466,7 @@ export function setupPage(ctx) {
             : role === "agent" ? { agentInfo: patch.agentInfo }
               : role === "landlord" ? { homeownerInfo: patch.homeownerInfo }
                 : { tenantInfo: patch.tenantInfo };
-          await saveProfile(ctx.S.user.uid, { role, onboarding, ...roleDetails });
+          await saveProfile(ctx.S.user.uid, { role, onboarding, referralSource: patch.referralSource, referralOther: patch.referralOther, ...roleDetails });
         } else {
           await saveProfile(ctx.S.user.uid, patch);
         }
