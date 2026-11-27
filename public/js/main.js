@@ -294,6 +294,10 @@ function wire() {
 const profileEnsureInFlight = new Map();
 async function ensureProfile(u, extra = {}) {
   if (!u?.uid) throw new TypeError("A signed-in user is required to create a profile.");
+  // Firebase can fire onAuthStateChanged before signUp() reaches its explicit
+  // ensureProfile call. Reuse the pending signup intent so that first profile
+  // creation cannot silently default a selected non-renter role to renter.
+  const intent = extra?.role ? extra : (pendingSignupProfileIntent || extra);
   const existing = profileEnsureInFlight.get(u.uid);
   if (existing) return existing;
 
@@ -302,19 +306,19 @@ async function ensureProfile(u, extra = {}) {
     const result = await runTransaction(db, async (tx) => {
       const snap = await tx.get(ref);
       if (snap.exists()) return { profile: snap.data(), created: false };
-      const role = extra.role || "renter";
+      const role = intent.role || "renter";
       const d = { name: u.displayName || extra.name || "", email: u.email, saved: [], createdAt: serverTimestamp(), onboarding: { completed: false } };
       if (role === "agency") {
-        if (extra.details) d.agency = extra.details;
+        if (intent.details) d.agency = intent.details;
         d.verification = { status: "pending", kind: "agency", requestedAt: Date.now() };
       } else if (role === "agent") {
-        if (extra.details) d.agentInfo = extra.details;
+        if (intent.details) d.agentInfo = intent.details;
         d.verification = { status: "pending", kind: "agent", requestedAt: Date.now() };
       } else if (role === "landlord") {
         d.verification = { status: "pending", kind: "landlord", requestedAt: Date.now() };
       }
-      d.role = role; if (extra.photo) d.photo = extra.photo;
-      const res = extra.residence || (extra.details?.country ? { country: extra.details.country, state: extra.details.state, lga: extra.details.lga, city: extra.details.city } : null);
+      d.role = role; if (intent.photo) d.photo = intent.photo;
+      const res = intent.residence || (intent.details?.country ? { country: intent.details.country, state: intent.details.state, lga: intent.details.lga, city: intent.details.city } : null);
       if (res?.country) Object.assign(d, resFields(res));
       tx.set(ref, d);
       return { profile: d, created: true };
