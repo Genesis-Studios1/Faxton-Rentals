@@ -323,8 +323,8 @@ export function addProperty(ctx, done) {
     </div>
     <div class="ax-field full np-media-field">
       <span>Property videos</span>
-      <p class="ax-muted np-help">Upload MP4 or WebM files (up to 5 videos, 25 MB each), or paste video links.</p>
-      <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm" multiple>
+      <p class="ax-muted np-help">Upload one MP4 or WebM video (up to 250 MB). It must be longer than 1 minute 30 seconds.</p>
+      <input class="ax-input np-file-input" id="npVideoFiles" type="file" accept="video/mp4,video/webm">
       <label class="ax-field"><span>Video links (one per line)</span><textarea class="ax-input" name="vd" rows="2" placeholder="https://…"></textarea></label>
     </div>
     <div class="ax-field full np-upload-status" id="npUploadStatus" hidden>
@@ -426,7 +426,7 @@ export function addProperty(ctx, done) {
   });
   $("#npVideoFiles", d.el).addEventListener("change", () => {
     const files = Array.from($("#npVideoFiles", d.el).files || []);
-    $("#npVideoFiles", d.el).title = files.length ? `${files.length} video file(s) selected` : "";
+    $("#npVideoFiles", d.el).title = files.length ? `${files.length} video file selected` : "";
   });
 
   $("[data-ok]", d.el).onclick = async (e) => {
@@ -453,6 +453,13 @@ export function addProperty(ctx, done) {
     const mediaCore = await import("./listing-media-core.js");
     const fileError = mediaCore.validateListingMedia(photoFiles, videoFiles, photoLinks.length, videoLinks.length);
     if (fileError) return (err.textContent = fileError);
+    if (videoFiles.length) {
+      try {
+        const duration = await mediaCore.readPropertyVideoDuration(videoFiles[0]);
+        const durationError = mediaCore.validatePropertyVideoDuration(duration);
+        if (durationError) return (err.textContent = durationError);
+      } catch (error) { return (err.textContent = error.message || "Could not validate the property video."); }
+    }
     let features;
     try {
       features = mediaCore.collectListingFeatures({
@@ -470,11 +477,12 @@ export function addProperty(ctx, done) {
       const { apiConfigured } = await import("./api-client.js");
       if (apiConfigured()) {
         if (f.streetAddress.trim().length < 3) throw new Error("Enter the full private street address, including the house number and street name.");
-        if (photoLinks.length || videoLinks.length) throw new Error("For backend listings, upload media files directly instead of using external media links.");
+        if (photoLinks.length || videoLinks.length) throw new Error("For backend listings, use the direct photo and video upload fields.");
         if (videoFiles.some((file) => !["video/mp4", "video/webm"].includes(file.type))) throw new Error("Backend video uploads currently support MP4 and WebM files only.");
         const { createBackendPropertyFromListing, uploadBackendPropertyImage, uploadBackendPropertyVideo, submitBackendPropertyForReview } = await import("./api-properties.js");
         const backendListing = await createBackendPropertyFromListing({
           title: f.title.trim(), description: f.desc.trim(), ...P,
+          latitude: where?.lat ?? null, longitude: where?.lng ?? null,
           addressLine: f.streetAddress.trim(), propertyType: f.propertyType,
           propertySubtype: f.type, listingMode: f.listingMode, priceAmount: +f.price,
           pricePeriod: "yearly", currency: "NGN", beds: +f.beds, baths: +f.baths,
@@ -532,7 +540,7 @@ export function addProperty(ctx, done) {
         uploadPaths = uploaded.paths;
       }
       const images = [...photoLinks, ...uploaded.images].slice(0, 30);
-      const videos = [...videoLinks, ...uploaded.videos].slice(0, 5);
+      const videos = [...videoLinks, ...uploaded.videos].slice(0, 1);
       if (!images.length) images.push("img/palm-court.webp");
       await st.createListing({
         id, title: f.title.trim(), ...P, price: +f.price, beds: +f.beds, baths: +f.baths,
