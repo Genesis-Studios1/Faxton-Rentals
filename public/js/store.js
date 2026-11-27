@@ -104,13 +104,30 @@ export async function getProfile(uid) {
 }
 export async function saveProfile(uid, data) {
   if (apiConfigured()) {
+    // Residence prompts still read the Firebase user document while the profile API
+    // stores only the normalized service area. Keep the full location fields there
+    // so country/state/LGA do not disappear and trigger the prompt on every visit.
+    const legacyLocation = {};
+    for (const key of ["country", "state", "city", "lga", "location"]) {
+      if (data?.[key] !== undefined) legacyLocation[key] = data[key];
+    }
+    if (Object.keys(legacyLocation).length) {
+      await setDoc(doc(db, "users", uid), legacyLocation, { merge: true });
+    }
     const changes = {};
     if (data?.name !== undefined || data?.displayName !== undefined) changes.displayName = data.displayName ?? data.name;
     if (data?.phone !== undefined || data?.phoneNumber !== undefined) changes.phoneNumber = data.phoneNumber ?? data.phone;
     if (data?.bio !== undefined) changes.bio = data.bio;
     if (data?.website !== undefined || data?.websiteUrl !== undefined) changes.websiteUrl = data.websiteUrl ?? data.website;
     if (data?.serviceArea !== undefined || data?.area !== undefined || data?.location !== undefined) changes.serviceArea = data.serviceArea ?? data.location ?? data.area;
-    if (Object.keys(changes).length) return updateBackendProfile(changes);
+    if (Object.keys(changes).length) {
+      try { return await updateBackendProfile(changes); }
+      catch (error) {
+        if (!Object.keys(legacyLocation).length) throw error;
+        console.warn("Residence details are saved; backend profile sync is pending.", error?.message || "");
+        return legacyLocation;
+      }
+    }
     if (data?.settings && typeof data.settings === "object") return updateBackendSettings(data.settings);
     return getBackendProfile();
   }
