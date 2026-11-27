@@ -34,6 +34,8 @@ jobs:
       - name: Validate frontend
         run: |
           # Run every pure frontend test, not just the original listing-media smoke test.
+          # Verify UI, service-worker and HTML cache versions agree before publishing.
+          node scripts/check-release.mjs
           node --experimental-default-type=module --test tests/*.test.mjs
           # Run Firestore authorization tests in the emulator before any staging deploy.
           npm run test:rules
