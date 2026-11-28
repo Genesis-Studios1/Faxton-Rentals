@@ -613,6 +613,46 @@ function portfolio(ctx, { ls, apps, views, offers, maint }, kind) {
   } };
 }
 
+
+// ---------- agency performance dashboard (separate from the homeowner portal) ----------
+function agencyPortfolio(ctx, { ls, apps, views, offers, maint }) {
+  const prof = ctx.S.profile || {}, needsV = !prof.verified, vst = prof.verification?.status || "pending";
+  const live = ls.filter(isActive), pending = ls.filter(isPendingL);
+  const enquiries = [...apps, ...views], requested = views.filter((v) => v.status === "Requested");
+  const awaitingOffers = offers.filter((o) => !["Accepted", "Declined", "Withdrawn"].includes(o.status) && o.turn === "owner");
+  const approvedApps = apps.filter(approved);
+  const conversion = enquiries.length ? Math.round((approvedApps.length / enquiries.length) * 100) : 0;
+  const weekly = buckets("90"), enquirySeries = per(enquiries, weekly);
+  const countFor = (id) => enquiries.filter((x) => x.listingId === id).length;
+  const ranked = [...ls].sort((a, b) => countFor(b.id) - countFor(a.id)).slice(0, 8);
+  const rows = ranked.map((l) => `<tr data-id="${esc(l.id)}"><td data-role="title" data-label="Listing"><div class="ax-id">${thumb(thumbOf(l), 32)}<div><b>${esc(l.title)}</b><small>${esc([l.area, l.city].filter(Boolean).join(", "))}</small></div></div></td><td data-label="Enquiries" class="al-right num">${countFor(l.id)}</td><td data-label="Status">${isPendingL(l) ? chipFor("listing", "pending") : l.archived ? chipFor("listing", "archived") : chipFor("listing", isActive(l) ? "available" : "occupied")}</td><td data-role="actions" class="al-right">${btn("Manage", { size: "sm", href: "#/home/" + encodeURIComponent(l.id) })}</td></tr>`);
+  const recent = [...apps].sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 5);
+  const portfolioTable = miniTable([["Listing"], ["Enquiries", "al-right"], ["Status"], [""]], rows,
+    empty({ icon: "building", title: "No agency listings yet", hint: "Add a property to start building your agency portfolio.", action: btn("Add property", { v: "primary", ic: "plus", attrs: "data-add" }) }));
+  const recentApplications = recent.length
+    ? `<ul class="ax-chats">${recent.map((a) => `<li>${avatar(a.name, a.uid, 32)}<div><b>${esc(a.name || "Applicant")}</b><small>${esc(a.title || "Property enquiry")}</small></div>${chipFor("application", a.status || "Under review")}</li>`).join("")}</ul>`
+    : empty({ icon: "doc", title: "No applications yet" });
+  const html = `${verifyBanner(ctx, needsV, vst, true)}
+    <div class="ax-attns" style="grid-template-columns:repeat(4,minmax(0,1fr))" data-t="att">
+      ${attn({ label: "Listings awaiting review", count: pending.length, href: "/agency", icon: "doc" })}
+      ${attn({ label: "New viewing requests", count: requested.length, href: "/agency", icon: "calDots" })}
+      ${attn({ label: "Offers awaiting reply", count: awaitingOffers.length, href: "/offers", icon: "tag" })}
+      ${attn({ label: "Open maintenance", count: maint.filter((m) => m.status === "Open").length, href: "/tenants/maintenance", icon: "tool" })}
+    </div>
+    <div class="ax-kpis scroll" data-t="kpis">
+      ${kpi({ label: "Live portfolio", value: fmt.num(live.length), count: live.length, sub: `${pending.length} awaiting review`, icon: "building" })}
+      ${kpi({ label: "Total enquiries", value: fmt.num(enquiries.length), count: enquiries.length, sub: "Applications and viewing requests", icon: "chatdots" })}
+      ${kpi({ label: "Approved applications", value: fmt.num(approvedApps.length), count: approvedApps.length, sub: "Across your portfolio", icon: "checkc" })}
+      ${kpi({ label: "Application conversion", value: conversion + "%", sub: "Approved out of all enquiries", icon: "chart" })}
+    </div>
+    <div class="ax-grid"><div class="ax-c8">${card("Enquiry performance", "Weekly applications and viewing requests", barChart([{ name: "Enquiries", data: enquirySeries }], weekly.map((x) => x.label)))}</div>
+      <div class="ax-c4">${card("Agency pipeline", "Current activity across your portfolio", `<div class="ax-pipe"><div><b>${apps.length}</b><span>Applications</span></div><div><b>${views.length}</b><span>Viewings</span></div><div><b>${awaitingOffers.length}</b><span>Open offers</span></div></div>`)}</div></div>
+    <div class="ax-grid"><div class="ax-c8" data-t="props">${card("Portfolio performance", "Listings ranked by incoming interest", portfolioTable, { pad: false })}</div>
+      <div class="ax-c4">${card("Latest applications", "Most recent enquiries", recentApplications, { pad: false })}</div></div>
+    <div class="ax-grid"><div class="ax-c12" data-t="views">${card("Viewing requests", "Review and respond to prospects", viewReqTable([...views].sort((a, b) => ms(b.createdAt) - ms(a.createdAt)).slice(0, 8), empty({ icon: "calDots", title: "No viewing requests yet" })), { pad: false })}</div></div>`;
+  return { html, mount(root) { locHandler(ctx, ls, root); wireViews(root, views, () => ctx.render()); } };
+}
+
 // ---------- agent desk ----------
 const leadsOf = (apps, views) => [...views.map((v) => ({ id: v.id, kind: "viewing", name: v.name || "Prospect", email: "", prop: v.title, listingId: v.listingId, src: "Viewing request", stage: v.status === "Confirmed" ? "Viewing scheduled" : v.status === "Completed" ? "Viewed" : /cancel/i.test(v.status || "") ? "Declined" : "New lead", createdAt: v.createdAt })), ...apps.map((a) => ({ id: a.id, kind: "application", name: a.name || "Applicant", email: a.email, prop: a.title, listingId: a.listingId, src: "Application", stage: approved(a) ? "Closed" : /reject|cancel|declin/i.test(a.status || "") ? "Declined" : "Application", createdAt: a.createdAt }))].sort((x, y) => ms(y.createdAt) - ms(x.createdAt));
 const todayKey = () => new Date().toISOString().slice(0, 10);
@@ -653,7 +693,7 @@ export async function ownerPage(ctx, kind, sub = "") {
   const v = pageView(ctx, { title: kind === "agent" && sub ? TITLE : "Dashboard", eyebrow, sub: kind === "agent" && sub ? "" : `${name ? "Welcome back, " + name + ". " : ""}${subt}`, actions: addBtn, kpis: true, what: "your dashboard", role: kind,
     cols: [["ls", () => data.safe("listings", { uid: u })], ["apps", () => data.safe("applications", { uid: u })], ["views", () => st.myManagedViewings({ uid: u })], ["offers", () => data.safe("offers", { uid: u })], ["maint", () => data.safe("maintenance", { uid: u })]],
     async render({ ls, apps, views, offers, maint }, { root }) {
-      const r = kind === "agent" ? agentDash(ctx, { ls, apps, views, offers }, sub) : portfolio(ctx, { ls, apps, views, offers, maint }, kind);
+      const r = kind === "agent" ? agentDash(ctx, { ls, apps, views, offers }, sub) : kind === "agency" ? agencyPortfolio(ctx, { ls, apps, views, offers, maint }) : portfolio(ctx, { ls, apps, views, offers, maint }, kind);
       return { html: r.html, mount(el) {
         r.mount?.(el); const open = () => (needsV ? toast("Your account is still being verified. You’ll be able to list properties as soon as it’s done.") : addProperty(ctx, () => ctx.render()));
         $("#addp", root).onclick = open; el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = open));

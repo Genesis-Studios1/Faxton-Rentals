@@ -110,7 +110,7 @@ export async function saveProfile(uid, data) {
     const legacyProfile = {};
     // These fields remain in the Firebase user document for the auth guard and
     // role-specific setup screens while the normalized account lives in the API.
-    for (const key of ["country", "state", "city", "lga", "location", "role", "onboarding", "agency", "agentInfo", "homeownerInfo", "tenantInfo"]) {
+    for (const key of ["country", "state", "city", "lga", "location", "role", "onboarding", "agency", "agentInfo", "homeownerInfo", "tenantInfo", "referralSource", "referralOther"]) {
       if (data?.[key] !== undefined) legacyProfile[key] = data[key];
     }
     if (Object.keys(legacyProfile).length) {

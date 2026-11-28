@@ -62,6 +62,7 @@ export async function route(ctx) {
   if (path === "/terms" || path === "/privacy" || path === "/license") return LEGAL.legalPage(ctx, path.slice(1));
   if (path === "/download") return APPS.downloadPage(ctx);
   if (path === "/") return HOME.discover(ctx);
+  if (path === "/renter-dashboard") return (await import("./renter-dashboard.js")).renterDashboard(ctx);
   if (path === "/search") return HOME.search(ctx);
   if ((m = path.match(/^\/home\/([^/]+)$/))) return detail(ctx, decodeURIComponent(m[1]));
   if (path === "/saved") return HOME.savedPage(ctx);

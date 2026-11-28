@@ -77,7 +77,7 @@ export function authPage(ctx, mode) {
       ${fieldHtml("name", "Full name", { ic: "user", ph: "Your full name", attrs: 'autocomplete="name" autocapitalize="words" enterkeyhint="next" maxlength="80"' })}
       ${fieldHtml("email", "Email address", { ic: "mail", type: "email", ph: "you@example.com", attrs: 'autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next"' })}
       <div class="au-pw">${pwField}<p class="au-caps" id="caps" hidden>${icon("info", 16, 1.8)} Caps Lock is on</p>${strengthUi}</div>
-      <div class="au-f au-terms data-f="terms"><label class="au-chk"><input type="checkbox" id="terms" aria-describedby="terms-e"><span>I agree to the <a class="au-link" href="#/terms">Terms</a> and <a class="au-link" href="#/privacy">Privacy Policy</a></span></label><p class="au-fe" id="terms-e" hidden></p></div>`;
+      <div class="au-f au-terms" data-f="terms"><label class="au-chk"><input type="checkbox" id="terms" aria-describedby="terms-e"><span>I agree to the <a class="au-link" href="#/terms">Terms</a> and <a class="au-link" href="#/privacy">Privacy Policy</a></span></label><p class="au-fe" id="terms-e" hidden></p></div>`;
   const html = `<div class="au au-${mode}">
     <aside class="au-photo"><img src="img/${login ? "login-hero" : "signup-hero"}.webp" alt="" decoding="async">${logoLink("au-logo")}
       <p class="au-cap">${login ? "A fresh start<br>begins here." : "Make room for<br>what comes next."}</p></aside>
@@ -424,22 +424,22 @@ export function setupPage(ctx) {
       if (v.referralSource === "Other" && !String(v.referralOther || "").trim()) { say("Please tell us where you heard about Faxton Rentals."); $("#referralOther", form)?.focus(); return; }
       const patch = { referralSource: v.referralSource, referralOther: v.referralSource === "Other" ? String(v.referralOther || "").trim() : "", onboarding: { completed: true, step: current, draft: {} } };
       const phone = String(v.phone || "").trim();
-      if (phone.replace(/\D/g, "").length < 8) { say("Enter a valid phone number."); await saveDraft(0); showStep(0); $("#phone", form)?.focus(); return; }
+      if (phone.replace(/\D/g, "").length < 8) { await saveDraft(0); showStep(0); say("Enter a valid phone number."); $("#phone", form)?.focus(); return; }
       patch.phone = phone;
       if (role === "agency") {
-        if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(String(v.cac || "").trim())) { say("Enter a valid CAC registration number, such as RC 1234567."); showStep(0); $("#cac", form)?.focus(); return; }
+        if (!/^(RC|BN|IT)?[\s-]?\d{4,9}$/i.test(String(v.cac || "").trim())) { showStep(0); say("Enter a valid CAC registration number, such as RC 1234567."); $("#cac", form)?.focus(); return; }
         const servicePanel = $(v.businessType === "Home services provider" ? "#ob-home-services" : "#ob-real-estate-services", form);
         const selected = Array.from(servicePanel.querySelectorAll('input[name="businessService"]:checked'), (el) => el.value);
         patch.businessTypes = selected;
         patch.agency = { business: String(v.business || "").trim(), cac: String(v.cac || "").trim().toUpperCase(), position: String(v.position || "").trim(), supportEmail: String(v.supportEmail || "").trim(), phone, address: String(v.officeAddress || "").trim(), city: String(v.officeCity || "").trim(), state: String(v.officeState || "").trim(), areas: String(v.areas || "").trim(), website: String(v.website || "").trim(), businessType: v.businessType, businessTypes: selected, description: String(v.description || "").trim() };
       } else if (role === "agent") {
-        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); await saveDraft(0); showStep(0); $("#dob", form)?.focus(); return; }
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { await saveDraft(0); showStep(0); say("Enter a valid date of birth."); $("#dob", form)?.focus(); return; }
         patch.agentInfo = { phone, dob: v.dob, experience: Number(v.experience), company: String(v.company || "").trim(), licence: String(v.licence || "").trim(), areas: String(v.areas || "").trim(), address: String(v.agentAddress || "").trim(), city: String(v.agentCity || "").trim(), state: String(v.agentState || "").trim() };
       } else if (role === "landlord") {
-        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); showStep(0); $("#dob", form)?.focus(); return; }
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { showStep(0); say("Enter a valid date of birth."); $("#dob", form)?.focus(); return; }
         patch.homeownerInfo = { phone, dob: v.dob, propertyType: v.propertyType, address: String(v.propertyAddress || "").trim(), city: String(v.propertyCity || "").trim(), state: String(v.propertyState || "").trim(), bedrooms: v.bedrooms, bathrooms: v.bathrooms, size: String(v.propertySize || "").trim(), features: v.propertyFeature || [], rent: Number(v.monthlyRent), leaseDuration: v.leaseDuration, tenantPreference: v.tenantPreference || "", notes: String(v.ownerNotes || "").trim() };
       } else {
-        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { say("Enter a valid date of birth."); showStep(0); $("#dob", form)?.focus(); return; }
+        const dob = new Date(v.dob); if (Number.isNaN(dob.getTime()) || dob >= new Date()) { showStep(0); say("Enter a valid date of birth."); $("#dob", form)?.focus(); return; }
         patch.tenantInfo = { phone, dob: v.dob, address: String(v.tenantAddress || "").trim(), city: String(v.tenantCity || "").trim(), state: String(v.tenantState || "").trim(), propertyType: v.propertyType, bedrooms: v.bedrooms, budget: Number(v.budget), preferredAreas: String(v.preferredAreas || "").trim(), amenities: v.tenantAmenity || [], employment: v.employment || "", moveIn: v.moveIn || "", notes: String(v.tenantNotes || "").trim() };
       }
       next.disabled = true; next.classList.add("loading"); next.textContent = "Saving your details…";
@@ -466,7 +466,7 @@ export function setupPage(ctx) {
             : role === "agent" ? { agentInfo: patch.agentInfo }
               : role === "landlord" ? { homeownerInfo: patch.homeownerInfo }
                 : { tenantInfo: patch.tenantInfo };
-          await saveProfile(ctx.S.user.uid, { role, onboarding, ...roleDetails });
+          await saveProfile(ctx.S.user.uid, { role, onboarding, referralSource: patch.referralSource, referralOther: patch.referralOther, ...roleDetails });
         } else {
           await saveProfile(ctx.S.user.uid, patch);
         }
@@ -475,7 +475,7 @@ export function setupPage(ctx) {
       } catch (e) {
         console.error("Faxton setup submission failed:", e);
         say(e?.message || (e?.code === "permission-denied" ? "We couldn't save your details because the account permissions need updating. Please try again shortly." : "We couldn't save your details. Check your connection and try again."));
-      } finally { next.disabled = false; next.classList.remove("loading"); showStep(current); }
+      } finally { next.disabled = false; next.classList.remove("loading"); next.innerHTML = `${current === panels.length - 1 ? "Finish setup" : "Continue"} ${icon("arrow",19,1.8)}`; }
     };
     showStep(current);
   } };
